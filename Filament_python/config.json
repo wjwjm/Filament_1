@@ -1,0 +1,80 @@
+
+'''
+一、最小可用示例：分物种的“按强度的周期平均”PPT
+有两种等效写法，你任选其一即可（不要混用 E-域 与 I-域 物种）。
+写法 A：model:"ppt" + 每个物种 cycle_avg:true
+要点：
+cycle_avg:true ? 该物种使用强度域 I 的周期平均速率 ?ion(?)
+这样所有物种都在 I-域，可以一起工作；打印时应看到 expects=I。
+"ionization": {
+  "model": "ppt",
+  "quasi_static_time": true,
+  "time_stat": "peak",
+  "beta_rec": 0.0,
+  "sigma_ib": 0.0,
+  "W_cap": 1.0e17,
+  "I_cap": 1.0e21,
+  "species": [
+    { "name":"N2", "model":"ppt", "cycle_avg": true, "Ip_eV": 15.6, "Z":1, "l":0, "m":0, "fraction": 0.78 },
+    { "name":"O2", "model":"ppt", "cycle_avg": true, "Ip_eV": 12.1, "Z":1, "l":0, "m":0, "fraction": 0.21 }
+  ]
+}
+写法 B：直接用 model:"ppt_cycleavg"要点：
+用 ppt_cycleavg 明确声明 I-域。效果与写法 A 一致，避免忘记加 cycle_avg:true。
+复现实验论文（不计雪崩、不计逆轫致）时，建议：beta_rec=0.0，sigma_ib=0.0，不要设置 nu_ei_const（或删掉它）。
+time_stat 建议先用 "peak"（峰值强度），也可对比 "mean_I"。
+
+"ionization": {
+  "model": "ppt_cycleavg",
+  "quasi_static_time": true,
+  "time_stat": "peak",
+  "beta_rec": 0.0,
+  "sigma_ib": 0.0,
+  "W_cap": 1.0e17,
+  "I_cap": 1.0e21,
+  "species": [
+    { "name":"N2", "model":"ppt_cycleavg", "Ip_eV": 15.6, "Z":1, "l":0, "m":0, "fraction": 0.78 },
+    { "name":"O2", "model":"ppt_cycleavg", "Ip_eV": 12.1, "Z":1, "l":0, "m":0, "fraction": 0.21 }
+  ]
+}
+运行时在 Simulation Summary 里应看到：
+Ionization : MIXED ... expects=I（或顶层 Ionization : PPT_CYCLEAVG ...），并且不要出现 nu_ei_const 或 σ_ib>0 的打印。
+
+二、你现在常用的模型 & 支持的参数 （括号内标注输入域：E=需要 |E|；I=需要 I。不要在同一次仿真里混用 E 和 I 的物种）
+
+1) PPT / ADK（E 域）
+关键键：model: "ppt" 或 "adk"Ip_eV (必填，eV)Z, l, m（可选，默认 1,0,0）cycle_avg: false（或不写） ? 仍为 E 域适用于：超快场内电离，用 |E| 进速率。
+
+2) PPT（周期平均，I 域）
+关键键：其一：model:"ppt", cycle_avg:true或：model:"ppt_cycleavg"（无需再写 cycle_avg）仍需要：Ip_eV, Z, l, m 适用于：用 Popruzhenko 等的循环平均速率
+
+3) MPA-FACT（多光子阶乘近似，I 域）
+关键键：model: "mpa_fact" / "mpa_factorial" / "multiphoton_factorial"ell（多光子阶数，例如 N?=11，O?=8）I_mp（标度强度，SI：W/m?）
+你当前常用的就是它；确保顶层或每个物种给出 ell 与 I_mp。
+
+4) POWERLAW / MPA（I 域）
+关键键：model: "powerlaw" / "mpa"
+纯经验/拟合形式。
+
+5) 混合物 species（通用）
+species 是数组：每个元素可有自己的 model、参数和 fraction（体积分数，建议近似和为 1）。
+强约束：所有活跃物种的输入域必须一致（全是 E 或全是 I）。否则代码会抛错（我们已加检查）。
+
+6) 通用开关/上限（所有模型均可）
+quasi_static_time: true/false
+true ? 用 time_stat 指定的时间统计（如 peak/mean），在每个 z 步把 W 当常数推进；
+false ? 全时域逐步演化（更精确更慢）。
+time_stat: "peak", "mean_I", "mean_Esq"（对 I 域建议用 "peak" 或 "mean_I"；对 E 域 "peak" 或 "mean_Esq"）。
+beta_rec: 复合系数（m?/s），飞秒尺度常取 0。
+sigma_ib: 逆轫致截面（m?）；若按论文不计 IB，设为 0 并且不要提供 nu_ei_const。
+nu_ei_const: 常数碰撞频率（s??）；若提供，会被映射成 Drude 型吸收系数并覆盖sigma_ib。按论文应移除。
+W_cap, I_cap: 数值保护上限（电离速率 / 强度钳位）。
+Ip_eV, Z, l, m: 对 PPT/ADK 有效；对 MPA/POWERLAW 无效。
+
+四、常见坑与快速自检
+混用输入域：若某个物种是 ppt（E 域）而另一个是 mpa_fact（I 域），会直接报错；请统一为 I 域（比如把 ppt 改成 ppt_cycleavg 或加 cycle_avg:true）。
+顶层 model 与 species 不一致不会关掉电离：只要 species 非空，就会启用（我们的代码已按此处理）。但建议顶层 model 与实际意图相符，避免误解。
+Ip 打印相同：以前的问题多半来自顶层 Ip 覆盖 species；现在我们在打印里已经优先读 species 自己的 Ip_eV。检查输出应显示 N? 15.6 eV、O? 12.1 eV。
+time_stat 选择：想让 120 fs 相比 40 fs 更“拉曼驱动、提前成丝”，time_stat:"peak" 更能体现峰值主导的驱动；若要“能量主导”，可试 "mean_I"。
+论文条件：不计雪崩、不计 IB ? beta_rec=0、sigma_ib=0、不设 nu_ei_const。
+'''
