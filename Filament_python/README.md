@@ -9,6 +9,16 @@ A modular rewrite of the minimal kHz filamentation baseline:
 
 
 
+
+
+## Dependencies
+
+Install minimal dependencies before running:
+
+```bash
+pip install -r Filament_python/requirements.txt
+```
+
 ## Usage
 
 ```bash
