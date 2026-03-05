@@ -1,0 +1,33 @@
+# Codex local safety guardrails for this repository
+
+[project]
+name = "Filament_1"
+workspace_root = "/workspace/Filament_1"
+
+[safety]
+# Restrict all writes to repository workspace only.
+write_scope = ["/workspace/Filament_1"]
+forbid_outside_workspace_write = true
+forbid_destructive_commands = true
+
+[workflow]
+# Always validate after modifications.
+require_pre_commit_checks = true
+pre_commit_checks = [
+  "python -m compileall Filament_python/KHz_filament",
+  "pytest -q Filament_python/tests/test_sanity.py"
+]
+
+[hpc]
+# Operational reminders for supercomputing usage.
+avoid_long_runs_on_login_node = true
+require_small_case_smoke_test = true
+align_thread_env_with_scheduler = true
+prefer_chunked_or_factorized_modes_for_memory = true
+
+[results]
+# Sanity ranges used for warning-level validation.
+max_energy_relative_growth_warn = 0.10
+max_rho_warn_m3 = 1.0e25
+require_positive_fwhm = true
+require_finite_diagnostics = true
