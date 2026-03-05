@@ -5,6 +5,7 @@
 set -euo pipefail
 
 # 进入脚本所在目录，避免 sbatch 从其它 cwd 提交时找不到配置文件
+
 cd "${SLURM_SUBMIT_DIR:-$(dirname "$0")}"
 
 # 可按需覆盖：CFG/OUT/DTYPE
