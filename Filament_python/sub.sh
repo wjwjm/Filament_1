@@ -4,7 +4,8 @@
 
 set -euo pipefail
 
-# 进入提交目录（Slurm 批处理推荐），兜底到脚本目录
+# 进入脚本所在目录，避免 sbatch 从其它 cwd 提交时找不到配置文件
+
 cd "${SLURM_SUBMIT_DIR:-$(dirname "$0")}"
 
 # 可按需覆盖：CFG/OUT/DTYPE
@@ -76,3 +77,4 @@ if [[ -n "$MAT_DIR" ]]; then
   fi
 fi
 "${CMD[@]}"
+
