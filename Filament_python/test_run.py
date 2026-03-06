@@ -17,6 +17,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dtype", type=str, default="fp32", choices=["fp32", "fp64"], help="Computation dtype")
     p.add_argument("--out", type=str, default="khzfil_out.npz", help="Output npz path")
     p.add_argument("--force-uppe", action="store_true", help="Force linear_model=uppe and disable factorized linear step")
+    p.add_argument("--mat-dir", type=str, default=None, help="If set, convert npz to mat in this directory")
+    p.add_argument("--mat-name", type=str, default=None, help="Output mat file name (default: <out stem>.mat)")
+    p.add_argument("--remove-npz", action="store_true", help="Remove npz after successful npz->mat conversion")
     return p
 
 
@@ -81,6 +84,16 @@ def main() -> int:
         run_demo(grid=grid, beam=beam, prop=prop, ion=ion, heat=heat, run=run, **run_kw)
     else:
         run_demo(**run_kw)
+
+    if args.mat_dir:
+        out_npz = pathlib.Path(args.out)
+        mat_dir = pathlib.Path(args.mat_dir)
+        mat_name = args.mat_name or f"{out_npz.stem}.mat"
+        mat_path = mat_dir / mat_name
+
+        from npz2mat import convert_npz_to_mat
+
+        convert_npz_to_mat(out_npz, mat_path, remove_npz=args.remove_npz)
 
     print(f"[total] {time.perf_counter() - t0:6.2f}s")
     return 0

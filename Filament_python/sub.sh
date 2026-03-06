@@ -12,6 +12,9 @@ cd "${SLURM_SUBMIT_DIR:-$(dirname "$0")}"
 CFG="${CFG:-khz_config.json}"
 OUT="${OUT:-khzfil_out.npz}"
 DTYPE="${DTYPE:-fp32}"
+MAT_DIR="${MAT_DIR:-}"
+MAT_NAME="${MAT_NAME:-}"
+REMOVE_NPZ="${REMOVE_NPZ:-1}"
 
 if [[ ! -f "$CFG" ]]; then
   echo "[fatal] config not found: $CFG"
@@ -63,4 +66,15 @@ except Exception as e:
     sys.exit(1)
 PY
 
-python test_run.py --cfg "$CFG" --gpu --dtype "$DTYPE" --out "$OUT"
+CMD=(python test_run.py --cfg "$CFG" --gpu --dtype "$DTYPE" --out "$OUT")
+if [[ -n "$MAT_DIR" ]]; then
+  CMD+=(--mat-dir "$MAT_DIR")
+  if [[ -n "$MAT_NAME" ]]; then
+    CMD+=(--mat-name "$MAT_NAME")
+  fi
+  if [[ "$REMOVE_NPZ" == "1" ]]; then
+    CMD+=(--remove-npz)
+  fi
+fi
+"${CMD[@]}"
+
