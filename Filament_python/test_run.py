@@ -20,6 +20,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--mat-dir", type=str, default=None, help="If set, convert npz to mat in this directory")
     p.add_argument("--mat-name", type=str, default=None, help="Output mat file name (default: <out stem>.mat)")
     p.add_argument("--remove-npz", action="store_true", help="Remove npz after successful npz->mat conversion")
+    p.add_argument("--verbose-backend", action="store_true", help="Print backend debug details")
     return p
 
 
@@ -55,7 +56,8 @@ def main() -> int:
     from KHz_filament.confio import load_all
     from KHz_filament.device import debug_backend
 
-    print("[backend-debug]", debug_backend())
+    if args.verbose_backend:
+        print("[backend-debug]", debug_backend())
 
     cfg_path = pathlib.Path(args.cfg) if args.cfg else None
     if cfg_path and not cfg_path.exists():

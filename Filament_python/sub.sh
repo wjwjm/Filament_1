@@ -4,8 +4,7 @@
 
 set -euo pipefail
 
-# 进入脚本所在目录，避免 sbatch 从其它 cwd 提交时找不到配置文件
-
+# 进入提交目录（Slurm 批处理推荐），兜底到脚本目录
 cd "${SLURM_SUBMIT_DIR:-$(dirname "$0")}"
 
 # 可按需覆盖：CFG/OUT/DTYPE
@@ -46,23 +45,24 @@ fi
 
 python - <<'PY'
 import os, sys
-print("[env] UPPE_USE_GPU =", os.environ.get("UPPE_USE_GPU"))
-print("[env] CUDA_VISIBLE_DEVICES =", os.environ.get("CUDA_VISIBLE_DEVICES"))
-print("[env] SLURM_CPUS_PER_TASK =", os.environ.get("SLURM_CPUS_PER_TASK"))
 try:
     import cupy as cp
     n = cp.cuda.runtime.getDeviceCount()
-    print("[precheck] CuPy OK. device_count =", n)
     if n > 0:
         dev = cp.cuda.Device()
         props = cp.cuda.runtime.getDeviceProperties(dev.id)
         name = props["name"].decode() if isinstance(props["name"], bytes) else props["name"]
-        print(f"[precheck] using device {dev.id}: {name}")
+        print(
+            f"[预检] 运行环境: UPPE_USE_GPU={os.environ.get('UPPE_USE_GPU')} | "
+            f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES')} | "
+            f"SLURM_CPUS_PER_TASK={os.environ.get('SLURM_CPUS_PER_TASK')} | "
+            f"device_count={n} | using={dev.id}:{name}"
+        )
     else:
-        print("[precheck] NO GPU visible. exit.")
+        print("[预检] 未检测到可见GPU，任务终止。")
         sys.exit(2)
 except Exception as e:
-    print("[precheck] CuPy import/driver FAILED:", e)
+    print(f"[预检] CuPy/驱动初始化失败: {e}")
     sys.exit(1)
 PY
 
@@ -77,4 +77,3 @@ if [[ -n "$MAT_DIR" ]]; then
   fi
 fi
 "${CMD[@]}"
-
