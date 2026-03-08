@@ -9,6 +9,40 @@ A modular rewrite of the minimal kHz filamentation baseline:
 
 
 
+
+
+## Dependencies
+
+Install minimal dependencies before running:
+
+```bash
+pip install -r Filament_python/requirements.txt
+```
+
+
+### NPZ to MATLAB conversion
+
+After simulation, you can convert output `.npz` to `.mat` and optionally delete source `.npz`:
+
+```bash
+python npz2mat.py --npz khzfil_out.npz --mat matlab_output/khzfil_out.mat --remove-npz
+```
+
+For HPC `sub.sh`, NPZ->MAT conversion is enabled by default (`CONVERT_TO_MAT=1`),
+with default output directory `matlab保存数据/` and default `REMOVE_NPZ=1`.
+
+Custom example:
+
+```bash
+sbatch --gpus=1 --export=MAT_DIR=matlab_output,MAT_NAME=run1.mat,REMOVE_NPZ=1 ./sub.sh
+```
+
+Disable conversion when needed:
+
+```bash
+sbatch --gpus=1 --export=CONVERT_TO_MAT=0 ./sub.sh
+```
+
 ## Usage
 
 ```bash

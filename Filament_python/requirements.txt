@@ -1,0 +1,9 @@
+# Core runtime dependencies
+numpy>=1.24
+scipy>=1.10
+
+# Test dependencies
+pytest>=7.0
+
+# Optional GPU backend (install manually to match CUDA version)
+# cupy-cuda12x
