@@ -33,9 +33,14 @@ def convert_npz_to_mat(npz_path: str | Path, mat_path: str | Path, remove_npz: b
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Convert .npz file to MATLAB .mat")
-    p.add_argument("--npz", required=True, help="Input npz file path")
-    p.add_argument("--mat", required=True, help="Output mat file path")
-    p.add_argument("--remove-npz", action="store_true", help="Delete source npz after successful conversion")
+    p.add_argument("--npz", default="khzfil_out.npz", help="Input npz file path")
+    p.add_argument("--mat", default="khzfil_out.mat", help="Output mat file path")
+    p.add_argument(
+        "--remove-npz",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Delete source npz after successful conversion",
+    )
     return p
 
 
