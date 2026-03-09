@@ -224,7 +224,8 @@ end
 
 if isfield(S, 'rho_onaxis_max_z')
     rho = colvec(S.rho_onaxis_max_z);
-    if any(rho > 1e25, 'omitnan')
+    rho_valid = rho(~isnan(rho));
+    if ~isempty(rho_valid) && any(rho_valid > 1e25)
         warns{end+1} = 'rho_onaxis_max_z 超过 ~1e25 m^-3，可能偏离空气中性粒子密度量级。'; %#ok<AGROW>
     end
 end
