@@ -1,0 +1,261 @@
+function summary = diagnose_khzfil_out(matFile)
+%DIAGNOSE_KHZFIL_OUT 诊断 khzfil_out.mat 中光丝关键量随 z 的变化。
+% 用法：
+%   summary = diagnose_khzfil_out('khzfil_out.mat');
+%   summary = diagnose_khzfil_out('matlab_output/khzfil_out.mat');
+%
+% 输出：
+%   summary: 结构体，包含焦点位置、峰值强度、峰值等离子体密度、能量漂移等。
+%
+% 图像：
+%   Figure 1: I_max_z / I_onaxis_max_z / I_center_t0_z
+%   Figure 2: rho_onaxis_max_z / rho_max_z
+%   Figure 3: w_mom_z 及其最小值（焦点估计）
+%   Figure 4: U_z（能量守恒监测）
+%   Figure 5: fwhm_plasma_z / fwhm_fluence_z
+%   Figure 6: rho_onaxis_t_z (z-t 热图，若数据存在)
+
+if nargin < 1 || strlength(string(matFile)) == 0
+    matFile = 'khzfil_out.mat';
+end
+
+S = load(matFile);
+assert(isfield(S, 'z_axis'), '缺少 z_axis，无法做 z 向诊断。');
+z = colvec(S.z_axis);
+z_m = z;
+z_cm = z * 100;
+
+summary = struct();
+summary.file = matFile;
+summary.Nz = numel(z);
+
+% --------- Figure 1: 强度诊断 ---------
+figure('Name', 'Filament diagnostics: intensity vs z', 'Color', 'w');
+tiledlayout(2,1,'TileSpacing','compact','Padding','compact');
+
+nexttile;
+hold on; grid on; box on;
+if isfield(S, 'I_max_z')
+    Imax = sanitize_positive(colvec(S.I_max_z));
+    semilogy(z_cm, Imax, 'LineWidth', 1.8, 'DisplayName', 'I\_max\_z');
+    [summary.I_max_peak, iIp] = max(Imax, [], 'omitnan');
+    if ~isempty(iIp) && ~isnan(summary.I_max_peak)
+        summary.z_Imax_peak_m = z_m(iIp);
+        xline(summary.z_Imax_peak_m*100, '--', 'I_{max} peak', 'LabelVerticalAlignment','middle');
+    end
+end
+if isfield(S, 'I_onaxis_max_z')
+    semilogy(z_cm, sanitize_positive(colvec(S.I_onaxis_max_z)), 'LineWidth', 1.6, 'DisplayName', 'I\_onaxis\_max\_z');
+end
+if isfield(S, 'I_center_t0_z')
+    semilogy(z_cm, sanitize_positive(colvec(S.I_center_t0_z)), 'LineWidth', 1.2, 'DisplayName', 'I\_center\_t0\_z');
+end
+xlabel('z (cm)'); ylabel('Intensity (W/m^2)');
+title('强度相关诊断（对数坐标）'); legend('Location','best');
+
+nexttile;
+hold on; grid on; box on;
+if isfield(S, 'I_max_z')
+    Imaxn = colvec(S.I_max_z) / max(colvec(S.I_max_z), [], 'omitnan');
+    plot(z_cm, Imaxn, 'LineWidth', 1.8, 'DisplayName', 'I\_max\_z / max');
+end
+if isfield(S, 'I_peak_q99_z')
+    q99n = colvec(S.I_peak_q99_z) / max(colvec(S.I_peak_q99_z), [], 'omitnan');
+    plot(z_cm, q99n, 'LineWidth', 1.4, 'DisplayName', 'I\_peak\_q99\_z / max');
+end
+xlabel('z (cm)'); ylabel('Normalized');
+title('峰值与稳峰（归一化）'); legend('Location','best');
+
+% --------- Figure 2: 等离子体密度 ---------
+if isfield(S, 'rho_onaxis_max_z') || isfield(S, 'rho_max_z')
+    figure('Name', 'Filament diagnostics: plasma density vs z', 'Color', 'w');
+    hold on; grid on; box on;
+    if isfield(S, 'rho_onaxis_max_z')
+        rhoOn = sanitize_positive(colvec(S.rho_onaxis_max_z));
+        semilogy(z_cm, rhoOn, 'LineWidth', 1.8, 'DisplayName', '\rho\_onaxis\_max\_z');
+        [summary.rho_onaxis_peak, irp] = max(rhoOn, [], 'omitnan');
+        if ~isempty(irp) && ~isnan(summary.rho_onaxis_peak)
+            summary.z_rho_onaxis_peak_m = z_m(irp);
+        end
+    end
+    if isfield(S, 'rho_max_z')
+        semilogy(z_cm, sanitize_positive(colvec(S.rho_max_z)), 'LineWidth', 1.4, 'DisplayName', '\rho\_max\_z');
+    end
+    if isfield(S, 'rho_peak_q99_z')
+        semilogy(z_cm, sanitize_positive(colvec(S.rho_peak_q99_z)), '--', 'LineWidth', 1.2, 'DisplayName', '\rho\_peak\_q99\_z');
+    end
+    yline(1e25, ':k', '1e25 m^{-3} (air neutral density scale)', 'LabelVerticalAlignment','bottom');
+    xlabel('z (cm)'); ylabel('Electron density (m^{-3})');
+    title('等离子体密度诊断（对数坐标）');
+    legend('Location','best');
+end
+
+% --------- Figure 3: 光斑二阶矩半径 ---------
+if isfield(S, 'w_mom_z')
+    w = colvec(S.w_mom_z);
+    [wmin, iw] = min(w, [], 'omitnan');
+    summary.w_mom_min_m = wmin;
+    summary.z_focus_est_m = z_m(iw);
+
+    figure('Name', 'Filament diagnostics: beam radius vs z', 'Color', 'w');
+    plot(z_cm, w*1e3, 'LineWidth', 1.8); grid on; box on;
+    hold on;
+    plot(z_cm(iw), wmin*1e3, 'ro', 'MarkerFaceColor', 'r', 'DisplayName', 'w_{mom} min');
+    xline(z_cm(iw), '--r', sprintf('focus z = %.2f cm', z_cm(iw)));
+    xlabel('z (cm)'); ylabel('w_{mom} (mm)');
+    title('二阶矩光斑半径（焦点估计）');
+end
+
+% --------- Figure 4: 能量守恒 ---------
+if isfield(S, 'U_z')
+    U = colvec(S.U_z);
+    U0 = U(find(~isnan(U), 1, 'first'));
+    dU = (U - U0) / U0 * 100;
+    summary.U0_J = U0;
+    summary.U_end_J = U(find(~isnan(U), 1, 'last'));
+    summary.U_drift_pct = summary.U_end_J / U0 * 100 - 100;
+
+    figure('Name', 'Filament diagnostics: pulse energy vs z', 'Color', 'w');
+    yyaxis left
+    plot(z_cm, U, 'LineWidth', 1.8);
+    ylabel('U(z) (J)');
+    yyaxis right
+    plot(z_cm, dU, '--', 'LineWidth', 1.3);
+    ylabel('\DeltaU/U_0 (%)');
+    grid on; box on;
+    xlabel('z (cm)');
+    title('脉冲能量与相对漂移');
+end
+
+% --------- Figure 5: FWHM 诊断 ---------
+if isfield(S, 'fwhm_plasma_z') || isfield(S, 'fwhm_fluence_z')
+    figure('Name', 'Filament diagnostics: FWHM vs z', 'Color', 'w');
+    hold on; grid on; box on;
+    if isfield(S, 'fwhm_plasma_z')
+        plot(z_cm, colvec(S.fwhm_plasma_z)*1e6, 'LineWidth', 1.8, 'DisplayName', 'FWHM plasma');
+    end
+    if isfield(S, 'fwhm_fluence_z')
+        plot(z_cm, colvec(S.fwhm_fluence_z)*1e6, 'LineWidth', 1.6, 'DisplayName', 'FWHM fluence');
+    end
+    xlabel('z (cm)'); ylabel('FWHM diameter (\mum)');
+    title('通道横向尺度（FWHM）'); legend('Location','best');
+end
+
+% --------- Figure 6: on-axis rho(t,z) ---------
+if isfield(S, 'rho_onaxis_t_z')
+    figure('Name', 'Filament diagnostics: rho on-axis (z-t map)', 'Color', 'w');
+    rhozt = S.rho_onaxis_t_z;
+    if isfield(S, 't_axis')
+        t = colvec(S.t_axis) * 1e15;
+        imagesc(z_cm, t, log10(max(rhozt.', 1))); axis xy;
+        ylabel('t (fs)');
+    else
+        imagesc(z_cm, 1:size(rhozt,2), log10(max(rhozt.', 1))); axis xy;
+        ylabel('time index');
+    end
+    xlabel('z (cm)');
+    title('log_{10}(\rho_{on-axis}(t,z))');
+    cb = colorbar; cb.Label.String = 'log_{10}(m^{-3})';
+    colormap(turbo);
+end
+
+% --------- 文本报告 ---------
+fprintf('\n========== Filament quick summary ==========' );
+fprintf('\nFile: %s\n', matFile);
+if isfield(summary, 'z_focus_est_m')
+    fprintf('Focus estimate from w_mom min: z = %.4g m (%.3f cm), w_min = %.4g m\n', ...
+        summary.z_focus_est_m, summary.z_focus_est_m*100, summary.w_mom_min_m);
+end
+if isfield(summary, 'I_max_peak')
+    fprintf('I_max peak: %.4e W/m^2 @ z = %.4g m\n', summary.I_max_peak, summary.z_Imax_peak_m);
+end
+if isfield(summary, 'rho_onaxis_peak')
+    fprintf('rho_onaxis peak: %.4e m^-3 @ z = %.4g m\n', summary.rho_onaxis_peak, summary.z_rho_onaxis_peak_m);
+end
+if isfield(summary, 'U_drift_pct')
+    fprintf('Energy drift (end vs start): %.3f %%\n', summary.U_drift_pct);
+end
+
+warns = sanity_checks(S, z_m);
+if ~isempty(warns)
+    fprintf('\n[Sanity warnings]\n');
+    for k = 1:numel(warns)
+        fprintf(' - %s\n', warns{k});
+    end
+end
+fprintf('============================================\n\n');
+
+end
+
+function x = colvec(x)
+    x = x(:);
+end
+
+function y = sanitize_positive(y)
+    y = y(:);
+    y(y <= 0) = NaN;
+end
+
+function warns = sanity_checks(S, z)
+% 基于项目 README 的“合理性包络”给出轻量报警。
+warns = {};
+
+if isfield(S, 'U_z')
+    U = colvec(S.U_z);
+    U = U(~isnan(U));
+    if numel(U) >= 2
+        rel = (U(end) - U(1)) / U(1);
+        if rel > 0.10
+            warns{end+1} = sprintf('U_z 相对起点增长 %.1f%% (>10%%)，建议检查步长/增益项设置。', rel*100); %#ok<AGROW>
+        end
+    end
+end
+
+if isfield(S, 'I_max_z')
+    I = colvec(S.I_max_z);
+    I = I(~isnan(I) & I>0);
+    if numel(I) >= 3
+        jump = I(2:end) ./ I(1:end-1);
+        if any(jump > 10)
+            warns{end+1} = 'I_max_z 出现相邻步 >10x 跳变，建议排查 dz、裁剪和边界设置。'; %#ok<AGROW>
+        end
+    end
+end
+
+if isfield(S, 'rho_onaxis_max_z')
+    rho = colvec(S.rho_onaxis_max_z);
+    if any(rho > 1e25, 'omitnan')
+        warns{end+1} = 'rho_onaxis_max_z 超过 ~1e25 m^-3，可能偏离空气中性粒子密度量级。'; %#ok<AGROW>
+    end
+end
+
+if isfield(S, 'w_mom_z')
+    w = colvec(S.w_mom_z);
+    if any(diff(sign(diff(w(~isnan(w))))) ~= 0)
+        % 非严格报警：有振荡趋势时提示用户关注
+        osc = sum(abs(diff(sign(diff(w(~isnan(w)))))) > 0);
+        if osc > max(5, 0.1*numel(w))
+            warns{end+1} = 'w_mom_z 变化振荡偏多，建议减小 dz 或检查边界反射。'; %#ok<AGROW>
+        end
+    end
+end
+
+if isfield(S, 'fwhm_plasma_z')
+    fp = colvec(S.fwhm_plasma_z);
+    if any(fp <= 0 | isnan(fp))
+        warns{end+1} = 'fwhm_plasma_z 存在 <=0 或 NaN，建议检查阈值与诊断计算。'; %#ok<AGROW>
+    end
+end
+if isfield(S, 'fwhm_fluence_z')
+    ff = colvec(S.fwhm_fluence_z);
+    if any(ff <= 0 | isnan(ff))
+        warns{end+1} = 'fwhm_fluence_z 存在 <=0 或 NaN，建议检查阈值与诊断计算。'; %#ok<AGROW>
+    end
+end
+
+if nargin >= 2 && ~isempty(z)
+    if any(diff(z) <= 0)
+        warns{end+1} = 'z_axis 非严格递增，可能导致曲线解释错误。'; %#ok<AGROW>
+    end
+end
+end
