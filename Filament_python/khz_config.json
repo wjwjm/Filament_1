@@ -11,10 +11,10 @@
     "lam0": 8.00e-07,
     "n0": 1.00027,
     "w0": 1.979e-3,
-    "tau_fwhm": 120e-15,
+    "tau_fwhm": 40e-15,
     "E0_peak": 0.0,
-    "energy_J": 2.196e-3,
-    "P0_peak": null,
+    "energy_J": null,
+    "P0_peak": 17e9,
     "focal_length": 0.95,
      "n2_air":0.78e-23
   },
@@ -25,7 +25,7 @@
     "precheck_kerr": true,
     "max_precheck_iter": 8,
     "use_self_steepening": true, "full_linear_factorize": false, "self_steepening_method": "tdiff",
-    "progress_every_z": 100, "show_eta": true,
+    "progress_every_z": 250, "show_eta": true,
     "shrink_factor": 0.5,
     "max_linear_phase": 0.8, "max_alpha_dz": 0.2, "max_kerr_phase": 0.3, "imax_growth_limit": 0.5,
     "shock_chunk_pixels": 65536,
@@ -42,8 +42,8 @@
   },
 "ionization": {
   "species": [
-    {"name":"N2","rate":"ppt_i","Ip_eV":15.6,"Z":1,"fraction":0.78,"a_gamma":0.75},
-    {"name":"O2","rate":"ppt_i","Ip_eV":12.1,"Z":1,"fraction":0.21,"a_gamma":0.75}
+    {"name":"N2","rate":"ppt_i","Ip_eV":15.6,"Z":1,"fraction":0.8,"a_gamma":0},
+    {"name":"O2","rate":"ppt_i","Ip_eV":12.1,"Z":1,"fraction":0.2,"a_gamma":0}
   ],
   "time_mode": "qs_mean",
   "integrator": "rk4",
