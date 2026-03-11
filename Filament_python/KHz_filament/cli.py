@@ -21,7 +21,7 @@ def _linear_advance(E, dz, *, axes, kperp2, k0, prop,beam):
     """
     if abs(float(dz)) < 1e-16:
         return E
-    from .linear import lin_propagator, step_linear
+    from .linear import lin_propagator, step_linear, step_linear_bk_nee_factorized
     from .linear_full import step_linear_full_factorized, step_linear_full_3d
 
     linear_model = str(getattr(prop, "linear_model", "uppe")).lower()
@@ -42,6 +42,18 @@ def _linear_advance(E, dz, *, axes, kperp2, k0, prop,beam):
             return step_linear_full_factorized(E, K02_w, kperp2, dz)
         else:
             return step_linear_full_3d(E, K02_w, kperp2, dz)
+    elif linear_model == "bk_nee":
+        omega0 = 2.0 * xp.pi * c0 / float(getattr(beam, "lam0"))
+        return step_linear_bk_nee_factorized(
+            E,
+            Omega=axes.Omega,
+            kperp2=kperp2,
+            k0=k0,
+            omega0=omega0,
+            dz=dz,
+            beta2=float(getattr(prop, "nee_beta2", 0.0)),
+            denom_floor=float(getattr(prop, "nee_denom_floor", 1e-4)),
+        )
     else:
         prop_x = lin_propagator(kperp2, k0, dz, ctype=E.dtype)
         return step_linear(E, prop_x)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from .device import xp
-from .linear import lin_propagator, step_linear
+from .linear import lin_propagator, step_linear, step_linear_bk_nee_factorized
 from .ionization import (
     intensity as inten_ion,
     make_Wfunc,
@@ -15,11 +15,21 @@ from .constants import c0
 from .raman import make_raman_kernel, precompute_kernel_fft, raman_convolve_intensity
 from .diagnostics import intensity, pulse_energy, second_moment_radius,_fwhm_time_1d,parabola_peak,_fwhm_diameter_xy_center
 
-def _linear_phase_per_meter(linear_model, k0, axes, K02_w=None):
+def _linear_phase_per_meter(linear_model, k0, axes, K02_w=None, omega0=None, nee_denom_floor=1e-4):
     """返回线性传播子对应的 |kz| (rad/m) 的 max 值，用于估计 Δφ_linear = kz_max * dz"""
     if linear_model == "paraxial":
         # 相位：exp(i * (-k⊥^2) dz / (2 k0))，幅角/米 = k⊥^2 / (2 k0)
         kz_abs_max = float(xp.max(axes.kperp2) / (2.0 * k0))
+    elif linear_model == "bk_nee":
+        # Brabec–Krausz NEE 线性项主导的横向衍射相位估计
+        if omega0 is None:
+            omega0 = float(getattr(axes, "omega0"))
+        rel = axes.Omega / float(omega0)
+        denom = 1.0 + rel
+        denom_abs = xp.maximum(xp.abs(denom), float(nee_denom_floor))
+        denom_sign = xp.where(denom >= 0.0, 1.0, -1.0)
+        denom = denom_sign * denom_abs
+        kz_abs_max = float(xp.max(xp.abs(axes.kperp2[None, ...] / (2.0 * k0 * denom[:, None, None]))))
     else:  # UPPE
         # K02_w = (n(ω) ω / c)^2, kz = sqrt(K02_w - k⊥^2)；取实部的最大值
         if K02_w is None:
@@ -121,7 +131,10 @@ def propagate_one_pulse(
 
 
     # ---------- 线性分支 ----------
-    use_uppe = (str(getattr(p, "linear_model", "uppe")).lower() == "uppe")
+    linear_model = str(getattr(p, "linear_model", "uppe")).lower()
+    use_uppe = (linear_model == "uppe")
+    use_bk_nee = (linear_model == "bk_nee")
+
     if use_uppe:
         Omega = axes.Omega
         omega_tot = omega0 + Omega
@@ -216,6 +229,17 @@ def propagate_one_pulse(
                 E = step_linear_full_factorized(E, K02_w, kperp2, dz_try / 2)
             else:
                 E = step_linear_full_3d(E, K02_w, kperp2, dz_try / 2)
+        elif use_bk_nee:
+            E = step_linear_bk_nee_factorized(
+                E,
+                Omega=axes.Omega,
+                kperp2=kperp2,
+                k0=k0,
+                omega0=omega0,
+                dz=dz_try / 2,
+                beta2=float(getattr(p, "nee_beta2", 0.0)),
+                denom_floor=float(getattr(p, "nee_denom_floor", 1e-4)),
+            )
         else:
             prop_xh = xp.sqrt(lin_propagator(kperp2, k0, dz_try, ctype=ctype)).astype(ctype)
             E = step_linear(E, prop_xh)
@@ -394,6 +418,17 @@ def propagate_one_pulse(
                 E = step_linear_full_factorized(E, K02_w, kperp2, dz_try / 2)
             else:
                 E = step_linear_full_3d(E, K02_w, kperp2, dz_try / 2)
+        elif use_bk_nee:
+            E = step_linear_bk_nee_factorized(
+                E,
+                Omega=axes.Omega,
+                kperp2=kperp2,
+                k0=k0,
+                omega0=omega0,
+                dz=dz_try / 2,
+                beta2=float(getattr(p, "nee_beta2", 0.0)),
+                denom_floor=float(getattr(p, "nee_denom_floor", 1e-4)),
+            )
         else:
             prop_xh = xp.sqrt(lin_propagator(kperp2, k0, dz_try, ctype=ctype)).astype(ctype)
             E = step_linear(E, prop_xh)

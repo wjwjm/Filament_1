@@ -19,7 +19,7 @@
      "n2_air":0.78e-23
   },
   "propagation": {
-    "linear_model": "uppe", "z_max": 1.3 , "dz": 0.1e-03,
+    "linear_model": "bk_nee", "z_max": 1.3 , "dz": 0.1e-03,
     "strang": true, "linear_chunk_t": 8,
     "auto_substep": false, "dz_min": 2.5e-5, "grow_factor": 1.5,
     "precheck_kerr": true,
