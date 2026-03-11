@@ -1,0 +1,6 @@
+# Enforce Unix line endings for scripts/config used on Linux HPC clusters
+*.sh text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.json text eol=lf

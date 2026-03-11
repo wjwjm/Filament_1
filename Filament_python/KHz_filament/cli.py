@@ -10,7 +10,7 @@ from .utils import gaussian_beam_xy, gaussian_pulse_t
 from .diagnostics import intensity, peak_intensity, pulse_energy, save_npz
 from .propagate import propagate_one_pulse
 from .heat import diffuse_dn_gas
-from .confio import E0_from_energy
+from .confio import E0_from_energy, E0_from_peak_intensity
 import dataclasses
 
 
@@ -77,7 +77,8 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     fL   = getattr(beam, "focal_length", None)
     fL_s = f"{float(fL):.3f} m" if fL else "(none)"
     E0p  = float(getattr(beam, "E0_peak", 0.0))
-    Ucfg = float(getattr(beam, "energy_J", 0.0))
+    Ucfg = float(getattr(beam, "energy_J", 0.0) or 0.0)
+    I0cfg = getattr(beam, "I0_peak", None)
 
     I0  = intensity(E, n0)
     Uin = float(pulse_energy(I0, dt, dx, dy))
@@ -200,27 +201,29 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
         return f"{s}{unit}"
 
     print("\n=== Simulation Summary ===========================================")
-    print(f"Backend     : {backend}{dev_extra} | dtype={dtype_str}")
-    print(f"Grid (XYZT) : Nx={Nx}, Ny={Ny}, Nt={Nt} | Lx={fmt(Lx,' m')}, Ly={fmt(Ly,' m')}, Twin={fmt(Twin,' s')}")
-    print(f"Steps (z)   : z_max={fmt(z_max,' m')}, dz={fmt(dz,' m')} | AutoSubstep={onoff(auto)} (dz_min={fmt(dzmin,' m')}, grow×{fmt(grow)})")
-    print(f"Safety      : mode={safety_mode.upper()} | precheck_kerr={onoff(precheck_kerr)} max_iter={max_pre_iter}")
+    print(f"Backend(后端)        : {backend}{dev_extra} | dtype={dtype_str}  # 计算设备与精度")
+    print(f"Grid(网格)           : Nx={Nx}, Ny={Ny}, Nt={Nt} | Lx={fmt(Lx,' m')}, Ly={fmt(Ly,' m')}, Twin={fmt(Twin,' s')}  # 时空采样规模")
+    print(f"Steps(z步进)         : z_max={fmt(z_max,' m')}, dz={fmt(dz,' m')} | AutoSubstep={onoff(auto)} (dz_min={fmt(dzmin,' m')}, grow×{fmt(grow)})  # 传播步长控制")
+    print(f"Safety(稳定性)       : mode={safety_mode.upper()} | precheck_kerr={onoff(precheck_kerr)} max_iter={max_pre_iter}  # 数值安全设置")
     if focus_step:
         zc = "None" if (z_center is None) else f"{float(z_center):.3f} m"
-        print(f"FocusWin    : {onoff(True)} center={zc} halfwidth={fmt(z_half,' m')} dz_focus={fmt(dz_focus,' m')}")
+        print(f"FocusWin(焦区加密)   : {onoff(True)} center={zc} halfwidth={fmt(z_half,' m')} dz_focus={fmt(dz_focus,' m')}  # 焦点附近细步长")
     else:
-        print(f"FocusWin    : OFF")
-    print(f"Thresholds  : lin_phase≤{th_lin}, alpha·dz≤{th_abs}, kerr_phase≤{th_kerr}, Imax_growth≤{g_lim*100:.0f}%")
-    print(f"Linear      : model={linear_model} | factorize={onoff(factorize)} | chunk_t={chunk_t}")
-    print(f"Lens        : {lens_mode} | f={fL_s} | lens_chunk_t={lens_chunk_t}")
-    print(f"Beam        : λ0={fmt(lam0,' m')} n0={fmt(n0)} w0={fmt(w0,' m')} τ_FWHM={fmt(tau,' s')}")
-    print(f"Energy      : config={fmt(Ucfg,' J')} | actual (after norm)={fmt(Uin,' J')} | E0_peak={fmt(E0p,' V/m')}")
-    print(f"Repetition  : f_rep={fmt(float(getattr(heat,'f_rep',0.0)),' Hz')} | pulses={int(getattr(run,'Npulses',1))}")
-    print(f"Kerr        : {onoff(kerr_on)}  n2={fmt(n2_used,' m^2/W')} | P_cr≈{fmt(Pcr,' W')}")
-    print(f"Self-steep. : {onoff(use_shock)}  method={shock_method}  chunk_px={shock_chunk}")
+        print(f"FocusWin(焦区加密)   : OFF  # 关闭焦区细步长")
+    print(f"Thresholds(阈值)      : lin_phase≤{th_lin}, alpha·dz≤{th_abs}, kerr_phase≤{th_kerr}, Imax_growth≤{g_lim*100:.0f}%  # 自适应/回退判据")
+    print(f"Linear(线性传播)      : model={linear_model} | factorize={onoff(factorize)} | chunk_t={chunk_t}  # 线性算子设置")
+    print(f"Lens(透镜)           : {lens_mode} | f={fL_s} | lens_chunk_t={lens_chunk_t}  # 聚焦模型")
+    print(f"Beam(入射光束)       : λ0={fmt(lam0,' m')} n0={fmt(n0)} w0={fmt(w0,' m')} τ_FWHM={fmt(tau,' s')}  # 初始脉冲参数")
+    print(f"Energy(能量)         : config={fmt(Ucfg,' J')} | actual(after norm)={fmt(Uin,' J')} | E0_peak={fmt(E0p,' V/m')}  # 目标与归一化")
+    if I0cfg is not None:
+        print(f"I0_peak(峰值强度)    : {fmt(float(I0cfg),' W/m^2')}  # 与 energy_J 二选一")
+    print(f"Repetition(重频)      : f_rep={fmt(float(getattr(heat,'f_rep',0.0)),' Hz')} | pulses={int(getattr(run,'Npulses',1))}  # 脉冲序列")
+    print(f"Kerr(克尔效应)       : {onoff(kerr_on)}  n2={fmt(n2_used,' m^2/W')} | P_cr≈{fmt(Pcr,' W')}  # 自聚焦关键参数")
+    print(f"Self-steep.(自陡峭)   : {onoff(use_shock)}  method={shock_method}  chunk_px={shock_chunk}  # 脉冲前沿陡化")
     # print(f"Raman       : {'ON ' if raman_on else 'OFF'}" + (f"  f_R={fmt(fR)}  model={raman_model}  T2={fmt(T2,' s')}  T_R={fmt(TR,' s')}  method={raman_method}  chunk_px={raman_chunk}" if raman_on else ""))
     print(
         f"Raman       : {'ON ' if raman_on else 'OFF'} f_R={fmt(fR)}  model={raman_model}  T2={fmt(T2, ' s')}  T_R={fmt(TR, ' s')}  method={raman_method}  chunk_px={raman_chunk}")
-    print(f"  Absorption: {'ON ' if absorption_on else 'OFF'}  scheme={absorption_model}")
+    print(f"  Absorption(吸收)   : {'ON ' if absorption_on else 'OFF'}  scheme={absorption_model}  # 拉曼吸收模型")
     if absorption_model == "closed_form":
         wR = fmt(omega_R, ' s^-1') if omega_R is not None else '(auto)'
         gR = fmt(Gamma_R, ' s^-1') if Gamma_R is not None else '(auto)'
@@ -248,9 +251,9 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
                 has_ppt_i = True
 
         exp_tag = "mixed" if (len(exp_set) > 1) else (next(iter(exp_set)) if exp_set else "none")
-        print(f"Ionization  : SPECIES({len(species)})  caps: W≤{fmt(W_cap,' s^-1')}, I≤{fmt(I_cap,' W/m^2')}  expects={exp_tag}")
+        print(f"Ionization(电离)      : SPECIES({len(species)})  caps: W≤{fmt(W_cap,' s^-1')}, I≤{fmt(I_cap,' W/m^2')}  expects={exp_tag}  # 电离输入域")
 
-        print(f"  Species   :")
+        print(f"  Species(组分)      :")
         for sp in species:
             name = _g(sp, "name", "?")
             frac = float(_g(sp, "fraction", 1.0))
@@ -297,17 +300,17 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
 
         # Time-mode / integrator / extra params
         if time_mode.startswith("qs_"):
-            print(f"  TimeMode  : QS ({time_mode[3:]})  mean_clip={mean_clip}")
+            print(f"  TimeMode(时间近似) : QS ({time_mode[3:]})  mean_clip={mean_clip}  # 准稳态近似")
         else:
-            print(f"  TimeMode  : FULL  integrator={integrator.upper()}")
+            print(f"  TimeMode(时间近似) : FULL  integrator={integrator.upper()}  # 全时域积分")
 
         if has_ppt_i:
-            print(f"  CycleAvg  : samples={cav_samples}  (for PPT_I)")
+            print(f"  CycleAvg(周期平均) : samples={cav_samples}  (for PPT_I)  # 周期采样数")
 
         if nu_ei_const is not None:
-            print(f"  Drude ν_ei: {fmt(float(nu_ei_const),' s^-1')}")
+            print(f"  Drude ν_ei(碰撞频) : {fmt(float(nu_ei_const),' s^-1')}")
 
-        print(f"  Drude/IB  : β_rec={fmt(beta_rec, ' m^3/s')}  σ_ib={fmt(sigma_ib, ' m^2')}")
+        print(f"  Drude/IB(等离子体) : β_rec={fmt(beta_rec, ' m^3/s')}  σ_ib={fmt(sigma_ib, ' m^2')}  # 复合与吸收")
 
     else:
         # 兼容：若用户没有提供 species（不推荐），回退到旧打印
@@ -325,8 +328,8 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
         else:
             print("Ionization  : OFF")
         if nu_ei_const is not None:
-            print(f"  Drude ν_ei: {fmt(float(nu_ei_const),' s^-1')}")
-        print(f"  Drude/IB  : β_rec={fmt(beta_rec, ' m^3/s')}  σ_ib={fmt(sigma_ib, ' m^2')}")
+            print(f"  Drude ν_ei(碰撞频) : {fmt(float(nu_ei_const),' s^-1')}")
+        print(f"  Drude/IB(等离子体) : β_rec={fmt(beta_rec, ' m^3/s')}  σ_ib={fmt(sigma_ib, ' m^2')}  # 复合与吸收")
 
     guard_en    = bool(getattr(prop, "energy_guard_enabled", True))
     guard_every = int(getattr(prop, "energy_guard_every", 50))
@@ -334,8 +337,8 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     blowup_fac  = float(getattr(prop, "energy_guard_blowup", 50.0))
     diag_extra  = bool(getattr(prop, "diag_extra", False))
 
-    print(f"EnergyGuard : {onoff(guard_en)} every={guard_every} skip-first={guard_skip}× | blowup×{fmt(blowup_fac)}")
-    print(f"Diagnostics : extra={onoff(diag_extra)}")
+    print(f"EnergyGuard(能量守护): {onoff(guard_en)} every={guard_every} skip-first={guard_skip}× | blowup×{fmt(blowup_fac)}  # 异常能量监测")
+    print(f"Diagnostics(诊断输出): extra={onoff(diag_extra)}  # 扩展诊断开关")
     print("===================================================================\n")
 
 
@@ -409,11 +412,19 @@ def run_demo(
     k0 = beam.n0 * omega0 / c0
     axes = make_axes(grid.Nx, grid.Ny, grid.Nt, grid.Lx, grid.Ly, grid.Twin)
 
-    if (getattr(beam, "E0_peak", 0.0) == 0.0) and (getattr(beam, "energy_J", None) is not None):
+    has_energy = getattr(beam, "energy_J", None) is not None
+    has_i0 = getattr(beam, "I0_peak", None) is not None
+    if has_energy and has_i0:
+        raise ValueError("Beam energy_J and I0_peak are mutually exclusive; please keep only one.")
+
+    if (getattr(beam, "E0_peak", 0.0) == 0.0) and has_energy:
         beam.E0_peak = E0_from_energy(float(beam.energy_J), float(beam.w0), float(beam.tau_fwhm), float(beam.n0))
         print(f"[derive] E0_peak <= 0, derived from energy_J: E0_peak={beam.E0_peak:.3e} V/m")
+    elif (getattr(beam, "E0_peak", 0.0) == 0.0) and has_i0:
+        beam.E0_peak = E0_from_peak_intensity(float(beam.I0_peak), float(beam.n0))
+        print(f"[derive] E0_peak <= 0, derived from I0_peak: E0_peak={beam.E0_peak:.3e} V/m")
     elif getattr(beam, "E0_peak", 0.0) == 0.0:
-        raise ValueError("Beam E0_peak is 0 and no energy_J provided; cannot build input field.")
+        raise ValueError("Beam E0_peak is 0 and no energy_J/I0_peak provided; cannot build input field.")
 
     E_xy = gaussian_beam_xy(axes.x, axes.y, beam.w0)[None, ...]
     E_t  = gaussian_pulse_t(axes.t, beam.tau_fwhm)

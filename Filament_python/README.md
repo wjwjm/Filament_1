@@ -9,6 +9,40 @@ A modular rewrite of the minimal kHz filamentation baseline:
 
 
 
+
+
+## Dependencies
+
+Install minimal dependencies before running:
+
+```bash
+pip install -r Filament_python/requirements.txt
+```
+
+
+### NPZ to MATLAB conversion
+
+After simulation, you can convert output `.npz` to `.mat` and optionally delete source `.npz`:
+
+```bash
+python npz2mat.py --npz khzfil_out.npz --mat matlab_output/khzfil_out.mat --remove-npz
+```
+
+For HPC `sub.sh`, NPZ->MAT conversion is enabled by default (`CONVERT_TO_MAT=1`),
+with default output directory `matlab保存数据/` and default `REMOVE_NPZ=1`.
+
+Custom example:
+
+```bash
+sbatch --gpus=1 --export=MAT_DIR=matlab_output,MAT_NAME=run1.mat,REMOVE_NPZ=1 ./sub.sh
+```
+
+Disable conversion when needed:
+
+```bash
+sbatch --gpus=1 --export=CONVERT_TO_MAT=0 ./sub.sh
+```
+
 ## Usage
 
 ```bash
@@ -158,7 +192,12 @@ paraxial：窄带、弱色散/短程近轴场景，速度快。
 
 f (focal_length)：薄透镜焦距，初始化时注入 相位 exp[-i k0 (x2+y2)/(2f)]。
 
-E0_peak / energy_J：给定任一项，程序会自动归一化到目标能量。
+E0_peak / energy_J / I0_peak：支持三种输入方式。
+
+- `energy_J` 与 `I0_peak` 必须二选一（不能同时给）。
+- 若给 `E0_peak`，则直接使用该电场峰值。
+- 若给 `energy_J`，程序先反推 `E0_peak`，再做能量归一化。
+- 若给 `I0_peak`（峰值强度，W/m^2，位于 r=0,t=0），程序先反推 `E0_peak`。
 
 常见范围
 
@@ -177,6 +216,8 @@ E0_peak：归一化后对应的峰值电场（V/m）。
 提示
 
 若设了 energy_J，会自动按 (U_target/U_now)^0.5 缩放初场。
+
+若设了 I0_peak（且未给 energy_J），则不会做能量目标归一化。
 
 能量哨兵会在传播中定期检查能量是否异常增长。
 
@@ -314,7 +355,7 @@ GPU 显存
 
 grid：Nx, Ny, Lx, Ly, Nt, Twin
 
-beam：lam0, n0, w0, tau_fwhm, E0_peak | energy_J, focal_length
+beam：lam0, n0, w0, tau_fwhm, E0_peak | (energy_J xor I0_peak), focal_length
 
 propagation：
 
