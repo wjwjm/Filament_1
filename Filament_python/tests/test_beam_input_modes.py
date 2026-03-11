@@ -15,7 +15,7 @@ def _base_cfg():
             "tau_fwhm": 50e-15,
             "E0_peak": 0.0,
             "energy_J": None,
-            "I0_peak": None,
+            "P0_peak": None,
             "focal_length": 0.3,
         },
         "propagation": {"z_max": 1e-3, "dz": 1e-4},
@@ -26,9 +26,9 @@ def _base_cfg():
     }
 
 
-def test_beam_derive_from_i0_peak(tmp_path):
+def test_beam_derive_from_p0_peak(tmp_path):
     cfg = _base_cfg()
-    cfg["beam"]["I0_peak"] = 1e16
+    cfg["beam"]["P0_peak"] = 1e9
     p = tmp_path / "cfg.json"
     p.write_text(json.dumps(cfg), encoding="utf-8")
 
@@ -36,10 +36,10 @@ def test_beam_derive_from_i0_peak(tmp_path):
     assert beam.E0_peak > 0.0
 
 
-def test_beam_energy_i0_mutually_exclusive(tmp_path):
+def test_beam_energy_p0_mutually_exclusive(tmp_path):
     cfg = _base_cfg()
     cfg["beam"]["energy_J"] = 1e-3
-    cfg["beam"]["I0_peak"] = 1e16
+    cfg["beam"]["P0_peak"] = 1e9
     p = tmp_path / "cfg.json"
     p.write_text(json.dumps(cfg), encoding="utf-8")
 

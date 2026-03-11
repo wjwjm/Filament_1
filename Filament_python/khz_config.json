@@ -13,8 +13,8 @@
     "w0": 1.979e-3,
     "tau_fwhm": 120e-15,
     "E0_peak": 0.0,
-    "energy_J": null,
-    "I0_peak": 17e9,
+    "energy_J": 2.196e-3,
+    "P0_peak": null,
     "focal_length": 0.95,
      "n2_air":0.78e-23
   },

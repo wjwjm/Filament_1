@@ -58,12 +58,15 @@ def E0_from_energy(U: float, w0: float, tau_fwhm: float, n0: float) -> float:
     return float((U / (pref * space * time))**0.5)
 
 
-def E0_from_peak_intensity(I0_peak: float, n0: float) -> float:
-    """由峰值强度 I0_peak（r=0,t=0）反推峰值电场 E0_peak。"""
-    return float((2.0 * I0_peak / (eps0 * c0 * n0)) ** 0.5)
+def E0_from_peak_power(P0_peak: float, w0: float, n0: float) -> float:
+    """由峰值功率 P0_peak（t=0 时横截面积分）反推峰值电场 E0_peak。"""
+    import math
+    pref = 0.5 * eps0 * c0 * n0
+    area_eff = math.pi * (w0 ** 2) / 2.0
+    return float((P0_peak / (pref * area_eff)) ** 0.5)
 
 def _apply_deriveds(raw: Dict[str, Any]) -> Dict[str, Any]:
-    """根据用户给的简写/派生量补齐配置，例如由 energy_J 或 I0_peak 推回 E0_peak。"""
+    """根据用户给的简写/派生量补齐配置，例如由 energy_J 或 P0_peak 推回 E0_peak。"""
     out = dict(raw)
     # 补 Twin
     if "grid" in out:
@@ -74,10 +77,10 @@ def _apply_deriveds(raw: Dict[str, Any]) -> Dict[str, Any]:
             if tau_fwhm is not None:
                 g["Twin"] = 8.0 * float(tau_fwhm)
 
-    # 由能量/峰值强度推 E0_peak（仅在 E0_peak 未直接给定时）
+    # 由能量/峰值功率推 E0_peak（仅在 E0_peak 未直接给定时）
     if "beam" in out:
         b = out["beam"] = dict(out["beam"])
-        for k in ("w0", "tau_fwhm", "n0", "energy_J", "I0_peak", "E0_peak"):
+        for k in ("w0", "tau_fwhm", "n0", "energy_J", "P0_peak", "I0_peak", "E0_peak"):
             if k in b:
                 try:
                     b[k] = float(b[k])
@@ -86,10 +89,15 @@ def _apply_deriveds(raw: Dict[str, Any]) -> Dict[str, Any]:
 
         need_E0 = (float(b.get("E0_peak", 0.0)) == 0.0)
         has_energy = (b.get("energy_J", None) is not None)
-        has_i0 = (b.get("I0_peak", None) is not None)
+        has_p0 = (b.get("P0_peak", None) is not None)
+        has_i0_legacy = (b.get("I0_peak", None) is not None)
 
-        if has_energy and has_i0:
-            raise ValueError("beam.energy_J and beam.I0_peak are mutually exclusive; please keep only one.")
+        if has_energy and has_p0:
+            raise ValueError("beam.energy_J and beam.P0_peak are mutually exclusive; please keep only one.")
+        if has_energy and has_i0_legacy:
+            raise ValueError("beam.energy_J and beam.I0_peak are mutually exclusive; please use only one input mode.")
+        if has_p0 and has_i0_legacy:
+            raise ValueError("beam.P0_peak and legacy beam.I0_peak cannot both be set.")
 
         if need_E0 and has_energy:
             has_all = all(k in b for k in ("energy_J", "w0", "tau_fwhm", "n0"))
@@ -101,11 +109,22 @@ def _apply_deriveds(raw: Dict[str, Any]) -> Dict[str, Any]:
                     float(b["n0"]),
                 )
 
-        if need_E0 and has_i0:
-            has_all = all(k in b for k in ("I0_peak", "n0"))
+        if need_E0 and has_p0:
+            has_all = all(k in b for k in ("P0_peak", "w0", "n0"))
             if has_all:
-                b["E0_peak"] = E0_from_peak_intensity(
+                b["E0_peak"] = E0_from_peak_power(
+                    float(b["P0_peak"]),
+                    float(b["w0"]),
+                    float(b["n0"]),
+                )
+
+        # 兼容旧键：I0_peak 现在按“峰值功率”解释（不再按强度）
+        if need_E0 and has_i0_legacy:
+            has_all = all(k in b for k in ("I0_peak", "w0", "n0"))
+            if has_all:
+                b["E0_peak"] = E0_from_peak_power(
                     float(b["I0_peak"]),
+                    float(b["w0"]),
                     float(b["n0"]),
                 )
 

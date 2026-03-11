@@ -10,7 +10,7 @@ from .utils import gaussian_beam_xy, gaussian_pulse_t
 from .diagnostics import intensity, peak_intensity, pulse_energy, save_npz
 from .propagate import propagate_one_pulse
 from .heat import diffuse_dn_gas
-from .confio import E0_from_energy, E0_from_peak_intensity
+from .confio import E0_from_energy, E0_from_peak_power
 import dataclasses
 
 
@@ -90,7 +90,8 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     fL_s = f"{float(fL):.3f} m" if fL else "(none)"
     E0p  = float(getattr(beam, "E0_peak", 0.0))
     Ucfg = float(getattr(beam, "energy_J", 0.0) or 0.0)
-    I0cfg = getattr(beam, "I0_peak", None)
+    P0cfg = getattr(beam, "P0_peak", None)
+    I0legacy = getattr(beam, "I0_peak", None)
 
     I0  = intensity(E, n0)
     Uin = float(pulse_energy(I0, dt, dx, dy))
@@ -148,6 +149,20 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
 
 
     else:
+        fR = 0.0
+        T2 = 0.0
+        TR = 0.0
+        raman_model = "off"
+        raman_method = "off"
+        raman_chunk = 0
+        absorption_model = "off"
+        absorption_on = False
+        omega_R = None
+        Gamma_R = None
+        tau_fwhm_cfg = None
+        n_rot_frac = None
+        R0_mode = "off"
+        R0_fixed = None
         print(f"Raman       : OFF")
 
     # ------- Ionization config -------
@@ -227,8 +242,10 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     print(f"Lens(透镜)           : {lens_mode} | f={fL_s} | lens_chunk_t={lens_chunk_t}  # 聚焦模型")
     print(f"Beam(入射光束)       : λ0={fmt(lam0,' m')} n0={fmt(n0)} w0={fmt(w0,' m')} τ_FWHM={fmt(tau,' s')}  # 初始脉冲参数")
     print(f"Energy(能量)         : config={fmt(Ucfg,' J')} | actual(after norm)={fmt(Uin,' J')} | E0_peak={fmt(E0p,' V/m')}  # 目标与归一化")
-    if I0cfg is not None:
-        print(f"I0_peak(峰值强度)    : {fmt(float(I0cfg),' W/m^2')}  # 与 energy_J 二选一")
+    if P0cfg is not None:
+        print(f"P0_peak(峰值功率)    : {fmt(float(P0cfg),' W')}  # 与 energy_J 二选一")
+    elif I0legacy is not None:
+        print(f"I0_peak(旧键,峰值功率): {fmt(float(I0legacy),' W')}  # 兼容旧配置")
     print(f"Repetition(重频)      : f_rep={fmt(float(getattr(heat,'f_rep',0.0)),' Hz')} | pulses={int(getattr(run,'Npulses',1))}  # 脉冲序列")
     print(f"Kerr(克尔效应)       : {onoff(kerr_on)}  n2={fmt(n2_used,' m^2/W')} | P_cr≈{fmt(Pcr,' W')}  # 自聚焦关键参数")
     print(f"Self-steep.(自陡峭)   : {onoff(use_shock)}  method={shock_method}  chunk_px={shock_chunk}  # 脉冲前沿陡化")
@@ -425,18 +442,26 @@ def run_demo(
     axes = make_axes(grid.Nx, grid.Ny, grid.Nt, grid.Lx, grid.Ly, grid.Twin)
 
     has_energy = getattr(beam, "energy_J", None) is not None
-    has_i0 = getattr(beam, "I0_peak", None) is not None
-    if has_energy and has_i0:
-        raise ValueError("Beam energy_J and I0_peak are mutually exclusive; please keep only one.")
+    has_p0 = getattr(beam, "P0_peak", None) is not None
+    has_i0_legacy = getattr(beam, "I0_peak", None) is not None
+    if has_energy and has_p0:
+        raise ValueError("Beam energy_J and P0_peak are mutually exclusive; please keep only one.")
+    if has_energy and has_i0_legacy:
+        raise ValueError("Beam energy_J and legacy I0_peak are mutually exclusive; please keep only one.")
+    if has_p0 and has_i0_legacy:
+        raise ValueError("Beam P0_peak and legacy I0_peak cannot both be set.")
 
     if (getattr(beam, "E0_peak", 0.0) == 0.0) and has_energy:
         beam.E0_peak = E0_from_energy(float(beam.energy_J), float(beam.w0), float(beam.tau_fwhm), float(beam.n0))
         print(f"[derive] E0_peak <= 0, derived from energy_J: E0_peak={beam.E0_peak:.3e} V/m")
-    elif (getattr(beam, "E0_peak", 0.0) == 0.0) and has_i0:
-        beam.E0_peak = E0_from_peak_intensity(float(beam.I0_peak), float(beam.n0))
-        print(f"[derive] E0_peak <= 0, derived from I0_peak: E0_peak={beam.E0_peak:.3e} V/m")
+    elif (getattr(beam, "E0_peak", 0.0) == 0.0) and has_p0:
+        beam.E0_peak = E0_from_peak_power(float(beam.P0_peak), float(beam.w0), float(beam.n0))
+        print(f"[derive] E0_peak <= 0, derived from P0_peak: E0_peak={beam.E0_peak:.3e} V/m")
+    elif (getattr(beam, "E0_peak", 0.0) == 0.0) and has_i0_legacy:
+        beam.E0_peak = E0_from_peak_power(float(beam.I0_peak), float(beam.w0), float(beam.n0))
+        print(f"[derive] E0_peak <= 0, derived from legacy I0_peak(as peak power): E0_peak={beam.E0_peak:.3e} V/m")
     elif getattr(beam, "E0_peak", 0.0) == 0.0:
-        raise ValueError("Beam E0_peak is 0 and no energy_J/I0_peak provided; cannot build input field.")
+        raise ValueError("Beam E0_peak is 0 and no energy_J/P0_peak provided; cannot build input field.")
 
     E_xy = gaussian_beam_xy(axes.x, axes.y, beam.w0)[None, ...]
     E_t  = gaussian_pulse_t(axes.t, beam.tau_fwhm)
