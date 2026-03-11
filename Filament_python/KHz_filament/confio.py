@@ -22,8 +22,6 @@ except Exception:
         HAS_TOML = False
 
 from .config import GridConfig, BeamConfig, PropagationConfig, IonizationConfig, HeatConfig, RunConfig, RamanConfig
-from .constants import eps0, c0
-
 # ---------- 小工具 ----------
 def _update_dataclass(dc_cls, src: Dict[str, Any]):
     """只吸收 dc_cls 有的字段，多余键自动忽略；缺省用 dataclass 默认值。"""
@@ -59,8 +57,13 @@ def E0_from_energy(U: float, w0: float, tau_fwhm: float, n0: float) -> float:
     pref  = 0.5 * eps0 * c0 * n0
     return float((U / (pref * space * time))**0.5)
 
+
+def E0_from_peak_intensity(I0_peak: float, n0: float) -> float:
+    """由峰值强度 I0_peak（r=0,t=0）反推峰值电场 E0_peak。"""
+    return float((2.0 * I0_peak / (eps0 * c0 * n0)) ** 0.5)
+
 def _apply_deriveds(raw: Dict[str, Any]) -> Dict[str, Any]:
-    """根据用户给的简写/派生量补齐配置，例如：beam.energy_J → beam.E0_peak；Twin 缺省=8*tau_fwhm。"""
+    """根据用户给的简写/派生量补齐配置，例如由 energy_J 或 I0_peak 推回 E0_peak。"""
     out = dict(raw)
     # 补 Twin
     if "grid" in out:
@@ -71,10 +74,10 @@ def _apply_deriveds(raw: Dict[str, Any]) -> Dict[str, Any]:
             if tau_fwhm is not None:
                 g["Twin"] = 8.0 * float(tau_fwhm)
 
-    # 由能量推 E0_peak（若用户给 energy_J 且没给 E0_peak）
+    # 由能量/峰值强度推 E0_peak（仅在 E0_peak 未直接给定时）
     if "beam" in out:
         b = out["beam"] = dict(out["beam"])
-        for k in ("w0", "tau_fwhm", "n0", "energy_J", "E0_peak"):
+        for k in ("w0", "tau_fwhm", "n0", "energy_J", "I0_peak", "E0_peak"):
             if k in b:
                 try:
                     b[k] = float(b[k])
@@ -82,15 +85,29 @@ def _apply_deriveds(raw: Dict[str, Any]) -> Dict[str, Any]:
                     pass
 
         need_E0 = (float(b.get("E0_peak", 0.0)) == 0.0)
-        has_all = all(k in b for k in ("energy_J", "w0", "tau_fwhm", "n0"))
-        if need_E0 and has_all:
-            # ✅ 关键：四个实参都传进去（之前你的代码只传了第一个）
-            b["E0_peak"] = E0_from_energy(
-                float(b["energy_J"]),
-                float(b["w0"]),
-                float(b["tau_fwhm"]),
-                float(b["n0"]),
-            )
+        has_energy = (b.get("energy_J", None) is not None)
+        has_i0 = (b.get("I0_peak", None) is not None)
+
+        if has_energy and has_i0:
+            raise ValueError("beam.energy_J and beam.I0_peak are mutually exclusive; please keep only one.")
+
+        if need_E0 and has_energy:
+            has_all = all(k in b for k in ("energy_J", "w0", "tau_fwhm", "n0"))
+            if has_all:
+                b["E0_peak"] = E0_from_energy(
+                    float(b["energy_J"]),
+                    float(b["w0"]),
+                    float(b["tau_fwhm"]),
+                    float(b["n0"]),
+                )
+
+        if need_E0 and has_i0:
+            has_all = all(k in b for k in ("I0_peak", "n0"))
+            if has_all:
+                b["E0_peak"] = E0_from_peak_intensity(
+                    float(b["I0_peak"]),
+                    float(b["n0"]),
+                )
 
     return out
 
