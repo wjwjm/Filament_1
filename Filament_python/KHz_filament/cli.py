@@ -242,10 +242,15 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     print(f"Lens(透镜)           : {lens_mode} | f={fL_s} | lens_chunk_t={lens_chunk_t}  # 聚焦模型")
     print(f"Beam(入射光束)       : λ0={fmt(lam0,' m')} n0={fmt(n0)} w0={fmt(w0,' m')} τ_FWHM={fmt(tau,' s')}  # 初始脉冲参数")
     print(f"Energy(能量)         : config={fmt(Ucfg,' J')} | actual(after norm)={fmt(Uin,' J')} | E0_peak={fmt(E0p,' V/m')}  # 目标与归一化")
+    norm_source = "E0_peak_direct"
     if P0cfg is not None:
         print(f"P0_peak(峰值功率)    : {fmt(float(P0cfg),' W')}  # 与 energy_J 二选一")
+        norm_source = "P0_peak"
     elif I0legacy is not None:
         print(f"I0_peak(旧键,峰值功率): {fmt(float(I0legacy),' W')}  # 兼容旧配置")
+        norm_source = "I0_peak_legacy"
+    elif Ucfg > 0.0:
+        norm_source = "energy_J"
     print(f"Repetition(重频)      : f_rep={fmt(float(getattr(heat,'f_rep',0.0)),' Hz')} | pulses={int(getattr(run,'Npulses',1))}  # 脉冲序列")
     print(f"Kerr(克尔效应)       : {onoff(kerr_on)}  n2={fmt(n2_used,' m^2/W')} | P_cr≈{fmt(Pcr,' W')}  # 自聚焦关键参数")
     print(f"Self-steep.(自陡峭)   : {onoff(use_shock)}  method={shock_method}  chunk_px={shock_chunk}  # 脉冲前沿陡化")
@@ -264,6 +269,16 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
             r0s = "mom (second-moment radius)"
         print(f"    Params  : ω_R={wR}  Γ_R={gR}  τ_FWHM={tp}  n_rot_frac={nr}  R0_mode={r0s}")
 
+        # 等效时间常数（用于核参数核对）
+        if (omega_R is not None) and (Gamma_R is not None):
+            Teq_R = (2.0 * _np.pi / float(omega_R)) if float(omega_R) > 0.0 else _np.nan
+            Teq_2 = (1.0 / float(Gamma_R)) if float(Gamma_R) > 0.0 else _np.nan
+            print(f"    Effective: T_R(eq)={fmt(Teq_R,' s')}  T2(eq)={fmt(Teq_2,' s')}  # 由 ω_R/Γ_R 反算")
+
+    print("FinalEffective(最终生效参数):")
+    print(f"  - ionization.time_mode={time_mode}  integrator={integrator}")
+    print(f"  - propagation.auto_substep={auto}  dz={fmt(dz,' m')}  dz_focus={fmt(dz_focus,' m')}")
+    print(f"  - beam.energy_J={'null' if getattr(beam, 'energy_J', None) is None else fmt(getattr(beam, 'energy_J'), ' J')}  P0_peak={'null' if P0cfg is None else fmt(P0cfg, ' W')}  norm_source={norm_source}")
 
     # ------------ Ionization printing (dict/object safe) ------------
 
@@ -305,8 +320,10 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
                 l  = _g(sp, "l", getattr(ion, "l", None))
                 m  = _g(sp, "m", getattr(ion, "m", None))
                 Wc = _g(sp, "W_cap", None)
+                ag = _g(sp, "a_gamma", getattr(ion, "a_gamma", 0.75))
+                ws = _g(sp, "W_scale", getattr(ion, "W_scale", 1.0))
                 cap_note = f", W_cap={fmt(Wc,' s^-1')}" if Wc is not None else ""
-                print(f"    - {name:6s} rate=PPT_I    (cycle-avg) Ip={Ip} eV, Z={Z}, l={l}, m={m}, fraction={frac:.3f}, expects={expx}{cap_note}")
+                print(f"    - {name:6s} rate=PPT_I    (cycle-avg) Ip={Ip} eV, Z={Z}, l={l}, m={m}, a_gamma={ag}, W_scale={ws}, fraction={frac:.3f}, expects={expx}{cap_note}")
 
             elif rate == "mpa_fact":
                 ell = _g(sp, "ell", getattr(ion, "ell", None))
