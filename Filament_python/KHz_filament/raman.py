@@ -86,12 +86,34 @@ def precompute_kernel_fft(h: xp.ndarray) -> xp.ndarray:
 
 
 # ------------------------- 强度卷积（I ⊗ h_R） -------------------------
-def raman_convolve_intensity(I, H_w=None, *, method="iir", dt=None, T2=None, T_R=None, chunk_pixels=65536):
+def resolve_raman_rot_params(*, T2=None, T_R=None, omega_R=None, Gamma_R=None):
+    """统一解析旋转拉曼参数：优先 omega_R/Gamma_R，其次 T_R/T2。"""
+    if omega_R is None:
+        if T_R is None:
+            raise ValueError("resolve_raman_rot_params: omega_R 或 T_R 至少提供一个")
+        T_R = float(max(T_R, 1e-30))
+        omega_R = 2.0 * _np.pi / T_R
+    else:
+        omega_R = float(omega_R)
+
+    if Gamma_R is None:
+        if T2 is None:
+            raise ValueError("resolve_raman_rot_params: Gamma_R 或 T2 至少提供一个")
+        T2 = float(max(T2, 1e-30))
+        Gamma_R = 1.0 / T2
+    else:
+        Gamma_R = float(Gamma_R)
+
+    return float(omega_R), float(Gamma_R)
+
+
+def raman_convolve_intensity(I, H_w=None, *, method="iir", dt=None, T2=None, T_R=None,
+                             omega_R=None, Gamma_R=None, chunk_pixels=65536):
     """
     计算 IR = (h_R * I)(t)，仅沿 t 轴卷积；I/IR 形状 [Nt,Ny,Nx]。
     - method="iir": 省显存时域递推。
-        * 若同时提供 T2 与 T_R ：按“旋转拉曼核”递推，参数映射
-              Γ_R = 1/T2,   ω_R = 2π / T_R   （注意：此处 T_R 解释为“周期”）
+        * 若提供 (omega_R 与 Gamma_R) 或 (T2 与 T_R) ：按“旋转拉曼核”递推
+              Γ_R = Gamma_R 或 1/T2,   ω_R = omega_R 或 2π/T_R
           与核生成式保持一致，避免 2π 漏乘。
         * 若仅提供 T_R ：按 Debye 核递推（h = e^{-t/T_R}/T_R）。
     - method="fft": 频域法，需要预先给 H_w = FFT(h)；空间按列分块避免 OOM。
@@ -109,12 +131,9 @@ def raman_convolve_intensity(I, H_w=None, *, method="iir", dt=None, T2=None, T_R
         ctype = xp.complex64 if dtype == xp.float32 else xp.complex128
         IR = xp.empty_like(I2, dtype=dtype)
 
-        if (T2 is not None) and (T_R is not None):
+        if ((omega_R is not None) and (Gamma_R is not None)) or ((T2 is not None) and (T_R is not None)):
             # ===== 旋转拉曼核：h(t) = pref * e^{-Γ t} sin(ω t) =====
-            T2 = float(max(T2, 1e-30))
-            T_R = float(max(T_R, 1e-30))  # 解释为“周期”
-            Gamma = 1.0 / T2
-            omega = 2.0 * _np.pi / T_R  # ★ 避免 2π 漏乘
+            omega, Gamma = resolve_raman_rot_params(T2=T2, T_R=T_R, omega_R=omega_R, Gamma_R=Gamma_R)
 
             # 用 xp 标量数组保证 dtype 与后端一致
             a = xp.array(Gamma - 1j * omega, dtype=ctype)          # Γ - iω
@@ -136,7 +155,7 @@ def raman_convolve_intensity(I, H_w=None, *, method="iir", dt=None, T2=None, T_R
 
         # ===== 仅 T_R 给出：Debye 核 IIR =====
         if T_R is None:
-            raise ValueError("raman_convolve_intensity(method='iir'): 请提供 (T2 与 T_R) 或至少 T_R")
+            raise ValueError("raman_convolve_intensity(method='iir'): 请提供 (omega_R 与 Gamma_R) 或 (T2 与 T_R) 或至少 T_R")
         T_R = float(max(T_R, 1e-30))
         r = _np.exp(-dt / T_R)  # 纯实数（用 numpy 算标量没关系）
         c = (1.0 - r)

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from .device import xp
+from .device import xp, to_cpu
 from .linear import lin_propagator, step_linear, step_linear_bk_nee_factorized
 from .ionization import (
     intensity as inten_ion,
@@ -12,7 +12,7 @@ from .heat import heat_Q_per_z
 from .linear_full import step_linear_full_factorized, step_linear_full_3d
 from .air_dispersion import n_of_omega
 from .constants import c0
-from .raman import make_raman_kernel, precompute_kernel_fft, raman_convolve_intensity
+from .raman import make_raman_kernel, precompute_kernel_fft, raman_convolve_intensity, resolve_raman_rot_params
 from .diagnostics import intensity, pulse_energy, second_moment_radius,_fwhm_time_1d,parabola_peak,_fwhm_diameter_xy_center
 
 def _linear_phase_per_meter(linear_model, k0, axes, K02_w=None, omega0=None, nee_denom_floor=1e-4):
@@ -169,8 +169,12 @@ def propagate_one_pulse(
         raman_absorb_on = bool(getattr(raman_conf, "absorption", True))
 
         # closed_form 需要的参数（都有默认）
-        omega_R = float(getattr(raman_conf, "omega_R", 2.0 * _np.pi / 8.4e-12))
-        Gamma_R = float(getattr(raman_conf, "Gamma_R", 1.0 / 8.0e-11))
+        omega_R, Gamma_R = resolve_raman_rot_params(
+            T2=getattr(raman_conf, "T2", None),
+            T_R=getattr(raman_conf, "T_R", None),
+            omega_R=getattr(raman_conf, "omega_R", None),
+            Gamma_R=getattr(raman_conf, "Gamma_R", None),
+        )
         tau_fwhm_cfg = getattr(raman_conf, "tau_fwhm", None)
         n_rot_frac = float(getattr(raman_conf, "n_rot_frac", 0.99))
         R0_mode = str(getattr(raman_conf, "R0_mode", "mom")).lower()
@@ -251,7 +255,11 @@ def propagate_one_pulse(
         if use_raman:
             IR = raman_convolve_intensity(
                 I, H_w if r_method == "fft" else None,
-                method=r_method, dt=dt, T2=float(raman_conf.T2), T_R=float(raman_conf.T_R),
+                method=r_method, dt=dt,
+                T2=getattr(raman_conf, "T2", None),
+                T_R=getattr(raman_conf, "T_R", None),
+                omega_R=getattr(raman_conf, "omega_R", None),
+                Gamma_R=getattr(raman_conf, "Gamma_R", None),
                 chunk_pixels=r_chunk
             )
             I_nl = (1.0 - fR) * I + fR * IR
@@ -329,7 +337,11 @@ def propagate_one_pulse(
                 # 计算 I_R = Ω * I（因果卷积）
                 IR = raman_convolve_intensity(
                     I, H_w if r_method == "fft" else None,
-                    method=r_method, dt=dt, T2=float(raman_conf.T2), T_R=float(raman_conf.T_R),
+                    method=r_method, dt=dt,
+                    T2=getattr(raman_conf, "T2", None),
+                    T_R=getattr(raman_conf, "T_R", None),
+                    omega_R=getattr(raman_conf, "omega_R", None),
+                    Gamma_R=getattr(raman_conf, "Gamma_R", None),
                     chunk_pixels=r_chunk
                 )
                 # ∂I/∂τ（中心差分）
@@ -456,7 +468,7 @@ def propagate_one_pulse(
             I_onaxis_max_interp_list.append(I_onaxis_peak_interp)
 
             # 二阶矩束腰（对 t 积分后求 2D 矩）
-            F2D = xp.trapz(I_now, dx=dt, axis=0)
+            F2D = (xp.trapezoid if hasattr(xp, "trapezoid") else xp.trapz)(I_now, dx=dt, axis=0)
             w_mom = second_moment_radius(
                 I_now, axes.x, axes.y, dt=dt,
                 frac_keep=getattr(prop_conf, "mom_frac_keep", 0.999),
@@ -468,7 +480,7 @@ def propagate_one_pulse(
             rho_onax_t = rho[:, y0, x0].astype(rdtype, copy=False)
             rho_onaxis_max_list.append(float(xp.max(rho_onax_t)))
             if record_onaxis_rho_time:
-                rho_onaxis_time_list.append(_np.array(xp.asnumpy(rho_onax_t)))
+                rho_onaxis_time_list.append(_np.array(to_cpu(rho_onax_t)))
 
             rho_maxt = xp.max(rho, axis=0)
             rho_max_z_list.append(float(rho_maxt.max()))
@@ -553,7 +565,6 @@ def propagate_one_pulse(
 
 
     # Qacc 是 2D（J/m^2）：用于慢时间热扩散
-    return E, xp.asnumpy(Qacc).astype(rdtype_np, copy=False), diag
-
+    return E, to_cpu(Qacc).astype(rdtype_np, copy=False), diag
 
 

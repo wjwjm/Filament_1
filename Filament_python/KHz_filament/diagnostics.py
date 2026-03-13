@@ -49,7 +49,7 @@ def second_moment_radius(I3D, x, y, *, dt,
     rel_floor : float   按峰值的相对阈值，小于该阈值的像素清零（进一步抗噪）
     """
     # ---- 1) 沿 t 积分得到 fluence F2D[y,x] ----
-    F = xp.trapz(xp.asarray(I3D), dx=float(dt), axis=0)  # [Ny, Nx]
+    F = (xp.trapezoid if hasattr(xp, "trapezoid") else xp.trapz)(xp.asarray(I3D), dx=float(dt), axis=0)  # [Ny, Nx]
     F = xp.nan_to_num(F, nan=0.0, posinf=0.0, neginf=0.0)
     F = xp.maximum(F, 0.0)
 
