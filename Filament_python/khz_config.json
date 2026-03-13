@@ -11,7 +11,7 @@
     "lam0": 8.00e-07,
     "n0": 1.00027,
     "w0": 1.979e-3,
-    "tau_fwhm": 40e-15,
+    "tau_fwhm": 120e-15,
     "E0_peak": 0.0,
     "energy_J": null,
     "P0_peak": 17e9,
