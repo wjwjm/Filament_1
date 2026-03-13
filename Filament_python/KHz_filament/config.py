@@ -19,6 +19,7 @@ class BeamConfig:
     tau_fwhm: float = 40e-15 # s
     E0_peak: float = 0.0            # 仍然支持直接给 E0   电场幅值，不是峰值强度
     energy_J: Optional[float] = 0.68e-3  # 新增：也可只给单脉冲能量
+    P0_peak: Optional[float] = None  # 新增：峰值功率（W，脉冲中心时刻的横截面积分功率）
     focal_length: float = 0.95     #透镜焦距 m
     n2_air: float = 7.8e-24
 @dataclass
@@ -27,7 +28,7 @@ class PropagationConfig:
     dz: float = 1e-3      # m
     strang: bool = True     # use Strang splitting if True
 #---- # ==== B 档：UPPE 相关 ====
-    linear_model: str = "uppe"  # "uppe" | "paraxial"
+    linear_model: str = "uppe"  # "uppe" | "paraxial" | "bk_nee"
     full_linear_factorize: bool = False  # True: ω-切片逐片做2D FFT，省内存（更稳）
     use_self_steepening: bool = True  # 建议开启
     #若显存/内存充裕且想更快，把 full_linear_factorize=False（会创建 [Nt,Ny,Nx] 级别的 3D相位，内存压力大）。
@@ -36,6 +37,9 @@ class PropagationConfig:
     air_T: float = 293.15  # K
     air_P: float = 101325.0  # Pa
     air_CO2: float = 400e-6  # 体积分数（占位，简化模型里不显式使用）
+    # Brabec–Krausz NEE 线性项参数（linear_model="bk_nee" 时使用）
+    nee_beta2: float = 0.2e-28         # s^2/m, GVD 系数 k''
+    nee_denom_floor: float = 1e-4  # 防止 1+Omega/omega0 在 -omega0 邻域奇异
     # === 进度输出 ===
     progress_every_z: int = 100    # 每多少个 z 步打印一次（0=不打印）
     show_eta: bool = True          # 打印 ETA 估计

@@ -11,7 +11,8 @@ cd "${SLURM_SUBMIT_DIR:-$(dirname "$0")}"
 CFG="${CFG:-khz_config.json}"
 OUT="${OUT:-khzfil_out.npz}"
 DTYPE="${DTYPE:-fp32}"
-MAT_DIR="${MAT_DIR:-}"
+CONVERT_TO_MAT="${CONVERT_TO_MAT:-1}"
+MAT_DIR="${MAT_DIR:-matlab保存数据}"
 MAT_NAME="${MAT_NAME:-}"
 REMOVE_NPZ="${REMOVE_NPZ:-1}"
 
@@ -67,7 +68,7 @@ except Exception as e:
 PY
 
 CMD=(python test_run.py --cfg "$CFG" --gpu --dtype "$DTYPE" --out "$OUT")
-if [[ -n "$MAT_DIR" ]]; then
+if [[ "$CONVERT_TO_MAT" == "1" ]]; then
   CMD+=(--mat-dir "$MAT_DIR")
   if [[ -n "$MAT_NAME" ]]; then
     CMD+=(--mat-name "$MAT_NAME")
