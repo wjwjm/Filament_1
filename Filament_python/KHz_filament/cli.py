@@ -195,10 +195,12 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
         """rate 优先；否则从旧的 model+cycle_avg 推断"""
         r = str(_g(sp, "rate", "") or "").lower().replace("ppt-i", "ppt_i")
         if r:
+            if r == "ppt_i":
+                return "ppt_i_legacy"
             return r
         m   = str(_g(sp, "model", getattr(ion, "model", "ppt"))).lower()
         cyc = bool(_g(sp, "cycle_avg", getattr(ion, "cycle_avg", False)))
-        if m in ("ppt", "ppt_cycleavg"): return "ppt_i" if (m == "ppt_cycleavg" or cyc) else "ppt_e"
+        if m in ("ppt", "ppt_cycleavg"): return "ppt_i_legacy" if (m == "ppt_cycleavg" or cyc) else "ppt_e"
         if m == "adk":                    return "adk_e"
         if m in ("mpa_fact","mpa_factorial","multiphoton_factorial"): return "mpa_fact"
         if m in ("powerlaw","mpa"):       return "powerlaw"
@@ -208,7 +210,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     def _expects_for_rate(rate: str) -> str:
         rate = (rate or "").lower()
         if rate in ("ppt_e","adk_e"):                  return "|E|"
-        if rate in ("ppt_i","mpa_fact","powerlaw"):    return "I"
+        if rate in ("ppt_i","ppt_i_legacy","ppt_talebpour_i","popruzhenko_atom_i","mpa_fact","powerlaw"):    return "I"
         return "—"
 
 
@@ -291,7 +293,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
         for sp in species:
             r = _resolve_rate(sp)
             exp_set.add(_expects_for_rate(r))
-            if r == "ppt_i":
+            if r in ("ppt_i", "ppt_i_legacy", "ppt_talebpour_i", "popruzhenko_atom_i"):
                 has_ppt_i = True
 
         exp_tag = "mixed" if (len(exp_set) > 1) else (next(iter(exp_set)) if exp_set else "none")
@@ -314,7 +316,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
                 cap_note = f", W_cap={fmt(Wc,' s^-1')}" if Wc is not None else ""
                 print(f"    - {name:6s} rate={model_tag:<8} Ip={Ip} eV, Z={Z}, l={l}, m={m}, fraction={frac:.3f}, expects={expx}{cap_note}")
 
-            elif rate == "ppt_i":
+            elif rate in ("ppt_i", "ppt_i_legacy"):
                 Ip = _g(sp, "Ip_eV", getattr(ion, "Ip_eV", None))
                 Z  = _g(sp, "Z", getattr(ion, "Z", None))
                 l  = _g(sp, "l", getattr(ion, "l", None))
@@ -323,7 +325,27 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
                 ag = _g(sp, "a_gamma", getattr(ion, "a_gamma", 0.75))
                 ws = _g(sp, "W_scale", getattr(ion, "W_scale", 1.0))
                 cap_note = f", W_cap={fmt(Wc,' s^-1')}" if Wc is not None else ""
-                print(f"    - {name:6s} rate=PPT_I    (cycle-avg) Ip={Ip} eV, Z={Z}, l={l}, m={m}, a_gamma={ag}, W_scale={ws}, fraction={frac:.3f}, expects={expx}{cap_note}")
+                print(f"    - {name:6s} rate=PPT_I_LEGACY (cycle-avg bridged-ADK) Ip={Ip} eV, Z={Z}, l={l}, m={m}, a_gamma={ag}, W_scale={ws}, fraction={frac:.3f}, expects={expx}{cap_note}")
+
+            elif rate == "ppt_talebpour_i":
+                Ip = _g(sp, "Ip_eV", getattr(ion, "Ip_eV", None))
+                Ipe = _g(sp, "Ip_eV_eff", None)
+                Zeff = _g(sp, "Zeff", None)
+                l  = _g(sp, "l", 0)
+                m  = _g(sp, "m", 0)
+                Wc = _g(sp, "W_cap", None)
+                cap_note = f", W_cap={fmt(Wc,' s^-1')}" if Wc is not None else ""
+                print(f"    - {name:6s} rate=PPT_TALEBPOUR_I Ip={Ip} eV, Ip_eff={Ipe} eV, Zeff={Zeff}, l={l}, m={m}, fraction={frac:.3f}, expects={expx}{cap_note}")
+
+            elif rate == "popruzhenko_atom_i":
+                Ip = _g(sp, "Ip_eV", getattr(ion, "Ip_eV", None))
+                Z  = _g(sp, "Z", getattr(ion, "Z", None))
+                l  = _g(sp, "l", 0)
+                m  = _g(sp, "m", 0)
+                nt = _g(sp, "n_terms", 96)
+                Wc = _g(sp, "W_cap", None)
+                cap_note = f", W_cap={fmt(Wc,' s^-1')}" if Wc is not None else ""
+                print(f"    - {name:6s} rate=POPRUZHENKO_ATOM_I Ip={Ip} eV, Z={Z}, l={l}, m={m}, n_terms={nt}, fraction={frac:.3f}, expects={expx}{cap_note}")
 
             elif rate == "mpa_fact":
                 ell = _g(sp, "ell", getattr(ion, "ell", None))
@@ -351,7 +373,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
             print(f"  TimeMode(时间近似) : FULL  integrator={integrator.upper()}  # 全时域积分")
 
         if has_ppt_i:
-            print(f"  CycleAvg(周期平均) : samples={cav_samples}  (for PPT_I)  # 周期采样数")
+            print(f"  CycleAvg(周期平均) : samples={cav_samples}  (for *_i rates)  # 周期采样数")
 
         if nu_ei_const is not None:
             print(f"  Drude ν_ei(碰撞频) : {fmt(float(nu_ei_const),' s^-1')}")

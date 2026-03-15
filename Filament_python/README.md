@@ -1,388 +1,293 @@
-# khzfil_baseline (modular)
+# Filament_python 运行与参数中文指南
 
-A modular rewrite of the minimal kHz filamentation baseline:
-线性衍射：采用分步角谱（傍轴）算法。- Split-step angular spectrum (paraxial) for linear diffraction.
-局域时域非线性步：包含 Kerr 相位、电离（速率方程）、等离子体折射率与吸收。
-- Local time-domain nonlinear step: Kerr phase, ionization (rate eq.), plasma index and absorption.
-脉冲间慢时演化：密度空洞/热透镜的二维扩散。- Slow-time (between pulses) 2D diffusion of density-hole/thermal lens.
+> 适用目录：`Filament_python/`
+> 
+> 本指南覆盖：安装、运行、配置结构、诊断输出、以及**电离模型切换**（legacy / Talebpour / Popruzhenko）与 `time_mode` 的使用建议。
 
+---
 
+## 1. 项目简介
 
+本项目用于高重频（kHz）激光空气成丝仿真，核心物理包括：
 
+- 线性传播（`uppe` / `paraxial` / `bk_nee`）；
+- 非线性（Kerr、自陡峭、拉曼、电离、等离子体折射与吸收）；
+- 脉冲间慢时扩散（热/密度通道）。
 
+推荐关注的诊断量：`I_max_z`、`U_z`、`rho_onaxis_max_z`、`w_mom_z`、`fwhm_plasma_z`、`fwhm_fluence_z`。
 
-## Dependencies
+---
 
-Install minimal dependencies before running:
+## 2. 环境安装
+
+在仓库根目录执行：
 
 ```bash
 pip install -r Filament_python/requirements.txt
 ```
 
+GPU 运行需可用 CUDA + CuPy（环境变量控制见第 3 节）。
 
-### NPZ to MATLAB conversion
+---
 
-After simulation, you can convert output `.npz` to `.mat` and optionally delete source `.npz`:
+## 3. 快速运行
 
-```bash
-python npz2mat.py --npz khzfil_out.npz --mat matlab_output/khzfil_out.mat --remove-npz
-```
-
-For HPC `sub.sh`, NPZ->MAT conversion is enabled by default (`CONVERT_TO_MAT=1`),
-with default output directory `matlab保存数据/` and default `REMOVE_NPZ=1`.
-
-Custom example:
+### 3.1 使用示例配置运行
 
 ```bash
-sbatch --gpus=1 --export=MAT_DIR=matlab_output,MAT_NAME=run1.mat,REMOVE_NPZ=1 ./sub.sh
+python -m Filament_python.KHz_filament.cli Filament_python/config.json
 ```
 
-Disable conversion when needed:
+### 3.2 GPU 运行
 
 ```bash
-sbatch --gpus=1 --export=CONVERT_TO_MAT=0 ./sub.sh
+UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config.json
 ```
 
-## Usage
+### 3.3 输出文件
 
-```bash
-# CPU default (NumPy)
-python -m khzfil.cli
+程序会在配置中的输出路径（默认 `khzfil_out.npz`）写出时空坐标与诊断量。
 
-# GPU (CuPy)
-UPPE_USE_GPU=1 python -m khzfil.cli
+---
 
+## 4. 配置文件结构（`config.json`）
 
-提交作业：sbatch  --gpus=卡数     ./run.sh
-查看作业情况：squeue
-结束作业：scancel  作业号（作业号执行squeue即可查看到）
-实时查看输出文件：tail -f   文件名
-可使用vim编辑脚本中最后一行修改为您的代码文件或完整命令即可
+配置分为 7 大段：
 
-排除节点#SBATCH -x g0601,g0602,g0605
-指定节点#SBATCH -w g0601,g0602,g0605
-查看全部节点状态sinfo -N -l
-idle  ：完全空闲
-alloc ：全部核心被占
-mix   ：部分占用，仍可跑作业
-down  ：宕机或离线
-drain ：管理员标记为维护，不再接收新作业
-drng  ：drain + 仍有作业在跑
-```
+- `grid`：空间/时间网格；
+- `beam`：入射脉冲；
+- `propagation`：传播器与自适应步长；
+- `ionization`：电离模型与电子密度演化；
+- `heat`：慢时热扩散；
+- `run`：脉冲数；
+- `raman`：拉曼模型与吸收。
 
-Outputs `/mnt/data/khzfil_out.npz` with axes and basic diagnostics.
+---
 
-## Modules
+## 5. 电离模块完整说明（重点）
 
-- `khzfil/constants.py`: Physical constants and helpers.物理常数与辅助函数。
-- `khzfil/device.py`: Backend selector (`xp`) for NumPy/CuPy.后端选择器（xp），支持 NumPy/CuPy。
-- `khzfil/config.py`: Dataclasses for grid, beam, propagation, ionization, heat, run.用数据类封装网格、光束、传播、电离、热累积、运行参数。
-- `khzfil/grids.py`: Mesh/axes and spectral operators.网格/坐标轴及谱域算子。
-- `khzfil/linear.py`: Angular spectrum propagator.角谱传播器。
-- `khzfil/ionization.py`: Intensity, power-law W(I), rho(t) evolution.计算光强、幂律 W(I)、电子密度 ρ(t) 演化。
-- `khzfil/nonlinear.py`: Kerr phase, plasma phase, IB absorption, NL application.Kerr 相位、等离子体相位、逆轫致吸收，并应用非线性效应。
-- `khzfil/heat.py`: Heat accumulation and slow-time diffusion.热累积与慢时扩散。
-- `khzfil/propagate.py`: Strang split per-pulse propagation and heat accumulation.每脉冲的 Strang 分裂传播及热累积循环。
-- `khzfil/diagnostics.py`: Peak intensity, energy, and saving helpers.峰值光强、能量监测与存盘辅助。
-- `khzfil/utils.py`: Gaussian sources and utilities.高斯源与其他工具函数。
-- `khzfil/cli.py`: Demo runner and file output.演示程序与文件输出入口。
+## 5.1 速率模型别名总览
 
-KHz_filament 仿真参数 README
+当前建议显式使用以下 `species[i].rate`：
 
-diag = {
-  "z_axis":               1D np.ndarray [Nz],                 # 采样的 z（米）
-  "U_z":                  1D np.ndarray [Nz],                 # 每步脉冲能量 (J)
-  "I_max_z":              1D np.ndarray [Nz],                 # 全场峰值强度 (W/m^2)
-  "I_onaxis_max_z":       1D np.ndarray [Nz],                 # on-axis 像素（Ny/2,Nx/2）处对 t 取 max 的强度
-  "I_center_t0_z":        1D np.ndarray [Nz],                 # on-axis 像素处 t≈0 的强度
-  "w_mom_z":              1D np.ndarray [Nz],                 # 二阶矩光斑半径 (m)
-  "rho_onaxis_max_z":     1D np.ndarray [Nz],                 # on-axis 电子密度的时间最大值 (1/m^3)
-  "I_peak_q99_z":         1D np.ndarray [Nz],                 # 稳峰：I 的 top-0.1% 均值
-  "rho_peak_q99_z":       1D np.ndarray [Nz],                 # 稳峰：max_t rho 的 top-0.1% 均值
-  "E_dep_z":              1D np.ndarray [Nz],                 # 每步沉积能量 (J)，? Qslice dx dy
-  "fwhm_plasma_z":        1D np.ndarray [Nz],                 # 等离子体通道等效 FWHM 直径 (m)
-  "fwhm_fluence_z":       1D np.ndarray [Nz],                 # 激光能量密度(通量)等效 FWHM 直径 (m)
-  # 可选：
-  "rho_onaxis_t_z":       2D np.ndarray [Nz, Nt]              # 每步 on-axis 的 rho(t)
+1. `ppt_i_legacy`
+   - 旧工程桥接模型：`W = W_ADK * exp(-A_gamma * gamma^2)` 的周期平均版；
+   - 仅用于与历史结果对比；
+   - **不是** Talebpour 1999 分子 PPT，也**不是** Popruzhenko 2008。
+
+2. `ppt_talebpour_i`
+   - 分子半经验 PPT 分支（N2/O2 推荐）；
+   - 关键参数是 `Zeff`；
+   - O2 可使用 `Ip_eV_eff = 12.55`。
+
+3. `popruzhenko_atom_i`
+   - Popruzhenko 2008 arbitrary-gamma 原子/离子公式；
+   - 面向原子或离子（如 Xe 等），不建议直接替代 N2/O2 的分子拟合。
+
+> 兼容别名：`ppt_i` 仍可写，但会映射到 `ppt_i_legacy`，并在日志中提示。
+
+---
+
+## 5.2 `species` 常用字段
+
+每个组分是一个对象：
+
+- 通用字段：
+  - `name`（如 `N2`/`O2`/`Xe`）
+  - `rate`
+  - `fraction`
+  - `W_cap`（可选，覆盖全局上限）
+  - `W_scale`（可选，数值缩放）
+
+- `ppt_talebpour_i` 推荐字段：
+  - `Ip_eV`
+  - `Ip_eV_eff`（可选）
+  - `Zeff`（推荐显式给出）
+  - `l`, `m`
+
+- `popruzhenko_atom_i` 推荐字段：
+  - `Ip_eV`
+  - `Z`
+  - `l`, `m`
+  - `n_terms`（可选，短程求和项数）
+
+- `ppt_i_legacy` 字段：
+  - `Ip_eV`, `Z`, `l`, `m`
+  - `a_gamma`（桥接因子，`0` 会更接近 ADK-like）
+
+---
+
+## 5.3 时间模式与积分器
+
+`ionization.time_mode`：
+
+- `full`：全时域推进（推荐基准对比时使用）；
+- `qs_peak`：准稳态，取脉冲时间峰值速率；
+- `qs_mean`：准稳态，取时间平均速率；
+- `qs_mean_esq`：准稳态，按 `E_rms`/`I_mean` 近似。
+
+`ionization.integrator`：
+
+- `rk4`（默认，`full` 下推荐）；
+- `euler`（`full` 下可用于快速烟雾测试）。
+
+`ionization.cycle_avg_samples`：
+
+- 对 `*_i` 模型的周期平均生效，典型值 `32~128`，默认 `64`。
+
+---
+
+## 5.4 日志会打印哪些电离信息
+
+程序启动后会逐组分打印：
+
+- `rate alias`、`model family`；
+- `Ip_eV`、`Ip_eV_eff`；
+- `Z`、`Zeff`、`l,m`；
+- `cycle_avg_samples`、`time_mode`、`integrator`。
+
+并提供告警：
+
+- N2/O2 使用 `popruzhenko_atom_i` 时会提示“原子模型并非 Talebpour 分子拟合”；
+- 使用 legacy 时会提示“不是文献 PPT/Popruzhenko 实现”。
+
+---
+
+## 6. 常用配置示例
+
+## 6.1 N2/O2（Talebpour）
+
+```json
+"ionization": {
+  "species": [
+    {
+      "name": "N2",
+      "rate": "ppt_talebpour_i",
+      "Ip_eV": 15.6,
+      "Zeff": 0.9,
+      "l": 0,
+      "m": 0,
+      "fraction": 0.8
+    },
+    {
+      "name": "O2",
+      "rate": "ppt_talebpour_i",
+      "Ip_eV": 12.1,
+      "Ip_eV_eff": 12.55,
+      "Zeff": 0.53,
+      "l": 0,
+      "m": 0,
+      "fraction": 0.2
+    }
+  ],
+  "time_mode": "full",
+  "integrator": "rk4",
+  "cycle_avg_samples": 64,
+  "beta_rec": 0.0,
+  "sigma_ib": 0.0,
+  "I_cap": 1.0e19,
+  "W_cap": 1.0e16
 }
-
-本项目支持两种线性传播模型（UPPE 与 抛物近似/paraxial）以及多种非线性与等离子体物理（Kerr、自陡峭、拉曼、ADK/PPT 电离、等离子体吸收与复合、气体热扩散）。本文档说明仿真摘要中各参数的含义、常见取值范围与调参建议。
-
-1) Backend / dtype
-
-Backend：numpy 或 cupy（GPU）。
-
-GPU 模式由 UPPE_USE_GPU=1 或 CLI --gpu 控制；设备通过 CUDA_VISIBLE_DEVICES 选择。
-
-dtype：fp32（推荐，快且够用）或 fp64（更稳，但慢/占内存大）。
-
-建议
-
-大多数成丝仿真用 fp32 即可；极端高动态范围（>10?）可尝试 fp64。
-
-先在小网格验证，再上大网格/GPU。
-
-2) Grid (XYZT)
-
-Nx, Ny：横向网格点数。
-
-Lx, Ly：横向窗口大小（米）。
-
-Nt：时域采样点数。
-
-Twin：时间窗宽度（秒）。
-
-选型建议
-
-视野要容纳 ≥ 3~4 × w? 的半径（即光斑在边界衰减至噪声），常用：Lx≈Ly≈(4~8)×w?。
-
-横向采样：Δx=Lx/Nx，要满足角谱传播的带宽 Nyquist；通常 Nx, Ny = 512~1024 够用。
-
-时间窗：Twin ≥ 6~8 × τ_FWHM，以防频谱泄漏与边界折返。
-
-Nt=64~256：短脉冲（30–100 fs）一般足够；需要自陡峭/拉曼细节时可以略增。
-
-3) Steps (z) 与自适应阈值
-
-z_max：总传播距离（米）。
-
-dz：名义步长（米）。
-
-AutoSubstep：是否按阈值自适应子步。
-
-dz_min, grow×：最小子步与接受后放大因子。
-
-阈值：
-
-lin_phase≤…：线性相位增量上限（|kz|max·dz）。
-
-alpha·dz≤…：吸收 α dz 上限。
-
-kerr_phase≤…：Kerr 相位上限 k0 n2 Imax dz。
-
-Imax_growth≤…：步末强度相对增长的容差（>0 回退）。
-
-调参建议
-
-线性仿真：dz ~ (0.25~1) mm；UPPE 较严格时取更小。
-
-含非线性：以 kerr_phase≤0.2~0.3 rad 为基准；接近焦点适当减小 dz。
-
-开启自适应：可避免焦点/强吸收区“跳步”。
-
-4) Linear
-
-model："uppe" 或 "paraxial"。
-
-factorize：UPPE 线性算子是否按 (t × k⊥) 因子化（省内存/更快）。
-
-chunk_t：UPPE 三维 FFT 的时间分块（显存不够时调小）。
-
-选择
-
-UPPE：宽带（>5~10%）或需要色散/群速差的场景。
-
-paraxial：窄带、弱色散/短程近轴场景，速度快。
-
-对比两者线性基准（关闭一切非线性与电离），检查焦点/能量守恒。
-
-5) Beam
-
-λ0, n0, w0, τ_FWHM：入射脉冲与介质参数。
-
-f (focal_length)：薄透镜焦距，初始化时注入 相位 exp[-i k0 (x2+y2)/(2f)]。
-
-E0_peak / energy_J / P0_peak：支持三种输入方式。
-
-- `energy_J` 与 `P0_peak` 必须二选一（不能同时给）。
-- 若给 `E0_peak`，则直接使用该电场峰值。
-- 若给 `energy_J`，程序先反推 `E0_peak`，再做能量归一化。
-- 若给 `P0_peak`（峰值功率，W，定义为 t=0 时横截面积分功率），程序先反推 `E0_peak`。
-
-常见范围
-
-λ0=800 nm，n0≈1.00027；w0=0.1–2 mm；τ_FWHM=30–100 fs；f=0.3–2 m。
-
-能量 10??–10?3 J 量级（单脉冲）。
-
-临界功率：P_cr ≈ 0.148 λ?2/(n? n?)；比如 n?≈3.2e-23 m2/W 时，@800 nm 得 ~3 GW。
-
-6) Energy（归一化）
-
-config 与 actual：目标能量与归一化后的实际能量（差异<1e-3 为佳）。
-
-E0_peak：归一化后对应的峰值电场（V/m）。
-
-提示
-
-若设了 energy_J，会自动按 (U_target/U_now)^0.5 缩放初场。
-
-若设了 P0_peak（且未给 energy_J），则不会做能量目标归一化。
-
-能量哨兵会在传播中定期检查能量是否异常增长。
-
-7) Repetition / Run
-
-f_rep：重复频率（Hz），用于热学模块。
-
-pulses：脉冲数；kHz 高频下用于“脉间累积”的热/密度扰动。
-
-8) Kerr
-
-ON/OFF：开启/关闭 Kerr 非线性。
-
-n2：Kerr 系数（m2/W），空气常用 3.2e-23。
-
-P_cr：临界自聚焦功率，用于定性判断是否易成丝。
-
-建议
-
-宽带脉冲 + UPPE 时，Kerr 会伴随自相位调制引起光谱展宽；dz 需适当减小。
-
-9) Ionization（ADK / PPT / Powerlaw / OFF）
-
-PPT 参数：Ip_eV, Z, l, m，安全裁剪：W≤..., I≤...。
-
-β_rec：三体复合系数（m3/s）。
-
-σ_ib：反常布里渊（碰撞）吸收截面（m2）。
-
-I_cap/W_cap：强度与电离率上限（防溢出/稳定性）。
-
-建议
-
-先以 ADK/PPT=OFF 做线性与 Kerr-only 基线；再逐步开启 PPT。
-
-对极端强度（>101? W/m2）务必加严格裁剪，避免电子密度爆炸导致数值失稳。
-
-10) Self-steepening（自陡峭）
-
-ON/OFF 与 method：tdiff（默认，时域微分）或 fft。
-
-需要较好的时间分辨率与足够宽的 Twin；dz 过大时容易数值振铃。
-
-11) Raman（分子转动拉曼）
-
-ON/OFF；f_R（延迟占比）；model（例如 rot_sinexp）；T2、T_R。
-
-method：iir（时域因果滤波，省内存）或 fft（频域卷积）。
-
-会引入慢时间折射率槽（特别是高重频），以及脉内延迟响应。
-
-12) EnergyGuard（能量哨兵）
-
-every：每 N 个 z 步检查一次；skip-first：忽略最初 K 次检查；
-
-blowup×：能量相对初始放大的容忍倍数（超过则报警/可回退）。
-
-13) 诊断与输出（diag 字段）
-
-基础
-
-z_axis：记录的 z 位置（与保存间隔一致）。
-
-rho_onaxis_max_z：轴上最大电子密度 vs z。
-
-rho_onaxis_t_z（可选）：每个保存点的轴上 ρ(t) 曲线。
-
-扩展（已集成）
-
-U_z：脉冲能量 vs z（时间与横向积分）。
-
-I_max_z：全时空最大强度 vs z（稳健的“聚焦指标”）。
-
-I_center_t0_z：固定 t=0、轴上强度 vs z（易受走时影响，仅参考）。
-
-w_mom_z：二阶矩半径 vs z（在焦点处最小）；用于估计焦点位置。
-
-t_peak_z：轴上强度随 t 的峰值时间 vs z（可看群延迟变化）。
-
-焦点判定
-
-推荐以 w_mom_z 的最小值对应的 z 为焦点；再辅以 I_max_z 的峰值验证。
-
-若需要亚步长精度，可对最小值附近 5–7 点做二次拟合求极小值。
-
-14) 常见场景配方
-A. 线性验证（推荐第一步）
-
-prop.linear_model="uppe" 或 "paraxial"；全部非线性、PPT、拉曼、自陡峭 OFF。
-
-dz = 0.25~0.5 mm；Twin ≥ 8×τ_FWHM；Nx=Ny=512~768。
-
-检查：能量守恒（U_z≈常数）、焦点位置与薄透镜预测是否一致。
-
-B. 宽带脉冲（~80 nm 带宽）
-
-linear_model="uppe"；保留色散；dz 略小（0.25–0.5 mm）。
-
-开 Kerr、自相位调制；若出现时域振铃，适当加时间窗与频域掩膜。
-
-自陡峭 ON (tdiff)，Twin 足够宽；Raman 可先 OFF 再逐步 ON。
-
-PPT：待 Kerr-only 稳定后再打开，并调紧 I_cap/W_cap。
-
-C. 单脉冲成丝
-
-能量/聚焦使峰值功率 超 P_cr 多倍；Kerr ON，PPT ON（或先 OFF 验证自聚焦）。
-
-dz 在焦点附近可开启自适应，限制 kerr_phase≤0.2~0.3。
-
-观察：I_max_z 是否出现平台；rho_onaxis_max_z 是否达 1023–102? m?3 量级；
-Δn_gas 为负值（慢时间槽）。
-
-D. 高频热效应（kHz–MHz）
-
-run.Npulses > 1，heat 模块启用，设置 f_rep、D_gas、gamma_heat。
-
-关注 Δn_gas 的脉间累积（对准直传播/多脉冲优化时尤为关键）。
-
-15) 排查与小贴士
-
-焦点错位（UPPE vs paraxial）
-统一薄透镜相位实现；做线性基准；确保 dz 足够小、FFT 掩膜合理（避免 alias）。
-
-I_center_t0_z 的震荡
-改看 I_onaxis_max_t_z 与 t_peak_z；固定 t=0 容易受走时影响。
-
-能量“泄露”
-窗口太小、频域泄漏、dz 过大、谱掩膜过硬都会引起；先做线性验证再开非线性。
-
-GPU 显存
-减少 Nx,Ny,Nt；调小 chunk_t；关闭不必要的诊断；使用 free_diag_to_cpu 与显存清池。
-
-16) 配置键位对照（简表）
-
-grid：Nx, Ny, Lx, Ly, Nt, Twin
-
-beam：lam0, n0, w0, tau_fwhm, E0_peak | (energy_J xor P0_peak), focal_length
-
-propagation：
-
-基本：z_max, dz, linear_model("uppe"|"paraxial"), strang
-
-自适应：auto_substep, dz_min, grow_factor, max_linear_phase, max_alpha_dz, max_kerr_phase, imax_growth_limit
-
-线性实现：full_linear_factorize(False/True), linear_chunk_t(=8)
-
-其它：use_self_steepening(True/False), progress_every_z, show_eta, free_diag_to_cpu(True), gpu_hard_gc_every
-
-ionization：model("ppt"|"adk"|"powerlaw"|"off"), Ip_eV, Z, l, m, beta_rec, sigma_ib, I_cap, W_cap
-
-raman：enabled, f_R, model, T2, T_R, method("iir"|"fft")
-
-heat：D_gas, gamma_heat, f_rep
-
-run：Npulses
-
-快速检查清单（每次开新参数前）
-
-线性基准通过（能量≈常数、z_of_focus 正确）。
-
-dz / 阈值 合理（焦点处不过步、无明显震荡）。
-
-窗口/Twin 充足、频域掩膜平滑。
-
-逐项开启物理（Kerr → 自陡峭 → 拉曼 → PPT），每加一项都看 U_z 与 I_max_z 是否合理。
-
-诊断优先看：w_mom_z（焦点）、I_max_z（平台/峰值）、t_peak_z（走时）、rho_onaxis_max_z（等离子体量级）。
+```
+
+## 6.2 原子模型（Popruzhenko）
+
+```json
+"ionization": {
+  "species": [
+    {
+      "name": "Xe",
+      "rate": "popruzhenko_atom_i",
+      "Ip_eV": 12.13,
+      "Z": 1,
+      "l": 0,
+      "m": 0,
+      "n_terms": 96,
+      "fraction": 1.0
+    }
+  ],
+  "time_mode": "full",
+  "integrator": "rk4",
+  "cycle_avg_samples": 64
+}
+```
+
+## 6.3 legacy 对照（历史结果复现）
+
+```json
+"ionization": {
+  "species": [
+    {
+      "name": "N2",
+      "rate": "ppt_i_legacy",
+      "Ip_eV": 15.6,
+      "Z": 1,
+      "l": 0,
+      "m": 0,
+      "a_gamma": 0.75,
+      "fraction": 0.8
+    },
+    {
+      "name": "O2",
+      "rate": "ppt_i_legacy",
+      "Ip_eV": 12.1,
+      "Z": 1,
+      "l": 0,
+      "m": 0,
+      "a_gamma": 0.75,
+      "fraction": 0.2
+    }
+  ],
+  "time_mode": "qs_mean",
+  "cycle_avg_samples": 64
+}
+```
+
+---
+
+## 7. 40 fs benchmark 调参建议（电离相关）
+
+如果出现“40 fs 峰值电子密度偏高”：
+
+1. 先确认没有误用 legacy：
+   - 检查日志中的 `family=legacy`；
+   - 若是，改为 `ppt_talebpour_i` 进行主对照。
+
+2. 固定时间模式做模型对照：
+   - 先统一 `time_mode=full`, `integrator=rk4`；
+   - 只切换 `rate`，避免“模型变化 + 时间近似变化”耦合。
+
+3. 再比较 `full` vs `qs_mean`：
+   - 用于评估时间近似误差，而不是替代模型验证。
+
+4. 保持 `beta_rec=0`、`sigma_ib=0`（单脉冲基础 benchmark）
+   - 先隔离电离率差异，再逐步打开其它等离子体机制。
+
+---
+
+## 8. 数值与结果 sanity 检查
+
+建议每次改参数后至少检查：
+
+- `U_z` 不应无故爆炸增长；
+- `I_max_z` 不应出现相邻步极端跳变；
+- `rho_onaxis_max_z` 不应长期超过空气中性粒子数量级上限；
+- `w_mom_z` 应平滑演化，避免强锯齿；
+- `fwhm_plasma_z`/`fwhm_fluence_z` 应连续且为正。
+
+---
+
+## 9. 最小自检命令（建议）
+
+```bash
+python -m compileall Filament_python/KHz_filament
+pytest -q Filament_python/tests/test_sanity.py
+PYTHONPATH=Filament_python python Filament_python/tests/ionization_selfcheck_min.py
+```
+
+---
+
+## 10. 说明
+
+- 旧版本中大量“参数解释文本”已从 `config.json` 移出，避免配置文件与文档重复、以及 JSON 解析问题；
+- 详细说明以本 README 为准，`config.json` 保留可运行配置样例。
