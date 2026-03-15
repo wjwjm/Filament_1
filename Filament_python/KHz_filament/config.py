@@ -72,9 +72,12 @@ class IonizationConfig:
     以 species 为核心的电离配置（简化版）。
     - species: 列表，每个元素是 dict，常用键：
         name: str
-        rate: "ppt_e" | "ppt_i" | "adk_e" | "mpa_fact" | "powerlaw" | "off"
+        rate: "ppt_e" | "ppt_i_legacy" | "ppt_talebpour_i" | "popruzhenko_atom_i"
+              | "adk_e" | "mpa_fact" | "powerlaw" | "off"
         fraction: float   # 该组分体积分数；会在 __post_init__ 中自动归一化
-        # PPT/ADK: Ip_eV, Z, l, m
+        # legacy/PPT/ADK: Ip_eV, Z, l, m
+        # Talebpour molecule: Ip_eV, Ip_eV_eff(optional), Zeff, l, m
+        # Popruzhenko atom: Ip_eV, Z, l, m, n_terms(optional)
         # mpa_fact: ell, I_mp
         # powerlaw: A, K
         # 可选：W_cap（覆盖全局 W_cap）
@@ -87,7 +90,7 @@ class IonizationConfig:
     time_mode: TimeMode = "full"        # "full" | "qs_peak" | "qs_mean" | "qs_mean_esq"
     integrator: Integrator = "rk4"      # 仅在 time_mode="full" 时生效
 
-    # PPT 周期平均速率的相位采样数（仅对 rate="ppt_i" 有效）
+    # 周期平均速率相位采样数（对 *_i 模型有效）
     cycle_avg_samples: int = 64
 
     # 准稳态 mean 的弱尾裁剪比例（0~1），如 1e-3 表示剪掉 <0.1% 峰值的尾部
