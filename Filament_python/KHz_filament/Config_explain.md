@@ -1,4 +1,4 @@
-# `Filament_python/KHz_filament/config.py` 参数说明（可直接复制）
+# `Filament_python/KHz_filament/config.py` 参数说明
 
 > 按 `config.py` 中出现顺序逐项解释每个参数含义。单位以代码注释/常用约定为准。
 
