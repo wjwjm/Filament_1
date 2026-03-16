@@ -192,25 +192,36 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
         return sp.get(key, default) if isinstance(sp, dict) else getattr(sp, key, default)
 
     def _resolve_rate(sp):
-        """rate 优先；否则从旧的 model+cycle_avg 推断"""
+        """rate 优先；否则从旧的 model+cycle_avg 推断。已下线模型会抛错提示迁移。"""
         r = str(_g(sp, "rate", "") or "").lower().replace("ppt-i", "ppt_i")
+        removed = {"ppt_e", "ppt_i", "ppt_i_legacy", "adk_e", "powerlaw", "mpa"}
         if r:
-            if r == "ppt_i":
-                return "ppt_i_legacy"
+            if r in removed:
+                raise ValueError(
+                    f"[ionization] species.rate='{r}' 已移除，请改用: "
+                    "ppt_talebpour_i / popruzhenko_atom_i / mpa_fact / off"
+                )
+            if r in ("none", "zero"):
+                return "off"
             return r
-        m   = str(_g(sp, "model", getattr(ion, "model", "ppt"))).lower()
+        m = str(_g(sp, "model", getattr(ion, "model", "off"))).lower()
         cyc = bool(_g(sp, "cycle_avg", getattr(ion, "cycle_avg", False)))
-        if m in ("ppt", "ppt_cycleavg"): return "ppt_i_legacy" if (m == "ppt_cycleavg" or cyc) else "ppt_e"
-        if m == "adk":                    return "adk_e"
-        if m in ("mpa_fact","mpa_factorial","multiphoton_factorial"): return "mpa_fact"
-        if m in ("powerlaw","mpa"):       return "powerlaw"
-        if m in ("off","none","zero"):    return "off"
-        return "ppt_e"
+        if m in ("none", "off", "zero", ""):
+            return "off"
+        if m in ("mpa_fact", "mpa_factorial", "multiphoton_factorial"):
+            return "mpa_fact"
+        if m in ("ppt", "ppt_cycleavg", "adk", "powerlaw", "mpa"):
+            raise ValueError(
+                f"[ionization] 旧字段 model='{m}'(cycle_avg={cyc}) 将推断到已移除模型；"
+                "请在 species.rate 中显式设置为: "
+                "ppt_talebpour_i / popruzhenko_atom_i / mpa_fact / off"
+            )
+        raise ValueError(f"[ionization] 未识别 model/rate: model='{m}'")
 
     def _expects_for_rate(rate: str) -> str:
         rate = (rate or "").lower()
-        if rate in ("ppt_e","adk_e"):                  return "|E|"
-        if rate in ("ppt_i","ppt_i_legacy","ppt_talebpour_i","popruzhenko_atom_i","mpa_fact","powerlaw"):    return "I"
+        if rate in ("ppt_talebpour_i", "popruzhenko_atom_i", "mpa_fact"):
+            return "I"
         return "—"
 
 
@@ -293,7 +304,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
         for sp in species:
             r = _resolve_rate(sp)
             exp_set.add(_expects_for_rate(r))
-            if r in ("ppt_i", "ppt_i_legacy", "ppt_talebpour_i", "popruzhenko_atom_i"):
+            if r in ("ppt_talebpour_i", "popruzhenko_atom_i"):
                 has_ppt_i = True
 
         exp_tag = "mixed" if (len(exp_set) > 1) else (next(iter(exp_set)) if exp_set else "none")
@@ -306,28 +317,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
             rate = _resolve_rate(sp)
             expx = _expects_for_rate(rate)
 
-            if rate in ("ppt_e","adk_e"):
-                model_tag = "PPT_E" if rate=="ppt_e" else "ADK_E"
-                Ip = _g(sp, "Ip_eV", getattr(ion, "Ip_eV", None))
-                Z  = _g(sp, "Z", getattr(ion, "Z", None))
-                l  = _g(sp, "l", getattr(ion, "l", None))
-                m  = _g(sp, "m", getattr(ion, "m", None))
-                Wc = _g(sp, "W_cap", None)
-                cap_note = f", W_cap={fmt(Wc,' s^-1')}" if Wc is not None else ""
-                print(f"    - {name:6s} rate={model_tag:<8} Ip={Ip} eV, Z={Z}, l={l}, m={m}, fraction={frac:.3f}, expects={expx}{cap_note}")
-
-            elif rate in ("ppt_i", "ppt_i_legacy"):
-                Ip = _g(sp, "Ip_eV", getattr(ion, "Ip_eV", None))
-                Z  = _g(sp, "Z", getattr(ion, "Z", None))
-                l  = _g(sp, "l", getattr(ion, "l", None))
-                m  = _g(sp, "m", getattr(ion, "m", None))
-                Wc = _g(sp, "W_cap", None)
-                ag = _g(sp, "a_gamma", getattr(ion, "a_gamma", 0.75))
-                ws = _g(sp, "W_scale", getattr(ion, "W_scale", 1.0))
-                cap_note = f", W_cap={fmt(Wc,' s^-1')}" if Wc is not None else ""
-                print(f"    - {name:6s} rate=PPT_I_LEGACY (cycle-avg bridged-ADK) Ip={Ip} eV, Z={Z}, l={l}, m={m}, a_gamma={ag}, W_scale={ws}, fraction={frac:.3f}, expects={expx}{cap_note}")
-
-            elif rate == "ppt_talebpour_i":
+            if rate == "ppt_talebpour_i":
                 Ip = _g(sp, "Ip_eV", getattr(ion, "Ip_eV", None))
                 Ipe = _g(sp, "Ip_eV_eff", None)
                 Zeff = _g(sp, "Zeff", None)
@@ -354,13 +344,6 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
                 cap_note = f", W_cap={fmt(Wc,' s^-1')}" if Wc is not None else ""
                 print(f"    - {name:6s} rate=MPA_FACT ell={ell}, I_mp={fmt(Imp,' W/m^2')}, fraction={frac:.3f}, expects={expx}{cap_note}")
 
-            elif rate == "powerlaw":
-                A = _g(sp, "A", getattr(ion, "A", None))
-                K = _g(sp, "K", getattr(ion, "K", None))
-                Wc = _g(sp, "W_cap", None)
-                cap_note = f", W_cap={fmt(Wc,' s^-1')}" if Wc is not None else ""
-                print(f"    - {name:6s} rate=POWERLAW A={A}, K={K}, fraction={frac:.3f}, expects={expx}{cap_note}")
-
             elif rate == "off":
                 print(f"    - {name:6s} rate=OFF      fraction={frac:.3f}, expects=—")
             else:
@@ -383,16 +366,9 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     else:
         # 兼容：若用户没有提供 species（不推荐），回退到旧打印
         ion_model = str(getattr(ion, "model", "none")).lower()
-        if ion_model in ("ppt","adk"):
-            Ip = getattr(ion, "Ip_eV", None); Zt = getattr(ion, "Z", None)
-            lt = getattr(ion, "l", None);     mt = getattr(ion, "m", None)
-            print(f"Ionization  : {ion_model.upper()}  Ip={Ip} eV, Z={Zt}, l={lt}, m={mt} | caps: W≤{fmt(W_cap,' s^-1')}, I≤{fmt(I_cap,' W/m^2')}  expects=|E|")
-        elif ion_model in ("mpa_fact","mpa_factorial"):
+        if ion_model in ("mpa_fact","mpa_factorial"):
             ell = getattr(ion, "ell", None); Imp = getattr(ion, "I_mp", None)
             print(f"Ionization  : MPA_FACT ell={ell}, I_mp={fmt(Imp,' W/m^2')} | caps: W≤{fmt(W_cap,' s^-1')}, I≤{fmt(I_cap,' W/m^2')}  expects=I")
-        elif ion_model in ("powerlaw","mpa"):
-            A = getattr(ion, "A", None); K = getattr(ion, "K", None)
-            print(f"Ionization  : POWERLAW A={A}, K={K} | caps: W≤{fmt(W_cap,' s^-1')}, I≤{fmt(I_cap,' W/m^2')}  expects=I")
         else:
             print("Ionization  : OFF")
         if nu_ei_const is not None:

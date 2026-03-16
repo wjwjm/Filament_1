@@ -72,14 +72,11 @@ class IonizationConfig:
     以 species 为核心的电离配置（简化版）。
     - species: 列表，每个元素是 dict，常用键：
         name: str
-        rate: "ppt_e" | "ppt_i_legacy" | "ppt_talebpour_i" | "popruzhenko_atom_i"
-              | "adk_e" | "mpa_fact" | "powerlaw" | "off"
+        rate: "ppt_talebpour_i" | "popruzhenko_atom_i" | "mpa_fact" | "off"
         fraction: float   # 该组分体积分数；会在 __post_init__ 中自动归一化
-        # legacy/PPT/ADK: Ip_eV, Z, l, m
         # Talebpour molecule: Ip_eV, Ip_eV_eff(optional), Zeff, l, m
         # Popruzhenko atom: Ip_eV, Z, l, m, n_terms(optional)
         # mpa_fact: ell, I_mp
-        # powerlaw: A, K
         # 可选：W_cap（覆盖全局 W_cap）
     其他字段与电离模块的新实现一一对应。
     """
