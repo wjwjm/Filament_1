@@ -83,34 +83,6 @@ def intensity(E, n0: float, I_cap: float = I_CAP_DEFAULT):
 def field_amplitude_from_intensity(I, n0: float):
     return xp.sqrt(_minmax_inplace(2.0 * I / (eps0 * c0 * n0), 0.0))
 
-# ----------------- Power-law (compatibility) -----------------
-def powerlaw_W(I, A_W: float, Iref: float, K: int,
-               W_cap: float = W_CAP_DEFAULT,
-               I_cap: float = I_CAP_DEFAULT):
-    denom = max(Iref, 1.0)
-    x = xp.asarray(I) / denom
-    _minmax_inplace(x, 0.0, I_cap / denom)
-    _minmax_inplace(x, 1e-30, None)
-    W = A_W * xp.exp(K * xp.log(x))
-    return _minmax_inplace(W, 0.0, W_cap)
-
-# ----------------- ADK (compact) -----------------
-def W_adk_from_E(E_SI, Ip_eV: float, Z: int, l: int, m: int,
-                 n_star: float | None = None, W_cap: float = W_CAP_DEFAULT):
-    Eabs = _as_real_like(xp.abs(E_SI), like=E_SI); _minmax_inplace(Eabs, 1e-30, None)
-    Ip_au = float(Ip_eV_to_au(Ip_eV)); kappa = (2.0 * Ip_au) ** 0.5
-    if n_star is None: n_star = float(Z) / kappa
-    E_au = _as_real_like(E_SI_to_au(Eabs), like=Eabs)
-    base = 2.0 * E_au / (kappa**3 + 1e-30); _minmax_inplace(base, 1e-30, None)
-    power_term = xp.exp(abs(int(m)) * xp.log(base))
-    expo = -2.0 * (kappa ** 3) / (3.0 * _minmax_inplace(E_au, 1e-30, None))
-    expo_term = _safe_exp_inplace(expo, neg_only=True)
-    ang = max(1.0, (2 * int(l) + 1.0))
-    W_au = ang * power_term * expo_term
-    W_SI = _as_real_like(W_au * 4.134137333e16, like=Eabs)
-    _minmax_inplace(W_SI, 0.0, W_cap)
-    return W_SI
-
 # ----------------- MPA with factorial prefactor (paper-consistent) -----------------
 def _W_mpa_factorial(I_SI, omega0_SI: float, I_mp: float, ell: int, W_cap: float):
     """W(I) = Gamma0 * (I / I_mp)^ell,  Gamma0 = 2π ω0 / ((ell-1)!)"""
@@ -120,48 +92,6 @@ def _W_mpa_factorial(I_SI, omega0_SI: float, I_mp: float, ell: int, W_cap: float
     W = xp.clip(W, 0.0, float(W_cap))
     W = xp.nan_to_num(W, nan=0.0, posinf=float(W_cap), neginf=0.0)
     return W
-
-# ----------------- PPT legacy bridge (engineering model) -----------------
-def W_ppt_from_E_legacy(E_SI, omega0_SI, Ip_eV: float, Z: int, l: int, m: int,
-                 W_cap: float = W_CAP_DEFAULT,
-                 *,  A_gamma: float = 0.75,):
-    """
-    Legacy engineering bridge model (NOT literature PPT / Popruzhenko):
-        W = W_ADK * exp(-A_gamma * gamma^2)
-    - A_gamma = 0.0 -> ADK-like envelope.
-    - This function is kept only for backward compatibility and should not be
-      labeled as Talebpour 1999 molecular PPT or Popruzhenko 2008 atomic model.
-    """
-    # |E| → gamma
-    Eabs  = _as_real_like(xp.abs(E_SI), like=E_SI); _minmax_inplace(Eabs, 1e-30, None)
-    Ip_au = float(Ip_eV_to_au(Ip_eV))
-    omega_au = float(omega_SI_to_au(omega0_SI))
-    E_au  = _as_real_like(E_SI_to_au(Eabs), like=Eabs)
-    kappa = (2.0 * Ip_au) ** 0.5
-    denom = _minmax_inplace(E_au, 1e-30, None)
-    gamma = (omega_au * kappa) / denom
-    _minmax_inplace(gamma, 0.0, 1.0e6)
-    gamma2 = gamma * gamma
-
-    # base ADK-like rate
-    W_adk = W_adk_from_E(Eabs, Ip_eV, Z, l, m, W_cap=W_cap)
-
-    # ---- bridge (隧穿抑制) ----
-    if float(A_gamma) <= 0.0:
-        W = W_adk
-    else:
-        fac = gamma2.astype(W_adk.dtype, copy=True)
-        fac *= -float(A_gamma)
-        _safe_exp_inplace(fac, neg_only=True)
-        W = W_adk * fac
-
-    _minmax_inplace(W, 0.0, W_cap)
-    return W
-
-
-# Backward-compatible old name (kept as alias, but no longer used by new models)
-W_ppt_from_E = W_ppt_from_E_legacy
-
 
 def _factorial_safe(n: int) -> float:
     if n < 0:
@@ -351,31 +281,49 @@ def cycle_average_popruzhenko_from_I(I_SI, n0: float, omega0_SI: float, Ip_eV: f
 
 
 # ----------------- Rate resolver (new) -----------------
+def _removed_rate_error(rate: str, *, context: str) -> ValueError:
+    r = str(rate).lower()
+    repl = "ppt_talebpour_i / popruzhenko_atom_i / mpa_fact / off"
+    if r in ("ppt_e", "adk_e"):
+        hint = "该旧模型为 |E| 域模型，现已下线；请改用 I 域模型并传入强度 I。"
+    else:
+        hint = "请改用保留模型。"
+    return ValueError(
+        f"[ionization] {context}: rate='{rate}' 已被移除。"
+        f"建议替代: {repl}。{hint}"
+    )
+
+
 def _resolve_rate(sp, ion_conf):
-    """
-    解析每个物种的速率模型标识：
-      'ppt_e' | 'ppt_i_legacy' | 'ppt_talebpour_i' | 'popruzhenko_atom_i'
-      | 'adk_e' | 'mpa_fact' | 'powerlaw' | 'off'
-    若未提供 'rate'，则从老式 'model + cycle_avg' 推断（向后兼容）。
-    """
-    r = str(_g(sp, "rate", None) or "").lower()
+    """Resolve species ionization rate with strict deprecation handling."""
+    removed_rates = {"ppt_e", "ppt_i", "ppt_i_legacy", "adk_e", "powerlaw", "mpa"}
+    r = str(_g(sp, "rate", None) or "").lower().replace("ppt-i", "ppt_i")
     if r:
-        # 兼容用户可能写错的连字符
-        r = r.replace("ppt-i", "ppt_i")
-        if r == "ppt_i":
-            # keep old alias explicit and visible
-            print("[ionization] Info: rate alias 'ppt_i' is mapped to 'ppt_i_legacy'.")
-            return "ppt_i_legacy"
-        return r
-    # ---- backward compatibility ----
-    m   = str(_g(sp, "model", getattr(ion_conf, "model", "ppt"))).lower()
+        if r in removed_rates:
+            raise _removed_rate_error(r, context="species.rate")
+        if r in ("none", "zero"):
+            return "off"
+        if r in ("mpa_fact", "ppt_talebpour_i", "popruzhenko_atom_i", "off"):
+            return r
+        raise ValueError(
+            "[ionization] 未识别的 rate='{}'。允许值仅为: "
+            "ppt_talebpour_i / popruzhenko_atom_i / mpa_fact / off".format(r)
+        )
+
+    # backward compatibility: infer from legacy model + cycle_avg
+    m = str(_g(sp, "model", getattr(ion_conf, "model", "off"))).lower()
     cyc = bool(_g(sp, "cycle_avg", getattr(ion_conf, "cycle_avg", False)))
-    if m in ("ppt", "ppt_cycleavg"): return "ppt_i_legacy" if (m == "ppt_cycleavg" or cyc) else "ppt_e"
-    if m in ("adk",):                return "adk_e"
-    if m in ("mpa_fact","mpa_factorial","multiphoton_factorial"): return "mpa_fact"
-    if m in ("powerlaw","mpa"):      return "powerlaw"
-    if m in ("none","off","zero"):   return "off"
-    return "ppt_e"
+    if m in ("none", "off", "zero", ""):
+        return "off"
+    if m in ("mpa_fact", "mpa_factorial", "multiphoton_factorial"):
+        return "mpa_fact"
+    if m in ("ppt", "ppt_cycleavg", "adk", "powerlaw", "mpa"):
+        ctx = f"legacy model='{m}' with cycle_avg={cyc}"
+        raise _removed_rate_error(m, context=ctx)
+    raise ValueError(
+        f"[ionization] 无法从 legacy model='{m}' 推断可用电离模型；"
+        "请在 species 中显式设置 rate 为: ppt_talebpour_i / popruzhenko_atom_i / mpa_fact / off"
+    )
 
 
 def _talebpour_defaults(name: str, Ip_eV: float | None, Ip_eV_eff: float | None, Zeff: float | None):
@@ -398,8 +346,6 @@ def _talebpour_defaults(name: str, Ip_eV: float | None, Ip_eV_eff: float | None,
 
 def _ion_model_family(rate: str) -> str:
     r = str(rate).lower()
-    if r in ("ppt_i", "ppt_i_legacy", "ppt_e"):
-        return "legacy"
     if r == "ppt_talebpour_i":
         return "talebpour_molecule"
     if r == "popruzhenko_atom_i":
@@ -409,10 +355,9 @@ def _ion_model_family(rate: str) -> str:
 # ----------------- Factory (species is REQUIRED now) -----------------
 def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
     """
-    生成电离速率函数 Wfunc(inp)。本简化版要求 ion_conf.species 非空。
+    生成电离速率函数 Wfunc(inp)。本实现要求 ion_conf.species 非空。
     - 每个物种 'rate' 决定模型与输入域：
-        'ppt_e' (uses_E), 'ppt_i' (uses_I), 'adk_e' (uses_E),
-        'mpa_fact' (uses_I), 'powerlaw' (uses_I), 'off'
+        'ppt_talebpour_i' | 'popruzhenko_atom_i' | 'mpa_fact' | 'off'（均为 I 域）
     - 顶层 time_mode: 'full' | 'qs_peak' | 'qs_mean' | 'qs_mean_esq'
       （仅挂到 Wfunc 供 evolve_rho_time 读取；不改变函数签名）
     - 顶层 integrator: 'rk4' | 'euler' （仅在 time_mode='full' 时生效）
@@ -430,54 +375,16 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
     _phase_count = int(getattr(ion_conf, "cycle_avg_samples", 64))
     _phase = _np.linspace(0.0, _np.pi, max(8, _phase_count), endpoint=False)
     _cos_abs = _np.abs(_np.cos(_phase))
-    _fac_E_from_I = (2.0 / (n0 * float(eps0) * float(c0))) ** 0.5
 
     # 顶层默认参数（可被每个 species 覆盖）
-    a_gamma_def   = float(getattr(ion_conf, "a_gamma", 0.75))
     W_scale_def   = float(getattr(ion_conf, "W_scale", 1.0))
 
     def _mk_W_by_rate(rate, sp, W_cap):
         rate = str(rate).lower()
         # 物种级参数（可覆盖顶层）
-        a_gamma   = float(_g(sp, "a_gamma",  a_gamma_def))
         W_scale   = float(_g(sp, "W_scale",  W_scale_def))
 
-        if rate == "ppt_e":
-            Ip = float(_g(sp, "Ip_eV", 15.6));
-            Z = int(_g(sp, "Z", 1));
-            l = int(_g(sp, "l", 0));
-            m = int(_g(sp, "m", 0))
-
-            def W_s(Eabs_like, Ip_eV=Ip, Z=Z, l=l, m=m, W_cap=W_cap,
-                    a_gamma=a_gamma, W_scale=W_scale):
-                W = W_ppt_from_E_legacy(Eabs_like, omega0_SI, Ip_eV, Z, l, m,
-                                 W_cap=W_cap, A_gamma=a_gamma)
-                if W_scale != 1.0: W = W * W_scale
-                return xp.nan_to_num(xp.clip(W, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
-
-            tag = "uses_E"
-
-        elif rate in ("ppt_i", "ppt_i_legacy"):
-            Ip = float(_g(sp, "Ip_eV", 15.6));
-            Z = int(_g(sp, "Z", 1));
-            l = int(_g(sp, "l", 0));
-            m = int(_g(sp, "m", 0))
-
-            def W_s(I_SI, Ip_eV=Ip, Z=Z, l=l, m=m, W_cap=W_cap,
-                    a_gamma=a_gamma, W_scale=W_scale):
-                I = xp.asarray(I_SI)
-                E0 = xp.sqrt(xp.maximum(I, 0.0)) * float(_fac_E_from_I)
-                acc = 0.0
-                for cs in _cos_abs:
-                    acc = acc + W_ppt_from_E_legacy(E0 * float(cs), omega0_SI, Ip_eV, Z, l, m,
-                                             W_cap=W_cap, A_gamma=a_gamma)
-                W_mean = acc / len(_cos_abs)
-                if W_scale != 1.0: W_mean = W_mean * W_scale
-                return xp.nan_to_num(xp.clip(W_mean, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
-
-            tag = "uses_I"
-
-        elif rate == "ppt_talebpour_i":
+        if rate == "ppt_talebpour_i":
             name = str(_g(sp, "name", "")).strip()
             Ip_raw = _g(sp, "Ip_eV", None)
             Ip_eff = _g(sp, "Ip_eV_eff", None)
@@ -510,14 +417,6 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
 
             tag = "uses_I"
 
-        elif rate == "adk_e":
-            Ip = float(_g(sp, "Ip_eV", 15.6)); Z = int(_g(sp, "Z", 1)); l = int(_g(sp, "l", 0)); m = int(_g(sp, "m", 0))
-            def W_s(Eabs_like, Ip_eV=Ip, Z=Z, l=l, m=m, W_cap=W_cap, W_scale=W_scale):
-                W = W_adk_from_E(Eabs_like, Ip_eV, Z, l, m, W_cap=W_cap)
-                if W_scale != 1.0: W = W * W_scale
-                return xp.nan_to_num(xp.clip(W, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
-            tag = "uses_E"
-
         elif rate == "mpa_fact":
             ell = int(_g(sp, "ell", 8));
             Imp = float(_g(sp, "I_mp", 1e18))
@@ -526,16 +425,6 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
                 W = _W_mpa_factorial(I_SI, omega0_SI, Imp, ell, W_cap)
                 if W_scale != 1.0: W = W * W_scale
                 return xp.nan_to_num(xp.clip(W, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
-            tag = "uses_I"
-        elif rate == "powerlaw":
-            A = float(_g(sp, "A", 1e-100));
-            K = int(_g(sp, "K", 8))
-
-            def W_s(I_SI, A=A, K=K, W_cap=W_cap):
-                W = A * (xp.asarray(I_SI) ** K)
-                if W_scale != 1.0: W = W * W_scale
-                return xp.nan_to_num(xp.clip(W, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
-
             tag = "uses_I"
         else:  # 'off' or unknown
             def W_s(inp):
@@ -570,8 +459,6 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
         )
         if str(name).upper() in ("N2", "O2") and rate == "popruzhenko_atom_i":
             print("Warning: using atomic Popruzhenko model for molecular species; this is not the Talebpour molecular fit.")
-        if model_family == "legacy":
-            print("Warning: legacy bridged-ADK model is not the literature PPT/Popruzhenko implementation.")
 
         species_meta.append({
             "name": name, "fraction": frac, "W_s": W_s, "tag": tag,
@@ -602,26 +489,15 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
 
 def _ion_input_domain(ion_conf):
     """
-    返回 'E' 或 'I'。
-    本简化实现假定 species[] 必存在：根据每个物种的 'rate' 判定。
+    返回 'I'。当前保留电离模型均是 I 域。
+    对已移除模型给出友好报错，避免后续域错配导致崩溃。
     """
     species = getattr(ion_conf, "species", None)
     assert species and len(species) > 0, "要求提供 species[]"
-    tags = set()
     for sp in species:
-        rate = str(_g(sp, "rate", None) or "").lower()
-        if not rate:
-            # 兼容旧配置
-            m   = str(_g(sp, "model", getattr(ion_conf, "model", "ppt"))).lower()
-            cyc = bool(_g(sp, "cycle_avg", getattr(ion_conf, "cycle_avg", False)))
-            rate = "ppt_i" if (m == "ppt_cycleavg" or (m == "ppt" and cyc)) else ("adk_e" if m == "adk" else m)
-        if rate in ("ppt_e","adk_e"): tags.add("E")
-        elif rate in ("ppt_i","ppt_i_legacy","ppt_talebpour_i","popruzhenko_atom_i","mpa_fact","powerlaw"): tags.add("I")
-        elif rate in ("off","none","zero"): pass
-        else: tags.add("E")
-    if len(tags) == 0: return "I"
-    if len(tags) > 1:  raise ValueError("Ionization species 输入域冲突：既需要 |E| 又需要 I。")
-    return next(iter(tags))
+        _ = _resolve_rate(sp, ion_conf)
+    return "I"
+
 
 # ----------------- rho(t) evolution (species-resolved + quasi-static/full) -----------------
 def evolve_rho_time(input_array,dt: float,N0: float,beta_rec: float,Wfunc, *,

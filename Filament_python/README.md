@@ -70,21 +70,16 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
 
 当前建议显式使用以下 `species[i].rate`：
 
-1. `ppt_i_legacy`
-   - 旧工程桥接模型：`W = W_ADK * exp(-A_gamma * gamma^2)` 的周期平均版；
-   - 仅用于与历史结果对比；
-   - **不是** Talebpour 1999 分子 PPT，也**不是** Popruzhenko 2008。
-
-2. `ppt_talebpour_i`
+1. `ppt_talebpour_i`
    - 分子半经验 PPT 分支（N2/O2 推荐）；
    - 关键参数是 `Zeff`；
    - O2 可使用 `Ip_eV_eff = 12.55`。
 
-3. `popruzhenko_atom_i`
+2. `popruzhenko_atom_i`
    - Popruzhenko 2008 arbitrary-gamma 原子/离子公式；
    - 面向原子或离子（如 Xe 等），不建议直接替代 N2/O2 的分子拟合。
 
-> 兼容别名：`ppt_i` 仍可写，但会映射到 `ppt_i_legacy`，并在日志中提示。
+> 已移除旧模型：`ppt_e` / `ppt_i_legacy`(`ppt_i`) / `adk_e` / `powerlaw`。若配置到这些值，程序会报错并提示迁移到保留模型。
 
 ---
 
@@ -110,10 +105,6 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
   - `Z`
   - `l`, `m`
   - `n_terms`（可选，短程求和项数）
-
-- `ppt_i_legacy` 字段：
-  - `Ip_eV`, `Z`, `l`, `m`
-  - `a_gamma`（桥接因子，`0` 会更接近 ADK-like）
 
 ---
 
@@ -212,48 +203,11 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
 }
 ```
 
-## 6.3 legacy 对照（历史结果复现）
-
-```json
-"ionization": {
-  "species": [
-    {
-      "name": "N2",
-      "rate": "ppt_i_legacy",
-      "Ip_eV": 15.6,
-      "Z": 1,
-      "l": 0,
-      "m": 0,
-      "a_gamma": 0.75,
-      "fraction": 0.8
-    },
-    {
-      "name": "O2",
-      "rate": "ppt_i_legacy",
-      "Ip_eV": 12.1,
-      "Z": 1,
-      "l": 0,
-      "m": 0,
-      "a_gamma": 0.75,
-      "fraction": 0.2
-    }
-  ],
-  "time_mode": "qs_mean",
-  "cycle_avg_samples": 64
-}
-```
-
----
-
 ## 7. 40 fs benchmark 调参建议（电离相关）
 
 如果出现“40 fs 峰值电子密度偏高”：
 
-1. 先确认没有误用 legacy：
-   - 检查日志中的 `family=legacy`；
-   - 若是，改为 `ppt_talebpour_i` 进行主对照。
-
-2. 固定时间模式做模型对照：
+1. 固定时间模式做模型对照：
    - 先统一 `time_mode=full`, `integrator=rk4`；
    - 只切换 `rate`，避免“模型变化 + 时间近似变化”耦合。
 

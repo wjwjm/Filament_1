@@ -42,8 +42,8 @@
   },
 "ionization": {
   "species": [
-    {"name":"N2","rate":"ppt_i","Ip_eV":15.6,"Z":1,"fraction":0.8,"a_gamma":0.75,"W_scale":1.0},
-    {"name":"O2","rate":"ppt_i","Ip_eV":12.1,"Z":1,"fraction":0.2,"a_gamma":0.75,"W_scale":1.0}
+    {"name":"N2","rate":"ppt_talebpour_i","Ip_eV":15.6,"Zeff":0.9,"l":0,"m":0,"fraction":0.8,"W_scale":1.0},
+    {"name":"O2","rate":"ppt_talebpour_i","Ip_eV":12.1,"Ip_eV_eff":12.55,"Zeff":0.53,"l":0,"m":0,"fraction":0.2,"W_scale":1.0}
   ],
   "time_mode": "full",
   "integrator": "rk4",
