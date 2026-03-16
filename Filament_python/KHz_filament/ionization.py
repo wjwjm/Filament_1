@@ -11,7 +11,7 @@ except Exception:
     _sp_special = None
 
 # ----------------- Global safety caps -----------------
-I_CAP_DEFAULT = 5e15    # W/m^2, cap intensity
+I_CAP_DEFAULT = 1e19    # W/m^2, cap intensity
 W_CAP_DEFAULT = 1e16    # 1/s,  cap ionization rate
 DRHO_FRAC     = 0.25    # per time step, max fractional increase of N0
 
