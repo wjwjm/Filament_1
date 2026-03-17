@@ -34,7 +34,7 @@
     "species": [
       {
         "name": "N2",
-        "rate": "ppt_talebpour_i",
+        "rate": "ppt_talebpour_i_full",
         "Ip_eV": 15.6,
         "Zeff": 0.9,
         "l": 0,
@@ -43,7 +43,7 @@
       },
       {
         "name": "O2",
-        "rate": "ppt_talebpour_i",
+        "rate": "ppt_talebpour_i_full",
         "Ip_eV": 12.1,
         "Ip_eV_eff": 12.55,
         "Zeff": 0.53,

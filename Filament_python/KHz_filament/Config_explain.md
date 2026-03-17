@@ -115,7 +115,11 @@
   - `name`：物种名
   - `rate`：速率模型（如 ppt/adk/powerlaw/off 等）
   - `fraction`：该组分体积分数（通常应归一化使总和为 1；当前 `__post_init__` 被注释，说明可能在别处归一化或要求输入已归一）
-  - 不同模型需要的参数：`Ip_eV, Z, l, m, Zeff, n_terms, ell, I_mp, A, K, W_cap...` 等
+  - 不同模型需要的参数（当前保留分支）：
+    - `ppt_talebpour_i_full` / `ppt_talebpour_i_legacy`：`Ip_eV, Ip_eV_eff, Zeff, l, m, max_terms(可选), sum_rel_tol(可选)`
+    - `popruzhenko_atom_i_full`：`Ip_eV, Z, l, m, max_terms(可选), sum_rel_tol(可选)`
+    - `mpa_fact`：`ell, I_mp`
+  - 兼容别名：`ppt_talebpour_i -> ppt_talebpour_i_full`，`popruzhenko_atom_i -> popruzhenko_atom_i_full`（运行时日志会提示映射）
 
 ### 时间处理与积分方式
 - **time_mode (TimeMode)**：电离计算时间近似模式（见上）。
