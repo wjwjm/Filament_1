@@ -1,8 +1,9 @@
-function summary = diagnose_khzfil_out(matFile)
+function summary = diagnose_khzfil_out(matFile, cfgFile)
 %DIAGNOSE_KHZFIL_OUT 诊断 khzfil_out.mat 中光丝关键量随 z 的变化。
 % 用法：
 %   summary = diagnose_khzfil_out('khzfil_out.mat');
 %   summary = diagnose_khzfil_out('matlab_output/khzfil_out.mat');
+%   summary = diagnose_khzfil_out('khzfil_out.mat', 'khz_config.json');
 %
 % 输出：
 %   summary: 结构体，包含焦点位置、峰值强度、峰值等离子体密度、能量漂移等。
@@ -18,16 +19,26 @@ function summary = diagnose_khzfil_out(matFile)
 if nargin < 1 || strlength(string(matFile)) == 0
     matFile = 'khzfil_out.mat';
 end
+if nargin < 2
+    cfgFile = '';
+end
 
 S = load(matFile);
 assert(isfield(S, 'z_axis'), '缺少 z_axis，无法做 z 向诊断。');
 z = colvec(S.z_axis);
 z_m = z;
-z_cm = z * 100;
+focus_ref = resolve_focus_reference(S, matFile, cfgFile);
+[z_plot_m, z_plot_cm, z_label, z_shift_meta] = build_plot_axis(z_m, focus_ref);
 
 summary = struct();
 summary.file = matFile;
 summary.Nz = numel(z);
+summary.z_plot_label = z_label;
+summary.z_plot_shift_applied = z_shift_meta.applied;
+if z_shift_meta.applied
+    summary.z_origin_focus_m = z_shift_meta.z_focus_m;
+    summary.z_origin_source = z_shift_meta.source;
+end
 
 % --------- Figure 1: 强度诊断 ---------
 figure('Name', 'Filament diagnostics: intensity vs z', 'Color', 'w');
@@ -37,33 +48,33 @@ nexttile;
 hold on; grid on; box on;
 if isfield(S, 'I_max_z')
     Imax = sanitize_positive(colvec(S.I_max_z));
-    semilogy(z_cm, Imax, 'LineWidth', 1.8, 'DisplayName', 'I\_max\_z');
+    semilogy(z_plot_cm, Imax, 'LineWidth', 1.8, 'DisplayName', 'I\_max\_z');
     [summary.I_max_peak, iIp] = max(Imax, [], 'omitnan');
     if ~isempty(iIp) && ~isnan(summary.I_max_peak)
         summary.z_Imax_peak_m = z_m(iIp);
-        xline(summary.z_Imax_peak_m*100, '--', 'I_{max} peak', 'LabelVerticalAlignment','middle');
+        xline(to_plot_cm(summary.z_Imax_peak_m, z_shift_meta), '--', 'I_{max} peak', 'LabelVerticalAlignment','middle');
     end
 end
 if isfield(S, 'I_onaxis_max_z')
-    semilogy(z_cm, sanitize_positive(colvec(S.I_onaxis_max_z)), 'LineWidth', 1.6, 'DisplayName', 'I\_onaxis\_max\_z');
+    semilogy(z_plot_cm, sanitize_positive(colvec(S.I_onaxis_max_z)), 'LineWidth', 1.6, 'DisplayName', 'I\_onaxis\_max\_z');
 end
 if isfield(S, 'I_center_t0_z')
-    semilogy(z_cm, sanitize_positive(colvec(S.I_center_t0_z)), 'LineWidth', 1.2, 'DisplayName', 'I\_center\_t0\_z');
+    semilogy(z_plot_cm, sanitize_positive(colvec(S.I_center_t0_z)), 'LineWidth', 1.2, 'DisplayName', 'I\_center\_t0\_z');
 end
-xlabel('z (cm)'); ylabel('Intensity (W/m^2)');
+xlabel(z_label); ylabel('Intensity (W/m^2)');
 title('强度相关诊断（对数坐标）'); legend('Location','best');
 
 nexttile;
 hold on; grid on; box on;
 if isfield(S, 'I_max_z')
     Imaxn = colvec(S.I_max_z) / max(colvec(S.I_max_z), [], 'omitnan');
-    plot(z_cm, Imaxn, 'LineWidth', 1.8, 'DisplayName', 'I\_max\_z / max');
+    plot(z_plot_cm, Imaxn, 'LineWidth', 1.8, 'DisplayName', 'I\_max\_z / max');
 end
 if isfield(S, 'I_peak_q99_z')
     q99n = colvec(S.I_peak_q99_z) / max(colvec(S.I_peak_q99_z), [], 'omitnan');
-    plot(z_cm, q99n, 'LineWidth', 1.4, 'DisplayName', 'I\_peak\_q99\_z / max');
+    plot(z_plot_cm, q99n, 'LineWidth', 1.4, 'DisplayName', 'I\_peak\_q99\_z / max');
 end
-xlabel('z (cm)'); ylabel('Normalized');
+xlabel(z_label); ylabel('Normalized');
 title('峰值与稳峰（归一化）'); legend('Location','best');
 
 % --------- Figure 2: 等离子体密度 ---------
@@ -72,20 +83,20 @@ if isfield(S, 'rho_onaxis_max_z') || isfield(S, 'rho_max_z')
     hold on; grid on; box on;
     if isfield(S, 'rho_onaxis_max_z')
         rhoOn = sanitize_positive(colvec(S.rho_onaxis_max_z));
-        semilogy(z_cm, rhoOn, 'LineWidth', 1.8, 'DisplayName', '\rho\_onaxis\_max\_z');
+        semilogy(z_plot_cm, rhoOn, 'LineWidth', 1.8, 'DisplayName', '\rho\_onaxis\_max\_z');
         [summary.rho_onaxis_peak, irp] = max(rhoOn, [], 'omitnan');
         if ~isempty(irp) && ~isnan(summary.rho_onaxis_peak)
             summary.z_rho_onaxis_peak_m = z_m(irp);
         end
     end
     if isfield(S, 'rho_max_z')
-        semilogy(z_cm, sanitize_positive(colvec(S.rho_max_z)), 'LineWidth', 1.4, 'DisplayName', '\rho\_max\_z');
+        semilogy(z_plot_cm, sanitize_positive(colvec(S.rho_max_z)), 'LineWidth', 1.4, 'DisplayName', '\rho\_max\_z');
     end
     if isfield(S, 'rho_peak_q99_z')
-        semilogy(z_cm, sanitize_positive(colvec(S.rho_peak_q99_z)), '--', 'LineWidth', 1.2, 'DisplayName', '\rho\_peak\_q99\_z');
+        semilogy(z_plot_cm, sanitize_positive(colvec(S.rho_peak_q99_z)), '--', 'LineWidth', 1.2, 'DisplayName', '\rho\_peak\_q99\_z');
     end
     yline(1e25, ':k', '1e25 m^{-3} (air neutral density scale)', 'LabelVerticalAlignment','bottom');
-    xlabel('z (cm)'); ylabel('Electron density (m^{-3})');
+    xlabel(z_label); ylabel('Electron density (m^{-3})');
     title('等离子体密度诊断（对数坐标）');
     legend('Location','best');
 end
@@ -98,11 +109,11 @@ if isfield(S, 'w_mom_z')
     summary.z_focus_est_m = z_m(iw);
 
     figure('Name', 'Filament diagnostics: beam radius vs z', 'Color', 'w');
-    plot(z_cm, w*1e3, 'LineWidth', 1.8); grid on; box on;
+    plot(z_plot_cm, w*1e3, 'LineWidth', 1.8); grid on; box on;
     hold on;
-    plot(z_cm(iw), wmin*1e3, 'ro', 'MarkerFaceColor', 'r', 'DisplayName', 'w_{mom} min');
-    xline(z_cm(iw), '--r', sprintf('focus z = %.2f cm', z_cm(iw)));
-    xlabel('z (cm)'); ylabel('w_{mom} (mm)');
+    plot(z_plot_cm(iw), wmin*1e3, 'ro', 'MarkerFaceColor', 'r', 'DisplayName', 'w_{mom} min');
+    xline(z_plot_cm(iw), '--r', sprintf('focus z = %.2f cm', z_plot_cm(iw)));
+    xlabel(z_label); ylabel('w_{mom} (mm)');
     title('二阶矩光斑半径（焦点估计）');
 end
 
@@ -117,13 +128,13 @@ if isfield(S, 'U_z')
 
     figure('Name', 'Filament diagnostics: pulse energy vs z', 'Color', 'w');
     yyaxis left
-    plot(z_cm, U, 'LineWidth', 1.8);
+    plot(z_plot_cm, U, 'LineWidth', 1.8);
     ylabel('U(z) (J)');
     yyaxis right
-    plot(z_cm, dU, '--', 'LineWidth', 1.3);
+    plot(z_plot_cm, dU, '--', 'LineWidth', 1.3);
     ylabel('\DeltaU/U_0 (%)');
     grid on; box on;
-    xlabel('z (cm)');
+    xlabel(z_label);
     title('脉冲能量与相对漂移');
 end
 
@@ -132,12 +143,12 @@ if isfield(S, 'fwhm_plasma_z') || isfield(S, 'fwhm_fluence_z')
     figure('Name', 'Filament diagnostics: FWHM vs z', 'Color', 'w');
     hold on; grid on; box on;
     if isfield(S, 'fwhm_plasma_z')
-        plot(z_cm, colvec(S.fwhm_plasma_z)*1e6, 'LineWidth', 1.8, 'DisplayName', 'FWHM plasma');
+        plot(z_plot_cm, colvec(S.fwhm_plasma_z)*1e6, 'LineWidth', 1.8, 'DisplayName', 'FWHM plasma');
     end
     if isfield(S, 'fwhm_fluence_z')
-        plot(z_cm, colvec(S.fwhm_fluence_z)*1e6, 'LineWidth', 1.6, 'DisplayName', 'FWHM fluence');
+        plot(z_plot_cm, colvec(S.fwhm_fluence_z)*1e6, 'LineWidth', 1.6, 'DisplayName', 'FWHM fluence');
     end
-    xlabel('z (cm)'); ylabel('FWHM diameter (\mum)');
+    xlabel(z_label); ylabel('FWHM diameter (\mum)');
     title('通道横向尺度（FWHM）'); legend('Location','best');
 end
 
@@ -147,13 +158,13 @@ if isfield(S, 'rho_onaxis_t_z')
     rhozt = S.rho_onaxis_t_z;
     if isfield(S, 't_axis')
         t = colvec(S.t_axis) * 1e15;
-        imagesc(z_cm, t, log10(max(rhozt.', 1))); axis xy;
+        imagesc(z_plot_cm, t, log10(max(rhozt.', 1))); axis xy;
         ylabel('t (fs)');
     else
-        imagesc(z_cm, 1:size(rhozt,2), log10(max(rhozt.', 1))); axis xy;
+        imagesc(z_plot_cm, 1:size(rhozt,2), log10(max(rhozt.', 1))); axis xy;
         ylabel('time index');
     end
-    xlabel('z (cm)');
+    xlabel(z_label);
     title('log_{10}(\rho_{on-axis}(t,z))');
     cb = colorbar; cb.Label.String = 'log_{10}(m^{-3})';
     colormap(turbo);
@@ -166,9 +177,14 @@ if isfield(summary, 'z_focus_est_m')
     fprintf('Focus estimate from w_mom min: z = %.4g m (%.3f cm), w_min = %.4g m\n', ...
         summary.z_focus_est_m, summary.z_focus_est_m*100, summary.w_mom_min_m);
 end
+if z_shift_meta.applied
+    fprintf('Plot z-origin shifted to configured focus: z_focus = %.4g m (source=%s)\n', ...
+        z_shift_meta.z_focus_m, z_shift_meta.source);
+end
 if isfield(summary, 'I_max_peak')
     fprintf('I_max peak: %.4e W/m^2 @ z = %.4g m\n', summary.I_max_peak, summary.z_Imax_peak_m);
 end
+
 if isfield(summary, 'rho_onaxis_peak')
     fprintf('rho_onaxis peak: %.4e m^-3 @ z = %.4g m\n', summary.rho_onaxis_peak, summary.z_rho_onaxis_peak_m);
 end
@@ -194,6 +210,100 @@ end
 function y = sanitize_positive(y)
     y = y(:);
     y(y <= 0) = NaN;
+end
+
+function [z_plot_m, z_plot_cm, z_label, meta] = build_plot_axis(z_m, focus_ref)
+% 仅在“透镜提前聚焦”开启时，把绘图原点平移到配置焦点。
+z_plot_m = z_m;
+z_label = 'z (cm)';
+meta = struct('applied', false, 'z_focus_m', NaN, 'source', 'none');
+
+if ~focus_ref.applied
+    z_plot_cm = z_plot_m * 100;
+    return;
+end
+
+z_plot_m = z_m - focus_ref.z_focus_m;
+z_plot_cm = z_plot_m * 100;
+z_label = '\Deltaz from focus (cm)';
+meta.applied = true;
+meta.z_focus_m = focus_ref.z_focus_m;
+meta.source = focus_ref.source;
+end
+
+function focus_ref = resolve_focus_reference(S, matFile, cfgFile)
+focus_ref = struct('applied', false, 'z_focus_m', NaN, 'source', 'none');
+
+if isfield(S, 'focus_center_m') && isfield(S, 'limit_focus_window')
+    if logical(S.limit_focus_window) && isnumeric(S.focus_center_m) && isfinite(S.focus_center_m)
+        focus_ref.applied = true;
+        focus_ref.z_focus_m = double(S.focus_center_m);
+        focus_ref.source = 'mat';
+        return;
+    end
+end
+
+cfg_path = locate_cfg_file(matFile, cfgFile);
+if strlength(cfg_path) == 0
+    return;
+end
+
+try
+    C = jsondecode(fileread(cfg_path));
+catch
+    return;
+end
+
+if ~isstruct(C) || ~isfield(C, 'propagation') || ~isstruct(C.propagation)
+    return;
+end
+
+P = C.propagation;
+has_center = isfield(P, 'focus_center_m') && isnumeric(P.focus_center_m) && isfinite(P.focus_center_m);
+has_pre = isfield(P, 'limit_focus_window') && logical(P.limit_focus_window);
+if has_center && has_pre
+    focus_ref.applied = true;
+    focus_ref.z_focus_m = double(P.focus_center_m);
+    focus_ref.source = sprintf('json:%s', char(cfg_path));
+end
+end
+
+function cfg_path = locate_cfg_file(matFile, cfgFile)
+cfg_path = "";
+
+if nargin >= 2 && strlength(string(cfgFile)) > 0
+    cand = string(cfgFile);
+    if isfile(cand)
+        cfg_path = cand;
+        return;
+    end
+end
+
+mat_dir = fileparts(char(matFile));
+if strlength(string(mat_dir)) == 0
+    mat_dir = '.';
+end
+
+cands = [
+    string(fullfile(mat_dir, 'khz_config.json'))
+    string(fullfile(mat_dir, '..', 'khz_config.json'))
+    string('Filament_python/khz_config.json')
+];
+
+for k = 1:numel(cands)
+    if isfile(cands(k))
+        cfg_path = cands(k);
+        return;
+    end
+end
+end
+
+function x_cm = to_plot_cm(x_m, meta)
+if meta.applied
+    x_cm = (x_m - meta.z_focus_m) * 100;
+else
+    x_cm = x_m * 100;
+end
 end
 
 function warns = sanity_checks(S, z)
