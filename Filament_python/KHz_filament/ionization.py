@@ -105,10 +105,10 @@ def _ppt_prefactor_C2(n_star: float, l: int) -> float:
     return (2.0 ** (2.0 * n_star)) / (float(n_star) * math.gamma(n_star + l + 1.0) * math.gamma(nsl))
 
 
-def W_ppt_talebpour_from_E(E_SI, Ip_eV: float, Zeff: float, l: int, m: int,
-                           W_cap: float = W_CAP_DEFAULT):
+def w_ppt_talebpour_legacy_from_E(E_SI, Ip_eV: float, Zeff: float, l: int, m: int,
+                                  W_cap: float = W_CAP_DEFAULT):
     """
-    Talebpour-1999 style molecular PPT branch (N2/O2 semi-empirical usage).
+    Legacy simplified PPT/ADK-like branch (NOT Talebpour Appendix-A full form).
 
     Notes:
     - Uses a PPT/ADK-form instantaneous rate with molecular effective charge Zeff
@@ -143,10 +143,10 @@ def W_ppt_talebpour_from_E(E_SI, Ip_eV: float, Zeff: float, l: int, m: int,
     return W_SI
 
 
-def cycle_average_ppt_talebpour_from_I(I_SI, n0: float, Ip_eV: float, Zeff: float, l: int, m: int,
-                                       samples: int = 64, W_cap: float = W_CAP_DEFAULT):
+def cycle_average_ppt_talebpour_legacy_from_I(I_SI, n0: float, Ip_eV: float, Zeff: float, l: int, m: int,
+                                              samples: int = 64, W_cap: float = W_CAP_DEFAULT):
     """
-    Cycle-averaged Talebpour-1999 molecular PPT rate:
+    Cycle-averaged legacy simplified PPT/ADK-like molecular rate:
         W_bar(I) = (1/pi)∫_0^pi W_PPT_mol(E0*|cos(phi)|) dphi
     where E0 = sqrt(2I/(n0*eps0*c0)).
     """
@@ -157,7 +157,7 @@ def cycle_average_ppt_talebpour_from_I(I_SI, n0: float, Ip_eV: float, Zeff: floa
     E0 = xp.sqrt(xp.maximum(I, 0.0)) * fac_E_from_I
     acc = 0.0
     for cs in cos_abs:
-        acc = acc + W_ppt_talebpour_from_E(E0 * float(cs), Ip_eV=Ip_eV, Zeff=Zeff, l=l, m=m, W_cap=W_cap)
+        acc = acc + w_ppt_talebpour_legacy_from_E(E0 * float(cs), Ip_eV=Ip_eV, Zeff=Zeff, l=l, m=m, W_cap=W_cap)
     W_mean = acc / len(cos_abs)
     return xp.nan_to_num(xp.clip(W_mean, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
 
@@ -198,17 +198,114 @@ def _dawson_xp(x):
     return out
 
 
-def popruzhenko_coulomb_Q(F, gamma, n_star):
+def _ppt_g_gamma(gamma):
+    gamma = _minmax_inplace(_as_real_like(gamma), 1e-12, 1e6)
+    asinh_g = xp.arcsinh(gamma)
+    sqrt_1g2 = xp.sqrt(1.0 + gamma * gamma)
+    return (3.0 / (2.0 * gamma)) * ((1.0 + 1.0 / (2.0 * gamma * gamma)) * asinh_g - sqrt_1g2 / (2.0 * gamma))
+
+
+def _ppt_alpha(gamma):
+    gamma = _minmax_inplace(_as_real_like(gamma), 1e-12, 1e6)
+    return 2.0 * (xp.arcsinh(gamma) - gamma / xp.sqrt(1.0 + gamma * gamma))
+
+
+def _sum_tail_adaptive(term_fn, first_idx, max_terms=4096, rel_tol=1e-9):
+    s = None
+    for k in range(int(max_terms)):
+        t = term_fn(first_idx + float(k))
+        s = t if s is None else (s + t)
+        if k > 8:
+            denom = xp.maximum(xp.abs(s), 1e-300)
+            if bool(xp.all(xp.abs(t) <= rel_tol * denom)):
+                break
+    return s if s is not None else 0.0
+
+
+def _ppt_Am_series_m0(gamma, nu, *, max_terms=4096, rel_tol=1e-9):
+    """
+    Appendix-A-like A_m series core for m=0.
+    needs_formula_verification: OCR 对 A_m 的 m 依赖项存在歧义，此处先严格实现 m=0 主项。
+    """
+    gamma = _minmax_inplace(_as_real_like(gamma), 1e-12, 1e6)
+    beta = 2.0 * gamma / xp.sqrt(1.0 + gamma * gamma)
+    alpha = _ppt_alpha(gamma)
+    n0 = xp.floor(nu) + 1.0
+
+    def _term(n):
+        dn = n - nu
+        return _dawson_xp(xp.sqrt(beta * dn)) * _safe_exp_inplace(-alpha * dn, neg_only=True)
+
+    s = _sum_tail_adaptive(_term, n0, max_terms=max_terms, rel_tol=rel_tol)
+    pref = (4.0 / math.sqrt(3.0 * math.pi)) * (gamma * gamma) / (1.0 + gamma * gamma)
+    return pref * s
+
+
+def w_ppt_talebpour_full_from_E(E_SI, omega0_SI: float, Ip_eV: float, Zeff: float, l: int, m: int,
+                                *, max_terms: int = 4096, sum_rel_tol: float = 1e-9,
+                                W_cap: float = W_CAP_DEFAULT):
+    """Talebpour 1999 Appendix-A PPT molecular branch (full-form implementation with Zeff substitution)."""
+    Eabs = _minmax_inplace(_as_real_like(xp.abs(E_SI), like=E_SI), 1e-30, None)
+    F = _minmax_inplace(_as_real_like(E_SI_to_au(Eabs), like=Eabs), 1e-30, None)
+    Ip_au = float(Ip_eV_to_au(Ip_eV))
+    omega_au = max(float(omega_SI_to_au(omega0_SI)), 1e-30)
+    kappa = math.sqrt(2.0 * Ip_au)
+    n_star = float(Zeff) / max(kappa, 1e-30)
+    am = abs(int(m))
+
+    gamma = _minmax_inplace(omega_au * kappa / F, 1e-12, 1e8)
+    nu = float(Ip_au) * (1.0 + 1.0 / (2.0 * gamma * gamma)) / omega_au
+
+    C2 = _ppt_prefactor_C2(n_star, int(l))
+    f_lm = (2.0 * int(l) + 1.0) * _factorial_safe(int(l) + am)
+    f_lm /= max((2.0 ** am) * _factorial_safe(am) * _factorial_safe(int(l) - am), 1e-30)
+
+    A_m0 = _ppt_Am_series_m0(gamma, nu, max_terms=max_terms, rel_tol=sum_rel_tol)
+    if am == 0:
+        A_m = A_m0
+    else:
+        # needs_formula_verification: Appendix-A OCR 对 A_m 的 m>0 权重项不清晰。
+        A_m = A_m0 * (2.0 * gamma / xp.sqrt(1.0 + gamma * gamma)) ** am
+
+    g_gamma = _ppt_g_gamma(gamma)
+    expo = _safe_exp_inplace(-2.0 * (kappa ** 3) * g_gamma / (3.0 * F), neg_only=True)
+    sqrt_term = xp.sqrt((3.0 / (math.pi * F)) * ((1.0 + gamma * gamma) ** (-am / 2.0 + 0.75)) * xp.maximum(A_m, 0.0))
+    w_au = float(C2 * f_lm * Ip_au) * sqrt_term * expo
+    w_si = _as_real_like(w_au * 4.134137333e16, like=Eabs)
+    return xp.nan_to_num(xp.clip(w_si, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
+
+
+def cycle_average_ppt_talebpour_full_from_I(I_SI, n0: float, omega0_SI: float, Ip_eV: float, Zeff: float, l: int, m: int,
+                                            samples: int = 64, max_terms: int = 4096, sum_rel_tol: float = 1e-9,
+                                            W_cap: float = W_CAP_DEFAULT):
+    phase = _np.linspace(0.0, _np.pi, max(8, int(samples)), endpoint=False)
+    cos_abs = _np.abs(_np.cos(phase))
+    fac_E_from_I = (2.0 / (float(n0) * float(eps0) * float(c0))) ** 0.5
+    I = xp.asarray(I_SI)
+    E0 = xp.sqrt(xp.maximum(I, 0.0)) * fac_E_from_I
+    acc = 0.0
+    for cs in cos_abs:
+        acc = acc + w_ppt_talebpour_full_from_E(
+            E0 * float(cs), omega0_SI=omega0_SI, Ip_eV=Ip_eV, Zeff=Zeff, l=l, m=m,
+            max_terms=max_terms, sum_rel_tol=sum_rel_tol, W_cap=W_cap
+        )
+    W_mean = acc / len(cos_abs)
+    return xp.nan_to_num(xp.clip(W_mean, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
+
+
+def popruzhenko_coulomb_Q_full(F, gamma, n_star):
     """Popruzhenko 2008 Coulomb correction Q for atomic/ionic targets."""
     F = _minmax_inplace(_as_real_like(F), 1e-30, None)
     gamma = _minmax_inplace(_as_real_like(gamma), 0.0, 1e6)
     n_star = float(n_star)
-    Q = (2.0 / F) ** (2.0 * n_star) * (1.0 + 2.0 * math.exp(-1.0) * gamma) ** (-2.0 * n_star)
-    return _minmax_inplace(Q, 0.0, None)
+    lnQ = (2.0 * n_star) * xp.log(2.0 / F) - (2.0 * n_star) * xp.log(1.0 + 2.0 * math.exp(-1.0) * gamma)
+    Q = _safe_exp_inplace(lnQ, neg_only=False)
+    return _minmax_inplace(Q, 0.0, 1e300)
 
 
-def popruzhenko_short_range_wSR(F, gamma, Ip_au: float, omega_au: float, n_star: float,
-                                n_terms: int = 96, W_cap: float = W_CAP_DEFAULT):
+def popruzhenko_short_range_wSR_full(F, gamma, Ip_au: float, omega_au: float, n_star: float,
+                                     max_terms: int = 4096, sum_rel_tol: float = 1e-9,
+                                     W_cap: float = W_CAP_DEFAULT):
     """Popruzhenko 2008 short-range rate term w_SR (atomic/ionic; linear polarization)."""
     F = _minmax_inplace(_as_real_like(F), 1e-30, None)
     gamma = _minmax_inplace(_as_real_like(gamma), 1e-12, 1e6)
@@ -217,29 +314,30 @@ def popruzhenko_short_range_wSR(F, gamma, Ip_au: float, omega_au: float, n_star:
     n_th = K0 * (1.0 + 1.0 / (2.0 * gamma * gamma))
     asinh_g = xp.arcsinh(gamma)
     sqrt_1g2 = xp.sqrt(1.0 + gamma * gamma)
-    g_gamma = (3.0 / (2.0 * gamma)) * ((1.0 + 1.0 / (2.0 * gamma * gamma)) * asinh_g - sqrt_1g2 / (2.0 * gamma))
+    g_gamma = _ppt_g_gamma(gamma)
     c1 = asinh_g - gamma / sqrt_1g2
     beta = 2.0 * gamma / sqrt_1g2
 
-    C2 = (2.0 ** (2.0 * n_star)) / (n_star * math.gamma(n_star + 1.0) * math.gamma(n_star))
-    pref = (2.0 * C2 / math.pi) * float(Ip_au) * (K0 ** -1.5)
+    # Hartree approximation for s-states: C^2 = 2^(2n*-2) / (Gamma(n*+1)^2)
+    C2 = (2.0 ** (2.0 * n_star - 2.0)) / (math.gamma(n_star + 1.0) ** 2)
+    pref = (2.0 * C2 / math.pi) * float(Ip_au) * (K0 ** -1.5) * xp.sqrt(beta)
 
     n0 = xp.floor(n_th) + 1.0
-    sum_term = xp.zeros_like(F, dtype=F.dtype)
-    for k in range(int(max(8, n_terms))):
-        dn = (n0 + float(k)) - n_th
-        expo_arg = -2.0 * g_gamma / (3.0 * F) - 2.0 * c1 * dn
+    def _term(n):
+        dn = n - n_th
+        expo_arg = -2.0 * c1 * dn
         expo = _safe_exp_inplace(expo_arg, neg_only=True)
-        daw = _dawson_xp(xp.sqrt(beta * dn))
-        sum_term = sum_term + expo * daw
+        return expo * _dawson_xp(xp.sqrt(beta * dn))
+    sum_term = _sum_tail_adaptive(_term, n0, max_terms=max_terms, rel_tol=sum_rel_tol)
 
-    w_sr_au = pref * sum_term
+    w_sr_au = pref * _safe_exp_inplace(-2.0 * g_gamma / (3.0 * F), neg_only=True) * sum_term
     w_sr = _as_real_like(w_sr_au * 4.134137333e16)
     return _minmax_inplace(w_sr, 0.0, W_cap)
 
 
-def w_popruzhenko_from_E(E_SI, omega0_SI: float, Ip_eV: float, Z: int,
-                         n_terms: int = 96, W_cap: float = W_CAP_DEFAULT):
+def w_popruzhenko_atom_full_from_E(E_SI, omega0_SI: float, Ip_eV: float, Z: int,
+                                   max_terms: int = 4096, sum_rel_tol: float = 1e-9,
+                                   W_cap: float = W_CAP_DEFAULT):
     """
     Popruzhenko 2008 arbitrary-gamma Coulomb-corrected atomic/ionic rate.
     Assumptions: non-resonant, single-active-electron, non-relativistic,
@@ -256,16 +354,17 @@ def w_popruzhenko_from_E(E_SI, omega0_SI: float, Ip_eV: float, Z: int,
     F = E_au / ((2.0 * Ip_au) ** 1.5)
     gamma = omega_au * math.sqrt(2.0 * Ip_au) / E_au
 
-    Q = popruzhenko_coulomb_Q(F=F, gamma=gamma, n_star=n_star)
-    w_sr = popruzhenko_short_range_wSR(F=F, gamma=gamma, Ip_au=Ip_au, omega_au=omega_au,
-                                       n_star=n_star, n_terms=n_terms, W_cap=W_cap)
+    Q = popruzhenko_coulomb_Q_full(F=F, gamma=gamma, n_star=n_star)
+    w_sr = popruzhenko_short_range_wSR_full(F=F, gamma=gamma, Ip_au=Ip_au, omega_au=omega_au,
+                                            n_star=n_star, max_terms=max_terms,
+                                            sum_rel_tol=sum_rel_tol, W_cap=W_cap)
     w = Q * w_sr
     return xp.nan_to_num(xp.clip(w, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
 
 
-def cycle_average_popruzhenko_from_I(I_SI, n0: float, omega0_SI: float, Ip_eV: float, Z: int,
-                                     samples: int = 64, n_terms: int = 96,
-                                     W_cap: float = W_CAP_DEFAULT):
+def cycle_average_popruzhenko_atom_full_from_I(I_SI, n0: float, omega0_SI: float, Ip_eV: float, Z: int,
+                                                samples: int = 64, max_terms: int = 4096,
+                                                sum_rel_tol: float = 1e-9, W_cap: float = W_CAP_DEFAULT):
     """Cycle average of Popruzhenko atomic rate over E0*|cos(phi)|."""
     phase = _np.linspace(0.0, _np.pi, max(8, int(samples)), endpoint=False)
     cos_abs = _np.abs(_np.cos(phase))
@@ -274,8 +373,9 @@ def cycle_average_popruzhenko_from_I(I_SI, n0: float, omega0_SI: float, Ip_eV: f
     E0 = xp.sqrt(xp.maximum(I, 0.0)) * fac_E_from_I
     acc = 0.0
     for cs in cos_abs:
-        acc = acc + w_popruzhenko_from_E(E0 * float(cs), omega0_SI=omega0_SI,
-                                         Ip_eV=Ip_eV, Z=Z, n_terms=n_terms, W_cap=W_cap)
+        acc = acc + w_popruzhenko_atom_full_from_E(E0 * float(cs), omega0_SI=omega0_SI,
+                                                   Ip_eV=Ip_eV, Z=Z, max_terms=max_terms,
+                                                   sum_rel_tol=sum_rel_tol, W_cap=W_cap)
     W_mean = acc / len(cos_abs)
     return xp.nan_to_num(xp.clip(W_mean, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
 
@@ -283,7 +383,7 @@ def cycle_average_popruzhenko_from_I(I_SI, n0: float, omega0_SI: float, Ip_eV: f
 # ----------------- Rate resolver (new) -----------------
 def _removed_rate_error(rate: str, *, context: str) -> ValueError:
     r = str(rate).lower()
-    repl = "ppt_talebpour_i / popruzhenko_atom_i / mpa_fact / off"
+    repl = "ppt_talebpour_i_legacy / ppt_talebpour_i_full / popruzhenko_atom_i_full / mpa_fact / off"
     if r in ("ppt_e", "adk_e"):
         hint = "该旧模型为 |E| 域模型，现已下线；请改用 I 域模型并传入强度 I。"
     else:
@@ -298,16 +398,23 @@ def _resolve_rate(sp, ion_conf):
     """Resolve species ionization rate with strict deprecation handling."""
     removed_rates = {"ppt_e", "ppt_i", "ppt_i_legacy", "adk_e", "powerlaw", "mpa"}
     r = str(_g(sp, "rate", None) or "").lower().replace("ppt-i", "ppt_i")
+    alias_map = {
+        "ppt_talebpour_i": "ppt_talebpour_i_full",
+        "popruzhenko_atom_i": "popruzhenko_atom_i_full",
+    }
     if r:
         if r in removed_rates:
             raise _removed_rate_error(r, context="species.rate")
         if r in ("none", "zero"):
             return "off"
-        if r in ("mpa_fact", "ppt_talebpour_i", "popruzhenko_atom_i", "off"):
+        if r in alias_map:
+            print(f"[ionization] rate alias '{r}' -> '{alias_map[r]}'")
+            return alias_map[r]
+        if r in ("mpa_fact", "ppt_talebpour_i_legacy", "ppt_talebpour_i_full", "popruzhenko_atom_i_full", "off"):
             return r
         raise ValueError(
             "[ionization] 未识别的 rate='{}'。允许值仅为: "
-            "ppt_talebpour_i / popruzhenko_atom_i / mpa_fact / off".format(r)
+            "ppt_talebpour_i_legacy / ppt_talebpour_i_full / popruzhenko_atom_i_full / mpa_fact / off".format(r)
         )
 
     # backward compatibility: infer from legacy model + cycle_avg
@@ -322,7 +429,7 @@ def _resolve_rate(sp, ion_conf):
         raise _removed_rate_error(m, context=ctx)
     raise ValueError(
         f"[ionization] 无法从 legacy model='{m}' 推断可用电离模型；"
-        "请在 species 中显式设置 rate 为: ppt_talebpour_i / popruzhenko_atom_i / mpa_fact / off"
+        "请在 species 中显式设置 rate 为: ppt_talebpour_i_legacy / ppt_talebpour_i_full / popruzhenko_atom_i_full / mpa_fact / off"
     )
 
 
@@ -346,9 +453,11 @@ def _talebpour_defaults(name: str, Ip_eV: float | None, Ip_eV_eff: float | None,
 
 def _ion_model_family(rate: str) -> str:
     r = str(rate).lower()
-    if r == "ppt_talebpour_i":
-        return "talebpour_molecule"
-    if r == "popruzhenko_atom_i":
+    if r == "ppt_talebpour_i_legacy":
+        return "legacy_simplified"
+    if r == "ppt_talebpour_i_full":
+        return "talebpour_molecule_full"
+    if r == "popruzhenko_atom_i_full":
         return "popruzhenko_atom"
     return "other"
 
@@ -357,7 +466,7 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
     """
     生成电离速率函数 Wfunc(inp)。本实现要求 ion_conf.species 非空。
     - 每个物种 'rate' 决定模型与输入域：
-        'ppt_talebpour_i' | 'popruzhenko_atom_i' | 'mpa_fact' | 'off'（均为 I 域）
+        'ppt_talebpour_i_legacy' | 'ppt_talebpour_i_full' | 'popruzhenko_atom_i_full' | 'mpa_fact' | 'off'（均为 I 域）
     - 顶层 time_mode: 'full' | 'qs_peak' | 'qs_mean' | 'qs_mean_esq'
       （仅挂到 Wfunc 供 evolve_rho_time 读取；不改变函数签名）
     - 顶层 integrator: 'rk4' | 'euler' （仅在 time_mode='full' 时生效）
@@ -384,7 +493,7 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
         # 物种级参数（可覆盖顶层）
         W_scale   = float(_g(sp, "W_scale",  W_scale_def))
 
-        if rate == "ppt_talebpour_i":
+        if rate in ("ppt_talebpour_i_legacy", "ppt_talebpour_i_full"):
             name = str(_g(sp, "name", "")).strip()
             Ip_raw = _g(sp, "Ip_eV", None)
             Ip_eff = _g(sp, "Ip_eV_eff", None)
@@ -392,25 +501,38 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
             l = int(_g(sp, "l", 0))
             m = int(_g(sp, "m", 0))
             Ip_use, Zeff_use = _talebpour_defaults(name=name, Ip_eV=Ip_raw, Ip_eV_eff=Ip_eff, Zeff=Zeff_raw)
+            max_terms = int(_g(sp, "max_terms", 4096))
+            sum_rel_tol = float(_g(sp, "sum_rel_tol", 1e-9))
 
-            def W_s(I_SI, Ip_eV=Ip_use, Zeff=Zeff_use, l=l, m=m, W_cap=W_cap, W_scale=W_scale):
-                W_mean = cycle_average_ppt_talebpour_from_I(I_SI, n0=n0, Ip_eV=Ip_eV, Zeff=Zeff, l=l, m=m,
-                                                            samples=_phase_count, W_cap=W_cap)
+            def W_s(I_SI, Ip_eV=Ip_use, Zeff=Zeff_use, l=l, m=m, W_cap=W_cap, W_scale=W_scale,
+                    rate=rate, max_terms=max_terms, sum_rel_tol=sum_rel_tol):
+                if rate == "ppt_talebpour_i_full":
+                    W_mean = cycle_average_ppt_talebpour_full_from_I(
+                        I_SI, n0=n0, omega0_SI=omega0_SI, Ip_eV=Ip_eV, Zeff=Zeff, l=l, m=m,
+                        samples=_phase_count, max_terms=max_terms, sum_rel_tol=sum_rel_tol, W_cap=W_cap
+                    )
+                else:
+                    W_mean = cycle_average_ppt_talebpour_legacy_from_I(
+                        I_SI, n0=n0, Ip_eV=Ip_eV, Zeff=Zeff, l=l, m=m, samples=_phase_count, W_cap=W_cap
+                    )
                 if W_scale != 1.0:
                     W_mean = W_mean * W_scale
                 return xp.nan_to_num(xp.clip(W_mean, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
 
             tag = "uses_I"
 
-        elif rate == "popruzhenko_atom_i":
+        elif rate == "popruzhenko_atom_i_full":
             Ip = float(_g(sp, "Ip_eV", 15.6))
             Z = int(_g(sp, "Z", 1))
-            n_terms = int(_g(sp, "n_terms", 96))
+            max_terms = int(_g(sp, "max_terms", 4096))
+            sum_rel_tol = float(_g(sp, "sum_rel_tol", 1e-9))
 
-            def W_s(I_SI, Ip_eV=Ip, Z=Z, n_terms=n_terms, W_cap=W_cap, W_scale=W_scale):
-                W_mean = cycle_average_popruzhenko_from_I(I_SI, n0=n0, omega0_SI=omega0_SI,
-                                                          Ip_eV=Ip_eV, Z=Z, samples=_phase_count,
-                                                          n_terms=n_terms, W_cap=W_cap)
+            def W_s(I_SI, Ip_eV=Ip, Z=Z, max_terms=max_terms, sum_rel_tol=sum_rel_tol,
+                    W_cap=W_cap, W_scale=W_scale):
+                W_mean = cycle_average_popruzhenko_atom_full_from_I(
+                    I_SI, n0=n0, omega0_SI=omega0_SI, Ip_eV=Ip_eV, Z=Z, samples=_phase_count,
+                    max_terms=max_terms, sum_rel_tol=sum_rel_tol, W_cap=W_cap
+                )
                 if W_scale != 1.0:
                     W_mean = W_mean * W_scale
                 return xp.nan_to_num(xp.clip(W_mean, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
@@ -448,7 +570,7 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
         zeff = _g(sp, "Zeff", None)
         l = _g(sp, "l", None)
         m = _g(sp, "m", None)
-        if rate == "ppt_talebpour_i":
+        if rate in ("ppt_talebpour_i_legacy", "ppt_talebpour_i_full"):
             ip, zeff = _talebpour_defaults(name=name, Ip_eV=ip, Ip_eV_eff=ip_eff, Zeff=zeff)
             ip_eff = ip
         print(
@@ -457,8 +579,8 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
             f"cycle_avg_samples={_phase_count} time_mode={getattr(ion_conf, 'time_mode', '')} "
             f"integrator={getattr(ion_conf, 'integrator', 'rk4')}"
         )
-        if str(name).upper() in ("N2", "O2") and rate == "popruzhenko_atom_i":
-            print("Warning: using atomic Popruzhenko model for molecular species; this is not the Talebpour molecular fit.")
+        if str(name).upper() in ("N2", "O2") and rate == "popruzhenko_atom_i_full":
+            print("Warning: using atomic Popruzhenko FULL model for molecular species; this is an atomic proxy, not strict molecular model.")
 
         species_meta.append({
             "name": name, "fraction": frac, "W_s": W_s, "tag": tag,

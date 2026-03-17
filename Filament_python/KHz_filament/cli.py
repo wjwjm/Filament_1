@@ -194,13 +194,19 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     def _resolve_rate(sp):
         """rate 优先；否则从旧的 model+cycle_avg 推断。已下线模型会抛错提示迁移。"""
         r = str(_g(sp, "rate", "") or "").lower().replace("ppt-i", "ppt_i")
+        alias_map = {
+            "ppt_talebpour_i": "ppt_talebpour_i_full",
+            "popruzhenko_atom_i": "popruzhenko_atom_i_full",
+        }
         removed = {"ppt_e", "ppt_i", "ppt_i_legacy", "adk_e", "powerlaw", "mpa"}
         if r:
             if r in removed:
                 raise ValueError(
                     f"[ionization] species.rate='{r}' 已移除，请改用: "
-                    "ppt_talebpour_i / popruzhenko_atom_i / mpa_fact / off"
+                    "ppt_talebpour_i_legacy / ppt_talebpour_i_full / popruzhenko_atom_i_full / mpa_fact / off"
                 )
+            if r in alias_map:
+                return alias_map[r]
             if r in ("none", "zero"):
                 return "off"
             return r
@@ -214,13 +220,13 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
             raise ValueError(
                 f"[ionization] 旧字段 model='{m}'(cycle_avg={cyc}) 将推断到已移除模型；"
                 "请在 species.rate 中显式设置为: "
-                "ppt_talebpour_i / popruzhenko_atom_i / mpa_fact / off"
+                "ppt_talebpour_i_legacy / ppt_talebpour_i_full / popruzhenko_atom_i_full / mpa_fact / off"
             )
         raise ValueError(f"[ionization] 未识别 model/rate: model='{m}'")
 
     def _expects_for_rate(rate: str) -> str:
         rate = (rate or "").lower()
-        if rate in ("ppt_talebpour_i", "popruzhenko_atom_i", "mpa_fact"):
+        if rate in ("ppt_talebpour_i_legacy", "ppt_talebpour_i_full", "popruzhenko_atom_i_full", "mpa_fact"):
             return "I"
         return "—"
 
@@ -304,7 +310,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
         for sp in species:
             r = _resolve_rate(sp)
             exp_set.add(_expects_for_rate(r))
-            if r in ("ppt_talebpour_i", "popruzhenko_atom_i"):
+            if r in ("ppt_talebpour_i_legacy", "ppt_talebpour_i_full", "popruzhenko_atom_i_full"):
                 has_ppt_i = True
 
         exp_tag = "mixed" if (len(exp_set) > 1) else (next(iter(exp_set)) if exp_set else "none")
@@ -317,7 +323,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
             rate = _resolve_rate(sp)
             expx = _expects_for_rate(rate)
 
-            if rate == "ppt_talebpour_i":
+            if rate in ("ppt_talebpour_i_legacy", "ppt_talebpour_i_full"):
                 Ip = _g(sp, "Ip_eV", getattr(ion, "Ip_eV", None))
                 Ipe = _g(sp, "Ip_eV_eff", None)
                 Zeff = _g(sp, "Zeff", None)
@@ -325,17 +331,17 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
                 m  = _g(sp, "m", 0)
                 Wc = _g(sp, "W_cap", None)
                 cap_note = f", W_cap={fmt(Wc,' s^-1')}" if Wc is not None else ""
-                print(f"    - {name:6s} rate=PPT_TALEBPOUR_I Ip={Ip} eV, Ip_eff={Ipe} eV, Zeff={Zeff}, l={l}, m={m}, fraction={frac:.3f}, expects={expx}{cap_note}")
+                print(f"    - {name:6s} rate={rate.upper()} Ip={Ip} eV, Ip_eff={Ipe} eV, Zeff={Zeff}, l={l}, m={m}, fraction={frac:.3f}, expects={expx}{cap_note}")
 
-            elif rate == "popruzhenko_atom_i":
+            elif rate == "popruzhenko_atom_i_full":
                 Ip = _g(sp, "Ip_eV", getattr(ion, "Ip_eV", None))
                 Z  = _g(sp, "Z", getattr(ion, "Z", None))
                 l  = _g(sp, "l", 0)
                 m  = _g(sp, "m", 0)
-                nt = _g(sp, "n_terms", 96)
+                nt = _g(sp, "max_terms", 4096)
                 Wc = _g(sp, "W_cap", None)
                 cap_note = f", W_cap={fmt(Wc,' s^-1')}" if Wc is not None else ""
-                print(f"    - {name:6s} rate=POPRUZHENKO_ATOM_I Ip={Ip} eV, Z={Z}, l={l}, m={m}, n_terms={nt}, fraction={frac:.3f}, expects={expx}{cap_note}")
+                print(f"    - {name:6s} rate=POPRUZHENKO_ATOM_I_FULL Ip={Ip} eV, Z={Z}, l={l}, m={m}, max_terms={nt}, fraction={frac:.3f}, expects={expx}{cap_note}")
 
             elif rate == "mpa_fact":
                 ell = _g(sp, "ell", getattr(ion, "ell", None))
