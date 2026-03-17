@@ -68,16 +68,23 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
 
 ## 5.1 速率模型别名总览
 
-当前建议显式使用以下 `species[i].rate`：
+当前建议显式使用以下 `species[i].rate`（避免歧义）：
 
-1. `ppt_talebpour_i`
-   - 分子半经验 PPT 分支（N2/O2 推荐）；
-   - 关键参数是 `Zeff`；
-   - O2 可使用 `Ip_eV_eff = 12.55`。
+1. `ppt_talebpour_i_full`
+   - Talebpour/PPT 分子分支（N2/O2 推荐，含 `Zeff`、`Ip_eV_eff` 等参数）；
+   - O2 推荐 `Zeff=0.53` 与 `Ip_eV_eff=12.55`。
 
-2. `popruzhenko_atom_i`
+2. `popruzhenko_atom_i_full`
    - Popruzhenko 2008 arbitrary-gamma 原子/离子公式；
-   - 面向原子或离子（如 Xe 等），不建议直接替代 N2/O2 的分子拟合。
+   - 面向原子或离子（如 Xe 等）；用于 N2/O2 时属于 **atomic proxy**，不是分子严格模型。
+
+3. `ppt_talebpour_i_legacy`
+   - 旧版简化 PPT/ADK-like 近似，仅用于回归对照；
+   - 不应再视为 Talebpour Appendix A 原式。
+
+兼容别名：
+- `ppt_talebpour_i` 会映射到 `ppt_talebpour_i_full`（启动日志会提示）；
+- `popruzhenko_atom_i` 会映射到 `popruzhenko_atom_i_full`（启动日志会提示）。
 
 > 已移除旧模型：`ppt_e` / `ppt_i_legacy`(`ppt_i`) / `adk_e` / `powerlaw`。若配置到这些值，程序会报错并提示迁移到保留模型。
 
@@ -94,17 +101,20 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
   - `W_cap`（可选，覆盖全局上限）
   - `W_scale`（可选，数值缩放）
 
-- `ppt_talebpour_i` 推荐字段：
+- `ppt_talebpour_i_full` / `ppt_talebpour_i_legacy` 推荐字段：
   - `Ip_eV`
   - `Ip_eV_eff`（可选）
   - `Zeff`（推荐显式给出）
   - `l`, `m`
+  - `max_terms`（仅 full 模型可选）
+  - `sum_rel_tol`（仅 full 模型可选）
 
-- `popruzhenko_atom_i` 推荐字段：
+- `popruzhenko_atom_i_full` 推荐字段：
   - `Ip_eV`
   - `Z`
   - `l`, `m`
-  - `n_terms`（可选，短程求和项数）
+  - `max_terms`（可选，短程求和最大项数）
+  - `sum_rel_tol`（可选，尾项收敛阈值）
 
 ---
 
@@ -139,8 +149,9 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
 
 并提供告警：
 
-- N2/O2 使用 `popruzhenko_atom_i` 时会提示“原子模型并非 Talebpour 分子拟合”；
-- 使用 legacy 时会提示“不是文献 PPT/Popruzhenko 实现”。
+- N2/O2 使用 `popruzhenko_atom_i_full` 时会提示“atomic proxy，不是严格分子模型”；
+- 使用 `ppt_talebpour_i_legacy` 时会提示“legacy 简化模型（非文献完整版）”；
+- 使用旧别名时会提示实际映射到哪个 `*_full` 分支。
 
 ---
 
@@ -153,7 +164,7 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
   "species": [
     {
       "name": "N2",
-      "rate": "ppt_talebpour_i",
+      "rate": "ppt_talebpour_i_full",
       "Ip_eV": 15.6,
       "Zeff": 0.9,
       "l": 0,
@@ -162,7 +173,7 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
     },
     {
       "name": "O2",
-      "rate": "ppt_talebpour_i",
+      "rate": "ppt_talebpour_i_full",
       "Ip_eV": 12.1,
       "Ip_eV_eff": 12.55,
       "Zeff": 0.53,
@@ -188,12 +199,13 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
   "species": [
     {
       "name": "Xe",
-      "rate": "popruzhenko_atom_i",
+      "rate": "popruzhenko_atom_i_full",
       "Ip_eV": 12.13,
       "Z": 1,
       "l": 0,
       "m": 0,
-      "n_terms": 96,
+      "max_terms": 4096,
+      "sum_rel_tol": 1e-9,
       "fraction": 1.0
     }
   ],
