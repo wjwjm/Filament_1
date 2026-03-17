@@ -173,7 +173,7 @@ def _dawson_xp(x):
         pass
 
     if _sp_special is not None:
-        arr_np = _np.asarray(arr)
+        arr_np = xp.asnumpy(arr) if xp.__name__ == "cupy" else _np.asarray(arr)
         return xp.asarray(_sp_special.dawsn(arr_np), dtype=arr.dtype)
 
     # fallback approximation: low-order near zero + asymptotic tail + rational mid-range
