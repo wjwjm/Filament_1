@@ -53,7 +53,7 @@
   "sigma_ib": 0.0,
   "nu_ei_const": 0.0,
   "I_cap": 1.0e19,
-  "W_cap": 1.0e16
+  "W_cap": 1.0e19
 },
   "heat": {
     "D_gas": 2.0e-05,
