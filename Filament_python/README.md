@@ -2,7 +2,7 @@
 
 > 适用目录：`Filament_python/`
 > 
-> 本指南覆盖：安装、运行、配置结构、诊断输出、以及**电离模型切换**（legacy / Talebpour / Popruzhenko）与 `time_mode` 的使用建议。
+> 本指南覆盖：安装、运行、配置结构、诊断输出、以及**电离模型切换**（reference / LUT runtime / legacy）与 `time_mode` 的使用建议。
 
 ---
 
@@ -48,6 +48,23 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
 
 程序会在配置中的输出路径（默认 `khzfil_out.npz`）写出时空坐标与诊断量。
 
+### 3.4 仅预生成电离 LUT（推荐先跑一次）
+
+当 `ionization.species[*].rate` 使用 `*_lut` 时，建议先执行：
+
+```bash
+python build_ion_lut.py --config Filament_python/config.json
+```
+
+这样可在传播前把表缓存到磁盘（默认 `cache/rate_tables`），后续参数不变时会直接复用，避免每次启动重建。
+
+集群上可直接提交预置脚本（已提供）：
+
+```bash
+cd Filament_python
+CFG=khz_config_lut.json sbatch sub_lut.sh
+```
+
 ---
 
 ## 4. 配置文件结构（`config.json`）
@@ -66,16 +83,34 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
 
 ## 5. 电离模块完整说明（重点）
 
-## 5.1 速率模型别名总览
+## 5.1 速率模型与分层架构
+
+当前电离分为三层：
+
+1. **reference evaluator（高精度、慢）**
+   - `ppt_talebpour_i_full_reference`
+   - `popruzhenko_atom_i_full_reference`
+   - 用途：离线标定、单点检查、生成 LUT。
+
+2. **runtime LUT evaluator（传播主循环默认推荐）**
+   - `ppt_talebpour_i_lut`
+   - `popruzhenko_atom_i_lut`
+   - 用途：传播主循环中快速评估 `W(I)`，显著减少电离率计算耗时。
+
+3. **legacy evaluator（回归/基线）**
+   - `ppt_talebpour_i_legacy`
+   - `popruzhenko_atom_i_legacy`（当前代码仍走原子 full 代理路径，主要用于兼容）
 
 当前建议显式使用以下 `species[i].rate`（避免歧义）：
 
-1. `ppt_talebpour_i_full`
+1. `ppt_talebpour_i_lut`（推荐）
    - Talebpour/PPT 分子分支（N2/O2 推荐，含 `Zeff`、`Ip_eV_eff` 等参数）；
+   - 参考模型由 `reference_model: "ppt_talebpour_i_full_reference"` 指定；
    - O2 推荐 `Zeff=0.53` 与 `Ip_eV_eff=12.55`。
 
-2. `popruzhenko_atom_i_full`
+2. `popruzhenko_atom_i_lut`（推荐）
    - Popruzhenko 2008 arbitrary-gamma 原子/离子公式；
+   - 参考模型由 `reference_model: "popruzhenko_atom_i_full_reference"` 指定；
    - 面向原子或离子（如 Xe 等）；用于 N2/O2 时属于 **atomic proxy**，不是分子严格模型。
 
 3. `ppt_talebpour_i_legacy`
@@ -83,8 +118,10 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
    - 不应再视为 Talebpour Appendix A 原式。
 
 兼容别名：
-- `ppt_talebpour_i` 会映射到 `ppt_talebpour_i_full`（启动日志会提示）；
-- `popruzhenko_atom_i` 会映射到 `popruzhenko_atom_i_full`（启动日志会提示）。
+- `ppt_talebpour_i` 会映射到 `ppt_talebpour_i_lut`（启动日志会提示）；
+- `ppt_talebpour_i_full` 会映射到 `ppt_talebpour_i_full_reference`；
+- `popruzhenko_atom_i` 会映射到 `popruzhenko_atom_i_lut`（启动日志会提示）；
+- `popruzhenko_atom_i_full` 会映射到 `popruzhenko_atom_i_full_reference`。
 
 > 已移除旧模型：`ppt_e` / `ppt_i_legacy`(`ppt_i`) / `adk_e` / `powerlaw`。若配置到这些值，程序会报错并提示迁移到保留模型。
 
@@ -101,24 +138,52 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
   - `W_cap`（可选，覆盖全局上限）
   - `W_scale`（可选，数值缩放）
 
-- `ppt_talebpour_i_full` / `ppt_talebpour_i_legacy` 推荐字段：
+- `ppt_talebpour_i_lut` / `ppt_talebpour_i_full_reference` / `ppt_talebpour_i_legacy` 推荐字段：
   - `Ip_eV`
   - `Ip_eV_eff`（可选）
   - `Zeff`（推荐显式给出）
   - `l`, `m`
-  - `max_terms`（仅 full 模型可选）
-  - `sum_rel_tol`（仅 full 模型可选）
+  - `max_terms`（reference 可选）
+  - `sum_rel_tol`（reference 可选）
+  - `reference_model`（当 rate 为 `*_lut` 时建议显式给出）
 
-- `popruzhenko_atom_i_full` 推荐字段：
+- `popruzhenko_atom_i_lut` / `popruzhenko_atom_i_full_reference` 推荐字段：
   - `Ip_eV`
   - `Z`
   - `l`, `m`
   - `max_terms`（可选，短程求和最大项数）
   - `sum_rel_tol`（可选，尾项收敛阈值）
+  - `reference_model`（当 rate 为 `*_lut` 时建议显式给出）
 
----
+## 5.3 `rate_table`（LUT 缓存）字段
 
-## 5.3 时间模式与积分器
+推荐配置：
+
+```json
+"rate_table": {
+  "enabled": true,
+  "reuse_cache": true,
+  "cache_dir": "cache/rate_tables",
+  "rebuild_if_missing": true,
+  "force_rebuild": false,
+  "save_tables": true,
+  "I_min_SI": 1e8,
+  "I_max_SI": 1e19,
+  "n_samples": 3000,
+  "spacing": "log",
+  "interp_mode": "loglog",
+  "ref_cycle_avg_samples": 64,
+  "popruzhenko_sum_tol": 1e-6,
+  "popruzhenko_max_terms": 256
+}
+```
+
+说明：
+- 程序会按 species + 物理参数 + 网格参数 + 参考精度参数生成签名；
+- 命中缓存时打印 `Loaded cached ionization LUT: ...`；
+- 失配时打印字段不一致原因并重建。
+
+## 5.4 时间模式与积分器
 
 `ionization.time_mode`：
 
@@ -138,7 +203,7 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
 
 ---
 
-## 5.4 日志会打印哪些电离信息
+## 5.5 日志会打印哪些电离信息
 
 程序启动后会逐组分打印：
 
@@ -149,9 +214,9 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
 
 并提供告警：
 
-- N2/O2 使用 `popruzhenko_atom_i_full` 时会提示“atomic proxy，不是严格分子模型”；
+- N2/O2 使用 `popruzhenko_atom_i_lut` / `popruzhenko_atom_i_full_reference` 时会提示“atomic proxy，不是严格分子模型”；
 - 使用 `ppt_talebpour_i_legacy` 时会提示“legacy 简化模型（非文献完整版）”；
-- 使用旧别名时会提示实际映射到哪个 `*_full` 分支。
+- 使用旧别名时会提示实际映射到哪个 `*_lut` 或 `*_full_reference` 分支。
 
 ---
 
@@ -164,7 +229,8 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
   "species": [
     {
       "name": "N2",
-      "rate": "ppt_talebpour_i_full",
+      "rate": "ppt_talebpour_i_lut",
+      "reference_model": "ppt_talebpour_i_full_reference",
       "Ip_eV": 15.6,
       "Zeff": 0.9,
       "l": 0,
@@ -173,7 +239,8 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
     },
     {
       "name": "O2",
-      "rate": "ppt_talebpour_i_full",
+      "rate": "ppt_talebpour_i_lut",
+      "reference_model": "ppt_talebpour_i_full_reference",
       "Ip_eV": 12.1,
       "Ip_eV_eff": 12.55,
       "Zeff": 0.53,
@@ -184,7 +251,21 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
   ],
   "time_mode": "full",
   "integrator": "rk4",
-  "cycle_avg_samples": 64,
+  "cycle_avg_samples": 16,
+  "rate_table": {
+    "enabled": true,
+    "reuse_cache": true,
+    "cache_dir": "cache/rate_tables",
+    "force_rebuild": false,
+    "I_min_SI": 1e8,
+    "I_max_SI": 1e19,
+    "n_samples": 3000,
+    "spacing": "log",
+    "interp_mode": "loglog",
+    "ref_cycle_avg_samples": 64,
+    "popruzhenko_sum_tol": 1e-6,
+    "popruzhenko_max_terms": 256
+  },
   "beta_rec": 0.0,
   "sigma_ib": 0.0,
   "I_cap": 1.0e19,
@@ -199,7 +280,8 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
   "species": [
     {
       "name": "Xe",
-      "rate": "popruzhenko_atom_i_full",
+      "rate": "popruzhenko_atom_i_lut",
+      "reference_model": "popruzhenko_atom_i_full_reference",
       "Ip_eV": 12.13,
       "Z": 1,
       "l": 0,
@@ -211,7 +293,21 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
   ],
   "time_mode": "full",
   "integrator": "rk4",
-  "cycle_avg_samples": 64
+  "cycle_avg_samples": 16,
+  "rate_table": {
+    "enabled": true,
+    "reuse_cache": true,
+    "cache_dir": "cache/rate_tables",
+    "force_rebuild": false,
+    "I_min_SI": 1e8,
+    "I_max_SI": 1e19,
+    "n_samples": 3000,
+    "spacing": "log",
+    "interp_mode": "loglog",
+    "ref_cycle_avg_samples": 64,
+    "popruzhenko_sum_tol": 1e-6,
+    "popruzhenko_max_terms": 256
+  }
 }
 ```
 
