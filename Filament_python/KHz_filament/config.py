@@ -84,6 +84,8 @@ class IonizationConfig:
     """
     # --- 必填：物种列表（按 fraction 线性叠加） ---
     species: Optional[List[dict]] = None  # 若提供，则按 fraction 线性叠加各通道的 W
+    # --- LUT 运行时加速与缓存 ---
+    rate_table: Optional[dict] = None
 
     # --- 时间近似与全时域积分器（只作为开关传递到电离模块） ---
     time_mode: TimeMode = "full"        # "full" | "qs_peak" | "qs_mean" | "qs_mean_esq"
