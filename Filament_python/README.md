@@ -65,6 +65,15 @@ cd Filament_python
 CFG=khz_config_lut.json sbatch sub_lut.sh
 ```
 
+若出现如下报错（N50 分区常见）：
+
+```text
+N50区每卡默认分配 126GB 内存, 不允许超额申请内存
+```
+
+请**不要**在脚本里写 `#SBATCH --mem=...` / `--mem-per-cpu=...`；  
+该分区按 GPU 卡数绑定内存，想要更多内存请提高 `--gres=gpu:N`。
+
 ---
 
 ## 4. 配置文件结构（`config.json`）

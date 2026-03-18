@@ -4,10 +4,12 @@
 #SBATCH -x g0601,g0605
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=16G
 #SBATCH -t 00:30:00
 #SBATCH -o ionlut_build.%j.out
 #SBATCH -e ionlut_build.%j.err
+
+# N50 分区常见策略：每张卡绑定固定内存（例如 126GB/GPU），
+# 不允许显式 --mem/--mem-per-cpu 超额申请；需要更多内存请增加 GPU 卡数。
 
 set -euo pipefail
 
