@@ -4,6 +4,10 @@ from .constants import eps0, c0
 from .constants import Ip_eV_to_au, E_SI_to_au, omega_SI_to_au
 import math
 import numpy as _np
+import os
+import json
+import hashlib
+from datetime import datetime, timezone
 
 try:
     from scipy import special as _sp_special  # type: ignore
@@ -14,6 +18,8 @@ except Exception:
 I_CAP_DEFAULT = 1e19    # W/m^2, cap intensity
 W_CAP_DEFAULT = 1e16    # 1/s,  cap ionization rate
 DRHO_FRAC     = 0.25    # per time step, max fractional increase of N0
+ION_LUT_SCHEMA_VERSION = "ion-lut-v1"
+_ION_LUT_MEMORY_CACHE = {}
 
 # ----------------- Small helpers (OOM-safe) -----------------
 def _nan_inf_to_num_inplace(arr, nan=0.0, posinf=None, neginf=None, *, chunk_elems=1<<20):
@@ -387,10 +393,300 @@ def cycle_average_popruzhenko_atom_full_from_I(I_SI, n0: float, omega0_SI: float
     return xp.nan_to_num(xp.clip(W_mean, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
 
 
+def _to_numpy(a):
+    if xp.__name__ == "cupy":
+        return xp.asnumpy(a)
+    return _np.asarray(a)
+
+
+def _ion_rate_table_defaults(ion_conf):
+    cfg = dict(getattr(ion_conf, "rate_table", None) or {})
+    cfg.setdefault("enabled", True)
+    cfg.setdefault("reuse_cache", True)
+    cfg.setdefault("cache_dir", "cache/rate_tables")
+    cfg.setdefault("rebuild_if_missing", True)
+    cfg.setdefault("force_rebuild", False)
+    cfg.setdefault("save_tables", True)
+    cfg.setdefault("I_min_SI", 1e8)
+    cfg.setdefault("I_max_SI", 1e19)
+    cfg.setdefault("n_samples", 3000)
+    cfg.setdefault("spacing", "log")
+    cfg.setdefault("interp_mode", "loglog")
+    cfg.setdefault("ref_cycle_avg_samples", 64)
+    cfg.setdefault("popruzhenko_sum_tol", 1e-6)
+    cfg.setdefault("popruzhenko_max_terms", 256)
+    cfg.setdefault("max_rel_error_target", 0.03)
+    cfg.setdefault("filament_I_min_SI", 1e13)
+    cfg.setdefault("filament_I_max_SI", 1e15)
+    return cfg
+
+
+def _canonical_table_metadata(model_name, species_name, species_params, omega0_SI, n0, table_cfg):
+    keys = (
+        "Ip_eV", "Ip_eV_eff", "Z", "Zeff", "l", "m", "rate", "reference_model",
+    )
+    species_meta = {k: species_params.get(k) for k in keys if k in species_params}
+    return {
+        "schema_version": ION_LUT_SCHEMA_VERSION,
+        "model_name": str(model_name),
+        "species_name": str(species_name),
+        "species_params": species_meta,
+        "omega0_SI": float(omega0_SI),
+        "n0": float(n0),
+        "I_min_SI": float(table_cfg["I_min_SI"]),
+        "I_max_SI": float(table_cfg["I_max_SI"]),
+        "n_samples": int(table_cfg["n_samples"]),
+        "spacing": str(table_cfg["spacing"]),
+        "interp_mode": str(table_cfg["interp_mode"]),
+        "ref_cycle_avg_samples": int(table_cfg["ref_cycle_avg_samples"]),
+        "popruzhenko_sum_tol": float(table_cfg["popruzhenko_sum_tol"]),
+        "popruzhenko_max_terms": int(table_cfg["popruzhenko_max_terms"]),
+    }
+
+
+def _table_signature(metadata: dict) -> str:
+    canonical = json.dumps(metadata, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _table_path(cache_dir: str, species_name: str, signature: str) -> str:
+    safe_species = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in str(species_name))
+    return os.path.join(cache_dir, f"ionlut_{safe_species}_{signature[:16]}.npz")
+
+
+def _get_reference_evaluator(model_name: str, species_params: dict, omega0_SI: float, n0: float, reference_opts: dict):
+    model = str(model_name).lower()
+    ref_samples = int(reference_opts.get("cycle_avg_samples_ref", reference_opts.get("ref_cycle_avg_samples", 64)))
+    pop_tol = float(reference_opts.get("sum_rel_tol", reference_opts.get("popruzhenko_sum_tol", 1e-6)))
+    pop_max_terms = int(reference_opts.get("max_terms", reference_opts.get("popruzhenko_max_terms", 256)))
+    W_cap = float(reference_opts.get("W_cap", W_CAP_DEFAULT))
+
+    if model == "ppt_talebpour_i_full_reference":
+        name = str(species_params.get("name", ""))
+        Ip_use, Zeff_use = _talebpour_defaults(
+            name=name,
+            Ip_eV=species_params.get("Ip_eV"),
+            Ip_eV_eff=species_params.get("Ip_eV_eff"),
+            Zeff=species_params.get("Zeff"),
+        )
+        l = int(species_params.get("l", 0))
+        m = int(species_params.get("m", 0))
+        return lambda I_SI: cycle_average_ppt_talebpour_full_from_I(
+            I_SI, n0=n0, omega0_SI=omega0_SI, Ip_eV=Ip_use, Zeff=Zeff_use, l=l, m=m,
+            samples=ref_samples, max_terms=pop_max_terms, sum_rel_tol=pop_tol, W_cap=W_cap
+        )
+    if model == "popruzhenko_atom_i_full_reference":
+        Ip = float(species_params.get("Ip_eV", 15.6))
+        Z = int(species_params.get("Z", 1))
+        return lambda I_SI: cycle_average_popruzhenko_atom_full_from_I(
+            I_SI, n0=n0, omega0_SI=omega0_SI, Ip_eV=Ip, Z=Z, samples=ref_samples,
+            max_terms=pop_max_terms, sum_rel_tol=pop_tol, W_cap=W_cap
+        )
+    raise ValueError(f"[ionization] unsupported reference model for LUT build: {model_name}")
+
+
+def build_rate_table(model_name, species_params, omega0_SI, n0, I_min_SI, I_max_SI, n_samples, spacing="log", reference_opts=None):
+    reference_opts = dict(reference_opts or {})
+    if str(spacing).lower() == "log":
+        I_grid = _np.logspace(_np.log10(float(I_min_SI)), _np.log10(float(I_max_SI)), int(n_samples))
+    else:
+        I_grid = _np.linspace(float(I_min_SI), float(I_max_SI), int(n_samples))
+    ref_eval = _get_reference_evaluator(model_name, species_params, omega0_SI, n0, reference_opts)
+    W_grid = _to_numpy(ref_eval(xp.asarray(I_grid))).astype(_np.float64, copy=False)
+    W_grid = _np.nan_to_num(_np.clip(W_grid, 0.0, float(reference_opts.get("W_cap", W_CAP_DEFAULT))), nan=0.0)
+    return {
+        "I_grid": I_grid.astype(_np.float64, copy=False),
+        "W_grid": W_grid.astype(_np.float64, copy=False),
+        "model_name": str(model_name),
+        "species_name": str(species_params.get("name", "species")),
+        "omega0_SI": float(omega0_SI),
+        "n0": float(n0),
+        "build_opts": dict(reference_opts),
+        "build_timestamp": datetime.now(timezone.utc).isoformat(),
+        "schema_version": ION_LUT_SCHEMA_VERSION,
+    }
+
+
+def eval_rate_from_table(I_SI, table, method="loglog"):
+    method = str(method or "loglog").lower()
+    I_grid = xp.asarray(table["I_grid"])
+    W_grid = xp.asarray(table["W_grid"])
+    I_in = xp.asarray(I_SI)
+    I_min = float(_to_numpy(I_grid[0]))
+    I_max = float(_to_numpy(I_grid[-1]))
+    I_clip = xp.clip(_as_real_like(I_in), max(I_min, 1e-300), max(I_max, I_min))
+    logI = xp.log(I_clip)
+    logI_grid = xp.log(I_grid)
+    # xp.interp exists for numpy/cupy
+    if method in ("loglog", "log-linear-logw", "logi-logw"):
+        eps_w = 1e-300
+        logW_grid = xp.log(xp.maximum(W_grid, eps_w))
+        logW = xp.interp(logI, logI_grid, logW_grid)
+        W = xp.exp(logW)
+        W = xp.where(I_in <= 0.0, xp.asarray(0.0, dtype=W.dtype), W)
+        return xp.nan_to_num(W, nan=0.0, posinf=float(W_CAP_DEFAULT), neginf=0.0)
+    if method in ("loglinear", "logi-linearw"):
+        W = xp.interp(logI, logI_grid, W_grid)
+        W = xp.where(I_in <= 0.0, xp.asarray(0.0, dtype=W.dtype), W)
+        return xp.nan_to_num(xp.clip(W, 0.0, None), nan=0.0, posinf=float(W_CAP_DEFAULT), neginf=0.0)
+    raise ValueError(f"Unknown LUT interpolation method: {method}")
+
+
+def validate_rate_table(reference_eval, lut_eval, I_test_grid, filament_I_min_SI=1e13, filament_I_max_SI=1e15):
+    I_test = xp.asarray(I_test_grid)
+    W_ref = _as_real_like(reference_eval(I_test))
+    W_lut = _as_real_like(lut_eval(I_test))
+    denom = xp.maximum(xp.abs(W_ref), 1e-30)
+    rel = _as_real_like(xp.abs(W_lut - W_ref) / denom)
+    hi_mask = I_test >= (0.5 * float(_to_numpy(I_test[-1])))
+    fil_mask = (I_test >= float(filament_I_min_SI)) & (I_test <= float(filament_I_max_SI))
+    def _stat(mask):
+        if bool(xp.any(mask)):
+            vals = rel[mask]
+            return float(_to_numpy(xp.max(vals))), float(_to_numpy(xp.median(vals)))
+        return 0.0, 0.0
+    hi_max, hi_median = _stat(hi_mask)
+    fil_max, fil_median = _stat(fil_mask)
+    return {
+        "max_relative_error": float(_to_numpy(xp.max(rel))),
+        "median_relative_error": float(_to_numpy(xp.median(rel))),
+        "high_intensity_max_relative_error": hi_max,
+        "high_intensity_median_relative_error": hi_median,
+        "filament_max_relative_error": fil_max,
+        "filament_median_relative_error": fil_median,
+    }
+
+
+def _load_table_npz(path: str):
+    data = _np.load(path, allow_pickle=True)
+    metadata = json.loads(str(data["metadata_json"].item()))
+    return {
+        "I_grid": _np.asarray(data["I_grid"], dtype=_np.float64),
+        "W_grid": _np.asarray(data["W_grid"], dtype=_np.float64),
+        "metadata": metadata,
+        "model_name": str(data["model_name"].item()),
+        "species_name": str(data["species_name"].item()),
+        "build_timestamp": str(data["build_timestamp"].item()),
+        "schema_version": str(data["schema_version"].item()),
+        "validation": json.loads(str(data["validation_json"].item())) if "validation_json" in data.files else {},
+    }
+
+
+def _save_table_npz(path: str, table: dict, metadata: dict, validation: dict):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    _np.savez_compressed(
+        path,
+        I_grid=_np.asarray(table["I_grid"], dtype=_np.float64),
+        W_grid=_np.asarray(table["W_grid"], dtype=_np.float64),
+        metadata_json=json.dumps(metadata, sort_keys=True, ensure_ascii=False),
+        model_name=str(table["model_name"]),
+        species_name=str(table["species_name"]),
+        build_timestamp=str(table.get("build_timestamp", datetime.now(timezone.utc).isoformat())),
+        schema_version=str(table.get("schema_version", ION_LUT_SCHEMA_VERSION)),
+        validation_json=json.dumps(validation, sort_keys=True, ensure_ascii=False),
+    )
+
+
+def prepare_ionization_lut_for_species(species_params, omega0_SI: float, n0: float, rate_table_cfg: dict):
+    rate = str(species_params.get("rate", "")).lower()
+    reference_model = str(species_params.get("reference_model", "")).lower()
+    if rate == "ppt_talebpour_i_lut" and not reference_model:
+        reference_model = "ppt_talebpour_i_full_reference"
+    if rate == "popruzhenko_atom_i_lut" and not reference_model:
+        reference_model = "popruzhenko_atom_i_full_reference"
+    if reference_model not in ("ppt_talebpour_i_full_reference", "popruzhenko_atom_i_full_reference"):
+        raise ValueError(f"[ionization] LUT rate requires valid reference_model, got: {reference_model}")
+
+    metadata = _canonical_table_metadata(
+        model_name=reference_model,
+        species_name=str(species_params.get("name", "species")),
+        species_params=species_params,
+        omega0_SI=omega0_SI,
+        n0=n0,
+        table_cfg=rate_table_cfg,
+    )
+    signature = _table_signature(metadata)
+    cache_dir = str(rate_table_cfg.get("cache_dir", "cache/rate_tables"))
+    path = _table_path(cache_dir, metadata["species_name"], signature)
+    mem_key = (path, signature)
+    if bool(rate_table_cfg.get("reuse_cache", True)) and mem_key in _ION_LUT_MEMORY_CACHE and not bool(rate_table_cfg.get("force_rebuild", False)):
+        print(f"[IonLUT] species={metadata['species_name']} model={reference_model}")
+        print(f"         signature={signature}")
+        print("         cache=HIT(memory)")
+        print(f"         file={path}")
+        return _ION_LUT_MEMORY_CACHE[mem_key]
+
+    hit = False
+    cache_reason = ""
+    if bool(rate_table_cfg.get("reuse_cache", True)) and os.path.exists(path) and not bool(rate_table_cfg.get("force_rebuild", False)):
+        loaded = _load_table_npz(path)
+        loaded_meta = loaded.get("metadata", {})
+        if loaded_meta == metadata:
+            table = loaded
+            hit = True
+        else:
+            mismatch = [k for k in sorted(metadata.keys()) if loaded_meta.get(k) != metadata.get(k)]
+            cache_reason = f"metadata mismatch fields={mismatch}"
+    if hit:
+        print(f"[IonLUT] species={metadata['species_name']} model={reference_model}")
+        print(f"         signature={signature}")
+        print("         cache=HIT")
+        print(f"         file={path}")
+        print(f"Loaded cached ionization LUT: {path}")
+        _ION_LUT_MEMORY_CACHE[mem_key] = table
+        return table
+
+    print(f"[IonLUT] species={metadata['species_name']} model={reference_model}")
+    print(f"         signature={signature}")
+    print("         cache=MISS")
+    if cache_reason:
+        print(f"         reason={cache_reason}")
+    print("         building table...")
+    print(f"         file={path}")
+
+    ref_opts = {
+        "cycle_avg_samples_ref": int(rate_table_cfg["ref_cycle_avg_samples"]),
+        "popruzhenko_sum_tol": float(rate_table_cfg["popruzhenko_sum_tol"]),
+        "popruzhenko_max_terms": int(rate_table_cfg["popruzhenko_max_terms"]),
+    }
+    table = build_rate_table(
+        model_name=reference_model,
+        species_params=species_params,
+        omega0_SI=omega0_SI,
+        n0=n0,
+        I_min_SI=rate_table_cfg["I_min_SI"],
+        I_max_SI=rate_table_cfg["I_max_SI"],
+        n_samples=rate_table_cfg["n_samples"],
+        spacing=rate_table_cfg["spacing"],
+        reference_opts=ref_opts,
+    )
+    I_test = _np.logspace(_np.log10(float(rate_table_cfg["I_min_SI"])),
+                          _np.log10(float(rate_table_cfg["I_max_SI"])), 256)
+    ref_eval = _get_reference_evaluator(reference_model, species_params, omega0_SI, n0, ref_opts)
+    lut_eval = lambda I: eval_rate_from_table(I, table, method=rate_table_cfg.get("interp_mode", "loglog"))
+    validation = validate_rate_table(
+        ref_eval, lut_eval, I_test,
+        filament_I_min_SI=rate_table_cfg.get("filament_I_min_SI", 1e13),
+        filament_I_max_SI=rate_table_cfg.get("filament_I_max_SI", 1e15),
+    )
+    print(f"         I_range=[{rate_table_cfg['I_min_SI']:.3e}, {rate_table_cfg['I_max_SI']:.3e}] n={int(rate_table_cfg['n_samples'])}")
+    print(f"         validation max_rel={validation['max_relative_error']:.3e} median_rel={validation['median_relative_error']:.3e} filament_max_rel={validation['filament_max_relative_error']:.3e}")
+    if bool(rate_table_cfg.get("save_tables", True)):
+        _save_table_npz(path, table, metadata, validation)
+        print(f"Built and cached ionization LUT: {path}")
+    table["metadata"] = metadata
+    table["validation"] = validation
+    _ION_LUT_MEMORY_CACHE[mem_key] = table
+    return table
+
+
 # ----------------- Rate resolver (new) -----------------
 def _removed_rate_error(rate: str, *, context: str) -> ValueError:
     r = str(rate).lower()
-    repl = "ppt_talebpour_i_legacy / ppt_talebpour_i_full / popruzhenko_atom_i_full / mpa_fact / off"
+    repl = (
+        "ppt_talebpour_i_legacy / ppt_talebpour_i_full_reference / ppt_talebpour_i_lut / "
+        "popruzhenko_atom_i_legacy / popruzhenko_atom_i_full_reference / popruzhenko_atom_i_lut / mpa_fact / off"
+    )
     if r in ("ppt_e", "adk_e"):
         hint = "该旧模型为 |E| 域模型，现已下线；请改用 I 域模型并传入强度 I。"
     else:
@@ -406,8 +702,10 @@ def _resolve_rate(sp, ion_conf):
     removed_rates = {"ppt_e", "ppt_i", "ppt_i_legacy", "adk_e", "powerlaw", "mpa"}
     r = str(_g(sp, "rate", None) or "").lower().replace("ppt-i", "ppt_i")
     alias_map = {
-        "ppt_talebpour_i": "ppt_talebpour_i_full",
-        "popruzhenko_atom_i": "popruzhenko_atom_i_full",
+        "ppt_talebpour_i": "ppt_talebpour_i_lut",
+        "ppt_talebpour_i_full": "ppt_talebpour_i_full_reference",
+        "popruzhenko_atom_i": "popruzhenko_atom_i_lut",
+        "popruzhenko_atom_i_full": "popruzhenko_atom_i_full_reference",
     }
     if r:
         if r in removed_rates:
@@ -417,11 +715,22 @@ def _resolve_rate(sp, ion_conf):
         if r in alias_map:
             print(f"[ionization] rate alias '{r}' -> '{alias_map[r]}'")
             return alias_map[r]
-        if r in ("mpa_fact", "ppt_talebpour_i_legacy", "ppt_talebpour_i_full", "popruzhenko_atom_i_full", "off"):
+        if r in (
+            "mpa_fact",
+            "ppt_talebpour_i_legacy",
+            "ppt_talebpour_i_full_reference",
+            "ppt_talebpour_i_lut",
+            "popruzhenko_atom_i_legacy",
+            "popruzhenko_atom_i_full_reference",
+            "popruzhenko_atom_i_lut",
+            "off",
+        ):
             return r
         raise ValueError(
             "[ionization] 未识别的 rate='{}'。允许值仅为: "
-            "ppt_talebpour_i_legacy / ppt_talebpour_i_full / popruzhenko_atom_i_full / mpa_fact / off".format(r)
+            "ppt_talebpour_i_legacy / ppt_talebpour_i_full_reference / ppt_talebpour_i_lut / "
+            "popruzhenko_atom_i_legacy / popruzhenko_atom_i_full_reference / popruzhenko_atom_i_lut / "
+            "mpa_fact / off".format(r)
         )
 
     # backward compatibility: infer from legacy model + cycle_avg
@@ -436,7 +745,9 @@ def _resolve_rate(sp, ion_conf):
         raise _removed_rate_error(m, context=ctx)
     raise ValueError(
         f"[ionization] 无法从 legacy model='{m}' 推断可用电离模型；"
-        "请在 species 中显式设置 rate 为: ppt_talebpour_i_legacy / ppt_talebpour_i_full / popruzhenko_atom_i_full / mpa_fact / off"
+        "请在 species 中显式设置 rate 为: ppt_talebpour_i_legacy / ppt_talebpour_i_full_reference / "
+        "ppt_talebpour_i_lut / popruzhenko_atom_i_legacy / popruzhenko_atom_i_full_reference / "
+        "popruzhenko_atom_i_lut / mpa_fact / off"
     )
 
 
@@ -462,10 +773,14 @@ def _ion_model_family(rate: str) -> str:
     r = str(rate).lower()
     if r == "ppt_talebpour_i_legacy":
         return "legacy_simplified"
-    if r == "ppt_talebpour_i_full":
+    if r == "ppt_talebpour_i_full_reference":
         return "talebpour_molecule_full"
-    if r == "popruzhenko_atom_i_full":
+    if r == "ppt_talebpour_i_lut":
+        return "talebpour_molecule_lut"
+    if r == "popruzhenko_atom_i_full_reference":
         return "popruzhenko_atom"
+    if r == "popruzhenko_atom_i_lut":
+        return "popruzhenko_atom_lut"
     return "other"
 
 # ----------------- Factory (species is REQUIRED now) -----------------
@@ -473,24 +788,24 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
     """
     生成电离速率函数 Wfunc(inp)。本实现要求 ion_conf.species 非空。
     - 每个物种 'rate' 决定模型与输入域：
-        'ppt_talebpour_i_legacy' | 'ppt_talebpour_i_full' | 'popruzhenko_atom_i_full' | 'mpa_fact' | 'off'（均为 I 域）
+        'ppt_talebpour_i_legacy' | 'ppt_talebpour_i_full_reference' | 'ppt_talebpour_i_lut' |
+        'popruzhenko_atom_i_full_reference' | 'popruzhenko_atom_i_lut' | 'mpa_fact' | 'off'（均为 I 域）
     - 顶层 time_mode: 'full' | 'qs_peak' | 'qs_mean' | 'qs_mean_esq'
       （仅挂到 Wfunc 供 evolve_rho_time 读取；不改变函数签名）
     - 顶层 integrator: 'rk4' | 'euler' （仅在 time_mode='full' 时生效）
     返回：
       - Wfunc(inp)  →  总速率（按物种 fraction 线性加权后，再封顶）
       - Wfunc._expects ∈ {'uses_E','uses_I','none'}
-      - Wfunc._species_entries：每个物种 {'name','fraction','W_s','tag'}
+      - Wfunc._species_entries：每个物种 {'name','fraction','W_s','W_runtime','tag'}
     """
     W_cap_global = float(getattr(ion_conf, "W_cap", W_CAP_DEFAULT))
     species = getattr(ion_conf, "species", None)
     assert species and isinstance(species, (list, tuple)) and len(species) > 0, \
         "简化后的 ionization 需要提供非空的 species[]"
 
-    # PPT/Popruzhenko 周期平均：相位采样（给 *_i 用）
+    # 运行时周期平均（legacy/reference 路径需要；LUT 路径在建表时做参考平均）
     _phase_count = int(getattr(ion_conf, "cycle_avg_samples", 64))
-    _phase = _np.linspace(0.0, _np.pi, max(8, _phase_count), endpoint=False)
-    _cos_abs = _np.abs(_np.cos(_phase))
+    rate_table_cfg = _ion_rate_table_defaults(ion_conf)
 
     # 顶层默认参数（可被每个 species 覆盖）
     W_scale_def   = float(getattr(ion_conf, "W_scale", 1.0))
@@ -500,7 +815,7 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
         # 物种级参数（可覆盖顶层）
         W_scale   = float(_g(sp, "W_scale",  W_scale_def))
 
-        if rate in ("ppt_talebpour_i_legacy", "ppt_talebpour_i_full"):
+        if rate in ("ppt_talebpour_i_legacy", "ppt_talebpour_i_full_reference", "ppt_talebpour_i_lut"):
             name = str(_g(sp, "name", "")).strip()
             Ip_raw = _g(sp, "Ip_eV", None)
             Ip_eff = _g(sp, "Ip_eV_eff", None)
@@ -511,38 +826,64 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
             max_terms = int(_g(sp, "max_terms", 4096))
             sum_rel_tol = float(_g(sp, "sum_rel_tol", 1e-9))
 
-            def W_s(I_SI, Ip_eV=Ip_use, Zeff=Zeff_use, l=l, m=m, W_cap=W_cap, W_scale=W_scale,
-                    rate=rate, max_terms=max_terms, sum_rel_tol=sum_rel_tol):
-                if rate == "ppt_talebpour_i_full":
-                    W_mean = cycle_average_ppt_talebpour_full_from_I(
+            def W_ref(I_SI, Ip_eV=Ip_use, Zeff=Zeff_use, l=l, m=m, W_cap=W_cap, W_scale=W_scale,
+                      rate=rate, max_terms=max_terms, sum_rel_tol=sum_rel_tol):
+                if rate in ("ppt_talebpour_i_full_reference", "ppt_talebpour_i_lut"):
+                    W_eval = cycle_average_ppt_talebpour_full_from_I(
                         I_SI, n0=n0, omega0_SI=omega0_SI, Ip_eV=Ip_eV, Zeff=Zeff, l=l, m=m,
                         samples=_phase_count, max_terms=max_terms, sum_rel_tol=sum_rel_tol, W_cap=W_cap
                     )
                 else:
-                    W_mean = cycle_average_ppt_talebpour_legacy_from_I(
+                    W_eval = cycle_average_ppt_talebpour_legacy_from_I(
                         I_SI, n0=n0, Ip_eV=Ip_eV, Zeff=Zeff, l=l, m=m, samples=_phase_count, W_cap=W_cap
                     )
                 if W_scale != 1.0:
-                    W_mean = W_mean * W_scale
-                return xp.nan_to_num(xp.clip(W_mean, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
+                    W_eval = W_eval * W_scale
+                return xp.nan_to_num(xp.clip(W_eval, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
+
+            W_runtime = W_ref
+            if rate == "ppt_talebpour_i_lut" and bool(rate_table_cfg.get("enabled", True)):
+                table = prepare_ionization_lut_for_species(
+                    dict(sp), omega0_SI=omega0_SI, n0=n0, rate_table_cfg=rate_table_cfg
+                )
+                interp_mode = rate_table_cfg.get("interp_mode", "loglog")
+
+                def W_runtime(I_SI, table=table, interp_mode=interp_mode, W_scale=W_scale, W_cap=W_cap):
+                    W_eval = eval_rate_from_table(I_SI, table, method=interp_mode)
+                    if W_scale != 1.0:
+                        W_eval = W_eval * W_scale
+                    return xp.nan_to_num(xp.clip(W_eval, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
 
             tag = "uses_I"
 
-        elif rate == "popruzhenko_atom_i_full":
+        elif rate in ("popruzhenko_atom_i_full_reference", "popruzhenko_atom_i_lut", "popruzhenko_atom_i_legacy"):
             Ip = float(_g(sp, "Ip_eV", 15.6))
             Z = int(_g(sp, "Z", 1))
-            max_terms = int(_g(sp, "max_terms", 4096))
-            sum_rel_tol = float(_g(sp, "sum_rel_tol", 1e-9))
+            max_terms = int(_g(sp, "max_terms", rate_table_cfg.get("popruzhenko_max_terms", 256)))
+            sum_rel_tol = float(_g(sp, "sum_rel_tol", rate_table_cfg.get("popruzhenko_sum_tol", 1e-6)))
 
-            def W_s(I_SI, Ip_eV=Ip, Z=Z, max_terms=max_terms, sum_rel_tol=sum_rel_tol,
-                    W_cap=W_cap, W_scale=W_scale):
-                W_mean = cycle_average_popruzhenko_atom_full_from_I(
+            def W_ref(I_SI, Ip_eV=Ip, Z=Z, max_terms=max_terms, sum_rel_tol=sum_rel_tol,
+                      W_cap=W_cap, W_scale=W_scale):
+                W_eval = cycle_average_popruzhenko_atom_full_from_I(
                     I_SI, n0=n0, omega0_SI=omega0_SI, Ip_eV=Ip_eV, Z=Z, samples=_phase_count,
                     max_terms=max_terms, sum_rel_tol=sum_rel_tol, W_cap=W_cap
                 )
                 if W_scale != 1.0:
-                    W_mean = W_mean * W_scale
-                return xp.nan_to_num(xp.clip(W_mean, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
+                    W_eval = W_eval * W_scale
+                return xp.nan_to_num(xp.clip(W_eval, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
+
+            W_runtime = W_ref
+            if rate == "popruzhenko_atom_i_lut" and bool(rate_table_cfg.get("enabled", True)):
+                table = prepare_ionization_lut_for_species(
+                    dict(sp), omega0_SI=omega0_SI, n0=n0, rate_table_cfg=rate_table_cfg
+                )
+                interp_mode = rate_table_cfg.get("interp_mode", "loglog")
+
+                def W_runtime(I_SI, table=table, interp_mode=interp_mode, W_scale=W_scale, W_cap=W_cap):
+                    W_eval = eval_rate_from_table(I_SI, table, method=interp_mode)
+                    if W_scale != 1.0:
+                        W_eval = W_eval * W_scale
+                    return xp.nan_to_num(xp.clip(W_eval, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
 
             tag = "uses_I"
 
@@ -550,17 +891,18 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
             ell = int(_g(sp, "ell", 8));
             Imp = float(_g(sp, "I_mp", 1e18))
 
-            def W_s(I_SI, ell=ell, Imp=Imp, W_cap=W_cap):
+            def W_ref(I_SI, ell=ell, Imp=Imp, W_cap=W_cap):
                 W = _W_mpa_factorial(I_SI, omega0_SI, Imp, ell, W_cap)
                 if W_scale != 1.0: W = W * W_scale
                 return xp.nan_to_num(xp.clip(W, 0.0, W_cap), nan=0.0, posinf=W_cap, neginf=0.0)
+            W_runtime = W_ref
             tag = "uses_I"
         else:  # 'off' or unknown
-            def W_s(inp):
+            def W_ref(inp):
                 return xp.zeros_like(inp, dtype=(xp.float32 if xp.asarray(inp).dtype == xp.complex64 else xp.float64))
-
+            W_runtime = W_ref
             tag = "none"
-        return W_s, tag
+        return W_ref, W_runtime, tag
 
     entries, flags, species_meta = [], set(), []
     for sp in species:
@@ -568,8 +910,8 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
         frac = float(_g(sp, "fraction", 1.0))
         W_cap = float(_g(sp, "W_cap", W_cap_global))
         rate = _resolve_rate(sp, ion_conf)
-        W_s, tag = _mk_W_by_rate(rate, sp, W_cap)
-        entries.append((frac, W_s, tag))
+        W_ref, W_runtime, tag = _mk_W_by_rate(rate, sp, W_cap)
+        entries.append((frac, W_runtime, tag))
         model_family = _ion_model_family(rate)
         ip = _g(sp, "Ip_eV", None)
         ip_eff = _g(sp, "Ip_eV_eff", None)
@@ -577,7 +919,7 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
         zeff = _g(sp, "Zeff", None)
         l = _g(sp, "l", None)
         m = _g(sp, "m", None)
-        if rate in ("ppt_talebpour_i_legacy", "ppt_talebpour_i_full"):
+        if rate in ("ppt_talebpour_i_legacy", "ppt_talebpour_i_full_reference", "ppt_talebpour_i_lut"):
             ip, zeff = _talebpour_defaults(name=name, Ip_eV=ip, Ip_eV_eff=ip_eff, Zeff=zeff)
             ip_eff = ip
         print(
@@ -586,11 +928,11 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
             f"cycle_avg_samples={_phase_count} time_mode={getattr(ion_conf, 'time_mode', '')} "
             f"integrator={getattr(ion_conf, 'integrator', 'rk4')}"
         )
-        if str(name).upper() in ("N2", "O2") and rate == "popruzhenko_atom_i_full":
+        if str(name).upper() in ("N2", "O2") and rate in ("popruzhenko_atom_i_full_reference", "popruzhenko_atom_i_lut"):
             print("Warning: using atomic Popruzhenko FULL model for molecular species; this is an atomic proxy, not strict molecular model.")
 
         species_meta.append({
-            "name": name, "fraction": frac, "W_s": W_s, "tag": tag,
+            "name": name, "fraction": frac, "W_s": W_ref, "W_runtime": W_runtime, "tag": tag,
             "rate": rate, "family": model_family,
             "Ip_eV": ip, "Ip_eV_eff": ip_eff, "Z": z, "Zeff": zeff, "l": l, "m": m,
         })
@@ -626,6 +968,21 @@ def _ion_input_domain(ion_conf):
     for sp in species:
         _ = _resolve_rate(sp, ion_conf)
     return "I"
+
+
+def prepare_ionization_lut_cache(ion_conf, omega0_SI: float, n0: float):
+    species = getattr(ion_conf, "species", None) or []
+    table_cfg = _ion_rate_table_defaults(ion_conf)
+    if not bool(table_cfg.get("enabled", True)):
+        return []
+    built = []
+    for sp in species:
+        rate = _resolve_rate(sp, ion_conf)
+        sp_local = dict(sp)
+        sp_local["rate"] = rate
+        if rate in ("ppt_talebpour_i_lut", "popruzhenko_atom_i_lut"):
+            built.append(prepare_ionization_lut_for_species(sp_local, omega0_SI=omega0_SI, n0=n0, rate_table_cfg=table_cfg))
+    return built
 
 
 # ----------------- rho(t) evolution (species-resolved + quasi-static/full) -----------------
@@ -665,7 +1022,7 @@ def evolve_rho_time(input_array,dt: float,N0: float,beta_rec: float,Wfunc, *,
 
         # ---- 全时域推进 ----
         if not quasi_static_time:
-            Wt_list = [ s["W_s"](inp).astype(rdtype, copy=False) for s in sp_entries ]  # 每个：[Nt,Ny,Nx]
+            Wt_list = [ s.get("W_runtime", s["W_s"])(inp).astype(rdtype, copy=False) for s in sp_entries ]  # 每个：[Nt,Ny,Nx]
             beta_list = [ float(beta_rec) * float(N0_j) for N0_j in N0_j_list ]
             u_list = [ xp.zeros_like(inp, dtype=rdtype) for _ in sp_entries ]  # ρ_j/N0_j
 
@@ -730,12 +1087,12 @@ def evolve_rho_time(input_array,dt: float,N0: float,beta_rec: float,Wfunc, *,
 
         if stat in ("peak", "max"):
             for s in sp_entries:
-                Wt_full = s["W_s"](inp).astype(rdtype, copy=False)
+                Wt_full = s.get("W_runtime", s["W_s"])(inp).astype(rdtype, copy=False)
                 Wc_list.append(xp.max(Wt_full, axis=0))
 
         elif stat in ("mean", "avg"):
             for s in sp_entries:
-                Wt_full = s["W_s"](inp).astype(rdtype, copy=False)
+                Wt_full = s.get("W_runtime", s["W_s"])(inp).astype(rdtype, copy=False)
                 if mean_clip_frac and mean_clip_frac > 0.0:
                     peak_inp = xp.max(inp, axis=0) + 1e-30
                     mask = inp >= (mean_clip_frac * peak_inp)[None, ...]
@@ -752,11 +1109,11 @@ def evolve_rho_time(input_array,dt: float,N0: float,beta_rec: float,Wfunc, *,
                 Esq_mean = xp.mean(inp * inp, axis=0)  # <|E|^2>
                 E_rms    = xp.sqrt(Esq_mean + 0.0)
                 for s in sp_entries:
-                    Wc_list.append(s["W_s"](E_rms).astype(rdtype, copy=False))
+                    Wc_list.append(s.get("W_runtime", s["W_s"])(E_rms).astype(rdtype, copy=False))
             else:  # expects == "I"
                 I_mean = xp.mean(inp, axis=0)
                 for s in sp_entries:
-                    Wc_list.append(s["W_s"](I_mean).astype(rdtype, copy=False))
+                    Wc_list.append(s.get("W_runtime", s["W_s"])(I_mean).astype(rdtype, copy=False))
         else:
             raise ValueError("time_stat 只能是 'peak' | 'mean' | 'mean_Esq'")
 
