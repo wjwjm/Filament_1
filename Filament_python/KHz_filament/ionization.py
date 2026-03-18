@@ -163,16 +163,23 @@ def cycle_average_ppt_talebpour_legacy_from_I(I_SI, n0: float, Ip_eV: float, Zef
 
 
 def _dawson_xp(x):
-    """Dawson function with scipy/cupyx path and a fallback approximation."""
+    """Dawson function with cupyx/scipy path and a fallback approximation.
+
+    Note:
+    - On CuPy backend, avoid SciPy CPU round-trips when cupyx is unavailable,
+      otherwise every call incurs GPU->CPU->GPU transfers and can stall runtime.
+    """
     arr = xp.asarray(x)
-    try:
-        if xp.__name__ == "cupy":
+    cupy_backend = (xp.__name__ == "cupy")
+
+    if cupy_backend:
+        try:
             import cupyx.scipy.special as _csp  # type: ignore
             return _csp.dawsn(arr)
-    except Exception:
-        pass
-
-    if _sp_special is not None:
+        except Exception:
+            # keep computation on GPU via approximation fallback below
+            pass
+    elif _sp_special is not None:
         arr_np = _np.asarray(arr)
         return xp.asarray(_sp_special.dawsn(arr_np), dtype=arr.dtype)
 
