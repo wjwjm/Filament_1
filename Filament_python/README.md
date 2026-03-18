@@ -58,6 +58,13 @@ python build_ion_lut.py --config Filament_python/config.json
 
 这样可在传播前把表缓存到磁盘（默认 `cache/rate_tables`），后续参数不变时会直接复用，避免每次启动重建。
 
+集群上可直接提交预置脚本（已提供）：
+
+```bash
+cd Filament_python
+CFG=khz_config_lut.json sbatch sub_lut.sh
+```
+
 ---
 
 ## 4. 配置文件结构（`config.json`）
