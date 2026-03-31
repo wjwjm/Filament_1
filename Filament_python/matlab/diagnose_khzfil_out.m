@@ -1,12 +1,18 @@
-function summary = diagnose_khzfil_out(matFile, cfgFile)
+function summary = diagnose_khzfil_out(matFile, cfgFile, figSelect)
 %DIAGNOSE_KHZFIL_OUT 诊断 khzfil_out.mat 中光丝关键量随 z 的变化。
 % 用法：
 %   summary = diagnose_khzfil_out('khzfil_out.mat');
 %   summary = diagnose_khzfil_out('matlab_output/khzfil_out.mat');
 %   summary = diagnose_khzfil_out('khzfil_out.mat', 'khz_config.json');
+%   summary = diagnose_khzfil_out('khzfil_out.mat', 'khz_config.json', {'plasma'});
 %
 % 输出：
 %   summary: 结构体，包含焦点位置、峰值强度、峰值等离子体密度、能量漂移等。
+%
+% 图像选择（figSelect，可选）：
+%   - 空/未提供：输出全部图像（默认行为）。
+%   - 字符串或 cellstr：仅输出指定图像，如 'plasma' 或 {'plasma','energy'}。
+%   - 支持别名：'all' | 'intensity' | 'plasma' | 'beam' | 'energy' | 'fwhm' | 'rho_tz'
 %
 % 图像：
 %   Figure 1: I_max_z / I_onaxis_max_z / I_center_t0_z
@@ -22,6 +28,9 @@ end
 if nargin < 2
     cfgFile = '';
 end
+if nargin < 3
+    figSelect = [];
+end
 
 S = load(matFile);
 assert(isfield(S, 'z_axis'), '缺少 z_axis，无法做 z 向诊断。');
@@ -29,6 +38,7 @@ z = colvec(S.z_axis);
 z_m = z;
 focus_ref = resolve_focus_reference(S, matFile, cfgFile);
 [z_plot_m, z_plot_cm, z_label, z_shift_meta] = build_plot_axis(z_m, focus_ref);
+fig_flags = parse_figure_selection(figSelect);
 
 summary = struct();
 summary.file = matFile;
@@ -40,54 +50,80 @@ if z_shift_meta.applied
     summary.z_origin_source = z_shift_meta.source;
 end
 
-% --------- Figure 1: 强度诊断 ---------
-figure('Name', 'Filament diagnostics: intensity vs z', 'Color', 'w');
-tiledlayout(2,1,'TileSpacing','compact','Padding','compact');
-
-nexttile;
-hold on; grid on; box on;
+% 关键 summary 指标始终计算，不依赖图像选择
 if isfield(S, 'I_max_z')
     Imax = sanitize_positive(colvec(S.I_max_z));
-    semilogy(z_plot_cm, Imax, 'LineWidth', 1.8, 'DisplayName', 'I\_max\_z');
     [summary.I_max_peak, iIp] = max(Imax, [], 'omitnan');
     if ~isempty(iIp) && ~isnan(summary.I_max_peak)
         summary.z_Imax_peak_m = z_m(iIp);
-        xline(to_plot_cm(summary.z_Imax_peak_m, z_shift_meta), '--', 'I_{max} peak', 'LabelVerticalAlignment','middle');
     end
 end
-if isfield(S, 'I_onaxis_max_z')
-    semilogy(z_plot_cm, sanitize_positive(colvec(S.I_onaxis_max_z)), 'LineWidth', 1.6, 'DisplayName', 'I\_onaxis\_max\_z');
+if isfield(S, 'rho_onaxis_max_z')
+    rhoOn = sanitize_positive(colvec(S.rho_onaxis_max_z));
+    [summary.rho_onaxis_peak, irp] = max(rhoOn, [], 'omitnan');
+    if ~isempty(irp) && ~isnan(summary.rho_onaxis_peak)
+        summary.z_rho_onaxis_peak_m = z_m(irp);
+    end
 end
-if isfield(S, 'I_center_t0_z')
-    semilogy(z_plot_cm, sanitize_positive(colvec(S.I_center_t0_z)), 'LineWidth', 1.2, 'DisplayName', 'I\_center\_t0\_z');
+if isfield(S, 'w_mom_z')
+    w = colvec(S.w_mom_z);
+    [wmin, iw] = min(w, [], 'omitnan');
+    summary.w_mom_min_m = wmin;
+    summary.z_focus_est_m = z_m(iw);
 end
-xlabel(z_label); ylabel('Intensity (W/m^2)');
-title('强度相关诊断（对数坐标）'); legend('Location','best');
+if isfield(S, 'U_z')
+    U = colvec(S.U_z);
+    U0 = U(find(~isnan(U), 1, 'first'));
+    if ~isempty(U0)
+        summary.U0_J = U0;
+        summary.U_end_J = U(find(~isnan(U), 1, 'last'));
+        summary.U_drift_pct = summary.U_end_J / U0 * 100 - 100;
+    end
+end
 
-nexttile;
-hold on; grid on; box on;
-if isfield(S, 'I_max_z')
-    Imaxn = colvec(S.I_max_z) / max(colvec(S.I_max_z), [], 'omitnan');
-    plot(z_plot_cm, Imaxn, 'LineWidth', 1.8, 'DisplayName', 'I\_max\_z / max');
+% --------- Figure 1: 强度诊断 ---------
+if fig_flags.intensity
+    figure('Name', 'Filament diagnostics: intensity vs z', 'Color', 'w');
+    tiledlayout(2,1,'TileSpacing','compact','Padding','compact');
+
+    nexttile;
+    hold on; grid on; box on;
+    if isfield(S, 'I_max_z')
+        Imax = sanitize_positive(colvec(S.I_max_z));
+        semilogy(z_plot_cm, Imax, 'LineWidth', 1.8, 'DisplayName', 'I\_max\_z');
+        if isfield(summary, 'z_Imax_peak_m')
+            xline(to_plot_cm(summary.z_Imax_peak_m, z_shift_meta), '--', 'I_{max} peak', 'LabelVerticalAlignment','middle');
+        end
+    end
+    if isfield(S, 'I_onaxis_max_z')
+        semilogy(z_plot_cm, sanitize_positive(colvec(S.I_onaxis_max_z)), 'LineWidth', 1.6, 'DisplayName', 'I\_onaxis\_max\_z');
+    end
+    if isfield(S, 'I_center_t0_z')
+        semilogy(z_plot_cm, sanitize_positive(colvec(S.I_center_t0_z)), 'LineWidth', 1.2, 'DisplayName', 'I\_center\_t0\_z');
+    end
+    xlabel(z_label); ylabel('Intensity (W/m^2)');
+    title('强度相关诊断（对数坐标）'); legend('Location','best');
+
+    nexttile;
+    hold on; grid on; box on;
+    if isfield(S, 'I_max_z')
+        Imaxn = colvec(S.I_max_z) / max(colvec(S.I_max_z), [], 'omitnan');
+        plot(z_plot_cm, Imaxn, 'LineWidth', 1.8, 'DisplayName', 'I\_max\_z / max');
+    end
+    if isfield(S, 'I_peak_q99_z')
+        q99n = colvec(S.I_peak_q99_z) / max(colvec(S.I_peak_q99_z), [], 'omitnan');
+        plot(z_plot_cm, q99n, 'LineWidth', 1.4, 'DisplayName', 'I\_peak\_q99\_z / max');
+    end
+    xlabel(z_label); ylabel('Normalized');
+    title('峰值与稳峰（归一化）'); legend('Location','best');
 end
-if isfield(S, 'I_peak_q99_z')
-    q99n = colvec(S.I_peak_q99_z) / max(colvec(S.I_peak_q99_z), [], 'omitnan');
-    plot(z_plot_cm, q99n, 'LineWidth', 1.4, 'DisplayName', 'I\_peak\_q99\_z / max');
-end
-xlabel(z_label); ylabel('Normalized');
-title('峰值与稳峰（归一化）'); legend('Location','best');
 
 % --------- Figure 2: 等离子体密度 ---------
-if isfield(S, 'rho_onaxis_max_z') || isfield(S, 'rho_max_z')
+if fig_flags.plasma && (isfield(S, 'rho_onaxis_max_z') || isfield(S, 'rho_max_z'))
     figure('Name', 'Filament diagnostics: plasma density vs z', 'Color', 'w');
     hold on; grid on; box on;
     if isfield(S, 'rho_onaxis_max_z')
-        rhoOn = sanitize_positive(colvec(S.rho_onaxis_max_z));
-        semilogy(z_plot_cm, rhoOn, 'LineWidth', 1.8, 'DisplayName', '\rho\_onaxis\_max\_z');
-        [summary.rho_onaxis_peak, irp] = max(rhoOn, [], 'omitnan');
-        if ~isempty(irp) && ~isnan(summary.rho_onaxis_peak)
-            summary.z_rho_onaxis_peak_m = z_m(irp);
-        end
+        semilogy(z_plot_cm, sanitize_positive(colvec(S.rho_onaxis_max_z)), 'LineWidth', 1.8, 'DisplayName', '\rho\_onaxis\_max\_z');
     end
     if isfield(S, 'rho_max_z')
         semilogy(z_plot_cm, sanitize_positive(colvec(S.rho_max_z)), 'LineWidth', 1.4, 'DisplayName', '\rho\_max\_z');
@@ -102,11 +138,10 @@ if isfield(S, 'rho_onaxis_max_z') || isfield(S, 'rho_max_z')
 end
 
 % --------- Figure 3: 光斑二阶矩半径 ---------
-if isfield(S, 'w_mom_z')
+if fig_flags.beam && isfield(S, 'w_mom_z')
     w = colvec(S.w_mom_z);
-    [wmin, iw] = min(w, [], 'omitnan');
-    summary.w_mom_min_m = wmin;
-    summary.z_focus_est_m = z_m(iw);
+    [~, iw] = min(w, [], 'omitnan');
+    wmin = summary.w_mom_min_m;
 
     figure('Name', 'Filament diagnostics: beam radius vs z', 'Color', 'w');
     plot(z_plot_cm, w*1e3, 'LineWidth', 1.8); grid on; box on;
@@ -118,28 +153,28 @@ if isfield(S, 'w_mom_z')
 end
 
 % --------- Figure 4: 能量守恒 ---------
-if isfield(S, 'U_z')
-    U = colvec(S.U_z);
-    U0 = U(find(~isnan(U), 1, 'first'));
-    dU = (U - U0) / U0 * 100;
-    summary.U0_J = U0;
-    summary.U_end_J = U(find(~isnan(U), 1, 'last'));
-    summary.U_drift_pct = summary.U_end_J / U0 * 100 - 100;
+if fig_flags.energy && isfield(S, 'U_z')
+    if ~isfield(summary, 'U0_J')
+        warning('U_z 全为 NaN，跳过能量图绘制。');
+    else
+        U = colvec(S.U_z);
+        dU = (U - summary.U0_J) / summary.U0_J * 100;
 
-    figure('Name', 'Filament diagnostics: pulse energy vs z', 'Color', 'w');
-    yyaxis left
-    plot(z_plot_cm, U, 'LineWidth', 1.8);
-    ylabel('U(z) (J)');
-    yyaxis right
-    plot(z_plot_cm, dU, '--', 'LineWidth', 1.3);
-    ylabel('\DeltaU/U_0 (%)');
-    grid on; box on;
-    xlabel(z_label);
-    title('脉冲能量与相对漂移');
+        figure('Name', 'Filament diagnostics: pulse energy vs z', 'Color', 'w');
+        yyaxis left
+        plot(z_plot_cm, U, 'LineWidth', 1.8);
+        ylabel('U(z) (J)');
+        yyaxis right
+        plot(z_plot_cm, dU, '--', 'LineWidth', 1.3);
+        ylabel('\DeltaU/U_0 (%)');
+        grid on; box on;
+        xlabel(z_label);
+        title('脉冲能量与相对漂移');
+    end
 end
 
 % --------- Figure 5: FWHM 诊断 ---------
-if isfield(S, 'fwhm_plasma_z') || isfield(S, 'fwhm_fluence_z')
+if fig_flags.fwhm && (isfield(S, 'fwhm_plasma_z') || isfield(S, 'fwhm_fluence_z'))
     figure('Name', 'Filament diagnostics: FWHM vs z', 'Color', 'w');
     hold on; grid on; box on;
     if isfield(S, 'fwhm_plasma_z')
@@ -153,7 +188,7 @@ if isfield(S, 'fwhm_plasma_z') || isfield(S, 'fwhm_fluence_z')
 end
 
 % --------- Figure 6: on-axis rho(t,z) ---------
-if isfield(S, 'rho_onaxis_t_z')
+if fig_flags.rho_tz && isfield(S, 'rho_onaxis_t_z')
     figure('Name', 'Filament diagnostics: rho on-axis (z-t map)', 'Color', 'w');
     rhozt = S.rho_onaxis_t_z;
     if isfield(S, 't_axis')
@@ -201,6 +236,60 @@ if ~isempty(warns)
 end
 fprintf('============================================\n\n');
 
+end
+
+function flags = parse_figure_selection(figSelect)
+flags = struct('intensity', true, 'plasma', true, 'beam', true, ...
+    'energy', true, 'fwhm', true, 'rho_tz', true);
+
+if nargin < 1 || isempty(figSelect)
+    return;
+end
+
+if ischar(figSelect) || isstring(figSelect)
+    keys = string(figSelect);
+elseif iscell(figSelect)
+    keys = string(figSelect);
+else
+    error('figSelect 必须是字符串、string 数组或 cellstr。');
+end
+
+keys = lower(strtrim(keys(:)));
+keys(keys == "") = [];
+if isempty(keys)
+    return;
+end
+
+if any(keys == "all")
+    return;
+end
+
+flags.intensity = false;
+flags.plasma = false;
+flags.beam = false;
+flags.energy = false;
+flags.fwhm = false;
+flags.rho_tz = false;
+
+for i = 1:numel(keys)
+    k = keys(i);
+    switch k
+        case {"intensity", "i", "figure1", "fig1"}
+            flags.intensity = true;
+        case {"plasma", "rho", "density", "figure2", "fig2"}
+            flags.plasma = true;
+        case {"beam", "w_mom", "radius", "figure3", "fig3"}
+            flags.beam = true;
+        case {"energy", "u", "figure4", "fig4"}
+            flags.energy = true;
+        case {"fwhm", "width", "figure5", "fig5"}
+            flags.fwhm = true;
+        case {"rho_tz", "rho-onaxis-t", "figure6", "fig6"}
+            flags.rho_tz = true;
+        otherwise
+            warning('Unknown figSelect key ignored: %s', k);
+    end
+end
 end
 
 function x = colvec(x)
