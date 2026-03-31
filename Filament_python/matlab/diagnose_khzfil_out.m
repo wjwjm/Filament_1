@@ -302,7 +302,7 @@ function y = sanitize_positive(y)
 end
 
 function [z_plot_m, z_plot_cm, z_label, meta] = build_plot_axis(z_m, focus_ref)
-% 仅在“透镜提前聚焦”开启时，把绘图原点平移到配置焦点。
+% 若可解析到几何焦点（mat/json），把绘图原点平移到该焦点。
 z_plot_m = z_m;
 z_label = 'z (cm)';
 meta = struct('applied', false, 'z_focus_m', NaN, 'source', 'none');
@@ -314,7 +314,7 @@ end
 
 z_plot_m = z_m - focus_ref.z_focus_m;
 z_plot_cm = z_plot_m * 100;
-z_label = '\Deltaz from focus (cm)';
+z_label = '\Deltaz from geometric focus (cm)';
 meta.applied = true;
 meta.z_focus_m = focus_ref.z_focus_m;
 meta.source = focus_ref.source;
@@ -323,11 +323,24 @@ end
 function focus_ref = resolve_focus_reference(S, matFile, cfgFile)
 focus_ref = struct('applied', false, 'z_focus_m', NaN, 'source', 'none');
 
-if isfield(S, 'focus_center_m') && isfield(S, 'limit_focus_window')
-    if logical(S.limit_focus_window) && isnumeric(S.focus_center_m) && isfinite(S.focus_center_m)
+% 坐标原点优先使用几何焦点，不再依赖 limit_focus_window 开关。
+if isfield(S, 'focus_center_m') && isnumeric(S.focus_center_m)
+    zf = double(S.focus_center_m);
+    zf = zf(1);
+    if isfinite(zf)
         focus_ref.applied = true;
-        focus_ref.z_focus_m = double(S.focus_center_m);
-        focus_ref.source = 'mat';
+        focus_ref.z_focus_m = zf;
+        focus_ref.source = 'mat:focus_center_m';
+        return;
+    end
+end
+if isfield(S, 'z_focus_hint') && isnumeric(S.z_focus_hint)
+    zf = double(S.z_focus_hint);
+    zf = zf(1);
+    if isfinite(zf)
+        focus_ref.applied = true;
+        focus_ref.z_focus_m = zf;
+        focus_ref.source = 'mat:z_focus_hint';
         return;
     end
 end
@@ -349,11 +362,15 @@ end
 
 P = C.propagation;
 has_center = isfield(P, 'focus_center_m') && isnumeric(P.focus_center_m) && isfinite(P.focus_center_m);
-has_pre = isfield(P, 'limit_focus_window') && logical(P.limit_focus_window);
-if has_center && has_pre
+has_hint = isfield(P, 'z_focus_hint') && isnumeric(P.z_focus_hint) && isfinite(P.z_focus_hint);
+if has_center
     focus_ref.applied = true;
     focus_ref.z_focus_m = double(P.focus_center_m);
-    focus_ref.source = sprintf('json:%s', char(cfg_path));
+    focus_ref.source = sprintf('json:%s:focus_center_m', char(cfg_path));
+elseif has_hint
+    focus_ref.applied = true;
+    focus_ref.z_focus_m = double(P.z_focus_hint);
+    focus_ref.source = sprintf('json:%s:z_focus_hint', char(cfg_path));
 end
 end
 
