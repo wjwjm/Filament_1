@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .device import xp
+from .ionization.rate_registry import RATE_ALIAS_MAP
 
 
 def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None,
@@ -126,7 +127,8 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
         return sp.get(key, default) if isinstance(sp, dict) else getattr(sp, key, default)
 
     def _resolve_rate(sp):
-        return str(_g(sp, "rate", "off") or "off").lower()
+        r = str(_g(sp, "rate", "off") or "off").lower()
+        return RATE_ALIAS_MAP.get(r, r)
 
     def _expects_for_rate(rate: str) -> str:
         if (rate or "").lower() in ("ppt_talebpour_i_legacy", "ppt_talebpour_i_full", "popruzhenko_atom_i_full", "mpa_fact"):
