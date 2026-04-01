@@ -188,3 +188,37 @@ python Filament_python/tests/minimal_run.py
 - 更详细中文参数手册：`Filament_python/README.md`
 - 参数说明草稿：`Filament_python/KHz_filament/Config_explain.md`
 
+
+---
+
+## 7. 目录结构（2026-04 更新）
+
+```text
+Filament_1/
+├─ README.md
+├─ AGENTS.md
+├─ Filament_python/
+│  ├─ README.md
+│  ├─ READMD.md
+│  ├─ KHz_filament/
+│  │  ├─ READMD.md
+│  │  ├─ ionization/
+│  │  │  └─ READMD.md
+│  │  └─ ...
+│  ├─ tools/
+│  │  └─ READMD.md
+│  ├─ tests/
+│  │  └─ READMD.md
+│  └─ matlab/
+│     └─ READMD.md
+└─ references/
+   ├─ READMD.md
+   └─ papers/
+      ├─ READMD.md
+      ├─ talebpour1999.pdf
+      └─ popruzhenko2008.pdf
+```
+
+说明：
+- 参考文献 PDF 已统一移动到 `references/papers/`。
+- 每个主要子目录均提供 `READMD.md` 用于说明职责与入口文件。

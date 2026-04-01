@@ -380,3 +380,28 @@ PYTHONPATH=Filament_python python Filament_python/tests/ionization_selfcheck_min
 
 - 旧版本中大量“参数解释文本”已从 `config.json` 移出，避免配置文件与文档重复、以及 JSON 解析问题；
 - 详细说明以本 README 为准，`config.json` 保留可运行配置样例。
+
+---
+
+## 目录导航（补充）
+
+```text
+Filament_python/
+├─ README.md
+├─ READMD.md
+├─ KHz_filament/
+│  ├─ READMD.md
+│  └─ ionization/
+│     └─ READMD.md
+├─ tools/
+│  └─ READMD.md
+├─ tests/
+│  └─ READMD.md
+└─ matlab/
+   └─ READMD.md
+```
+
+补充说明：
+- 电离 LUT 相关工具统一放在 `tools/`。
+- 各目录职责请优先查看对应 `READMD.md`。
+- 项目参考文献统一位于仓库根目录的 `references/papers/`。
