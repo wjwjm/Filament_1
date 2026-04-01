@@ -17,6 +17,7 @@ CFG="${CFG:-khz_config.json}"
 OUTDIR="${OUTDIR:-runs/ion_lut_check_${SLURM_JOB_ID:-manual}}"
 BACKEND="${BACKEND:-numpy}"
 NUM_POINTS="${NUM_POINTS:-3000}"
+SKIP_PLOTS="${SKIP_PLOTS:-0}"
 
 # onset 自动窗口参数（W_reference）
 ONSET_W_MIN="${ONSET_W_MIN:-1e4}"
@@ -34,8 +35,8 @@ if [[ ! -f "$CFG" ]]; then
   exit 3
 fi
 
-if [[ ! -f "../Filament_python/tools/validate_ion_lut_runtime.py" ]]; then
-  echo "[fatal] validate_ion_lut.py not found at ../Filament_python/tools/validate_ion_lut_runtime.py"
+if [[ ! -f "../validate_ion_lut.py" ]]; then
+  echo "[fatal] validate_ion_lut.py not found at ../validate_ion_lut.py"
   exit 3
 fi
 
@@ -59,6 +60,7 @@ echo "[ionlut-check] CFG=$CFG"
 echo "[ionlut-check] OUTDIR=$OUTDIR"
 echo "[ionlut-check] BACKEND=$BACKEND"
 echo "[ionlut-check] NUM_POINTS=$NUM_POINTS"
+echo "[ionlut-check] SKIP_PLOTS=$SKIP_PLOTS"
 echo "[ionlut-check] ONSET_W_MIN=$ONSET_W_MIN ONSET_W_MAX=$ONSET_W_MAX"
 if [[ -n "$ONSET_I_MIN" || -n "$ONSET_I_MAX" ]]; then
   echo "[ionlut-check] MANUAL onset I-window: [$ONSET_I_MIN, $ONSET_I_MAX]"
@@ -68,7 +70,7 @@ if [[ -n "$SPECIES" ]]; then
 fi
 
 CMD=(
-  python ../Filament_python/tools/validate_ion_lut_runtime.py
+  python ../validate_ion_lut.py
   --config "$CFG"
   --outdir "$OUTDIR"
   --backend "$BACKEND"
@@ -85,6 +87,10 @@ if [[ -n "$SPECIES" ]]; then
   # shellcheck disable=SC2206
   SP_ARR=($SPECIES)
   CMD+=(--species "${SP_ARR[@]}")
+fi
+
+if [[ "$SKIP_PLOTS" == "1" ]]; then
+  CMD+=(--skip-plots)
 fi
 
 "${CMD[@]}"
