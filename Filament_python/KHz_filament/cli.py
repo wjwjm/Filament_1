@@ -10,7 +10,6 @@ from .utils import gaussian_beam_xy, gaussian_pulse_t
 from .diagnostics import intensity, peak_intensity, pulse_energy, save_npz
 from .propagate import propagate_one_pulse
 from .heat import diffuse_dn_gas
-from .confio import E0_from_energy, E0_from_peak_power
 import dataclasses
 
 
@@ -91,7 +90,6 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     E0p  = float(getattr(beam, "E0_peak", 0.0))
     Ucfg = float(getattr(beam, "energy_J", 0.0) or 0.0)
     P0cfg = getattr(beam, "P0_peak", None)
-    I0legacy = getattr(beam, "I0_peak", None)
 
     I0  = intensity(E, n0)
     Uin = float(pulse_energy(I0, dt, dx, dy))
@@ -192,37 +190,9 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
         return sp.get(key, default) if isinstance(sp, dict) else getattr(sp, key, default)
 
     def _resolve_rate(sp):
-        """rate 优先；否则从旧的 model+cycle_avg 推断。已下线模型会抛错提示迁移。"""
-        r = str(_g(sp, "rate", "") or "").lower().replace("ppt-i", "ppt_i")
-        alias_map = {
-            "ppt_talebpour_i": "ppt_talebpour_i_full",
-            "popruzhenko_atom_i": "popruzhenko_atom_i_full",
-        }
-        removed = {"ppt_e", "ppt_i", "ppt_i_legacy", "adk_e", "powerlaw", "mpa"}
-        if r:
-            if r in removed:
-                raise ValueError(
-                    f"[ionization] species.rate='{r}' 已移除，请改用: "
-                    "ppt_talebpour_i_legacy / ppt_talebpour_i_full / popruzhenko_atom_i_full / mpa_fact / off"
-                )
-            if r in alias_map:
-                return alias_map[r]
-            if r in ("none", "zero"):
-                return "off"
-            return r
-        m = str(_g(sp, "model", getattr(ion, "model", "off"))).lower()
-        cyc = bool(_g(sp, "cycle_avg", getattr(ion, "cycle_avg", False)))
-        if m in ("none", "off", "zero", ""):
-            return "off"
-        if m in ("mpa_fact", "mpa_factorial", "multiphoton_factorial"):
-            return "mpa_fact"
-        if m in ("ppt", "ppt_cycleavg", "adk", "powerlaw", "mpa"):
-            raise ValueError(
-                f"[ionization] 旧字段 model='{m}'(cycle_avg={cyc}) 将推断到已移除模型；"
-                "请在 species.rate 中显式设置为: "
-                "ppt_talebpour_i_legacy / ppt_talebpour_i_full / popruzhenko_atom_i_full / mpa_fact / off"
-            )
-        raise ValueError(f"[ionization] 未识别 model/rate: model='{m}'")
+        """Read normalized species.rate directly (compatibility is handled in config_normalize)."""
+        r = str(_g(sp, "rate", "off") or "off").lower()
+        return r
 
     def _expects_for_rate(rate: str) -> str:
         rate = (rate or "").lower()
@@ -265,9 +235,6 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     if P0cfg is not None:
         print(f"P0_peak(峰值功率)    : {fmt(float(P0cfg),' W')}  # 与 energy_J 二选一")
         norm_source = "P0_peak"
-    elif I0legacy is not None:
-        print(f"I0_peak(旧键,峰值功率): {fmt(float(I0legacy),' W')}  # 兼容旧配置")
-        norm_source = "I0_peak_legacy"
     elif Ucfg > 0.0:
         norm_source = "energy_J"
     print(f"Repetition(重频)      : f_rep={fmt(float(getattr(heat,'f_rep',0.0)),' Hz')} | pulses={int(getattr(run,'Npulses',1))}  # 脉冲序列")
@@ -462,26 +429,7 @@ def run_demo(
     k0 = beam.n0 * omega0 / c0
     axes = make_axes(grid.Nx, grid.Ny, grid.Nt, grid.Lx, grid.Ly, grid.Twin)
 
-    has_energy = getattr(beam, "energy_J", None) is not None
-    has_p0 = getattr(beam, "P0_peak", None) is not None
-    has_i0_legacy = getattr(beam, "I0_peak", None) is not None
-    if has_energy and has_p0:
-        raise ValueError("Beam energy_J and P0_peak are mutually exclusive; please keep only one.")
-    if has_energy and has_i0_legacy:
-        raise ValueError("Beam energy_J and legacy I0_peak are mutually exclusive; please keep only one.")
-    if has_p0 and has_i0_legacy:
-        raise ValueError("Beam P0_peak and legacy I0_peak cannot both be set.")
-
-    if (getattr(beam, "E0_peak", 0.0) == 0.0) and has_energy:
-        beam.E0_peak = E0_from_energy(float(beam.energy_J), float(beam.w0), float(beam.tau_fwhm), float(beam.n0))
-        print(f"[derive] E0_peak <= 0, derived from energy_J: E0_peak={beam.E0_peak:.3e} V/m")
-    elif (getattr(beam, "E0_peak", 0.0) == 0.0) and has_p0:
-        beam.E0_peak = E0_from_peak_power(float(beam.P0_peak), float(beam.w0), float(beam.n0))
-        print(f"[derive] E0_peak <= 0, derived from P0_peak: E0_peak={beam.E0_peak:.3e} V/m")
-    elif (getattr(beam, "E0_peak", 0.0) == 0.0) and has_i0_legacy:
-        beam.E0_peak = E0_from_peak_power(float(beam.I0_peak), float(beam.w0), float(beam.n0))
-        print(f"[derive] E0_peak <= 0, derived from legacy I0_peak(as peak power): E0_peak={beam.E0_peak:.3e} V/m")
-    elif getattr(beam, "E0_peak", 0.0) == 0.0:
+    if getattr(beam, "E0_peak", 0.0) == 0.0:
         raise ValueError("Beam E0_peak is 0 and no energy_J/P0_peak provided; cannot build input field.")
 
     E_xy = gaussian_beam_xy(axes.x, axes.y, beam.w0)[None, ...]
