@@ -31,20 +31,18 @@ def _to_float(v: Any) -> Any:
 
 
 def _normalize_beam(beam: Dict[str, Any], *, grid: Dict[str, Any]) -> None:
-    for k in ("w0", "tau_fwhm", "n0", "energy_J", "P0_peak", "I0_peak", "E0_peak"):
+    for k in ("w0", "tau_fwhm", "n0", "energy_J", "P0_peak", "E0_peak"):
         if k in beam:
             beam[k] = _to_float(beam[k])
 
+    if beam.get("I0_peak", None) is not None:
+        raise ValueError("beam.I0_peak has been removed; please use beam.P0_peak instead.")
+
     has_energy = beam.get("energy_J", None) is not None
     has_p0 = beam.get("P0_peak", None) is not None
-    has_i0_legacy = beam.get("I0_peak", None) is not None
-    active_count = int(has_energy) + int(has_p0) + int(has_i0_legacy)
+    active_count = int(has_energy) + int(has_p0)
     if active_count > 1:
-        raise ValueError("beam.energy_J / beam.P0_peak / beam.I0_peak are mutually exclusive; keep only one.")
-
-    if has_i0_legacy and not has_p0:
-        beam["P0_peak"] = float(beam["I0_peak"])
-        beam["_norm_source"] = "I0_peak_legacy"
+        raise ValueError("beam.energy_J / beam.P0_peak are mutually exclusive; keep only one.")
 
     if "Twin" not in grid:
         tau_fwhm = beam.get("tau_fwhm", None)
