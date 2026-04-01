@@ -42,8 +42,11 @@ def _setup_backend(backend: str) -> None:
 
 
 def _ensure_import_path() -> None:
-    repo_root = Path(__file__).resolve().parent
-    filament_root = repo_root / "Filament_python"
+    this_file = Path(__file__).resolve()
+    filament_root = next((parent for parent in this_file.parents if parent.name == "Filament_python"), None)
+    if filament_root is None:
+        raise RuntimeError("Unable to locate Filament_python directory from script path")
+    repo_root = filament_root.parent
     import sys
 
     for p in (str(repo_root), str(filament_root)):
