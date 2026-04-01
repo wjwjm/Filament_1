@@ -2,13 +2,20 @@
 from __future__ import annotations
 import argparse
 import math
+from pathlib import Path
+import sys
 
-from Filament_python.KHz_filament.confio import load_all
-from Filament_python.KHz_filament.constants import c0
-from Filament_python.KHz_filament.ionization import prepare_ionization_lut_cache
+def _ensure_import_path() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
 
 
 def main() -> int:
+    _ensure_import_path()
+    from Filament_python.KHz_filament.confio import load_all
+    from Filament_python.KHz_filament.constants import c0
+    from Filament_python.KHz_filament.ionization import prepare_ionization_lut_cache
     ap = argparse.ArgumentParser(description="Build and cache ionization LUT tables only.")
     ap.add_argument("--config", required=True, help="Path to simulation config (json/yaml/toml).")
     args = ap.parse_args()

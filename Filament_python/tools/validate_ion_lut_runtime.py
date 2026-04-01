@@ -40,7 +40,7 @@ def _setup_backend(backend: str) -> None:
 
 
 def _ensure_import_path() -> None:
-    repo_root = Path(__file__).resolve().parent
+    repo_root = Path(__file__).resolve().parents[2]
     filament_root = repo_root / "Filament_python"
     import sys
 

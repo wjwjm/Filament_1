@@ -34,8 +34,8 @@ if [[ ! -f "$CFG" ]]; then
   exit 3
 fi
 
-if [[ ! -f "../validate_ion_lut.py" ]]; then
-  echo "[fatal] validate_ion_lut.py not found at ../validate_ion_lut.py"
+if [[ ! -f "../Filament_python/tools/validate_ion_lut_runtime.py" ]]; then
+  echo "[fatal] validate_ion_lut.py not found at ../Filament_python/tools/validate_ion_lut_runtime.py"
   exit 3
 fi
 
@@ -68,7 +68,7 @@ if [[ -n "$SPECIES" ]]; then
 fi
 
 CMD=(
-  python ../validate_ion_lut.py
+  python ../Filament_python/tools/validate_ion_lut_runtime.py
   --config "$CFG"
   --outdir "$OUTDIR"
   --backend "$BACKEND"

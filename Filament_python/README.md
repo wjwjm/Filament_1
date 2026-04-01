@@ -53,7 +53,7 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
 当 `ionization.species[*].rate` 使用 `*_lut` 时，建议先执行：
 
 ```bash
-python build_ion_lut.py --config Filament_python/config.json
+python Filament_python/tools/build_ion_lut_cache.py --config Filament_python/config.json
 ```
 
 这样可在传播前把表缓存到磁盘（默认 `cache/rate_tables`），后续参数不变时会直接复用，避免每次启动重建。
