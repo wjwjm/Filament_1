@@ -198,26 +198,25 @@ Filament_1/
 ├─ AGENTS.md
 ├─ Filament_python/
 │  ├─ README.md
-│  ├─ READMD.md
 │  ├─ KHz_filament/
-│  │  ├─ READMD.md
+│  │  ├─ README.md
 │  │  ├─ ionization/
-│  │  │  └─ READMD.md
+│  │  │  └─ README.md
 │  │  └─ ...
 │  ├─ tools/
-│  │  └─ READMD.md
+│  │  └─ README.md
 │  ├─ tests/
-│  │  └─ READMD.md
+│  │  └─ README.md
 │  └─ matlab/
-│     └─ READMD.md
+│     └─ README.md
 └─ references/
-   ├─ READMD.md
+   ├─ README.md
    └─ papers/
-      ├─ READMD.md
+      ├─ README.md
       ├─ talebpour1999.pdf
       └─ popruzhenko2008.pdf
 ```
 
 说明：
 - 参考文献 PDF 已统一移动到 `references/papers/`。
-- 每个主要子目录均提供 `READMD.md` 用于说明职责与入口文件。
+- 每个主要子目录均提供 `README.md` 用于说明职责与入口文件。

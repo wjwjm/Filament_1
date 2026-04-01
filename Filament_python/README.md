@@ -387,20 +387,19 @@ PYTHONPATH=Filament_python python Filament_python/tests/ionization_selfcheck_min
 ```text
 Filament_python/
 ├─ README.md
-├─ READMD.md
 ├─ KHz_filament/
-│  ├─ READMD.md
+│  ├─ README.md
 │  └─ ionization/
-│     └─ READMD.md
+│     └─ README.md
 ├─ tools/
-│  └─ READMD.md
+│  └─ README.md
 ├─ tests/
-│  └─ READMD.md
+│  └─ README.md
 └─ matlab/
-   └─ READMD.md
+   └─ README.md
 ```
 
 补充说明：
 - 电离 LUT 相关工具统一放在 `tools/`。
-- 各目录职责请优先查看对应 `READMD.md`。
+- 各目录职责请优先查看对应 `README.md`。
 - 项目参考文献统一位于仓库根目录的 `references/papers/`。
