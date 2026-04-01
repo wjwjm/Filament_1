@@ -44,9 +44,8 @@ python -m Filament_python.KHz_filament.cli Filament_python/config_ref.json
 2. **自动反推电场峰值 `E0_peak`**（当 `E0_peak == 0` 时）：
    - 给了 `beam.energy_J` → 用能量反推；
    - 给了 `beam.P0_peak` → 用峰值功率反推；
-   - 旧键 `beam.I0_peak` 兼容为“峰值功率”口径。
 
-并且 `energy_J`、`P0_peak`、`I0_peak` 彼此互斥，冲突会直接报错。
+并且 `energy_J`、`P0_peak` 彼此互斥，冲突会直接报错。
 
 ### Step C：建网格、造入射场、可选加透镜相位
 
