@@ -11,7 +11,7 @@
     "lam0": 8.00e-07,
     "n0": 1.00027,
     "w0": 1.979e-3,
-    "tau_fwhm": 120e-15,
+    "tau_fwhm": 40e-15,
     "E0_peak": 0.0,
     "energy_J": null,
     "P0_peak": 17e9,
@@ -42,18 +42,33 @@
   },
 "ionization": {
   "species": [
-    {"name":"N2","rate":"ppt_talebpour_i","Ip_eV":15.6,"Zeff":0.9,"l":0,"m":0,"fraction":0.8,"W_scale":1.0},
-    {"name":"O2","rate":"ppt_talebpour_i","Ip_eV":12.1,"Ip_eV_eff":12.55,"Zeff":0.53,"l":0,"m":0,"fraction":0.2,"W_scale":1.0}
+    {"name":"N2","rate":"ppt_talebpour_i_lut","reference_model": "ppt_talebpour_i_full_reference","Ip_eV":15.6,"Zeff":0.9,"l":0,"m":0,"fraction":0.8,"W_scale":1.0},
+    {"name":"O2","rate":"ppt_talebpour_i_lut","reference_model": "ppt_talebpour_i_full_reference","Ip_eV":12.1,"Ip_eV_eff":12.55,"Zeff":0.53,"l":0,"m":0,"fraction":0.2,"W_scale":1.0}
   ],
   "time_mode": "full",
   "integrator": "rk4",
-  "cycle_avg_samples": 64,  
+  "cycle_avg_samples": 32,  
   "mean_clip_frac": 0,        
   "beta_rec": 0.0,
   "sigma_ib": 0.0,
   "nu_ei_const": 0.0,
   "I_cap": 1.0e19,
-  "W_cap": 1.0e19
+  "W_cap": 1.0e19,
+  "rate_table": {
+    "enabled": true,
+    "reuse_cache": true,
+    "cache_dir": "cache/rate_tables",
+    "force_rebuild": false,
+    "I_min_SI": 1e8,
+    "I_max_SI": 1e19,
+    "n_samples": 3000,
+    "spacing": "log",
+    "interp_mode": "loglog",
+    "ref_cycle_avg_samples": 64,
+    "popruzhenko_sum_tol": 1e-6,
+    "popruzhenko_max_terms": 256
+  }
+
 },
   "heat": {
     "D_gas": 2.0e-05,

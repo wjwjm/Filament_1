@@ -53,7 +53,7 @@ UPPE_USE_GPU=1 python -m Filament_python.KHz_filament.cli Filament_python/config
 当 `ionization.species[*].rate` 使用 `*_lut` 时，建议先执行：
 
 ```bash
-python build_ion_lut.py --config Filament_python/config.json
+python Filament_python/tools/build_ion_lut_cache.py --config Filament_python/config.json
 ```
 
 这样可在传播前把表缓存到磁盘（默认 `cache/rate_tables`），后续参数不变时会直接复用，避免每次启动重建。
@@ -87,6 +87,23 @@ N50区每卡默认分配 126GB 内存, 不允许超额申请内存
 - `heat`：慢时热扩散；
 - `run`：脉冲数；
 - `raman`：拉曼模型与吸收。
+
+### 4.1 配置标准化顺序图（加载时）
+
+为减少“同一配置不同写法导致不同行为”的困惑，配置读取统一按以下顺序处理：
+
+```mermaid
+flowchart TD
+    A[读取 JSON/YAML/TOML] --> B[config_normalize.normalize_config]
+    B --> B1[互斥校验: energy_J / P0_peak]
+    B --> B3[派生量: E0_peak, grid.Twin]
+    B --> B4[ionization.species.fraction 归一化]
+    B --> B5[species.rate 别名映射与移除项报错]
+    B5 --> C[confio.load_all -> dataclass 构造]
+    C --> D[cli/run_demo 仅消费标准化对象]
+```
+
+说明：`cli.py` 不再做额外兼容分支推断（例如旧键二次解释）；如有历史配置兼容逻辑，统一放在 `config_normalize.py`。
 
 ---
 
@@ -362,3 +379,27 @@ PYTHONPATH=Filament_python python Filament_python/tests/ionization_selfcheck_min
 
 - 旧版本中大量“参数解释文本”已从 `config.json` 移出，避免配置文件与文档重复、以及 JSON 解析问题；
 - 详细说明以本 README 为准，`config.json` 保留可运行配置样例。
+
+---
+
+## 目录导航（补充）
+
+```text
+Filament_python/
+├─ README.md
+├─ KHz_filament/
+│  ├─ README.md
+│  └─ ionization/
+│     └─ README.md
+├─ tools/
+│  └─ README.md
+├─ tests/
+│  └─ README.md
+└─ matlab/
+   └─ README.md
+```
+
+补充说明：
+- 电离 LUT 相关工具统一放在 `tools/`。
+- 各目录职责请优先查看对应 `README.md`。
+- 项目参考文献统一位于仓库根目录的 `references/papers/`。

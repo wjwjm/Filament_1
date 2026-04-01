@@ -44,9 +44,8 @@ python -m Filament_python.KHz_filament.cli Filament_python/config_ref.json
 2. **自动反推电场峰值 `E0_peak`**（当 `E0_peak == 0` 时）：
    - 给了 `beam.energy_J` → 用能量反推；
    - 给了 `beam.P0_peak` → 用峰值功率反推；
-   - 旧键 `beam.I0_peak` 兼容为“峰值功率”口径。
 
-并且 `energy_J`、`P0_peak`、`I0_peak` 彼此互斥，冲突会直接报错。
+并且 `energy_J`、`P0_peak` 彼此互斥，冲突会直接报错。
 
 ### Step C：建网格、造入射场、可选加透镜相位
 
@@ -188,3 +187,36 @@ python Filament_python/tests/minimal_run.py
 - 更详细中文参数手册：`Filament_python/README.md`
 - 参数说明草稿：`Filament_python/KHz_filament/Config_explain.md`
 
+
+---
+
+## 7. 目录结构（2026-04 更新）
+
+```text
+Filament_1/
+├─ README.md
+├─ AGENTS.md
+├─ Filament_python/
+│  ├─ README.md
+│  ├─ KHz_filament/
+│  │  ├─ README.md
+│  │  ├─ ionization/
+│  │  │  └─ README.md
+│  │  └─ ...
+│  ├─ tools/
+│  │  └─ README.md
+│  ├─ tests/
+│  │  └─ README.md
+│  └─ matlab/
+│     └─ README.md
+└─ references/
+   ├─ README.md
+   └─ papers/
+      ├─ README.md
+      ├─ talebpour1999.pdf
+      └─ popruzhenko2008.pdf
+```
+
+说明：
+- 参考文献 PDF 已统一移动到 `references/papers/`。
+- 每个主要子目录均提供 `README.md` 用于说明职责与入口文件。
