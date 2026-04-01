@@ -95,8 +95,7 @@ N50区每卡默认分配 126GB 内存, 不允许超额申请内存
 ```mermaid
 flowchart TD
     A[读取 JSON/YAML/TOML] --> B[config_normalize.normalize_config]
-    B --> B1[旧键兼容: beam.I0_peak -> beam.P0_peak]
-    B --> B2[互斥校验: energy_J / P0_peak / I0_peak]
+    B --> B1[互斥校验: energy_J / P0_peak]
     B --> B3[派生量: E0_peak, grid.Twin]
     B --> B4[ionization.species.fraction 归一化]
     B --> B5[species.rate 别名映射与移除项报错]
@@ -388,20 +387,19 @@ PYTHONPATH=Filament_python python Filament_python/tests/ionization_selfcheck_min
 ```text
 Filament_python/
 ├─ README.md
-├─ READMD.md
 ├─ KHz_filament/
-│  ├─ READMD.md
+│  ├─ README.md
 │  └─ ionization/
-│     └─ READMD.md
+│     └─ README.md
 ├─ tools/
-│  └─ READMD.md
+│  └─ README.md
 ├─ tests/
-│  └─ READMD.md
+│  └─ README.md
 └─ matlab/
-   └─ READMD.md
+   └─ README.md
 ```
 
 补充说明：
 - 电离 LUT 相关工具统一放在 `tools/`。
-- 各目录职责请优先查看对应 `READMD.md`。
+- 各目录职责请优先查看对应 `README.md`。
 - 项目参考文献统一位于仓库根目录的 `references/papers/`。

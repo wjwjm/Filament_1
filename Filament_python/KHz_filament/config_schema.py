@@ -23,7 +23,6 @@ TOP_LEVEL_SECTIONS: Set[str] = {
 BEAM_DERIVED_FIELDS: Dict[str, str] = {
     "energy_J": "single-pulse energy [J]",
     "P0_peak": "peak power at pulse center [W]",
-    "I0_peak": "legacy alias of peak power (historical misname) [W]",
     "E0_peak": "peak electric field amplitude [V/m]",
 }
 
@@ -48,4 +47,3 @@ REMOVED_RATES: Set[str] = {
     "powerlaw",
     "mpa",
 }
-

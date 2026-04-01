@@ -45,3 +45,13 @@ def test_beam_energy_p0_mutually_exclusive(tmp_path):
 
     with pytest.raises(ValueError, match="mutually exclusive"):
         load_all(str(p))
+
+
+def test_beam_i0_peak_removed(tmp_path):
+    cfg = _base_cfg()
+    cfg["beam"]["I0_peak"] = 1e9
+    p = tmp_path / "cfg.json"
+    p.write_text(json.dumps(cfg), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="I0_peak has been removed"):
+        load_all(str(p))
