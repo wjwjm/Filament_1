@@ -22,8 +22,8 @@ if [[ ! -f "$CFG" ]]; then
   exit 3
 fi
 
-if [[ ! -f "../build_ion_lut.py" ]]; then
-  echo "[fatal] build_ion_lut.py not found at ../build_ion_lut.py"
+if [[ ! -f "../Filament_python/tools/build_ion_lut_cache.py" ]]; then
+  echo "[fatal] build_ion_lut.py not found at ../Filament_python/tools/build_ion_lut_cache.py"
   exit 3
 fi
 
@@ -46,4 +46,4 @@ echo "[ionlut] CFG=$CFG"
 echo "[ionlut] UPPE_USE_GPU=$UPPE_USE_GPU"
 echo "[ionlut] SLURM_CPUS_PER_TASK=${SLURM_CPUS_PER_TASK:-unset}"
 
-python ../build_ion_lut.py --config "$CFG"
+python ../Filament_python/tools/build_ion_lut_cache.py --config "$CFG"
