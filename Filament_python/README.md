@@ -88,6 +88,24 @@ N50区每卡默认分配 126GB 内存, 不允许超额申请内存
 - `run`：脉冲数；
 - `raman`：拉曼模型与吸收。
 
+### 4.1 配置标准化顺序图（加载时）
+
+为减少“同一配置不同写法导致不同行为”的困惑，配置读取统一按以下顺序处理：
+
+```mermaid
+flowchart TD
+    A[读取 JSON/YAML/TOML] --> B[config_normalize.normalize_config]
+    B --> B1[旧键兼容: beam.I0_peak -> beam.P0_peak]
+    B --> B2[互斥校验: energy_J / P0_peak / I0_peak]
+    B --> B3[派生量: E0_peak, grid.Twin]
+    B --> B4[ionization.species.fraction 归一化]
+    B --> B5[species.rate 别名映射与移除项报错]
+    B5 --> C[confio.load_all -> dataclass 构造]
+    C --> D[cli/run_demo 仅消费标准化对象]
+```
+
+说明：`cli.py` 不再做额外兼容分支推断（例如旧键二次解释）；如有历史配置兼容逻辑，统一放在 `config_normalize.py`。
+
 ---
 
 ## 5. 电离模块完整说明（重点）
