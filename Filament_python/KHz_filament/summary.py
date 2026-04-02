@@ -76,6 +76,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     raman_on = bool(getattr(raman, "enabled", False)) if (raman is not None) else False
     if raman_on:
         fR = float(getattr(raman, "f_R", 0.15))
+        n_R = float(getattr(raman, "n_R", 2.3e-23))
         T2 = float(getattr(raman, "T2", 8e-11))
         TR = float(getattr(raman, "T_R", 8e-12))
         raman_model = str(getattr(raman, "model", "rot_sinexp"))
@@ -91,6 +92,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
         R0_fixed = getattr(raman, "R0_fixed_m", None)
     else:
         fR = 0.0
+        n_R = 0.0
         T2 = 0.0
         TR = 0.0
         raman_model = "off"
@@ -176,7 +178,9 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     print(f"Repetition(重频)      : f_rep={fmt(float(getattr(heat,'f_rep',0.0)),' Hz')} | pulses={int(getattr(run,'Npulses',1))}  # 脉冲序列")
     print(f"Kerr(克尔效应)       : {onoff(kerr_on)}  n2={fmt(n2_used,' m^2/W')} | P_cr≈{fmt(Pcr,' W')}  # 自聚焦关键参数")
     print(f"Self-steep.(自陡峭)   : {onoff(use_shock)}  method={shock_method}  chunk_px={shock_chunk}  # 脉冲前沿陡化")
-    print(f"Raman       : {'ON ' if raman_on else 'OFF'} f_R={fmt(fR)}  model={raman_model}  T2={fmt(T2, ' s')}  T_R={fmt(TR, ' s')}  method={raman_method}  chunk_px={raman_chunk}")
+    print(f"Raman       : {'ON ' if raman_on else 'OFF'} f_R={fmt(fR)}  n_R={fmt(n_R, ' m^2/W')}  model={raman_model}  T2={fmt(T2, ' s')}  T_R={fmt(TR, ' s')}  method={raman_method}  chunk_px={raman_chunk}")
+    if raman_on and str(raman_model).lower() == "rot_sinexp":
+        print("  Note       : rot_sinexp uses explicit n_R for phase/absorption; f_R is ignored in phase channel.")
     print(f"  Absorption(吸收)   : {'ON ' if absorption_on else 'OFF'}  scheme={absorption_model}  # 拉曼吸收模型")
     if absorption_model == "closed_form":
         wR = fmt(omega_R, ' s^-1') if omega_R is not None else '(auto)'
