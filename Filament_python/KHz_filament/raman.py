@@ -27,7 +27,7 @@ def make_raman_kernel(t, cfg) -> xp.ndarray:
         若缺省：omega_R = 2π/T_R（把 T_R 当“周期”而非时间常数）；Gamma_R = 1/T2
     - model="exp"/"debye": h(t) = (1/T_R) * e^{-t/T_R} * u(t)
         字段: T_R（时间常数）
-    核做 1 阶归一化（∑ h dt = 1），以便延迟 Kerr 的比例仅由 f_R 决定，而不是核面积漂移。
+    rot_sinexp 保持解析 prefactor（由 ω_R, Γ_R 决定）；不引入基于 f_R 的幅值缩放。
     """
     cfg = _as_obj(cfg)
     model = str(_get(cfg, "model", "rot_sinexp")).lower()
@@ -52,18 +52,9 @@ def make_raman_kernel(t, cfg) -> xp.ndarray:
         else:
             Gamma_R = float(Gamma_R)
 
-        # 未归一化核（随后按面积归一）
+        # 解析核（保持论文形式的 prefactor）
         pref = (omega_R * omega_R + Gamma_R * Gamma_R) / max(omega_R, 1e-30)
-        h_raw = pref * xp.exp(-Gamma_R * tt) * xp.sin(omega_R * tt) * _heaviside_like(t)
-
-        area = float(xp.sum(h_raw) * dt)
-        if not _np.isfinite(area) or area <= 0.0:
-            area = 1.0
-        h = h_raw / area
-        # 数值修正
-        area2 = float(xp.sum(h) * dt)
-        if _np.isfinite(area2) and abs(area2 - 1.0) > 1e-3:
-            h = h / (area2 + 1e-30)
+        h = pref * xp.exp(-Gamma_R * tt) * xp.sin(omega_R * tt) * _heaviside_like(t)
         return h.astype(xp.float64)
 
     # 指数（Debye）核：h = e^{-t/T_R}/T_R * u(t)，天然已归一

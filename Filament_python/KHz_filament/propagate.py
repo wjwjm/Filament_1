@@ -7,7 +7,7 @@ from .ionization import (
     field_amplitude_from_intensity,
     evolve_rho_time,_ion_input_domain
 )
-from .nonlinear import kerr_phase, plasma_phase, ib_alpha, apply_nonlinear,shock_intensity
+from .nonlinear import kerr_phase_from_deltan, plasma_phase, ib_alpha, apply_nonlinear,shock_intensity
 from .heat import heat_Q_per_z
 from .linear_full import step_linear_full_factorized, step_linear_full_3d
 from .air_dispersion import n_of_omega
@@ -156,13 +156,24 @@ def propagate_one_pulse(
     n_rot_frac = 0.99
     R0_mode = "mom"
     R0_fixed = None
+    n_R = 0.0
+    n2_elec = float(n2)
+    fR_ignored_rot_sinexp = False
 
     if use_raman:
-        h = make_raman_kernel(axes.t, raman_conf)
-        H_w = precompute_kernel_fft(h)
         fR = float(getattr(raman_conf, "f_R", 0.15))
         r_method = str(getattr(raman_conf, "method", "iir")).lower()
         r_chunk = int(getattr(raman_conf, "chunk_pixels", 65536))
+        r_model = str(getattr(raman_conf, "model", "rot_sinexp")).lower()
+        n_R = float(getattr(raman_conf, "n_R", 2.3e-23))
+        fR_ignored_rot_sinexp = (r_model == "rot_sinexp")
+        if fR_ignored_rot_sinexp:
+            print(f"[Raman] model=rot_sinexp uses explicit n_R={n_R:.3e} m^2/W for phase/absorption; f_R={fR:.3g} ignored in phase channel.")
+        if (r_method == "fft"):
+            h = make_raman_kernel(axes.t, raman_conf)
+            H_w = precompute_kernel_fft(h)
+        else:
+            H_w = None
 
         # 可选：仅关闭吸收，保留延迟 Kerr
         absorption_model = str(getattr(raman_conf, "absorption_model", "poynting")).lower()
@@ -212,6 +223,8 @@ def propagate_one_pulse(
     fwhm_plasma_z_list, fwhm_fluence_z_list = [], []
     rho_onaxis_time_list = [] if record_onaxis_rho_time else None
     I_onaxis_max_interp_list,alpha_R_mean_z_list,alpha_R_closed_z_list,IR_max_z_list = [],[],[],[]
+    delta_n_elec_max_z_list, delta_n_rot_max_z_list = [], []
+    delta_n_elec_peak_z_list, delta_n_rot_peak_z_list = [], []
     alpha_R_max_z_list = []
     # ---------- 主循环 ----------
     z = 0.0
@@ -251,7 +264,7 @@ def propagate_one_pulse(
         # 非线性整步
         I = inten_ion(E, n0, I_cap=getattr(ion_conf, "I_cap", 1e19))
 
-        # 延迟 Kerr：I_nl 用于 Kerr 相位；同时得到 IR 供后续吸收
+        # 延迟 Kerr：显式双系数 Δn = n2_elec*I + n_R*(Omega*I)
         if use_raman:
             IR = raman_convolve_intensity(
                 I, H_w if r_method == "fft" else None,
@@ -262,16 +275,17 @@ def propagate_one_pulse(
                 Gamma_R=getattr(raman_conf, "Gamma_R", None),
                 chunk_pixels=r_chunk
             )
-            I_nl = (1.0 - fR) * I + fR * IR
         else:
             IR = None
-            I_nl = I
+        delta_n_elec = n2_elec * I
+        delta_n_rot = n_R * IR if (IR is not None) else xp.zeros_like(I, dtype=rdtype)
+        delta_n_kerr = delta_n_elec + delta_n_rot
 
         if bool(getattr(p, "use_self_steepening", False)):
-            I_kerr = shock_intensity(I_nl, axes.Omega, omega0, dt=dt,
-                                     method=str(getattr(p, "self_steepening_method", "tdiff")).lower())
-        else:
-            I_kerr = I_nl
+            delta_n_kerr = shock_intensity(
+                delta_n_kerr, axes.Omega, omega0, dt=dt,
+                method=str(getattr(p, "self_steepening_method", "tdiff")).lower()
+            )
 
         # —— 电离/IB 吸收（分开记账）——
         if ion_off:
@@ -309,20 +323,14 @@ def propagate_one_pulse(
         alpha_R_eff = 0.0                    # 标量/2D 等效吸收，用于传播
         E_dep_rot_step = 0.0                 # 本 z 步旋转拉曼总沉积能量 [J]
         IR_max = 0.0
+        Q_rot_vol = None
 
 
         if use_raman and raman_absorb_on:
             # 文献参数（允许在 config 中覆盖）
             omega_R_use = float(getattr(raman_conf, "omega_R", 1.6e13))
             Gamma_R_use = float(getattr(raman_conf, "Gamma_R", 1.3e13))
-            n_R = float(getattr(raman_conf, "n_R", 2.3e-23))  # m^2/W （2.3e-19 cm^2/W）
-
-            # 因果核 Ω(τ)（离散化在 make_raman_kernel 里已实现 rot_sinexp）
-            # 这里确保核用上述频率/阻尼
-            h = make_raman_kernel(axes.t, dict(
-                model="rot_sinexp", omega_R=omega_R_use, Gamma_R=Gamma_R_use
-            ))
-            H_w = precompute_kernel_fft(h)
+            n_R = float(getattr(raman_conf, "n_R", n_R))  # m^2/W
 
             # 入射能量（用于能量守恒折算）
             U_in = float(pulse_energy(I, dt, axes.dx, axes.dy)) + 1e-30
@@ -355,8 +363,8 @@ def propagate_one_pulse(
                 Ipk = xp.max(I, axis=0) + 1e-30
                 mask = I >= (mask_frac * Ipk)[None, ...]
 
-                # 按文献式累积：对 τ' 的离散卷积已经体现在 IR 中 → u_R ≈ (n_R/c) · IR · dI/dt
-                w_R = (n0 / c0) * n_R * IR * dIdt               # W/m^3
+                # 按文献式局域近似：u_R ≈ (n_R/c0) · IR · dI/dt
+                w_R = (n_R / c0) * IR * dIdt                     # W/m^3
                 w_R = xp.where(mask, w_R, 0.0)
 
                 # 脉内时间积分 → 体能量密度（正值，表示净注入分子转动）
@@ -410,7 +418,7 @@ def propagate_one_pulse(
         alpha_total = alpha_ib + alpha_ion + float(alpha_R_eff)
 
         # 相位
-        dphi_k = kerr_phase(I_kerr.astype(rdtype, copy=False), k0, n2, dz_try, rdtype=rdtype)
+        dphi_k = kerr_phase_from_deltan(delta_n_kerr.astype(rdtype, copy=False), k0, dz_try, rdtype=rdtype)
         dphi_p = plasma_phase(rho.astype(rdtype, copy=False), k0, omega0, dz_try, rdtype=rdtype)
         phase  = dphi_k + dphi_p
 
@@ -455,6 +463,10 @@ def propagate_one_pulse(
             U_now = float(pulse_energy(I_now, dt, axes.dx, axes.dy))
             U_z_list.append(U_now)
             I_max_z_list.append(float(I_now.max()))
+            delta_n_elec_max_z_list.append(float(xp.max(delta_n_elec)))
+            delta_n_rot_max_z_list.append(float(xp.max(delta_n_rot)))
+            delta_n_elec_peak_z_list.append(float(xp.max(delta_n_elec[:, y0, x0])))
+            delta_n_rot_peak_z_list.append(float(xp.max(delta_n_rot[:, y0, x0])))
 
             # on-axis(t)
             I_onax_t = I_now[:, y0, x0]
@@ -558,6 +570,13 @@ def propagate_one_pulse(
         "alpha_R_mean_z": _np.asarray(alpha_R_mean_z_list, dtype=rdtype_np),
         "alpha_R_closed_z": _np.asarray(alpha_R_closed_z_list, dtype=rdtype_np),
         "IR_max_z": _np.asarray(IR_max_z_list, dtype=rdtype_np),
+        "delta_n_elec_max_z": _np.asarray(delta_n_elec_max_z_list, dtype=rdtype_np),
+        "delta_n_rot_max_z": _np.asarray(delta_n_rot_max_z_list, dtype=rdtype_np),
+        "delta_n_elec_peak_z": _np.asarray(delta_n_elec_peak_z_list, dtype=rdtype_np),
+        "delta_n_rot_peak_z": _np.asarray(delta_n_rot_peak_z_list, dtype=rdtype_np),
+        "n2_elec_used": float(n2_elec),
+        "n_R_used": float(n_R),
+        "f_R_ignored_rot_sinexp": bool(fR_ignored_rot_sinexp),
         "raman_absorption_model": absorption_model,  # 便于外部读
     }
     if record_onaxis_rho_time and (rho_onaxis_time_list is not None and len(rho_onaxis_time_list) > 0):
@@ -566,5 +585,3 @@ def propagate_one_pulse(
 
     # Qacc 是 2D（J/m^2）：用于慢时间热扩散
     return E, to_cpu(Qacc).astype(rdtype_np, copy=False), diag
-
-

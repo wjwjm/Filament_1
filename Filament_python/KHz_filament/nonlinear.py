@@ -11,6 +11,12 @@ def kerr_phase(I, k0, n2, dz,*,rdtype=None):
     return (float(k0) * float(n2) * I * float(dz)).astype(rdtype, copy=False)
     # return k0 * n2 * I * dz
 
+def kerr_phase_from_deltan(delta_n, k0, dz, *, rdtype=None):
+    """Kerr phase from explicit refractive-index perturbation Δn(t,x,y)."""
+    if rdtype is None:
+        rdtype = delta_n.dtype
+    return (float(k0) * delta_n * float(dz)).astype(rdtype, copy=False)
+
 def plasma_phase(rho, k0, omega0, dz, *, rdtype=None):
     # rhoc = rho_crit(omega0)
     # return -k0 * (rho / (2.0 * rhoc + 1e-300)) * dz
