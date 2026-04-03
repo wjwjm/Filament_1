@@ -137,6 +137,7 @@ if fig_flags.plasma && (isfield(S, 'rho_onaxis_max_z') || isfield(S, 'rho_max_z'
     end
     yline(1e25, ':k', '1e25 m^{-3} (air neutral density scale)', 'LabelVerticalAlignment','bottom');
     xlabel(z_label); ylabel('Electron density (m^{-3})');
+    xlim([]-20,20);
     title('等离子体密度诊断（对数坐标）');
     legend('Location','best');
 end
