@@ -183,15 +183,32 @@ def run_demo(
         fL = float("inf") if fL0 is None else float(fL0)
         return (fL / (1.0 + (fL / zR) ** 2)) if _np.isfinite(fL) else 0.0
 
+    z_start = 0.0
+    prop_for_pulse = prop
     if limit_win and win_half > 0.0:
         if z_focus_hint is None:
             z_focus_hint = _predict_focus_linear(E, axes)
         z_start = max(0.0, float(z_focus_hint) - win_half)
         z_end = float(z_focus_hint) + win_half
+        focus_center_local_m = float(z_focus_hint) - z_start
         if z_start > 0.0:
             E = _linear_advance(E, z_start, axes=axes, kperp2=axes.kperp2, k0=k0, prop=prop, beam=beam)
             print(f"[window] Linear pre-advance: z_start={z_start:.4f} m  (center={float(z_focus_hint):.4f} m, half={win_half:.4f} m)")
-        prop = dataclasses.replace(prop, z_max=max(1e-9, z_end - z_start))
+        window_has_focus = (0.0 <= focus_center_local_m <= max(1e-9, z_end - z_start))
+        print(
+            f"[window] absolute focus={float(z_focus_hint):.4f} m, z_start={z_start:.4f} m, "
+            f"z_end={z_end:.4f} m, local focus={focus_center_local_m:.4f} m, "
+            f"dz_focus_window_active={window_has_focus}"
+        )
+        print(
+            f"[window] propagate_one_pulse z-axis is local (starts at 0). "
+            f"Absolute z requires z_local + z_start ({z_start:.4f} m)."
+        )
+        prop_for_pulse = dataclasses.replace(
+            prop,
+            z_max=max(1e-9, z_end - z_start),
+            focus_center_m=focus_center_local_m,
+        )
 
     dn_gas = xp.zeros((grid.Ny, grid.Nx), dtype=rtype)
     delta_t_pulse = 1.0 / heat.f_rep
@@ -204,11 +221,11 @@ def run_demo(
             E,
             kperp2=axes.kperp2,
             k0=k0, omega0=omega0,
-            dz=prop.dz, z_max=prop.z_max,
+            dz=prop_for_pulse.dz, z_max=prop_for_pulse.z_max,
             n0=beam.n0, n2=n2_used,
             Ui=Ui_N2, N0=N0_air,
             ion_conf=ion, dn_gas=dn_gas,
-            dt=axes.dt, axes=axes, prop_conf=prop, raman_conf=raman,
+            dt=axes.dt, axes=axes, prop_conf=prop_for_pulse, raman_conf=raman,
             record_onaxis_rho_time=True,
             record_every_z=1,
         )
