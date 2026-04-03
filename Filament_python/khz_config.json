@@ -38,7 +38,7 @@
     "focus_halfwidth_m": 0.10,
     "dz_focus": 0.05e-3,
     "limit_focus_window": true,
-    "window_halfwidth_m": 0.20
+    "window_halfwidth_m": 0.35
   },
 "ionization": {
   "species": [
