@@ -119,6 +119,10 @@ def propagate_one_pulse(
     z_center = getattr(p, "focus_center_m", None) or getattr(p, "z_focus_hint", None)
     z_half = float(getattr(p, "focus_halfwidth_m", 0.0))
     dz_focus = float(getattr(p, "dz_focus", dz_base))
+    print(
+        f"[focus-step] focus_center_m(local)={z_center if z_center is not None else 'None'}, "
+        f"focus_halfwidth_m={z_half:.4e}, dz_base={dz_base:.4e}, dz_focus={dz_focus:.4e}"
+    )
 
     # ---------- 索引/几何 ----------
     Ny, Nx = E.shape[-2], E.shape[-1]
