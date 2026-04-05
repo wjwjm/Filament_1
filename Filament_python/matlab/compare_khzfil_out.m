@@ -48,7 +48,6 @@ opts = normalize_opts(opts, fieldName);
 
 figure('Name', sprintf('khzfil compare: %s', fieldName), 'Color', 'w');
 hold on; grid on; box on;
-set(gca, 'YScale', opts.yscale);
 
 out = struct();
 out.fieldName = fieldName;
@@ -100,7 +99,11 @@ for i = 1:N
     end
 
     z_plot_cm = z * 100 + zShiftCm(i);
-    plot(z_plot_cm, y_draw, 'LineWidth', 1.6, 'DisplayName', labels{i});
+    if strcmp(opts.yscale, 'log')
+        semilogy(z_plot_cm, y_draw, 'LineWidth', 1.6, 'DisplayName', labels{i});
+    else
+        plot(z_plot_cm, y_draw, 'LineWidth', 1.6, 'DisplayName', labels{i});
+    end
 
     [peak_val_raw, idx_peak] = max(y_raw, [], 'omitnan');
     if isempty(idx_peak) || isnan(peak_val_raw)
@@ -116,7 +119,11 @@ for i = 1:N
             peak_plot = y_plot(idx_peak);
         end
         if opts.showPeakMarkers && ~isnan(peak_plot)
-            plot(z_peak_cm_plot, peak_plot, 'o', 'HandleVisibility', 'off');
+            if strcmp(opts.yscale, 'log')
+                semilogy(z_peak_cm_plot, peak_plot, 'o', 'HandleVisibility', 'off');
+            else
+                plot(z_peak_cm_plot, peak_plot, 'o', 'HandleVisibility', 'off');
+            end
         end
     end
 
