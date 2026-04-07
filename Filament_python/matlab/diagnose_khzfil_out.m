@@ -106,6 +106,7 @@ if fig_flags.intensity
         semilogy(z_plot_cm, sanitize_positive(colvec(S.I_center_t0_z)), 'LineWidth', 1.2, 'DisplayName', 'I\_center\_t0\_z');
     end
     xlabel(z_label); ylabel('Intensity (W/m^2)');
+    
     title('强度相关诊断（对数坐标）'); legend('Location','best');
 
     nexttile;
@@ -135,8 +136,9 @@ if fig_flags.plasma && (isfield(S, 'rho_onaxis_max_z') || isfield(S, 'rho_max_z'
     if isfield(S, 'rho_peak_q99_z')
         semilogy(z_plot_cm, sanitize_positive(colvec(S.rho_peak_q99_z)), '--', 'LineWidth', 1.2, 'DisplayName', '\rho\_peak\_q99\_z');
     end
-    yline(1e25, ':k', '1e25 m^{-3} (air neutral density scale)', 'LabelVerticalAlignment','bottom');
+    % yline(1e25, ':k', '1e25 m^{-3} (air neutral density scale)', 'LabelVerticalAlignment','bottom');
     xlabel(z_label); ylabel('Electron density (m^{-3})');
+    % xlim([-20,20])
     title('等离子体密度诊断（对数坐标）');
     legend('Location','best');
 end
