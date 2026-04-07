@@ -103,6 +103,8 @@ class IonizationConfig:
     nu_ei_const: Optional[float] = None
     I_cap: float = 1e19
     W_cap: float = 1e16
+    use_ionization_operator_correction: bool = False
+    ionization_operator_method: str = "tdiff"  # "tdiff" | "fft" | "auto"
 
     # def __post_init__(self):
     #     # 将 fraction 归一化到和为 1（仅当总和>0时）

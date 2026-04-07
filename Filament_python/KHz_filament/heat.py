@@ -3,9 +3,32 @@ from .device import xp
 
 Q_CAP = 1e20  # W/m^3 的安全上限，避免热功率溢出（可按需调）
 
-def heat_Q_per_z(Wt, I, rho, Ui: float, alpha_ib, dt: float, N0: float):
-    # Q = Ui*W*(N0 - rho) + alpha_ib*I；所有项裁剪，最后再时间积分
-    term_ion = Ui * Wt * xp.clip(N0 - rho, 0.0, N0)
+def heat_Q_per_z(*args, **kwargs):
+    """
+    兼容新旧接口：
+    - 新接口：heat_Q_per_z(I, alpha_ib, dt, ion_source=..., Wt=..., rho=..., Ui=..., N0=...)
+    - 旧接口：heat_Q_per_z(Wt, I, rho, Ui, alpha_ib, dt, N0)
+    """
+    ion_source = kwargs.pop("ion_source", None)
+
+    if len(args) >= 7:
+        Wt, I, rho, Ui, alpha_ib, dt, N0 = args[:7]
+    elif len(args) >= 3:
+        I, alpha_ib, dt = args[:3]
+        Wt = kwargs.pop("Wt", None)
+        rho = kwargs.pop("rho", None)
+        Ui = kwargs.pop("Ui", None)
+        N0 = kwargs.pop("N0", None)
+    else:
+        raise TypeError("heat_Q_per_z 参数不足：请使用新接口(至少 I, alpha_ib, dt)或旧接口(7个位置参数)。")
+
+    if ion_source is not None:
+        term_ion = xp.asarray(ion_source)
+    else:
+        if any(v is None for v in (Wt, rho, Ui, N0)):
+            raise ValueError("heat_Q_per_z: 未提供 ion_source 时，必须提供 Wt, rho, Ui, N0。")
+        term_ion = Ui * Wt * xp.clip(N0 - rho, 0.0, N0)
+
     term_ib  = alpha_ib * I
     Q = term_ion + term_ib
     Q = xp.clip(Q, -Q_CAP, Q_CAP)           # 极端保护（理论上不该为负）
