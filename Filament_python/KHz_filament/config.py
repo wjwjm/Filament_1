@@ -131,7 +131,8 @@ class RunConfig:
 @dataclass
 class RamanConfig:
     enabled: bool = True     # 开关：是否启用拉曼延迟
-    f_R: float = 0.15         # 拉曼分量占比（空气常用 0.1~0.15）
+    f_R: float = 0.15         # 兼容字段；rot_sinexp 下相位/吸收不再用该系数缩放
+    n_R: float = 2.3e-23      # rotational Raman coefficient (m^2/W)
     model: str = "rot_sinexp" # "rot_sinexp" | "exp"
     # —— 旋转拉曼（空气）简化核：e^{-t/T2} * sin(Ω_R t) * u(t)
     T2: float = 80e-12        # 去相干时间（ps 量级）
