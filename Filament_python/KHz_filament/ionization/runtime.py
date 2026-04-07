@@ -153,7 +153,18 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
         rate = _resolve_rate(sp, ion_conf)
         W_ref, W_runtime, tag = _mk_W_by_rate(rate, sp, W_cap)
         entries.append((frac, W_runtime, tag))
-        species_meta.append({"name": name, "fraction": frac, "W_s": W_ref, "W_runtime": W_runtime, "tag": tag, "rate": rate, "family": _ion_model_family(rate)})
+        species_meta.append({
+            "name": name,
+            "fraction": frac,
+            "W_s": W_ref,
+            "W_runtime": W_runtime,
+            "tag": tag,
+            "rate": rate,
+            "family": _ion_model_family(rate),
+            # 供运行时逐组分 U_j * dρ_j/dt 使用（优先 Ui_J，否则 Ip_eV*e）
+            "Ui_J": _g(sp, "Ui_J", None),
+            "Ip_eV": _g(sp, "Ip_eV", None),
+        })
         flags.add(tag)
 
     def Wfunc(inp):
