@@ -7,7 +7,7 @@ from .ionization import (
     field_amplitude_from_intensity,
     evolve_rho_time,_ion_input_domain
 )
-from .nonlinear import kerr_phase_from_deltan, plasma_phase, ib_alpha, apply_nonlinear,shock_intensity
+from .nonlinear import kerr_phase_from_deltan, plasma_phase, ib_alpha, apply_nonlinear, shock_intensity, operator_correct_scalar
 from .heat import heat_Q_per_z
 from .linear_full import step_linear_full_factorized, step_linear_full_3d
 from .air_dispersion import n_of_omega
@@ -209,6 +209,8 @@ def propagate_one_pulse(
     else:
         ion_input = _ion_input_domain(ion_conf)  # 兜底
     ion_off = str(getattr(ion_conf, "model", "none")).lower() in ("none", "off", "zero") and not getattr(ion_conf, "species", None)
+    use_ion_op_corr = bool(getattr(ion_conf, "use_ionization_operator_correction", False))
+    ion_op_method = str(getattr(ion_conf, "ionization_operator_method", "tdiff")).lower()
 
     # ---------- 基线能量 ----------
     I0 = intensity(E, n0)
@@ -230,6 +232,7 @@ def propagate_one_pulse(
     delta_n_elec_max_z_list, delta_n_rot_max_z_list = [], []
     delta_n_elec_peak_z_list, delta_n_rot_peak_z_list = [], []
     alpha_R_max_z_list = []
+    alpha_ion_raw_max_z_list, alpha_ion_corr_max_z_list = [], []
     # ---------- 主循环 ----------
     z = 0.0
     # Qacc 累积到面密度 J/m^2（把体功率密度在 t,z 两方向积分）
@@ -296,15 +299,26 @@ def propagate_one_pulse(
             rho = xp.zeros_like(I, dtype=rdtype)
             Wt  = xp.zeros_like(I, dtype=rdtype)
             alpha_ib = xp.zeros_like(I, dtype=rdtype)
+            ion_source_raw = xp.zeros_like(I, dtype=rdtype)
         else:
             X = field_amplitude_from_intensity(I, n0) if ion_input == "E" else I
-            rho, Wt = evolve_rho_time(
+            rho_out = evolve_rho_time(
                 X, dt, N0, ion_conf.beta_rec, Wfunc,
                 quasi_static_time=bool(getattr(ion_conf, "quasi_static_time", False)),
-                time_stat=str(getattr(ion_conf, "time_stat", "peak"))
+                time_stat=str(getattr(ion_conf, "time_stat", "peak")),
+                return_species_terms=True,
             )
+            if len(rho_out) == 3:
+                rho, Wt, species_terms = rho_out
+            else:
+                rho, Wt = rho_out
+                species_terms = {}
             xp.maximum(rho, 0.0, out=rho)
             xp.minimum(rho, N0, out=rho)
+            ion_source_raw = species_terms.get("drho_dt_u_sum", None)
+            if ion_source_raw is None:
+                d_rho_dt = Wt * xp.clip(N0 - rho, 0.0, N0)
+                ion_source_raw = Ui * d_rho_dt
 
 
             # Drude IB：优先 nu_ei_const，退回 sigma_ib·rho
@@ -318,8 +332,16 @@ def propagate_one_pulse(
 
         # 电离吸收 α_ion（只参与传播与热，避免在 Q 中重复计 IB）
         I_floor = 1e-6 * float(getattr(ion_conf, "I_cap", 1e19))
-        d_rho_dt = Wt * xp.clip(N0 - rho, 0.0, N0)
-        alpha_ion = (Ui * d_rho_dt) / (I + I_floor)
+        alpha_ion_raw = ion_source_raw / (I + I_floor)
+        if use_ion_op_corr and (not ion_off):
+            ion_source_prop = operator_correct_scalar(
+                ion_source_raw, axes.Omega, omega0, dt=dt, method=ion_op_method
+            )
+        else:
+            ion_source_prop = ion_source_raw
+        ion_source_prop = xp.nan_to_num(ion_source_prop, nan=0.0, posinf=0.0, neginf=0.0)
+        alpha_ion = ion_source_prop / (I + I_floor)
+        alpha_ion = xp.nan_to_num(alpha_ion, nan=0.0, posinf=0.0, neginf=0.0)
         xp.maximum(alpha_ion, 0.0, out=alpha_ion)
 
         # —— 拉曼吸收 —— 两种模型二选一
@@ -429,8 +451,8 @@ def propagate_one_pulse(
         E = apply_nonlinear(E, phase, alpha_total, dz_try, dn_gas=dn_gas, k0=k0)
 
         # —— 热沉积：分量分别记账 ——
-        # 电离 + IB：Qslice (J/m^3)；注意仅用 IB alpha 进入 Q（电离能量用 Ui·W 计算）
-        Qslice = heat_Q_per_z(Wt, I, rho, Ui, alpha_ib, dt, N0)
+        # 电离 + IB：Qslice (J/m^3)；电离源优先使用逐组分 Σ_j U_j * ∂ρ_j/∂t
+        Qslice = heat_Q_per_z(I, alpha_ib, dt, ion_source=ion_source_raw, Wt=Wt, rho=rho, Ui=Ui, N0=N0)
         Qacc += xp.asarray(Qslice, dtype=Qacc.dtype) * dz_try
         # Poynting 模式：如需把拉曼也积入慢时间面密度（J/m^2），可把体能量密度乘 dz_try 累起来
         if use_raman and raman_absorb_on and (absorption_model == "poynting") and (Q_rot_vol is not None):
@@ -504,6 +526,8 @@ def propagate_one_pulse(
             # 步内沉积能量（J）
             E_dep = float(xp.sum(Qslice) * axes.dx * axes.dy * dz_try)  # 电离+IB
             E_dep_z_list.append(E_dep)
+            alpha_ion_raw_max_z_list.append(float(xp.max(xp.maximum(alpha_ion_raw, 0.0))))
+            alpha_ion_corr_max_z_list.append(float(xp.max(alpha_ion)))
             # 拉曼沉积
             if use_raman and raman_absorb_on:
                 E_dep_rot = E_dep_rot_step
@@ -578,10 +602,14 @@ def propagate_one_pulse(
         "delta_n_rot_max_z": _np.asarray(delta_n_rot_max_z_list, dtype=rdtype_np),
         "delta_n_elec_peak_z": _np.asarray(delta_n_elec_peak_z_list, dtype=rdtype_np),
         "delta_n_rot_peak_z": _np.asarray(delta_n_rot_peak_z_list, dtype=rdtype_np),
+        "alpha_ion_raw_max_z": _np.asarray(alpha_ion_raw_max_z_list, dtype=rdtype_np),
+        "alpha_ion_corr_max_z": _np.asarray(alpha_ion_corr_max_z_list, dtype=rdtype_np),
         "n2_elec_used": float(n2_elec),
         "n_R_used": float(n_R),
         "f_R_ignored_rot_sinexp": bool(fR_ignored_rot_sinexp),
         "raman_absorption_model": absorption_model,  # 便于外部读
+        "ionization_operator_correction_on": bool(use_ion_op_corr),
+        "ionization_operator_method": ion_op_method,
     }
     if record_onaxis_rho_time and (rho_onaxis_time_list is not None and len(rho_onaxis_time_list) > 0):
         diag["rho_onaxis_t_z"] = _np.stack(rho_onaxis_time_list, axis=0).astype(rdtype_np, copy=False)

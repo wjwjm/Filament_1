@@ -85,6 +85,40 @@ def apply_nonlinear(E, phase, alpha, dz,*, dn_gas=None, k0=None):
 #     Ishock = xp.real(xp.fft.ifft(Rw, axis=0))
 #     return xp.nan_to_num(Ishock, nan=0.0, posinf=0.0, neginf=0.0)
 
+def operator_correct_scalar(Q, Omega, omega0, *, dt=None, method="auto", chunk_pixels=None):
+    """
+    通用包络算子修正（实标量场）：
+      Q_eff = Q - (1/ω0) ∂Q/∂t   <=>   F{Q_eff} = (1 + iΩ/ω0) F{Q}
+    与 shock_intensity 保持同一符号与 FFT 约定。
+    """
+    Nt, Ny, Nx = Q.shape
+    dtype = Q.dtype
+
+    if method in ("tdiff", "auto"):
+        if dt is None and method == "tdiff":
+            raise ValueError("operator_correct_scalar(method='tdiff') 需要 dt")
+        if method == "tdiff" or dt is not None:
+            dQdt = (xp.roll(Q, -1, axis=0) - xp.roll(Q, 1, axis=0)) / (2.0 * (dt if dt else 1.0))
+            Qeff = Q - dQdt / float(omega0)
+            return Qeff.astype(dtype, copy=False)
+
+    if chunk_pixels is None:
+        chunk_pixels = min(Ny * Nx, 65536)
+
+    Q2 = Q.reshape(Nt, Ny * Nx)
+    out = xp.empty_like(Q2, dtype=dtype)
+    mult = (1.0 + 1j * (Omega.astype(dtype) / float(omega0)))[:, None]
+
+    for j in range(0, Ny * Nx, chunk_pixels):
+        sl = Q2[:, j:j + chunk_pixels].astype(xp.complex64 if dtype == xp.float32 else xp.complex128, copy=False)
+        Rw = xp.fft.fft(sl, axis=0)
+        Rw *= mult
+        qeff = xp.fft.ifft(Rw, axis=0).real
+        out[:, j:j + chunk_pixels] = qeff.astype(dtype, copy=False)
+
+    return out.reshape(Nt, Ny, Nx)
+
+
 def shock_intensity(I, Omega, omega0, *, dt=None, method="auto", chunk_pixels=None):
     """
     自陡峭强度修正：I_shock = I - (1/ω0) ∂I/∂t  （等价于频域乘子 1 + iΩ/ω0）
@@ -102,38 +136,4 @@ def shock_intensity(I, Omega, omega0, *, dt=None, method="auto", chunk_pixels=No
     method="fft"：频域法，但分块处理，避免一次性分配数百 MB。
     method="auto"：若提供了 dt，直接走 tdiff；否则走 fft（保留兼容性）。
     """
-    Nt, Ny, Nx = I.shape
-    dtype = I.dtype
-
-    # ---- 首选：时域中心差分（稳定、显存占用很小） ----
-    if method in ("tdiff", "auto"):
-        if dt is None and method == "tdiff":
-            raise ValueError("shock_intensity(method='tdiff') 需要 dt")
-        if method == "tdiff" or dt is not None:
-            # 周期边界中央差分
-            dIdt = (xp.roll(I, -1, axis=0) - xp.roll(I, 1, axis=0)) / (2.0 * (dt if dt else 1.0))
-            Ishock = I - dIdt / float(omega0)
-            return Ishock.astype(dtype, copy=False)
-
-    # ---- 备选：频域法（按空间分块以控制显存）----
-    # 说明：I 为实数，FFT 会产生复数；按列批处理减少内存峰值
-    # 估个合理分块：默认 ~64k 像素/块
-    if chunk_pixels is None:
-        chunk_pixels = min(Ny * Nx, 65536)
-
-    # 展平成 (Nt, Ny*Nx)，再切片处理
-    I2 = I.reshape(Nt, Ny * Nx)
-    out = xp.empty_like(I2, dtype=dtype)
-
-    # 频域乘子（列向量）：1 + iΩ/ω0
-    mult = (1.0 + 1j * (Omega.astype(I.dtype) / float(omega0)))[:, None]
-
-    # 分块循环
-    for j in range(0, Ny * Nx, chunk_pixels):
-        sl = I2[:, j:j + chunk_pixels].astype(xp.complex64 if dtype == xp.float32 else xp.complex128, copy=False)
-        Rw = xp.fft.fft(sl, axis=0)
-        Rw *= mult
-        ish = xp.fft.ifft(Rw, axis=0).real  # 回到实数
-        out[:, j:j + chunk_pixels] = ish.astype(dtype, copy=False)
-
-    return out.reshape(Nt, Ny, Nx)
+    return operator_correct_scalar(I, Omega, omega0, dt=dt, method=method, chunk_pixels=chunk_pixels)

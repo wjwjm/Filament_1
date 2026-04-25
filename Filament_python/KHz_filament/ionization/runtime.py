@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 
 from ..device import xp
+from ..constants import e
 from .common import DRHO_FRAC, W_CAP_DEFAULT, _as_real_like, _g, _minmax_inplace
 from .lut import _ion_rate_table_defaults, eval_rate_from_table, prepare_ionization_lut_for_species
 from .models_ppt import _W_mpa_factorial, cycle_average_ppt_talebpour_full_from_I, cycle_average_ppt_talebpour_legacy_from_I
@@ -152,7 +153,18 @@ def make_Wfunc(model_or_conf, ion_conf, omega0_SI: float, n0: float):
         rate = _resolve_rate(sp, ion_conf)
         W_ref, W_runtime, tag = _mk_W_by_rate(rate, sp, W_cap)
         entries.append((frac, W_runtime, tag))
-        species_meta.append({"name": name, "fraction": frac, "W_s": W_ref, "W_runtime": W_runtime, "tag": tag, "rate": rate, "family": _ion_model_family(rate)})
+        species_meta.append({
+            "name": name,
+            "fraction": frac,
+            "W_s": W_ref,
+            "W_runtime": W_runtime,
+            "tag": tag,
+            "rate": rate,
+            "family": _ion_model_family(rate),
+            # 供运行时逐组分 U_j * dρ_j/dt 使用（优先 Ui_J，否则 Ip_eV*e）
+            "Ui_J": _g(sp, "Ui_J", None),
+            "Ip_eV": _g(sp, "Ip_eV", None),
+        })
         flags.add(tag)
 
     def Wfunc(inp):
@@ -194,7 +206,18 @@ def prepare_ionization_lut_cache(ion_conf, omega0_SI: float, n0: float):
     return built
 
 
-def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *, quasi_static_time: bool = False, time_stat: str = "peak", mean_clip_frac: float = 1e-3, expects: str | None = None):
+def _species_ui_joule(sp: dict, idx: int) -> float:
+    name = str(_g(sp, "name", f"species[{idx}]"))
+    ui_j = _g(sp, "Ui_J", None)
+    if ui_j is not None:
+        return float(ui_j)
+    ip_ev = _g(sp, "Ip_eV", None)
+    if ip_ev is not None:
+        return float(ip_ev) * float(e)
+    raise ValueError(f"[ionization] species '{name}' 缺少电离能：请提供 Ui_J 或 Ip_eV。")
+
+
+def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *, quasi_static_time: bool = False, time_stat: str = "peak", mean_clip_frac: float = 1e-3, expects: str | None = None, return_species_terms: bool = False):
     tm = str(getattr(Wfunc, "_time_mode", "")).lower()
     if tm in ("qs_peak", "qs_mean", "qs_mean_esq"):
         quasi_static_time = True
@@ -263,6 +286,15 @@ def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *
             Wt_total = Wt_list[0] * float(fracs[0])
             for j in range(1, len(sp_entries)):
                 Wt_total = Wt_total + Wt_list[j] * float(fracs[j])
+            if return_species_terms:
+                drho_dt_u_sum = xp.zeros_like(inp, dtype=rdtype)
+                for j in range(len(sp_entries)):
+                    ui_j = _species_ui_joule(sp_entries[j], j)
+                    rho_j = rho_list[j]
+                    drho_j_dt = Wt_list[j] * xp.clip(float(N0_j_list[j]) - rho_j, 0.0, float(N0_j_list[j])) - float(beta_rec) * (rho_j * rho_j)
+                    drho_dt_u_sum = drho_dt_u_sum + float(ui_j) * drho_j_dt
+                species_terms = {"drho_dt_u_sum": drho_dt_u_sum}
+                return rho_sum, Wt_total, species_terms
             return rho_sum, Wt_total
 
         stat = str(time_stat).lower()
@@ -301,6 +333,15 @@ def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *
         for j in range(1, len(sp_entries)):
             Wt_total = Wt_total + Wc_list[j] * float(fracs[j])
         Wt_total = xp.broadcast_to(Wt_total[None, ...], inp.shape).astype(rdtype, copy=False)
+        if return_species_terms:
+            drho_dt_u_sum = xp.zeros_like(inp, dtype=rdtype)
+            for j in range(len(sp_entries)):
+                ui_j = _species_ui_joule(sp_entries[j], j)
+                rho_j = rho_list[j]
+                drho_j_dt = Wc_list[j][None, ...] * xp.clip(float(N0_j_list[j]) - rho_j, 0.0, float(N0_j_list[j]))
+                drho_dt_u_sum = drho_dt_u_sum + float(ui_j) * drho_j_dt
+            species_terms = {"drho_dt_u_sum": drho_dt_u_sum}
+            return xp.asarray(rho_sum, dtype=rdtype), Wt_total, species_terms
         return xp.asarray(rho_sum, dtype=rdtype), Wt_total
 
     if not quasi_static_time:
@@ -323,7 +364,10 @@ def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *
                 u_t = u_t + du
                 _minmax_inplace(u_t, 0.0, 1.0)
             u[it + 1] = u_t
-        return (u * float(N0)).astype(rdtype, copy=False), Wt
+        rho_out = (u * float(N0)).astype(rdtype, copy=False)
+        if return_species_terms:
+            return rho_out, Wt, {}
+        return rho_out, Wt
 
     stat = str(time_stat).lower()
     Wt_full = Wfunc(inp).astype(rdtype, copy=False)
@@ -345,4 +389,7 @@ def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *
     Wt = xp.broadcast_to(Wc[None, ...], inp.shape)
     t_idx = (xp.arange(1, Nt + 1, dtype=rdtype) * float(dt))[:, None, None]
     rho_t = float(N0) * (1.0 - xp.exp(-Wc[None, ...] * t_idx))
-    return rho_t.astype(rdtype, copy=False), Wt
+    rho_out = rho_t.astype(rdtype, copy=False)
+    if return_species_terms:
+        return rho_out, Wt, {}
+    return rho_out, Wt
