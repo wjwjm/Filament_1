@@ -121,6 +121,7 @@ for i = 1:N
         if opts.showPeakMarkers && ~isnan(peak_plot)
             if strcmp(opts.yscale, 'log')
                 semilogy(z_peak_cm_plot, peak_plot, 'o', 'HandleVisibility', 'off');
+                xlim([-20,20]);
             else
                 plot(z_peak_cm_plot, peak_plot, 'o', 'HandleVisibility', 'off');
             end
