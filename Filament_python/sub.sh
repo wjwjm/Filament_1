@@ -26,10 +26,8 @@ if [[ ! -f "test_run.py" ]]; then
   exit 3
 fi
 
-module load miniforge/25.3.0-3
-
-# 兼容非交互 shell 的 conda 激活方式
-source "$(conda info --base)/etc/profile.d/conda.sh"
+# Use cluster miniforge directly, no module required
+source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
 conda activate Filament_python
 
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
