@@ -1,0 +1,468 @@
+{
+  "document_title": "Filament_1 电离、Raman 与 kHz 成丝仿真调试对话整理",
+  "generated_at": "2026-04-28",
+  "timestamp_note": {
+    "has_per_turn_true_timestamps": false,
+    "note": "本对话中没有暴露每条提问的真实时间戳，因此各轮次以对话顺序编号。当前日期为系统日期 2026-04-28。"
+  },
+  "current_repository_snapshot": {
+    "repository": "wjwjm/Filament_1",
+    "config_file": "Filament_python/khz_config.json",
+    "source": ":contentReference[oaicite:0]{index=0}",
+    "current_visible_config_summary": {
+      "tau_fwhm_s": 1.2e-13,
+      "P0_peak_W": 17000000000.0,
+      "focal_length_m": 0.95,
+      "linear_model": "bk_nee",
+      "z_max_m": 1.3,
+      "dz_m": 0.0001,
+      "focus_window_step": true,
+      "focus_center_m": 0.95,
+      "focus_halfwidth_m": 0.1,
+      "dz_focus_m": 0.00005,
+      "limit_focus_window": false,
+      "ionization_model": "popruzhenko_atom_i_lut",
+      "ionization_reference_model": "popruzhenko_atom_i_full_reference",
+      "ionization_time_mode": "full",
+      "ionization_integrator": "rk4",
+      "beta_rec": 0.0,
+      "sigma_ib": 0.0,
+      "nu_ei_const": 0.0,
+      "use_ionization_operator_correction": true,
+      "raman_enabled": true,
+      "raman_model": "rot_sinexp",
+      "raman_method": "iir",
+      "raman_absorption_model": "conv_deriv",
+      "raman_n_R_m2_per_W": 2.3e-23,
+      "raman_omega_R_s_inv": 16000000000000.0,
+      "raman_Gamma_R_s_inv": 13000000000000.0
+    }
+  },
+  "conversation_items": [
+    {
+      "id": 1,
+      "true_timestamp": null,
+      "user_question": "请帮我检查现在 Filament_1 仓库中的电离目录下的模块，给出一个脉络梳理。如果无法连接 GitHub 仓库，则停止工作。",
+      "assistant_answer_summary": {
+        "repository_access": "成功连接到 GitHub 仓库 wjwjm/Filament_1。",
+        "main_findings": [
+          "电离子包位于 Filament_python/KHz_filament/ionization/。",
+          "该子包采用模型层、LUT 层、运行时层的分层结构。",
+          "models_ppt.py 实现 PPT/Talebpour 分支。",
+          "models_popruzhenko.py 实现 Popruzhenko 原子分支。",
+          "lut.py 负责 LUT 构建、签名、缓存、插值和验证。",
+          "runtime.py 负责 rate 解析、species 混合、Wfunc 构造和 rho(t) 推进。",
+          "rate_registry.py 管理模型名称、别名和废弃模型。",
+          "common.py 提供强度换算、数值安全和默认上限。"
+        ]
+      },
+      "code_modification_direction": [
+        "当时未建议立即修改代码，主要是完成目录结构与调用脉络梳理。",
+        "建议后续重点阅读 runtime.py，因为它决定 rate 选择、LUT 接入和电子密度推进。"
+      ]
+    },
+    {
+      "id": 2,
+      "true_timestamp": null,
+      "user_question": "请帮我检查物理模型层和 Talebpour 1999、Popruzhenko 2008 两篇论文中的实现是否一致，或者是否符合物理一致、实现方式上进行了优化。",
+      "assistant_answer_summary": {
+        "main_conclusion": "Popruzhenko 分支高度接近论文公式实现；Talebpour 分支保持物理思路一致，但属于传播仿真工程化实现，不是论文附录的逐字复写。",
+        "popruzhenko_assessment": [
+          "保持 w = Q * w_SR 的结构。",
+          "popruzhenko_coulomb_Q_full 对应 Coulomb correction。",
+          "popruzhenko_short_range_wSR_full 对应 short-range ionization rate。",
+          "w_popruzhenko_atom_full_from_E 组合得到总电离率。",
+          "cycle_average_popruzhenko_atom_full_from_I 提供强度域周期平均接口。"
+        ],
+        "talebpour_assessment": [
+          "保留 PPT 框架。",
+          "用 Zeff 表征分子势垒的半经验修正。",
+          "N2 默认 Zeff 约为 0.9。",
+          "O2 默认 Zeff 约为 0.53，Ip_eV_eff 约为 12.55 eV。",
+          "更适合空气分子成丝仿真，但不是论文公式的机械照抄。"
+        ]
+      },
+      "code_modification_direction": [
+        "保留 Popruzhenko 和 Talebpour 两条分支。",
+        "后续如需严格复现文献，需要明确应使用 Popruzhenko 原子分支、Talebpour 分子分支，还是二者的组合口径。",
+        "LUT 属于 reference model 的加速代理，不应被视为新的物理模型。"
+      ]
+    },
+    {
+      "id": 3,
+      "true_timestamp": null,
+      "user_question": "在考虑 2022 Optics Express 文献的仿真工作时，他们的电离速率计算依靠哪个模型？",
+      "assistant_answer_summary": {
+        "main_conclusion": "实际 3D 成丝传播仿真使用 Popruzhenko et al. 的 cycle-averaged ionization rate。",
+        "distinction": [
+          "论文第 2.1 节解析吸收估算中使用了简化多光子近似。",
+          "论文第 5 节实际 PyCAP 成丝仿真中，gamma_ion,j(I) 是各组分的 cycle-averaged ionization rate，并声明使用 Popruzhenko et al. 理论计算。",
+          "电子密度方程形式为 d n_j / d tau = gamma_ion,j(I) * (n_j0 - n_j)。",
+          "电子密度用四阶 Runge-Kutta 积分。"
+        ]
+      },
+      "code_modification_direction": [
+        "若目标是复现该文献单脉冲成丝电子密度曲线，应优先使用 popruzhenko_atom_i_full_reference 或 popruzhenko_atom_i_lut。",
+        "不要把第 2.1 节的简化多光子公式作为 3D 成丝仿真的主要电离模型。"
+      ]
+    },
+    {
+      "id": 4,
+      "true_timestamp": null,
+      "user_question": "目前的 models_popruzhenko.py 是否支持这篇文献的复现电离速率计算？",
+      "assistant_answer_summary": {
+        "main_conclusion": "部分支持，但不能保证严格复现文献中空气 N2/O2 的最终电离率实现。",
+        "supports": [
+          "支持 Popruzhenko 型电离率。",
+          "支持 cycle-averaged rate。",
+          "支持以强度 I 为输入。",
+          "可以在 runtime 中按 species 混合并用于 rho(t) 推进。"
+        ],
+        "limitations": [
+          "当前是 atom/ion 分支，参数入口为 Ip_eV 和 Z。",
+          "没有显式支持 N2/O2 分子 Zeff 或 Talebpour 式分子半经验修正。",
+          "2022 文献介质是 N2/O2，且引用链同时包含 Talebpour 1999 和 Popruzhenko 2008。",
+          "因此不能断言当前 Popruzhenko atom 分支与文献内部空气电离率代码完全一致。"
+        ]
+      },
+      "code_modification_direction": [
+        "短期可用 popruzhenko_atom_i_lut 对齐文献声明的 Popruzhenko 主线。",
+        "长期若要严格复现，需要确认或实现 N2/O2 分子化 Popruzhenko/Talebpour 混合口径。",
+        "保留 Talebpour 分支作为空气分子半经验对照。"
+      ]
+    },
+    {
+      "id": 5,
+      "true_timestamp": null,
+      "user_question": "检查 khz_config.json，查看此时的电离速率模型、复合等是否符合计算需求。",
+      "assistant_answer_summary": {
+        "config_at_that_time": {
+          "ionization_rate": "ppt_talebpour_i_lut",
+          "reference_model": "ppt_talebpour_i_full_reference",
+          "time_mode": "full",
+          "integrator": "rk4",
+          "beta_rec": 0.0,
+          "sigma_ib": 0.0,
+          "nu_ei_const": 0.0
+        },
+        "main_conclusion": "时间推进、复合项和 IB 关闭符合文献思路，但电离 rate 模型仍是 Talebpour/PPT-LUT，不是文献正文声明的 Popruzhenko 主线。",
+        "items_considered_correct": [
+          "time_mode=full 符合脉冲内完整时间推进。",
+          "integrator=rk4 符合文献 RK4 思路。",
+          "beta_rec=0 符合 femtosecond 脉冲内忽略复合。",
+          "sigma_ib=0 和 nu_ei_const=0 符合短脉冲内忽略碰撞加热。"
+        ],
+        "main_mismatch": "rate=ppt_talebpour_i_lut 不符合 2022 文献仿真部分声明的 Popruzhenko 速率主线。"
+      },
+      "code_modification_direction": [
+        "若目标是复现 2022 文献，应将 species.rate 切换为 popruzhenko_atom_i_lut 或 popruzhenko_atom_i_full_reference。",
+        "保持 time_mode=full、integrator=rk4、beta_rec=0、sigma_ib=0、nu_ei_const=0。"
+      ]
+    },
+    {
+      "id": 6,
+      "true_timestamp": null,
+      "user_question": "切换 popruzhenko_atom_i_lut 后起点仍晚约 2.5 cm，是否考虑 Raman 延迟 Kerr 效应太弱？",
+      "assistant_answer_summary": {
+        "main_conclusion": "Raman 延迟 Kerr 太弱很可能是首要嫌疑之一。",
+        "reasoning": [
+          "切换电离模型后起点仍晚，说明主矛盾可能不在电离率细节，而在塌缩前的正非线性聚焦预算。",
+          "早期实现中 Raman 相位通道疑似用 n2 * [(1-f_R)I + f_R I_R]。",
+          "文献中电子 Kerr 与旋转 Raman 应分开为 n2*I + n_R*I_R。",
+          "若使用 f_R=0.15 和 n2=0.78e-23 表示旋转 Raman，有效旋转项远小于文献 n_R=2.3e-23。"
+        ]
+      },
+      "code_modification_direction": [
+        "不要用 f_R*n2 表示气体旋转 Raman 相位。",
+        "将 Kerr 相位改为 delta_n_kerr = n2_elec * I + n_R * IR。",
+        "Raman 吸收也统一用 n_R 口径。",
+        "添加电子 Kerr 和旋转 Raman 折射率贡献的诊断输出。"
+      ]
+    },
+    {
+      "id": 7,
+      "true_timestamp": null,
+      "user_question": "同样功率下，40 fs 与 120 fs 脉冲成丝峰值电子密度没有明显差异，但按直觉 120 fs 应更高，如何理解？",
+      "assistant_answer_summary": {
+        "main_conclusion": "你的物理直觉合理；同峰值功率下 120 fs 通常应有更强的局域电离累积。",
+        "code_basis": [
+          "E0_peak 由 P0_peak、w0、n0 决定，不依赖 tau_fwhm。",
+          "tau_fwhm 只进入 gaussian_pulse_t 的时间包络。",
+          "因此同 P0_peak 下，40 fs 与 120 fs 初始峰值强度相同，但 120 fs 时间积分更长。"
+        ],
+        "possible_explanations": [
+          "120 fs 传播中的峰值强度历史被压低，抵消了更长时间积分优势。",
+          "Raman 延迟 Kerr 偏弱会特别压制长脉冲。",
+          "全局 rho_max_z 混合了起点、塌缩位置、横向局域过冲等因素。",
+          "传播反馈可能抵消局域电离增益。"
+        ]
+      },
+      "code_modification_direction": [
+        "做冻结传播的局域电离测试，只调用 evolve_rho_time 比较 40 fs 与 120 fs。",
+        "比较 rho_onaxis_t_z 与 I_onaxis_t_z。",
+        "增强 Raman 相位通道后检查 120 fs 是否更敏感。"
+      ]
+    },
+    {
+      "id": 8,
+      "true_timestamp": null,
+      "user_question": "检查代码中的 Raman 响应部分，按文献形式实现，并给出 Codex 修改 prompt。",
+      "assistant_answer_summary": {
+        "main_conclusion": "Raman 相位通道应按照文献显式双系数形式实现。",
+        "target_physics": [
+          "p_SPM 应包含 n2 * I * A 和 n_R * (Omega * I) * A 两部分。",
+          "传播中应使用 delta_n_kerr = n2_elec * I + n_R * IR。",
+          "IR = Omega * I。",
+          "不应再用 n2 * [(1-f_R)I + f_R IR] 表示气体旋转 Raman。",
+          "Raman 吸收应近似为 u_R = (n_R / c0) * IR * dI/dt。"
+        ],
+        "codex_prompt_was_provided": true
+      },
+      "code_modification_direction": [
+        "修改 propagate.py 中构造 I_nl 的逻辑。",
+        "新增或使用 kerr_phase_from_deltan(delta_n, k0, dz)。",
+        "对 rot_sinexp 模型忽略 f_R 的相位强度作用。",
+        "修改 raman.py 注释，不再声称 rot_sinexp 幅值由 f_R 决定。",
+        "增加 delta_n_elec_max_z、delta_n_rot_max_z、delta_n_elec_peak_z、delta_n_rot_peak_z 诊断。"
+      ]
+    },
+    {
+      "id": 9,
+      "true_timestamp": null,
+      "user_question": "检查当前仓库 Raman 模块实现以及传播调用是否符合文献中的拉曼效应。",
+      "assistant_answer_summary": {
+        "main_conclusion": "当前仓库版本已经基本符合文献中的 Raman 效应实现。",
+        "verified_items": [
+          "raman.py 中 rot_sinexp 核为 ((omega_R^2 + Gamma_R^2)/omega_R) * exp(-Gamma_R*t) * sin(omega_R*t) * u(t)。",
+          "propagate.py 已改为 delta_n_elec = n2_elec*I，delta_n_rot = n_R*IR，delta_n_kerr = delta_n_elec + delta_n_rot。",
+          "Kerr 相位通过 kerr_phase_from_deltan(delta_n_kerr, k0, dz) 进入传播。",
+          "Raman 吸收已写为 w_R = (n_R/c0) * IR * dIdt。",
+          "f_R 对 rot_sinexp 的相位通道已被忽略。"
+        ],
+        "remaining_approximations": [
+          "conv_deriv 是局域近似，不是论文双重积分公式的逐字实现。",
+          "w_R 中使用正值截断 max(w_R, 0)，可能影响严格能量沉积。",
+          "exp/debye 分支不是文献主物理模型。"
+        ]
+      },
+      "code_modification_direction": [
+        "当前 Raman 主结构无需继续大改。",
+        "后续应利用新增诊断量检查 40 fs 与 120 fs 下 delta_n_rot 相对 delta_n_elec 的比例。",
+        "若要严格能量沉积对照，可评估 w_R 正值截断的影响。"
+      ]
+    },
+    {
+      "id": 10,
+      "true_timestamp": null,
+      "user_question": "检查 khz_config.json，说明成丝计算和电子峰值密度计算窗口在 1.3 m 传播范围内是哪一部分。",
+      "assistant_answer_summary": {
+        "config_at_that_time": {
+          "z_max_m": 1.3,
+          "focus_center_m": 0.95,
+          "window_halfwidth_m": 0.2,
+          "limit_focus_window": true
+        },
+        "main_conclusion": "实际非线性传播和电子密度诊断窗口不是 0–1.3 m，而是 0.75–1.15 m。",
+        "details": [
+          "runner.py 会先线性预推进到 z_start。",
+          "z_start = focus_center_m - window_halfwidth_m = 0.75 m。",
+          "z_end = focus_center_m + window_halfwidth_m = 1.15 m。",
+          "propagate_one_pulse 内部只跑局部 0–0.40 m。",
+          "输出 z_axis 是局部坐标，需要加 z_start 才是绝对坐标。"
+        ],
+        "additional_issue_found": "窗口模式下 focus_center_m 仍按绝对坐标传入 propagate_one_pulse，而内部 z 是局部坐标，导致 dz_focus 可能不触发。"
+      },
+      "code_modification_direction": [
+        "修正窗口模式下的焦点局部坐标。",
+        "在 runner.py 中将 focus_center_local_m = focus_center_m - z_start 传入 propagate_one_pulse。",
+        "日志中明确输出 z_start、z_end、local focus center。"
+      ]
+    },
+    {
+      "id": 11,
+      "true_timestamp": null,
+      "user_question": "将窗口放大到 0.6–1.3 m 后，40 fs 起点和峰值位置与文献一致，但峰值电子密度偏高，可能原因是什么？",
+      "assistant_answer_summary": {
+        "observed_results": {
+          "molecular_model_peak_m3": 4.7e22,
+          "atomic_model_peak_m3": 4.4e22,
+          "literature_peak_m3": 3.6e22
+        },
+        "main_conclusion": "窗口截断是起点错误的重要原因；峰值偏高则更像数值过冲、传播前史不完整或诊断口径差异。",
+        "possible_causes": [
+          "如果仍启用 limit_focus_window，则 0–0.6 m 仍是线性传播，非线性前史缺失。",
+          "焦区局部坐标失配可能导致 dz_focus 未生效，塌缩区步长过粗。",
+          "Popruzhenko atom 分支用于空气分子并不严格等同文献内部实现。",
+          "ionization absorption 仍用单个 Ui_N2，不是 species-resolved sum_j U_j d n_j/dt。",
+          "Raman 当前大方向已对，不像主因。"
+        ]
+      },
+      "code_modification_direction": [
+        "做全程非线性传播，关闭 limit_focus_window。",
+        "修正焦区局部坐标，确保 dz_focus 生效。",
+        "做 dz 与 dz_focus 收敛测试。",
+        "后续考虑 species-resolved ionization absorption。"
+      ]
+    },
+    {
+      "id": 12,
+      "true_timestamp": null,
+      "user_question": "针对修正焦区局部坐标，确保 dz_focus 真正生效，给出 Codex prompt。",
+      "assistant_answer_summary": {
+        "main_problem": "窗口裁剪后 propagate_one_pulse 内部 z 为局部坐标，但 focus_center_m 仍是绝对坐标。",
+        "proposed_fix": [
+          "在 runner.py 计算 z_start 和 z_end 后，计算 focus_center_local_m = focus_center_m - z_start。",
+          "使用 dataclasses.replace 构造 prop_local，将 focus_center_m 替换为局部焦点坐标。",
+          "propagate_one_pulse 继续使用 p.focus_center_m，但此值已经是局部坐标。",
+          "非窗口模式保持原行为。"
+        ],
+        "codex_prompt_was_provided": true
+      },
+      "code_modification_direction": [
+        "修改 runner.py 的窗口裁剪逻辑。",
+        "不在 propagate.py 中推断 z_start，保持职责清晰。",
+        "增加日志输出 absolute focus、z_start、z_end、local focus。",
+        "不要在同次提交中改变 z_axis 的语义。"
+      ]
+    },
+    {
+      "id": 13,
+      "true_timestamp": null,
+      "user_question": "关闭 limit_focus_window 做全程非线性传播，焦区坐标已修正，但 40 fs 峰值只下降 0.2e22，仍偏高，还可能是什么原因？",
+      "assistant_answer_summary": {
+        "main_conclusion": "窗口和焦区坐标确实是问题，但不是峰值偏高主因；剩余问题更像诊断口径、正非线性预算略强、塌缩区数值过冲或电离模型细节不一致。",
+        "possible_causes_ranked": [
+          {
+            "cause": "诊断口径偏高",
+            "detail": "rho_max_z 是整个 3D 时空数据的全局瞬时最大值，可能高于文献使用的轴上峰值或平滑峰值。"
+          },
+          {
+            "cause": "总正非线性预算略强",
+            "detail": "电子 Kerr、旋转 Raman、自陡峭的组合若使 I_max 只高几个百分点，rho_max 可能高 20–30%。"
+          },
+          {
+            "cause": "塌缩区数值分辨率不足",
+            "detail": "dz、dz_focus、横向采样可能仍不足以收敛尖锐塌缩峰值。"
+          },
+          {
+            "cause": "Popruzhenko atom 分支与空气分子文献实现不完全一致",
+            "detail": "当前 N2/O2 用 Ip_eV 和 Z=1，缺少明确分子化修正。"
+          },
+          {
+            "cause": "ionization absorption 非 species-resolved",
+            "detail": "当前用单个 Ui_N2，文献形式是 sum_j U_j d n_j/dt。"
+          }
+        ]
+      },
+      "code_modification_direction": [
+        "先比较 rho_max_z 和 rho_onaxis_max_z，确认诊断口径。",
+        "做 n2_air、n_R、use_self_steepening 的灵敏度扫描。",
+        "做 dz、dz_focus、横向分辨率收敛测试。",
+        "后续将 ionization absorption 改为 species-resolved。",
+        "继续明确文献中的空气分子电离率实现。"
+      ]
+    }
+  ],
+  "global_code_modification_plan": {
+    "completed_or_largely_completed": [
+      {
+        "task": "Raman 相位通道改为文献显式双系数形式",
+        "target_formula": "delta_n_kerr = n2_elec * I + n_R * IR",
+        "status": "当前仓库版本已基本完成"
+      },
+      {
+        "task": "Raman 吸收通道改为 n_R/c0 口径",
+        "target_formula": "u_R ≈ (n_R / c0) * IR * dI/dt",
+        "status": "当前仓库版本已基本完成"
+      },
+      {
+        "task": "Raman 诊断量增加",
+        "diagnostics": [
+          "delta_n_elec_max_z",
+          "delta_n_rot_max_z",
+          "delta_n_elec_peak_z",
+          "delta_n_rot_peak_z"
+        ],
+        "status": "当前仓库版本已出现相关诊断"
+      },
+      {
+        "task": "窗口模式下焦区局部坐标修正",
+        "target_logic": "focus_center_local_m = focus_center_absolute_m - z_start",
+        "status": "已给出 Codex prompt；用户后续表示焦区坐标已修正"
+      }
+    ],
+    "still_recommended": [
+      {
+        "task": "统一电子密度诊断口径",
+        "reason": "rho_max_z 是全局瞬时最大值，可能高于文献曲线口径。",
+        "suggested_outputs": [
+          "rho_max_z",
+          "rho_onaxis_max_z",
+          "rho_center_t0_z",
+          "rho_smoothed_max_z"
+        ]
+      },
+      {
+        "task": "species-resolved ionization absorption",
+        "reason": "文献 ionization damping 是 sum_j U_j * d n_j/dt，当前代码曾存在单个 Ui_N2 的结构。",
+        "target_formula": "alpha_ion = (sum_j U_j * d rho_j/dt) / (I + floor)",
+        "required_runtime_change": "需要 runtime 返回每个 species 的 rho_j 或 d rho_j/dt。"
+      },
+      {
+        "task": "z 步长与横向分辨率收敛测试",
+        "reason": "峰值电子密度可能受塌缩区数值过冲影响。",
+        "suggested_cases": [
+          "dz=0.1 mm, dz_focus=0.05 mm",
+          "dz=0.05 mm, dz_focus=0.025 mm",
+          "dz=0.025 mm, dz_focus=0.0125 mm"
+        ]
+      },
+      {
+        "task": "非线性预算灵敏度测试",
+        "reason": "峰值电子密度对 I_max 超线性敏感，总正非线性略强即可导致 rho_max 偏高。",
+        "suggested_scans": [
+          "n2_air × 0.95",
+          "n_R × 0.95",
+          "use_self_steepening=false",
+          "raman.absorption=false"
+        ]
+      },
+      {
+        "task": "明确空气分子电离率文献口径",
+        "reason": "当前 popruzhenko_atom_i_lut 只严格代表原子分支，未必等于文献中的空气 N2/O2 实现。",
+        "candidate_directions": [
+          "继续用 popruzhenko_atom_i_lut 作为文献声明主线的近似复现。",
+          "与 ppt_talebpour_i_lut 做分子半经验对照。",
+          "若有文献或代码依据，再实现 Popruzhenko + Talebpour 分子修正。"
+        ]
+      }
+    ]
+  },
+  "recommended_next_steps": [
+    {
+      "priority": 1,
+      "action": "比较 rho_max_z 与 rho_onaxis_max_z",
+      "purpose": "确认峰值偏高是否首先来自诊断口径差异。"
+    },
+    {
+      "priority": 2,
+      "action": "做 dz 与 dz_focus 收敛测试",
+      "purpose": "判断峰值电子密度是否由塌缩区数值过冲抬高。"
+    },
+    {
+      "priority": 3,
+      "action": "做 n2_air、n_R、self-steepening 灵敏度扫描",
+      "purpose": "判断是否传播阶段峰值强度略高导致 rho_max 高出文献。"
+    },
+    {
+      "priority": 4,
+      "action": "改造 ionization absorption 为 species-resolved",
+      "purpose": "使 ionization damping 更接近文献的 sum_j U_j d n_j/dt 形式。"
+    },
+    {
+      "priority": 5,
+      "action": "进一步明确 Popruzhenko 在空气分子 N2/O2 中的实现口径",
+      "purpose": "减少电离模型与文献内部实现的结构性差异。"
+    }
+  ]
+}

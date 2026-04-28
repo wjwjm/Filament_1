@@ -51,3 +51,148 @@
    - 改动范围；
    - 快速检查结果；
    - 若有环境限制，明确说明。
+
+## 8. 常见问题到代码位置的映射
+当用户以自然语言描述问题时，agent 应优先按下列映射定位文件。
+
+### 8.1 电子密度偏低 / 偏高
+
+优先检查：
+- `Filament_python/KHz_filament/ionization/`
+- `Filament_python/KHz_filament/nonlinear.py`
+- `Filament_python/KHz_filament/config.py`
+- `Filament_python/KHz_filament/config_normalize.py`
+- `Filament_python/config*.json`
+
+重点排查：
+- 电场与强度单位转换；
+- `time_mode` 与 `integrator`；
+- `species[*].rate`、`Ip_eV`、`Zeff`、`fraction`；
+- `I_cap`、`W_cap`、`W_scale`；
+- LUT 是否命中缓存、是否使用了预期 reference model。
+
+### 8.2 成丝位置提前 / 延后
+
+优先检查：
+- `Filament_python/KHz_filament/runner.py`
+- `Filament_python/KHz_filament/propagate.py`
+- `Filament_python/KHz_filament/linear*.py`
+- `Filament_python/KHz_filament/nonlinear.py`
+- `Filament_python/config*.json`
+
+重点排查：
+- 初始能量或 `E0_peak` 反推；
+- `w0`、`tau_fwhm`、`focal_length`；
+- 薄透镜相位符号；
+- `z_max`、`dz`、`focus_window_step`、`limit_focus_window`；
+- Kerr、等离子体散焦、电离损耗是否同时被修改。
+
+### 8.3 程序数值爆炸 / NaN / energy sentinel
+
+优先检查：
+- `Filament_python/KHz_filament/propagate.py`
+- `Filament_python/KHz_filament/nonlinear.py`
+- `Filament_python/KHz_filament/linear*.py`
+- `Filament_python/KHz_filament/diagnostics.py`
+- `Filament_python/config*.json`
+
+重点排查：
+- `dz` 是否过大；
+- 非线性相位或吸收是否过强；
+- FFT 轴、频率轴、传播因子是否被修改；
+- 边界窗口是否过小；
+- dtype、GPU/CPU 后端是否行为不一致。
+
+### 8.4 LUT 构建慢 / 缓存未复用 / 速率模型不一致
+
+优先检查：
+- `Filament_python/KHz_filament/ionization/lut.py`
+- `Filament_python/KHz_filament/ionization/rate_registry.py`
+- `Filament_python/KHz_filament/ionization/runtime.py`
+- `Filament_python/tools/build_ion_lut_cache.py`
+- `Filament_python/tools/validate_ion_lut_runtime.py`
+
+重点排查：
+- `rate_table` 配置是否启用；
+- `reuse_cache`、`force_rebuild`、`cache_dir`；
+- LUT 签名是否因参数变化而失配；
+- runtime evaluator 与 reference evaluator 是否匹配。
+
+### 8.5 输出字段缺失 / MATLAB 后处理失败
+
+优先检查：
+- `Filament_python/KHz_filament/diagnostics.py`
+- `Filament_python/KHz_filament/summary.py`
+- `Filament_python/matlab/diagnose_khzfil_out.m`
+- `Filament_python/matlab/compare_khzfil_out.m`
+
+重点排查：
+- `.npz` 中保存字段名是否变化；
+- 诊断量维度是否与 MATLAB 脚本假设一致；
+- 是否改变了 `z_axis` 的局部坐标 / 绝对坐标含义。
+
+### 8.6 运行速度过慢 / 显存不足
+
+优先检查：
+- `Filament_python/KHz_filament/propagate.py`
+- `Filament_python/KHz_filament/linear*.py`
+- `Filament_python/KHz_filament/ionization/`
+- `Filament_python/KHz_filament/raman.py`
+- `Filament_python/config*.json`
+
+重点排查：
+- 网格规模 `Nx, Ny, Nt`；
+- `full_linear_factorize`；
+- `chunk_pixels`；
+- LUT 是否启用；
+- 输出频率和保存字段是否过多。
+
+## 9. 不应自动修改或提交的内容
+除非用户明确要求，agent 不应修改或提交以下内容：
+
+- 大型仿真结果文件：`*.npz`、`*.npy`、`*.mat`、`*.h5`、`*.hdf5`；
+- 缓存目录：`cache/`；
+- 输出目录：`outputs/`、`figures/`；
+- 参考文献 PDF：`references/papers/*.pdf`；
+- 临时日志、调试输出、系统生成文件；
+- 与当前任务无关的配置文件和历史结果。
+
+如果任务确实需要更新上述内容，必须在修改摘要中说明原因、文件大小影响和是否可复现。
+
+## 10. 修改某类功能时的同步更新要求
+### 10.1 新增或修改配置字段
+
+必须同步检查：
+- `Filament_python/KHz_filament/config.py`
+- `Filament_python/KHz_filament/config_schema.py`
+- `Filament_python/KHz_filament/config_normalize.py`
+- 示例配置 `Filament_python/config*.json`
+- 相关 README 说明
+
+### 10.2 新增物理模型或非线性项
+
+必须同步检查：
+- 是否有配置开关；
+- 是否保持 CPU/GPU 后端一致；
+- 是否影响能量诊断；
+- 是否需要新增 sanity test；
+- 是否需要更新 `Filament_python/KHz_filament/README.md`。
+
+### 10.3 新增诊断输出
+
+必须同步检查：
+- `diagnostics.py` 中字段计算；
+- `.npz` 保存字段；
+- `summary.py` 是否需要显示；
+- MATLAB 后处理脚本是否需要兼容；
+- README 中是否说明字段含义和单位。
+
+### 10.4 修改电离模型
+
+必须同步检查：
+- `ionization/models_*.py`；
+- `ionization/rate_registry.py`；
+- `ionization/runtime.py`；
+- `ionization/lut.py`；
+- LUT 验证工具；
+- 最小测试或 selfcheck。

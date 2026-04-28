@@ -1,0 +1,248 @@
+{
+  "document_title": "Filament_1 超短脉冲成丝仿真代码讨论梗概",
+  "scope": "本 JSON 汇总当前对话中用户每个主要提问、助手回答概述，以及对应的代码修改方向。",
+  "main_theme": "围绕 Filament_1 仓库中单脉冲空气成丝 benchmark 电子密度峰值偏高的问题，逐步从非线性效应、步长、文献模型、电离率、pion/pfree 处理方式、窗口传播策略等方面进行排查和代码改造。",
+  "turns": [
+    {
+      "turn_index": 1,
+      "user_question_summary": "检查 Filament_1 仓库中超短脉冲成丝的非线性效应模块，结合文献分析为什么非线性效应可能偏高，导致电子密度峰值比文献高约 1e22，文献结果约 3.6e22。",
+      "assistant_answer_overview": "检查了 nonlinear.py、propagate.py、raman.py、config.py、khz_config.json 等相关逻辑。初步判断非线性偏高可能来自 Raman 相位通道偏强、等离子体负反馈/电离阻尼处理偏弱、近焦步长不够自适应、以及输入时间轮廓过理想等因素。建议通过关闭 Raman、关闭 self-steepening、缩小 dz_focus 等 A/B 测试定位。",
+      "code_modification_direction": [
+        "暂不直接改 n2_air，因为其数值与文献基本一致。",
+        "优先做 Raman、自陡峭、dz_focus 的 A/B 对照。",
+        "利用 delta_n_elec_max_z、delta_n_rot_max_z 等诊断判断 Raman 是否过强。",
+        "若 A/B 显示影响有限，再转向电离模型和 pion/pfree 处理。"
+      ]
+    },
+    {
+      "turn_index": 2,
+      "user_question_summary": "反馈关闭 Raman、关闭 self-steepening、改变计算窗口后峰值电子密度只变化约 0.2e22，认为差距并非非线性过强导致。要求分析 max_linear_phase、max_alpha_dz、max_kerr_phase、imax_growth_limit 这些参数设置是否合理。",
+      "assistant_answer_overview": "指出这些参数虽然在配置中存在，但当前主传播路径中大概率没有真正参与自适应步长控制。实际 dz_try 主要由 dz_base、focus_window_step、focus_center_m、focus_halfwidth_m、dz_focus 决定。理论上 max_linear_phase=0.8 偏松，max_alpha_dz=0.2 对定量 benchmark 偏松，max_kerr_phase=0.3 对当前强度几乎不会触发，imax_growth_limit=0.5 偏松。",
+      "code_modification_direction": [
+        "不要期望单独调这些阈值能改变当前结果，除非先把它们真正接入自适应控制逻辑。",
+        "继续优先做 dz_focus 收敛测试。",
+        "如果未来启用自适应控制，建议 max_linear_phase 收紧到 0.3–0.5，max_alpha_dz 收紧到 0.05–0.1，imax_growth_limit 收紧到 0.1–0.25。"
+      ]
+    },
+    {
+      "turn_index": 3,
+      "user_question_summary": "进一步检查 dz_focus 缩小到 0.025 mm 后电子密度峰值变化极小，因此怀疑最终峰值电子密度过高可能还是电离过强。要求回顾文献中关于单脉冲成丝仿真的所有细节。",
+      "assistant_answer_overview": "系统梳理 Isaacs et al. 2022 中单脉冲 benchmark 的关键细节：使用 NRL PyCAP，求解 Brabec–Krausz NEE；pNL 包含 pelec、prot、pfree、pion；800 nm，n2=0.78e-19 cm2/W，β2=0.20 fs2/cm；空气 80% N2 + 20% O2；电离率为 Popruzhenko 周期平均速率；电子密度用 RK4 积分；benchmark 条件为 f=95 cm、f/240、17 GW、40 fs 到 120 fs。",
+      "code_modification_direction": [
+        "把排查重点从非线性强度和 dz_focus 转到电离率模型、pion 电离阻尼、pfree 自由电子项和输入脉冲时间轮廓。",
+        "后续应检查当前电离模型是否真与文献的 Popruzhenko 周期平均口径一致。",
+        "后续应检查当前 NEE 与文献 Eq. (27)–(29) 的一致性。"
+      ]
+    },
+    {
+      "turn_index": 4,
+      "user_question_summary": "检查 Filament_1 仓库中的电离率实现是否和文献一致，以及 Brabec–Krausz NEE 是否和文献一致，包括高阶色散。",
+      "assistant_answer_overview": "判断电离率实现与文献只部分一致。仓库使用 popruzhenko_atom_i_lut，框架上是周期平均强场电离率并用 RK4 积分，但其实现更偏原子化 Popruzhenko，而文献针对 N2/O2 分子，且引用了 Talebpour 分子半经验模型。NEE 方面，如果使用 bk_nee，线性骨架和只保留 β2 的设定基本符合文献；如果使用 uppe，则会隐含引入高阶色散。非线性右端并未严格按文献 pNL=pelec+prot+pfree+pion 统一实现，而是拆成相位和吸收近似。",
+      "code_modification_direction": [
+        "若目标是复现文献 benchmark，应继续使用 linear_model='bk_nee'，不要切换到 uppe。",
+        "电离模型需要改成更接近 N2/O2 分子的 Popruzhenko 或 Talebpour 版本。",
+        "后续重点应放在 pfree + pion 的处理方式上，尤其是 pion。"
+      ]
+    },
+    {
+      "turn_index": 5,
+      "user_question_summary": "说明 popruzhenko_atom_i_lut 已经改为接近分子的 N2/O2 版本，接下来考虑 pfree + pion 的处理方式贴近论文 Eq. (28)(29)。",
+      "assistant_answer_overview": "指出 pfree 目前通过 plasma_phase 处理，在文献飞秒情形取 νe=0 时，主导物理上可近似接受，不建议优先重写。pion 是更大的不一致点：当前原实现用单一 Ui 和总 d_rho_dt，而文献 Eq. (29) 要求逐组分求和 Σ_j U_j ∂n_j/∂τ。建议先把 pion 改为逐组分电离阻尼，并同步修改热沉积源。",
+      "code_modification_direction": [
+        "保留 pfree = plasma_phase，不重写自由电子极化项。",
+        "修改 evolve_rho_time，使其可返回逐组分电离源项或至少返回 Σ_j U_j dρ_j/dt。",
+        "修改 propagate.py，使 alpha_ion = ion_source_raw / (I + I_floor)。",
+        "修改 heat_Q_per_z，使热沉积使用相同的逐组分 ion_source_raw。",
+        "保持 bk_nee 线性传播和 β2-only 色散口径不变。"
+      ]
+    },
+    {
+      "turn_index": 6,
+      "user_question_summary": "要求给一份用于 Codex 的 prompt：保留当前 pfree=plasma_phase，只修改 pion，实现逐组分电离阻尼。",
+      "assistant_answer_overview": "给出了一份面向 Codex 的详细修改提示词，要求检查 propagate.py、ionization/runtime.py、ionization/__init__.py、heat.py 等文件；保留 pfree 与 apply_nonlinear 框架；把 pion 从单一 Ui 的总电离阻尼改为逐组分 Σ_j U_j dρ_j/dt；热沉积同步使用相同源项；保持旧接口兼容。",
+      "code_modification_direction": [
+        "在 evolve_rho_time 增加 return_species_terms 之类的可选返回。",
+        "优先从 species 中读取 Ui_J，否则用 Ip_eV 转换为 J。",
+        "在 propagate.py 中用 ion_source_raw 构造 alpha_ion。",
+        "在 heat.py 中新增兼容接口，优先使用 ion_source。",
+        "保持 CPU/GPU 双后端兼容。"
+      ]
+    },
+    {
+      "turn_index": 7,
+      "user_question_summary": "说明逐组分 pion 修改已经完成，要求进一步修改：在 propagate.py 中，对计算得到的电离损耗项应用类似 shock_intensity 的频率域或时域微分修正，以匹配文献 Eq. (29) 左侧算子要求。要求给一版 Codex prompt。",
+      "assistant_answer_overview": "给出第二份 Codex prompt，目标是在不重写显式 pion 极化项的前提下，对 ion_source_raw=Σ_j U_j dρ_j/dt 做类似 shock_intensity 的算子修正。定义 ion_source_raw 用于热沉积，ion_source_prop 用于传播吸收。修正形式为 Q_eff=Q-(1/ω0)∂Q/∂t，等价频域乘子 1+iΩ/ω0。",
+      "code_modification_direction": [
+        "在 nonlinear.py 中新增 operator_correct_scalar()，复用 shock_intensity 的 tdiff/fft/auto 口径。",
+        "在 propagate.py 中计算 ion_source_prop = operator_correct_scalar(ion_source_raw, axes.Omega, omega0, dt, method)。",
+        "传播吸收用 alpha_ion = ion_source_prop / (I + I_floor)。",
+        "热沉积仍使用 ion_source_raw，不使用修正后的 ion_source_prop。",
+        "新增 use_ionization_operator_correction 和 ionization_operator_method 配置项。",
+        "新增 alpha_ion_raw_max_z、alpha_ion_corr_max_z 等诊断量。"
+      ]
+    },
+    {
+      "turn_index": 8,
+      "user_question_summary": "询问 popruzhenko_atom 和 ppt_talebpour 的区别。",
+      "assistant_answer_overview": "解释两者物理来源和适用对象不同：popruzhenko_atom 更偏原子强场电离理论，具有 Coulomb 修正和统一的强场理论结构；ppt_talebpour 更偏面向 N2/O2 分子的 PPT/Talebpour 半经验参数化模型，使用 Zeff、l、m 等分子相关参数。",
+      "code_modification_direction": [
+        "若目标是理论统一，可使用 popruzhenko_atom 路线，但需要合理分子等效参数。",
+        "若目标是贴近空气 N2/O2 分子经验，ppt_talebpour 更自然。",
+        "两者都可通过 cycle_average_from_I 和 LUT 路径接入现有 evolve_rho_time。"
+      ]
+    },
+    {
+      "turn_index": 9,
+      "user_question_summary": "要求用一句话总结 popruzhenko_atom 和 ppt_talebpour 的区别。",
+      "assistant_answer_overview": "一句话总结：popruzhenko_atom 是更偏原子强场理论、统一性更强的电离模型，而 ppt_talebpour 是更偏向空气分子 N2/O2 的 PPT/Talebpour 半经验模型。",
+      "code_modification_direction": [
+        "该轮没有提出新的代码修改，只给出模型选择判断。"
+      ]
+    },
+    {
+      "turn_index": 10,
+      "user_question_summary": "要求汇集本项目下最近几个对话的梗概，快速了解自己对代码做了哪些修改。",
+      "assistant_answer_overview": "根据当前对话和 GitHub 提交记录，总结最近修改主线：从非线性效应排查转向电离模型和 pion 处理；已经推动逐组分电离阻尼、热沉积兼容、ionization operator correction 等修改；仓库提交中出现了 PR #45/#46，涉及 species energy terms、operator correction、heat compatibility 等。",
+      "code_modification_direction": [
+        "代码路线已从 Kerr/Raman 参数调节，转为修正电离阻尼 pion 的物理结构。",
+        "当前传播模型变为：Kerr + Raman + plasma_phase + 逐组分 Σ_j U_j dρ_j/dt 电离吸收 + 可选 ionization operator correction。",
+        "后续需要对单脉冲 40 fs/120 fs benchmark 重新比较 rho_peak(z)。"
+      ]
+    },
+    {
+      "turn_index": 11,
+      "user_question_summary": "询问能否找到一次对话中提到的：放宽非线性计算区间后仿真效果极大改善。",
+      "assistant_answer_overview": "没有定位到完整原文，但根据项目记忆和代码配置，判断该事件大概率对应 limit_focus_window/window_halfwidth_m/focus_halfwidth_m 等参数。即原来非线性计算窗口过窄，放宽后成丝过程更完整，仿真结果改善。",
+      "code_modification_direction": [
+        "关注 propagation.limit_focus_window、window_halfwidth_m、focus_halfwidth_m、dz_focus 等窗口传播参数。",
+        "若要复现文献，应避免只在过窄焦区窗口内开启非线性。"
+      ]
+    },
+    {
+      "turn_index": 12,
+      "user_question_summary": "进一步说明早期仿真是先线性传播到 0.65 m，然后再加入非线性效应，导致拟合有问题；后来全传播都考虑非线性后问题缓解。要求定位该事件。",
+      "assistant_answer_overview": "定位到该事件对应 limit_focus_window 窗口模式。代码中当 limit_focus_window=true 且 window_halfwidth_m>0 时，runner.py 会先线性预推进到 z_start，再在局部窗口中调用 propagate_one_pulse。若 focus_center_m≈0.95 m、window_halfwidth_m≈0.30 m，则 z_start=0.65 m，正好对应用户记忆。相关提交约为 2026-04-03，修复了窗口模式下 dz_focus 局部焦点坐标对齐问题。",
+      "code_modification_direction": [
+        "确认早期问题来自窗口传播：前段只做线性预推进，非线性自聚焦和电离积累被人为忽略。",
+        "建议复现 benchmark 时关闭 limit_focus_window，或把 window_halfwidth_m 放宽到覆盖完整非线性演化区域。",
+        "如果继续使用窗口模式，必须正确处理 z_start、局部 z_axis、focus_center_local_m。"
+      ]
+    },
+    {
+      "turn_index": 13,
+      "user_question_summary": "要求总结本对话下用户每个提问、助手回答概述，以及对于代码的修改方向，并输出 JSON 文档。",
+      "assistant_answer_overview": "当前回答生成结构化 JSON，总结本轮对话中的所有主要问题、回答内容和代码修改方向。",
+      "code_modification_direction": [
+        "本轮本身不提出新代码修改，只整理已有修改路线和排查结论。"
+      ]
+    }
+  ],
+  "code_modification_summary": {
+    "completed_or_prompted_modifications": [
+      {
+        "name": "电离模型分子化",
+        "status": "用户说明已经完成",
+        "description": "将 popruzhenko_atom_i_lut 从偏原子模型修改为更接近分子 N2/O2 的版本，以降低空气分子电离率不匹配带来的系统误差。",
+        "affected_area": [
+          "ionization/models_popruzhenko.py",
+          "ionization/runtime.py",
+          "khz_config.json"
+        ]
+      },
+      {
+        "name": "逐组分 pion 电离阻尼",
+        "status": "用户说明已经完成，且后续对话中已基于该修改继续推进",
+        "description": "把原来的单一 Ui 与总 d_rho_dt 的电离吸收，改为逐组分 Σ_j U_j dρ_j/dt，更接近文献 Eq. (29) 中对各空气组分求和的结构。",
+        "affected_area": [
+          "ionization/runtime.py",
+          "propagate.py",
+          "heat.py"
+        ],
+        "key_formula": "ion_source_raw = Σ_j U_j * dρ_j/dt; alpha_ion = ion_source_raw / (I + I_floor)"
+      },
+      {
+        "name": "热沉积源与逐组分 pion 同步",
+        "status": "作为 Codex prompt 的明确要求，并在后续提交概述中出现",
+        "description": "让 heat_Q_per_z 优先使用 ion_source_raw，避免传播吸收和热沉积使用不一致的电离源。",
+        "affected_area": [
+          "heat.py",
+          "propagate.py"
+        ],
+        "key_principle": "热沉积使用真实原始源 ion_source_raw，不使用经过传播算子修正的 ion_source_prop。"
+      },
+      {
+        "name": "ionization operator correction",
+        "status": "已生成 Codex prompt，后续提交记录中也出现相关合并信息",
+        "description": "为匹配文献 Eq. (29) 左侧 (1+i/ω0 ∂τ) 算子，在现有吸收近似框架下对 ion_source_raw 做类似 shock_intensity 的时域或频域修正。",
+        "affected_area": [
+          "nonlinear.py",
+          "propagate.py",
+          "config.py",
+          "khz_config.json"
+        ],
+        "key_formula": "ion_source_prop = ion_source_raw - (1/ω0) * ∂ion_source_raw/∂t; alpha_ion = ion_source_prop / (I + I_floor)",
+        "configuration": [
+          "use_ionization_operator_correction",
+          "ionization_operator_method"
+        ],
+        "diagnostics": [
+          "alpha_ion_raw_max_z",
+          "alpha_ion_corr_max_z"
+        ]
+      },
+      {
+        "name": "非线性传播窗口修正",
+        "status": "定位为早期重要问题",
+        "description": "早期 limit_focus_window 导致先线性推进到 z_start≈0.65 m，再开启非线性传播。后来放宽窗口或全程启用非线性后，成丝拟合明显改善。",
+        "affected_area": [
+          "runner.py",
+          "propagate.py",
+          "KHz_filament/README.md",
+          "khz_config.json"
+        ],
+        "key_parameters": [
+          "limit_focus_window",
+          "window_halfwidth_m",
+          "focus_center_m",
+          "focus_halfwidth_m",
+          "dz_focus"
+        ],
+        "recommended_direction": "复现单脉冲 benchmark 时建议关闭 limit_focus_window，或确保非线性窗口覆盖完整自聚焦和电离积累区。"
+      }
+    ],
+    "not_recommended_or_deferred_modifications": [
+      {
+        "name": "重写 pfree 为显式自由电子极化项",
+        "reason": "文献飞秒单脉冲中取 νe=0，当前 plasma_phase 对主导自由电子去聚焦项可近似接受；优先级低于 pion。"
+      },
+      {
+        "name": "切换到 uppe 线性模型",
+        "reason": "文献单脉冲 benchmark 明确只保留 GVD，使用 uppe 会通过 n(ω) 隐含引入高阶色散，不适合严格复现该文献设置。"
+      },
+      {
+        "name": "继续通过 Raman 或 self-steepening 调峰值电子密度",
+        "reason": "用户 A/B 测试显示关闭 Raman 或 self-steepening 对峰值电子密度影响仅约 0.2e22，非主导误差来源。"
+      },
+      {
+        "name": "继续缩小 dz_focus 作为主修正方向",
+        "reason": "用户测试 dz_focus 缩小到 0.025 mm 后峰值电子密度变化极小，说明 z 步长不是主导误差源。"
+      }
+    ]
+  },
+  "current_understanding": {
+    "main_error_source_hypothesis": "在排除 Raman、self-steepening、dz_focus 和窗口大小的主要影响后，当前最可能的误差源集中在电离率模型、逐组分电离阻尼 pion、以及输入脉冲时间轮廓与文献/实验差异。",
+    "model_alignment_with_literature": {
+      "linear_model": "使用 bk_nee 时基本贴近文献 Brabec-Krausz NEE 的线性骨架，只保留 β2，忽略高阶色散。",
+      "pfree": "当前保留 plasma_phase，属于对文献 Eq. (28) 在 νe=0 情形下的近似实现。",
+      "pion": "已经从单一 Ui 近似推进到逐组分 Σ_j U_j dρ_j/dt，并进一步加入可选算子修正，以贴近文献 Eq. (29)。",
+      "ionization_rate": "popruzhenko_atom_i_lut 已由用户说明修改为更接近分子 N2/O2 的版本，但仍需要用单脉冲 benchmark 重新验证。"
+    },
+    "recommended_next_validation": [
+      "固定 linear_model='bk_nee'，关闭或放宽 limit_focus_window，确保全程非线性传播。",
+      "分别比较开启/关闭 use_ionization_operator_correction 的 40 fs 和 120 fs rho_peak(z)。",
+      "检查 alpha_ion_raw_max_z 与 alpha_ion_corr_max_z 的量级差异，判断算子修正是否过强。",
+      "比较 popruzhenko_molecular_like 与 ppt_talebpour 在 N2/O2 下的 W(I) 曲线，定位电离率是否仍偏高。",
+      "重新记录 I_max_z、rho_max_z、E_dep_z、onset distance、z_peak，与文献 Fig. 5 对齐。"
+    ]
+  }
+}
