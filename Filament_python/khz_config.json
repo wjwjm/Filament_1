@@ -70,7 +70,7 @@
   "beta_rec": 0.0,
   "sigma_ib": 0.0,
   "nu_ei_const": 0.0,
-  "use_ionization_operator_correction": true,
+  "use_ionization_operator_correction": false,
   "ionization_operator_method": "tdiff",
   "I_cap": 1.0e19,
   "W_cap": 1.0e19,

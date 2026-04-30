@@ -1,0 +1,576 @@
+{
+  "document_title": "Filament_1_120fs_parameter_adjustment_plan",
+  "version": "1.0",
+  "generated_for": "120fs_air_filament_benchmark_density_deviation",
+  "baseline_config_summary": {
+    "beam": {
+      "tau_fwhm_s": 1.2e-13,
+      "P0_peak_W": 1.7e10,
+      "focal_length_m": 0.95,
+      "w0_m": 0.001979,
+      "n2_air_m2_per_W": 7.8e-24
+    },
+    "propagation": {
+      "linear_model": "bk_nee",
+      "z_max_m": 1.3,
+      "dz_m": 0.0001,
+      "focus_window_step": true,
+      "focus_center_m": 0.95,
+      "focus_halfwidth_m": 0.1,
+      "dz_focus_m": 0.00005,
+      "limit_focus_window": false,
+      "use_self_steepening": true
+    },
+    "ionization": {
+      "species": [
+        {
+          "name": "N2",
+          "rate": "popruzhenko_atom_i_lut",
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "rate": "popruzhenko_atom_i_lut",
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "fraction": 0.2
+        }
+      ],
+      "time_mode": "full",
+      "integrator": "rk4",
+      "beta_rec": 0.0,
+      "sigma_ib": 0.0,
+      "nu_ei_const": 0.0,
+      "use_ionization_operator_correction": true,
+      "ionization_operator_method": "tdiff"
+    },
+    "raman": {
+      "enabled": true,
+      "model": "rot_sinexp",
+      "method": "iir",
+      "absorption": true,
+      "absorption_model": "conv_deriv",
+      "n_R_m2_per_W": 2.3e-23,
+      "omega_R_s_inv": 1.6e13,
+      "Gamma_R_s_inv": 1.3e13
+    },
+    "run": {
+      "Npulses": 1
+    }
+  },
+  "observed_problem": {
+    "case": "120fs_molecular_air_model",
+    "rho_onset_threshold_m3": 1e21,
+    "onset_position_deviation": "提前约2.5 cm",
+    "peak_density_deviation_m3": "峰值低约0.2e22",
+    "diagnostic_interpretation": "低密度区电子产生或电离损耗过早介入，导致焦前等离子体负反馈提前出现，最终峰值被压低"
+  },
+  "parameter_adjustment_plan": [
+    {
+      "priority": 1,
+      "category": "ionization_operator_correction",
+      "parameter_path": "ionization.use_ionization_operator_correction",
+      "current_value": true,
+      "test_values": [
+        false,
+        true
+      ],
+      "recommended_first_test_value": false,
+      "purpose": "判断新增的pion算子修正是否导致ionization loss在脉冲前沿过早增强",
+      "physical_reason": "当前修正形式会对ion_source_raw执行Q_eff=Q-(1/omega0)*dQ/dt，并在alpha_ion中进行非负截断，可能改变前沿和后沿的能量损耗平衡",
+      "expected_effect_if_this_is_main_cause": {
+        "rho_1e21_onset": "后移，接近文献",
+        "rho_peak": "上升",
+        "I_max_z": "焦区峰值强度回升",
+        "alpha_ion_corr_vs_raw": "关闭后只保留raw损耗，corr/raw异常放大现象消失"
+      },
+      "diagnostics_to_compare": [
+        "rho_max_z",
+        "rho_onaxis_max_z",
+        "I_max_z",
+        "I_onaxis_max_z",
+        "alpha_ion_raw_max_z",
+        "alpha_ion_corr_max_z",
+        "E_dep_z"
+      ],
+      "decision_rule": {
+        "if_onset_moves_later_by_cm_order": "将该项从默认benchmark配置中关闭，只作为高阶修正选项保留",
+        "if_onset_unchanged_but_peak_increases": "该项主要影响峰值损耗，不是起涨提前主因",
+        "if_almost_no_change": "主因转向电离率模型本身"
+      },
+      "write_to_default_config": "conditional",
+      "confidence": "中高"
+    },
+    {
+      "priority": 1,
+      "category": "ionization_operator_method",
+      "parameter_path": "ionization.ionization_operator_method",
+      "current_value": "tdiff",
+      "test_values": [
+        "tdiff",
+        "fft"
+      ],
+      "recommended_first_test_value": "fft",
+      "purpose": "检查时域差分和频域算子实现是否在120fs长脉冲下给出一致的ion_source修正",
+      "physical_reason": "若tdiff与fft结果差异明显，说明时间边界、roll差分或采样分辨率正在影响pion损耗项",
+      "expected_effect_if_this_is_main_cause": {
+        "rho_1e21_onset": "tdiff与fft存在可见位置差异",
+        "rho_peak": "tdiff与fft峰值不同",
+        "alpha_ion_corr_max_z": "两种方法的峰值或曲线形态不一致"
+      },
+      "diagnostics_to_compare": [
+        "alpha_ion_raw_max_z",
+        "alpha_ion_corr_max_z",
+        "rho_max_z",
+        "I_max_z"
+      ],
+      "decision_rule": {
+        "if_tdiff_fft_differ_significantly": "暂时关闭operator correction，后续单独修正算子离散",
+        "if_tdiff_fft_match": "算子实现数值一致，继续判断是否物理上应启用"
+      },
+      "write_to_default_config": "no",
+      "confidence": "中"
+    },
+    {
+      "priority": 1,
+      "category": "ionization_rate_model_comparison",
+      "parameter_path": "ionization.species[].rate",
+      "current_value": "popruzhenko_atom_i_lut",
+      "test_values": [
+        "popruzhenko_atom_i_lut",
+        "ppt_talebpour_i_lut"
+      ],
+      "recommended_first_test_value": "ppt_talebpour_i_lut_as_control",
+      "purpose": "判断当前Popruzhenko原子化N2/O2速率是否在onset区相对分子半经验模型偏强",
+      "physical_reason": "120fs起涨提前更可能由低强度到中强度区W(I)偏高造成，尤其是O2贡献",
+      "expected_effect_if_this_is_main_cause": {
+        "rho_1e21_onset": "切换到Talebpour分子模型后应后移",
+        "rho_peak": "可能上升或峰值位置变化",
+        "O2_contribution": "若O2 onset过强，Air与N2-only差异明显"
+      },
+      "diagnostics_to_compare": [
+        "W_N2_vs_I",
+        "W_O2_vs_I",
+        "W_air_vs_I",
+        "rho_max_z",
+        "rho_onaxis_max_z",
+        "I_max_z"
+      ],
+      "decision_rule": {
+        "if_talebpour_matches_literature_better": "说明当前Popruzhenko分子化口径仍不足，应优先完善分子等效参数或在benchmark中使用Talebpour对照",
+        "if_popruzhenko_and_talebpour_similar": "主因不在rate模型，继续检查pion和Raman损耗",
+        "if_only_O2_differs_strongly": "重点修正O2的Ip_eV、Zeff或分子等效参数"
+      },
+      "write_to_default_config": "conditional",
+      "confidence": "高"
+    },
+    {
+      "priority": 1,
+      "category": "species_decomposition",
+      "parameter_path": "ionization.species",
+      "current_value": [
+        {
+          "name": "N2",
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "fraction": 0.2
+        }
+      ],
+      "test_cases": [
+        {
+          "case_name": "air_baseline",
+          "species": [
+            {
+              "name": "N2",
+              "fraction": 0.8
+            },
+            {
+              "name": "O2",
+              "fraction": 0.2
+            }
+          ]
+        },
+        {
+          "case_name": "N2_only",
+          "species": [
+            {
+              "name": "N2",
+              "fraction": 1.0
+            }
+          ]
+        },
+        {
+          "case_name": "O2_only",
+          "species": [
+            {
+              "name": "O2",
+              "fraction": 1.0
+            }
+          ]
+        },
+        {
+          "case_name": "air_without_O2_ionization",
+          "species": [
+            {
+              "name": "N2",
+              "fraction": 0.8
+            },
+            {
+              "name": "O2",
+              "rate": "off",
+              "fraction": 0.2
+            }
+          ]
+        }
+      ],
+      "purpose": "隔离N2和O2对120fs低密度起涨位置的贡献",
+      "physical_reason": "O2电离能低，长脉冲前沿更容易累计早期电子，是起点提前的高优先级嫌疑项",
+      "expected_effect_if_O2_is_main_cause": {
+        "N2_only": "rho=1e21起点明显后移",
+        "O2_only": "较早出现电子密度增长",
+        "air_without_O2_ionization": "起点接近N2_only"
+      },
+      "diagnostics_to_compare": [
+        "rho_max_z",
+        "rho_onaxis_max_z",
+        "I_max_z",
+        "E_dep_z"
+      ],
+      "decision_rule": {
+        "if_O2_controls_onset": "优先修正O2电离率参数或模型口径",
+        "if_N2_only_also_early": "N2速率或传播反馈为主因",
+        "if_both_species_reasonable": "回到operator correction和损耗项检查"
+      },
+      "write_to_default_config": "no",
+      "confidence": "高"
+    },
+    {
+      "priority": 2,
+      "category": "raman_absorption",
+      "parameter_path": "raman.absorption",
+      "current_value": true,
+      "test_values": [
+        true,
+        false
+      ],
+      "recommended_first_test_value": false,
+      "purpose": "判断Raman吸收是否只负责峰值偏低，而不是起点提前",
+      "physical_reason": "Raman吸收会抽取脉冲能量，可能降低峰值电子密度；但此前A/B结果显示其对峰值影响约0.2e22，通常不是起点提前的主因",
+      "expected_effect_if_this_is_main_cause": {
+        "rho_1e21_onset": "变化较小",
+        "rho_peak": "关闭吸收后上升",
+        "E_dep_rot_z": "关闭后变为0或消失"
+      },
+      "diagnostics_to_compare": [
+        "rho_max_z",
+        "I_max_z",
+        "E_dep_rot_z",
+        "alpha_R_max_z",
+        "IR_max_z"
+      ],
+      "decision_rule": {
+        "if_only_peak_changes": "Raman吸收是峰值修正项，不是起点主因",
+        "if_onset_moves_significantly": "Raman吸收与早期传播反馈耦合强，需要进一步检查alpha_R_eff"
+      },
+      "write_to_default_config": "no",
+      "confidence": "中"
+    },
+    {
+      "priority": 2,
+      "category": "raman_phase_strength",
+      "parameter_path": "raman.n_R",
+      "current_value": 2.3e-23,
+      "test_values": [
+        1.84e-23,
+        2.3e-23,
+        2.76e-23
+      ],
+      "scan_factor": [
+        0.8,
+        1.0,
+        1.2
+      ],
+      "purpose": "评估旋转Raman正非线性对120fs自聚焦提前的影响范围",
+      "physical_reason": "120fs对旋转Raman比40fs更敏感，但当前实现方向已与显式n_R形式一致，不建议直接用n_R强行拟合",
+      "expected_effect_if_this_is_main_cause": {
+        "rho_1e21_onset": "n_R降低时后移，n_R升高时提前",
+        "I_max_z": "n_R降低时峰值强度降低或聚焦延后",
+        "delta_n_rot_max_z": "近似按n_R比例变化"
+      },
+      "diagnostics_to_compare": [
+        "delta_n_elec_max_z",
+        "delta_n_rot_max_z",
+        "rho_max_z",
+        "I_max_z",
+        "w_mom_z"
+      ],
+      "decision_rule": {
+        "if_20_percent_scan_only_changes_small": "Raman相位不是主因",
+        "if_onset_highly_sensitive": "需要检查Raman核归一化、IIR卷积和文献参数"
+      },
+      "write_to_default_config": "no",
+      "confidence": "中"
+    },
+    {
+      "priority": 2,
+      "category": "self_steepening",
+      "parameter_path": "propagation.use_self_steepening",
+      "current_value": true,
+      "test_values": [
+        true,
+        false
+      ],
+      "recommended_first_test_value": false,
+      "purpose": "确认自陡峭对120fs结果是否可忽略",
+      "physical_reason": "120fs下1/(omega0*tau)约为千分量级到百分量级，通常不足以解释2.5cm起点偏移",
+      "expected_effect_if_this_is_main_cause": {
+        "rho_1e21_onset": "关闭后明显后移",
+        "rho_peak": "关闭后明显变化"
+      },
+      "diagnostics_to_compare": [
+        "rho_max_z",
+        "I_max_z",
+        "I_onaxis_max_z"
+      ],
+      "decision_rule": {
+        "if_change_small": "确认自陡峭不是主因",
+        "if_change_large": "检查shock_intensity对delta_n_kerr的符号和边界差分"
+      },
+      "write_to_default_config": "no",
+      "confidence": "高"
+    },
+    {
+      "priority": 2,
+      "category": "rate_table_accuracy",
+      "parameter_path": "ionization.rate_table",
+      "current_value": {
+        "enabled": true,
+        "reuse_cache": true,
+        "I_min_SI": 1e8,
+        "I_max_SI": 1e19,
+        "n_samples": 3000,
+        "interp_mode": "loglog",
+        "ref_cycle_avg_samples": 64
+      },
+      "test_adjustments": [
+        {
+          "n_samples": 6000,
+          "force_rebuild": true
+        },
+        {
+          "ref_cycle_avg_samples": 128,
+          "force_rebuild": true
+        }
+      ],
+      "purpose": "确认LUT在电离onset区没有插值误差或旧缓存污染",
+      "physical_reason": "如果LUT缓存来自旧模型签名或onset区采样不足，会直接改变低强度电离起点",
+      "expected_effect_if_this_is_main_cause": {
+        "W_I_curve": "重建后LUT与reference误差显著降低",
+        "rho_1e21_onset": "重建高精度LUT后位置改变",
+        "rho_peak": "随W(I)修正变化"
+      },
+      "diagnostics_to_compare": [
+        "validate_ion_lut_summary",
+        "W_reference_vs_W_LUT",
+        "rho_max_z"
+      ],
+      "decision_rule": {
+        "if_LUT_reference_error_large": "先修LUT或清空cache再跑传播",
+        "if_error_small": "排除LUT数值误差"
+      },
+      "write_to_default_config": "conditional",
+      "confidence": "中高"
+    },
+    {
+      "priority": 3,
+      "category": "z_step_convergence",
+      "parameter_path": "propagation.dz_focus",
+      "current_value": 0.00005,
+      "test_values_m": [
+        0.00005,
+        0.000025,
+        0.0000125
+      ],
+      "purpose": "确认焦区步长不是峰值密度偏差来源",
+      "physical_reason": "用户已反馈dz_focus缩小到0.025mm后峰值变化很小，因此该项不是当前主因，但可保留为收敛性记录",
+      "expected_effect_if_this_is_main_cause": {
+        "rho_peak": "随dz_focus缩小收敛",
+        "z_peak": "峰值位置稳定"
+      },
+      "diagnostics_to_compare": [
+        "rho_max_z",
+        "I_max_z",
+        "w_mom_z"
+      ],
+      "decision_rule": {
+        "if_change_below_5_percent": "步长收敛基本通过",
+        "if_change_above_10_percent": "需要继续收紧步长或检查自适应机制"
+      },
+      "write_to_default_config": "no",
+      "confidence": "中高"
+    },
+    {
+      "priority": 3,
+      "category": "nonlinear_window",
+      "parameter_path": "propagation.limit_focus_window",
+      "current_value": false,
+      "test_values": [
+        false
+      ],
+      "purpose": "保持全程非线性传播，避免早期只线性传播导致自聚焦前史缺失",
+      "physical_reason": "旧问题中窗口模式会先线性预推进到约0.65m，导致成丝演化不完整；当前已关闭，不建议重新开启用于benchmark",
+      "expected_effect_if_this_is_main_cause": {
+        "rho_onset": "开启窄窗口会改变起点和峰值位置",
+        "rho_peak": "可能出现非物理偏差"
+      },
+      "diagnostics_to_compare": [
+        "rho_max_z",
+        "I_max_z",
+        "z_axis_absolute_mapping"
+      ],
+      "decision_rule": {
+        "for_benchmark": "保持false",
+        "for_fast_scan": "仅在窗口覆盖完整非线性演化区时允许使用"
+      },
+      "write_to_default_config": "yes_keep_false",
+      "confidence": "高"
+    },
+    {
+      "priority": 4,
+      "category": "non_recommended_primary_tuning",
+      "parameter_path": "beam.n2_air",
+      "current_value": 7.8e-24,
+      "test_values": [
+        7.8e-24
+      ],
+      "purpose": "不建议作为当前主调参项",
+      "physical_reason": "该值与文献电子Kerr口径基本一致，若为拟合而改动会破坏物理可追溯性",
+      "expected_effect_if_changed": {
+        "rho_onset": "降低n2会推迟自聚焦",
+        "rho_peak": "可能降低或移动峰值"
+      },
+      "decision_rule": {
+        "recommended_action": "保持当前值，只在做灵敏度分析时使用0.95到1.05倍小范围扫描"
+      },
+      "write_to_default_config": "no",
+      "confidence": "高"
+    },
+    {
+      "priority": 4,
+      "category": "non_recommended_primary_tuning",
+      "parameter_path": "heat.gamma_heat",
+      "current_value": -1e-23,
+      "test_values": [
+        -1e-23
+      ],
+      "purpose": "不建议用于解释单脉冲120fs电子密度偏差",
+      "physical_reason": "当前Npulses=1，热沉积在本脉冲传播完成后才更新dn_gas，不会反馈影响同一发电子密度",
+      "expected_effect_if_changed": {
+        "single_pulse_rho_z": "无直接影响",
+        "multi_pulse_dn_gas": "有影响"
+      },
+      "decision_rule": {
+        "recommended_action": "单脉冲benchmark中不调整"
+      },
+      "write_to_default_config": "no",
+      "confidence": "高"
+    }
+  ],
+  "recommended_minimal_experiment_sequence": [
+    {
+      "step": 1,
+      "name": "baseline_current",
+      "changes": {},
+      "purpose": "记录当前配置下120fs全部诊断量",
+      "required_outputs": [
+        "rho_max_z",
+        "rho_onaxis_max_z",
+        "I_max_z",
+        "I_onaxis_max_z",
+        "alpha_ion_raw_max_z",
+        "alpha_ion_corr_max_z",
+        "E_dep_z",
+        "E_dep_rot_z"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "disable_ionization_operator_correction",
+      "changes": {
+        "ionization.use_ionization_operator_correction": false
+      },
+      "purpose": "判断pion算子修正是否导致起点提前和峰值偏低"
+    },
+    {
+      "step": 3,
+      "name": "operator_method_fft",
+      "changes": {
+        "ionization.use_ionization_operator_correction": true,
+        "ionization.ionization_operator_method": "fft"
+      },
+      "purpose": "检查tdiff与fft算子实现是否一致"
+    },
+    {
+      "step": 4,
+      "name": "rate_model_talebpour_control",
+      "changes": {
+        "ionization.species[0].rate": "ppt_talebpour_i_lut",
+        "ionization.species[0].reference_model": "ppt_talebpour_i_full_reference",
+        "ionization.species[1].rate": "ppt_talebpour_i_lut",
+        "ionization.species[1].reference_model": "ppt_talebpour_i_full_reference"
+      },
+      "purpose": "用空气分子半经验模型作为传播对照，判断Popruzhenko原子化速率是否主导偏差"
+    },
+    {
+      "step": 5,
+      "name": "N2_only",
+      "changes": {
+        "ionization.species": [
+          {
+            "name": "N2",
+            "rate": "popruzhenko_atom_i_lut",
+            "reference_model": "popruzhenko_atom_i_full_reference",
+            "Ip_eV": 15.6,
+            "Z": 1,
+            "fraction": 1.0
+          }
+        ]
+      },
+      "purpose": "隔离N2对onset的贡献"
+    },
+    {
+      "step": 6,
+      "name": "raman_absorption_off",
+      "changes": {
+        "raman.absorption": false
+      },
+      "purpose": "判断Raman吸收是否只影响峰值电子密度"
+    },
+    {
+      "step": 7,
+      "name": "self_steepening_off",
+      "changes": {
+        "propagation.use_self_steepening": false
+      },
+      "purpose": "确认自陡峭不是120fs偏差主因"
+    }
+  ],
+  "final_expected_outcome": {
+    "most_likely_successful_adjustment": "先关闭ionization.use_ionization_operator_correction并验证W(I)模型口径",
+    "expected_curve_improvement": {
+      "rho_1e21_onset": "从提前约2.5cm逐步后移到接近文献",
+      "rho_peak": "从低约0.2e22逐步回升",
+      "I_max_z": "焦前过早钳制减弱，焦区峰值更集中"
+    },
+    "parameters_not_to_force_fit": [
+      "beam.n2_air",
+      "heat.gamma_heat",
+      "propagation.dz_focus",
+      "propagation.limit_focus_window"
+    ]
+  }
+}
