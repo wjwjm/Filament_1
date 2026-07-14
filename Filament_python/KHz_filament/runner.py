@@ -252,7 +252,7 @@ def run_demo(
         pass
 
     out = {
-        "x": to_cpu(axes.x), "y": to_cpu(axes.y), "t": to_cpu(axes.t),
+        "x": to_cpu(axes.x), "y": to_cpu(axes.y), "t": to_cpu(axes.t), "t_axis": to_cpu(axes.t),
         "I_out_center_t": to_cpu(I_out[:, grid.Ny // 2, grid.Nx // 2]),
         "dn_gas": to_cpu(dn_gas),
     }
