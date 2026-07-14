@@ -10,7 +10,7 @@ import numpy as np
 import scipy.io
 
 
-def convert_npz_to_mat(npz_path: str | Path, mat_path: str | Path, remove_npz: bool = False) -> Path:
+def convert_npz_to_mat(npz_path: str | Path, mat_path: str | Path) -> Path:
     npz_p = Path(npz_path)
     mat_p = Path(mat_path)
 
@@ -24,10 +24,6 @@ def convert_npz_to_mat(npz_path: str | Path, mat_path: str | Path, remove_npz: b
     scipy.io.savemat(mat_p, dic)
     print(f"[npz2mat] wrote: {mat_p}")
 
-    if remove_npz:
-        npz_p.unlink()
-        print(f"[npz2mat] removed source: {npz_p}")
-
     return mat_p
 
 
@@ -35,18 +31,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Convert .npz file to MATLAB .mat")
     p.add_argument("--npz", default="khzfil_out.npz", help="Input npz file path")
     p.add_argument("--mat", default="khzfil_out.mat", help="Output mat file path")
-    p.add_argument(
-        "--remove-npz",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Delete source npz after successful conversion",
-    )
     return p
 
 
 def main() -> int:
     args = _build_parser().parse_args()
-    convert_npz_to_mat(args.npz, args.mat, remove_npz=args.remove_npz)
+    convert_npz_to_mat(args.npz, args.mat)
     return 0
 
 

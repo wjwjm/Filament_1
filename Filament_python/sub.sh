@@ -15,6 +15,11 @@ CONVERT_TO_MAT="${CONVERT_TO_MAT:-1}"
 MAT_DIR="${MAT_DIR:-matlab保存数据}"
 MAT_NAME="${MAT_NAME:-}"
 REMOVE_NPZ="${REMOVE_NPZ:-1}"
+GENERATE_FIGURES="${GENERATE_FIGURES:-1}"
+FIG_DIR="${FIG_DIR:-figures}"
+FIG_SELECT="${FIG_SELECT:-all}"
+FIG_DPI="${FIG_DPI:-200}"
+Z_SHIFT_CM="${Z_SHIFT_CM:-0}"
 
 if [[ ! -f "$CFG" ]]; then
   echo "[fatal] config not found: $CFG"
@@ -26,6 +31,11 @@ if [[ ! -f "test_run.py" ]]; then
   exit 3
 fi
 
+if [[ "$REMOVE_NPZ" == "1" && "$CONVERT_TO_MAT" != "1" ]]; then
+  echo "[fatal] REMOVE_NPZ=1 requires CONVERT_TO_MAT=1; the raw NPZ must not be deleted when no MAT exists."
+  exit 3
+fi
+
 # Use cluster miniforge directly, no module required
 source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
 conda activate Filament_python
@@ -33,6 +43,26 @@ conda activate Filament_python
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export UPPE_USE_GPU=1
 export PYTHONUNBUFFERED=1
+
+# Fail before the long propagation if optional post-processing dependencies are absent.
+python - "$CONVERT_TO_MAT" "$GENERATE_FIGURES" <<'PY'
+import sys
+
+convert_to_mat, generate_figures = sys.argv[1:]
+checks = []
+if convert_to_mat == "1":
+    checks.append(("scipy", "CONVERT_TO_MAT=1"))
+if generate_figures == "1":
+    checks.append(("matplotlib", "GENERATE_FIGURES=1"))
+
+for module, reason in checks:
+    try:
+        __import__(module)
+    except Exception as exc:
+        print(f"[预检] {reason} requires Python package {module!r}: {exc}")
+        raise SystemExit(4)
+    print(f"[预检] {module} available ({reason})")
+PY
 
 # 与作业申请线程数对齐（若设置了 --cpus-per-task）
 if [[ -n "${SLURM_CPUS_PER_TASK:-}" ]]; then
@@ -66,6 +96,11 @@ except Exception as e:
 PY
 
 CMD=(python test_run.py --cfg "$CFG" --gpu --dtype "$DTYPE" --out "$OUT")
+if [[ "$GENERATE_FIGURES" == "1" ]]; then
+  CMD+=(--fig-dir "$FIG_DIR" --fig-select "$FIG_SELECT" --fig-dpi "$FIG_DPI" --z-shift-cm "$Z_SHIFT_CM")
+else
+  CMD+=(--no-plots)
+fi
 if [[ "$CONVERT_TO_MAT" == "1" ]]; then
   CMD+=(--mat-dir "$MAT_DIR")
   if [[ -n "$MAT_NAME" ]]; then

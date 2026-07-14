@@ -1,2 +1,8 @@
 __pycache__/
 *.pyc
+
+# Reproducible simulation products (not source files)
+*.npz
+*.mat
+figures/
+matlab保存数据/
