@@ -28,6 +28,8 @@ PLOT_SPECS = {
     "fwhm_fluence_z": ("FWHM (µm)", False, 1e6),
 }
 
+RHO_M3_PER_1E16_CM3 = 1.0e22
+
 
 def _vector(value: Any, name: str) -> np.ndarray:
     value = np.asarray(value)
@@ -73,6 +75,39 @@ def _positive(values: np.ndarray) -> np.ndarray:
     return values
 
 
+def _rho_max_plot_options(value: dict[str, Any] | None) -> tuple[float, float] | None:
+    """Validate the optional focus-centred linear rho_max_z presentation."""
+    if value is None:
+        return None
+    focus_m = float(value["geometric_focus_m"])
+    half_window_m = float(value["half_window_m"])
+    if not np.isfinite(focus_m) or not np.isfinite(half_window_m) or half_window_m <= 0.0:
+        raise ValueError("rho_max_plot requires a finite geometric_focus_m and positive half_window_m")
+    return focus_m, half_window_m
+
+
+def _plot_rho_max_near_focus(
+    ax: plt.Axes,
+    present: list[tuple[str, str, np.ndarray, np.ndarray]],
+    focus_m: float,
+    half_window_m: float,
+) -> None:
+    """Plot rho_max_z linearly in 1e16 cm^-3 near the lens geometric focus."""
+    for color, (_, label, z, values) in zip(("0.2", "red"), present):
+        x_cm = (z - focus_m) * 100.0
+        mask = np.isfinite(x_cm) & np.isfinite(values) & (np.abs(x_cm) <= half_window_m * 100.0)
+        ax.plot(x_cm[mask], values[mask] / RHO_M3_PER_1E16_CM3, color=color, linewidth=1.8, label=label)
+    half_window_cm = half_window_m * 100.0
+    ax.set(
+        xlabel="Distance from geometric focus (cm)",
+        ylabel=r"Peak electron density ($10^{16}$ cm$^{-3}$)",
+        xlim=(-half_window_cm, half_window_cm),
+    )
+    ax.set_ylim(bottom=0.0)
+    ax.grid(False)
+    ax.legend(loc="upper right", frameon=False)
+
+
 def _case_metrics(case_id: str, label: str, z: np.ndarray, fields: dict[str, np.ndarray]) -> dict[str, Any]:
     row: dict[str, Any] = {"case_id": case_id, "case_label": label, "z_points": int(z.size)}
     for field in ("I_max_z", "rho_onaxis_max_z"):
@@ -102,6 +137,7 @@ def generate_comparison_figures(
     dpi: int = 200,
     z_shift_cm: float = 0.0,
     stage_metadata: dict[str, Any] | None = None,
+    rho_max_plot: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -109,6 +145,7 @@ def generate_comparison_figures(
     generated: list[str] = []
     skipped: dict[str, str] = {}
     overview_fields: list[str] = []
+    rho_max_options = _rho_max_plot_options(rho_max_plot)
 
     for field in fields:
         if field not in PLOT_SPECS:
@@ -118,17 +155,24 @@ def generate_comparison_figures(
         if len(present) != len(datasets):
             skipped[field] = "field missing from one or more cases"
             continue
-        ylabel, log_scale, scale = get_field_plot_spec(field)
         fig, ax = plt.subplots(figsize=(8.2, 4.8))
-        for _, label, z, values in present:
-            values = _positive(values) if log_scale else values
-            if log_scale:
-                ax.semilogy(z * 100.0 + z_shift_cm, values * scale, linewidth=1.6, label=label)
-            else:
-                ax.plot(z * 100.0 + z_shift_cm, values * scale, linewidth=1.6, label=label)
-        ax.set(xlabel="z (cm)" if z_shift_cm == 0 else f"z (cm), shifted {z_shift_cm:+g} cm", ylabel=ylabel, title=f"{field}: 40 fs vs 120 fs")
-        ax.grid(True, which="both", alpha=0.3)
-        ax.legend(loc="best")
+        if field == "rho_max_z" and rho_max_options is not None:
+            _plot_rho_max_near_focus(ax, present, *rho_max_options)
+        else:
+            ylabel, log_scale, scale = get_field_plot_spec(field)
+            for _, label, z, values in present:
+                values = _positive(values) if log_scale else values
+                if log_scale:
+                    ax.semilogy(z * 100.0 + z_shift_cm, values * scale, linewidth=1.6, label=label)
+                else:
+                    ax.plot(z * 100.0 + z_shift_cm, values * scale, linewidth=1.6, label=label)
+            ax.set(
+                xlabel="z (cm)" if z_shift_cm == 0 else f"z (cm), shifted {z_shift_cm:+g} cm",
+                ylabel=ylabel,
+                title=f"{field}: 40 fs vs 120 fs",
+            )
+            ax.grid(True, which="both", alpha=0.3)
+            ax.legend(loc="best")
         path = output_dir / f"compare_{field}.png"
         fig.tight_layout(); fig.savefig(path, dpi=dpi, bbox_inches="tight"); plt.close(fig)
         generated.append(path.name); overview_fields.append(field)
@@ -138,11 +182,16 @@ def generate_comparison_figures(
         rows = int(np.ceil(len(overview_fields) / columns))
         fig, axes = plt.subplots(rows, columns, figsize=(12, 4.0 * rows), squeeze=False)
         for ax, field in zip(axes.flat, overview_fields):
-            ylabel, log_scale, scale = get_field_plot_spec(field)
-            for _, label, z, data in datasets:
-                values = _positive(data[field]) if log_scale else data[field]
-                (ax.semilogy if log_scale else ax.plot)(z * 100.0 + z_shift_cm, values * scale, linewidth=1.2, label=label)
-            ax.set_title(field); ax.set_xlabel("z (cm)"); ax.set_ylabel(ylabel); ax.grid(True, which="both", alpha=0.25)
+            if field == "rho_max_z" and rho_max_options is not None:
+                present = [(case_id, label, z, data[field]) for case_id, label, z, data in datasets]
+                _plot_rho_max_near_focus(ax, present, *rho_max_options)
+                ax.set_title(field)
+            else:
+                ylabel, log_scale, scale = get_field_plot_spec(field)
+                for _, label, z, data in datasets:
+                    values = _positive(data[field]) if log_scale else data[field]
+                    (ax.semilogy if log_scale else ax.plot)(z * 100.0 + z_shift_cm, values * scale, linewidth=1.2, label=label)
+                ax.set_title(field); ax.set_xlabel("z (cm)"); ax.set_ylabel(ylabel); ax.grid(True, which="both", alpha=0.25)
         for ax in axes.flat[len(overview_fields):]: ax.axis("off")
         axes.flat[0].legend(loc="best")
         path = output_dir / "comparison_overview.png"
@@ -158,6 +207,12 @@ def generate_comparison_figures(
         "cases": [case_id for case_id, _, _, _ in datasets], "generated_figures": generated,
         "skipped_fields": skipped, "comparison_metrics_csv": csv_path.name, "metrics": metrics,
     }
+    if rho_max_options is not None:
+        summary["rho_max_plot"] = {
+            "geometric_focus_m": rho_max_options[0],
+            "half_window_m": rho_max_options[1],
+            "density_unit": "1e16 cm^-3",
+        }
     if stage_metadata: summary.update(stage_metadata)
     (output_dir / "comparison_summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return summary
@@ -179,7 +234,10 @@ def main() -> int:
         spec = json.loads(Path(args.stage_spec).read_text(encoding="utf-8"))
         metadata = {"stage_id": spec["stage_id"], "stage_name": spec["stage_name"], "comparison_mode": spec["comparison_mode"], "fixed_peak_power_W": spec["required_invariants"]["beam.P0_peak"], "cases": args.case_ids}
     results = [(case_id, label, load_result_file(path)) for case_id, label, path in zip(args.case_ids, args.labels, args.inputs)]
-    generate_comparison_figures(results, args.out_dir, [x for x in args.fields.split(",") if x], args.dpi, args.z_shift_cm, metadata)
+    generate_comparison_figures(
+        results, args.out_dir, [x for x in args.fields.split(",") if x], args.dpi, args.z_shift_cm, metadata,
+        spec.get("rho_max_plot") if args.stage_spec else None,
+    )
     return 0
 
 
