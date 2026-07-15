@@ -1,0 +1,53 @@
+{
+  "stage_id": "vacuum_focus_profile_scan_20260715_001",
+  "objective": "Differential linear-vacuum focus scan for physically distinct FT90 mathematical definitions; the geometric-focus coordinate is never recentered.",
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m thin-lens geometric focus for every profile and every grid.",
+  "common": {
+    "wavelength_m": 8.0e-7,
+    "refractive_index": 1.0,
+    "peak_power_W": 17000000000.0,
+    "focal_length_m": 0.95,
+    "nominal_radius_m": 0.001979,
+    "z_min_m": 0.75,
+    "z_max_m": 1.15,
+    "dz_output_m": 0.00025,
+    "Lx_m": 0.008,
+    "Ly_m": 0.008,
+    "Nx": 512,
+    "Ny": 512
+  },
+  "nonlinear_terms": {
+    "electron_kerr": false,
+    "rotational_raman": false,
+    "plasma_refraction": false,
+    "ionization": false,
+    "ionization_loss": false,
+    "collision": false,
+    "recombination": false,
+    "absorption": false,
+    "gas_dispersion": false,
+    "self_steepening": false
+  },
+  "profiles": [
+    {"id": "P1_current_ft90", "label": "P1 current FT90", "kind": "cosine", "flat_fraction": 0.9, "zero_fraction": 1.0},
+    {"id": "P2_zero_at_90_narrow", "label": "P2 zero at 0.9R, narrow", "kind": "cosine", "flat_fraction": 0.8, "zero_fraction": 0.9},
+    {"id": "P3_zero_at_90_wide", "label": "P3 zero at 0.9R, wide", "kind": "cosine", "flat_fraction": 0.7, "zero_fraction": 0.9},
+    {"id": "P4_hard_top_R", "label": "P4 hard top R", "kind": "hard", "flat_fraction": 1.0, "zero_fraction": 1.0},
+    {"id": "P5_hard_top_0p9R", "label": "P5 hard top 0.9R", "kind": "hard", "flat_fraction": 0.9, "zero_fraction": 0.9},
+    {"id": "P6_P2_second_moment_matched", "label": "P6 P2 cosine, second-moment matched to P1", "kind": "cosine", "flat_fraction": 0.8, "zero_fraction": 0.9, "match_second_moment_to": "P1_current_ft90"}
+  ],
+  "convergence": [
+    {"id": "P1_current_ft90_coarse", "profile_id": "P1_current_ft90", "Nx": 256, "Ny": 256, "Lx_m": 0.008, "Ly_m": 0.008},
+    {"id": "P1_current_ft90_baseline", "profile_id": "P1_current_ft90", "Nx": 512, "Ny": 512, "Lx_m": 0.008, "Ly_m": 0.008},
+    {"id": "P1_current_ft90_refined", "profile_id": "P1_current_ft90", "Nx": 1024, "Ny": 1024, "Lx_m": 0.008, "Ly_m": 0.008},
+    {"id": "P1_current_ft90_window10mm", "profile_id": "P1_current_ft90", "Nx": 640, "Ny": 640, "Lx_m": 0.01, "Ly_m": 0.01}
+  ],
+  "resources": {"partition": "gpu", "gpus": 1, "cpus_per_task": 4, "time": "00:35:00", "array_concurrency": 3},
+  "quality_gates": {
+    "maximum_input_power_relative_error": 0.0001,
+    "maximum_power_drift_relative": 0.0001,
+    "maximum_peak_location_uncertainty_cm": 0.1,
+    "maximum_convergence_delta_cm": 0.1,
+    "maximum_crosscheck_delta_cm": 0.1
+  }
+}

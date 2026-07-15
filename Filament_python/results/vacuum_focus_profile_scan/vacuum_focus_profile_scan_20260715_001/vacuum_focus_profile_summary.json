@@ -1,0 +1,21 @@
+{
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m thin-lens geometric focus for every profile and every grid.",
+  "p1_x_vac_cm": -4.073970808441296,
+  "density_rising_shifts_cm": {
+    "120 fs": -2.588853860883189,
+    "40 fs": -3.269598860979032
+  },
+  "convergence_ok": false,
+  "crosscheck_ok": true,
+  "classification": "inconclusive",
+  "candidates_closing_both_pulse_widths": [],
+  "largest_positive_delta_x_vac_cm": 0.0,
+  "p6_nominal_radius_scale": 1.1172834041640693,
+  "quality_gates": {
+    "maximum_input_power_relative_error": 0.0001,
+    "maximum_power_drift_relative": 0.0001,
+    "maximum_peak_location_uncertainty_cm": 0.1,
+    "maximum_convergence_delta_cm": 0.1,
+    "maximum_crosscheck_delta_cm": 0.1
+  }
+}
