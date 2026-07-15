@@ -3,9 +3,10 @@ from __future__ import annotations
 import dataclasses
 import os
 import time
+import numpy as _np
 
 from .air_dispersion import n_of_omega
-from .constants import N0_air, Ui_N2, c0, n0_air, n2_air
+from .constants import N0_air, Ui_N2, c0, eps0, n0_air, n2_air
 from .config import (
     BeamConfig,
     GridConfig,
@@ -21,7 +22,7 @@ from .grids import make_axes
 from .heat import diffuse_dn_gas
 from .propagate import propagate_one_pulse
 from .summary import print_sim_summary
-from .utils import gaussian_beam_xy, gaussian_pulse_t
+from .utils import gaussian_pulse_t, transverse_intensity_profile
 
 
 def _linear_advance(E, dz, *, axes, kperp2, k0, prop, beam):
@@ -92,6 +93,99 @@ def apply_thin_lens_achromatic(E, axes, beam, prop, chunk_t: int = 0):
     return out
 
 
+def _encircled_radius(radius_m, weights, fraction: float) -> float:
+    """Return the discrete radius enclosing ``fraction`` of weighted power."""
+    order = _np.argsort(radius_m.ravel())
+    sorted_radius = radius_m.ravel()[order]
+    cumulative = _np.cumsum(weights.ravel()[order])
+    if cumulative.size == 0 or cumulative[-1] <= 0.0:
+        return float("nan")
+    index = min(int(_np.searchsorted(cumulative, float(fraction) * cumulative[-1], side="left")), cumulative.size - 1)
+    return float(sorted_radius[index])
+
+
+def build_transverse_input_field(axes, beam, ctype):
+    """Build the pre-lens field and discrete input-profile diagnostics.
+
+    Peak-power normalization is deliberately performed here, after the
+    transverse profile has been sampled on the actual simulation grid.
+    """
+    import numpy as _np
+
+    gI = transverse_intensity_profile(
+        axes.x,
+        axes.y,
+        getattr(beam, "transverse_profile", None),
+        fallback_w0=float(beam.w0),
+    )
+    pref = 0.5 * eps0 * c0 * float(beam.n0)
+    area_eff = float(xp.sum(gI)) * axes.dx * axes.dy
+    if not _np.isfinite(area_eff) or area_eff <= 0.0:
+        raise ValueError("transverse profile has non-positive effective area on this grid")
+
+    p0_target = getattr(beam, "P0_peak", None)
+    energy_target = getattr(beam, "energy_J", None)
+    if p0_target is not None:
+        amplitude = float(float(p0_target) / (pref * area_eff)) ** 0.5
+        norm_source = "P0_peak"
+    elif energy_target is not None:
+        amplitude = 1.0
+        norm_source = "energy_J"
+    else:
+        amplitude = float(getattr(beam, "E0_peak", 0.0) or 0.0)
+        if amplitude <= 0.0:
+            raise ValueError("Beam E0_peak is 0 and no energy_J/P0_peak provided; cannot build input field.")
+        norm_source = "E0_peak_direct"
+
+    E_xy = amplitude * xp.sqrt(gI)
+    E_t = gaussian_pulse_t(axes.t, beam.tau_fwhm)
+    E = (E_t * E_xy[None, ...]).astype(ctype)
+
+    if energy_target is not None:
+        I_in = intensity(E, beam.n0)
+        U_now = float(pulse_energy(I_in, axes.dt, axes.dx, axes.dy))
+        if not _np.isfinite(U_now) or U_now <= 0.0:
+            raise ValueError("cannot normalize a transverse input with zero or non-finite energy")
+        scale = (float(energy_target) / U_now) ** 0.5
+        E *= scale
+        E_xy *= scale
+        amplitude *= scale
+
+    profile = getattr(beam, "transverse_profile", None) or {}
+    profile_type = str(profile.get("type", "gaussian"))
+    profile_radius = float(profile.get("radius_m", beam.w0))
+    edge_start = profile.get("edge_start_fraction", None)
+    iy_center = int(xp.argmin(xp.abs(axes.y)))
+    gI_cpu = _np.asarray(to_cpu(gI), dtype=float)
+    x_cpu = _np.asarray(to_cpu(axes.x), dtype=float)
+    y_cpu = _np.asarray(to_cpu(axes.y), dtype=float)
+    X_cpu, Y_cpu = _np.meshgrid(x_cpu, y_cpu, indexing="xy")
+    r_cpu = _np.sqrt(X_cpu ** 2 + Y_cpu ** 2)
+    g_sum = float(gI_cpu.sum())
+    r2_mean = float((r_cpu ** 2 * gI_cpu).sum() / g_sum) if g_sum > 0.0 else float("nan")
+    boundary = _np.concatenate((gI_cpu[0, :], gI_cpu[-1, :], gI_cpu[1:-1, 0], gI_cpu[1:-1, -1]))
+    boundary_fraction = float(_np.max(boundary) / max(float(_np.max(gI_cpu)), 1e-30))
+    actual_p0 = pref * float(xp.sum(xp.abs(E_xy) ** 2)) * axes.dx * axes.dy
+
+    diagnostics = {
+        "input_profile_x": to_cpu(axes.x),
+        "input_profile_center_I": to_cpu(pref * xp.abs(E_xy[iy_center, :]) ** 2),
+        "input_peak_power_W": actual_p0,
+        "input_peak_intensity_W_m2": pref * amplitude ** 2,
+        "input_effective_area_m2": area_eff,
+        "input_second_moment_radius_m": (2.0 * r2_mean) ** 0.5,
+        "input_r50_m": _encircled_radius(r_cpu, gI_cpu, 0.50),
+        "input_r90_m": _encircled_radius(r_cpu, gI_cpu, 0.90),
+        "input_boundary_I_fraction": boundary_fraction,
+        "input_profile_type": _np.asarray(profile_type),
+        "input_profile_radius_m": profile_radius,
+        "input_profile_edge_start_fraction": float(edge_start) if edge_start is not None else _np.nan,
+        "input_field_amplitude_V_m": amplitude,
+        "input_normalization_source": _np.asarray(norm_source),
+    }
+    return E, diagnostics
+
+
 def run_demo(
     grid: GridConfig = GridConfig(),
     beam: BeamConfig = BeamConfig(n0=n0_air),
@@ -109,18 +203,12 @@ def run_demo(
     rtype = rmap.get(str(dtype).lower(), xp.float32)
 
     import math
-    import numpy as _np
 
     omega0 = 2 * math.pi * c0 / beam.lam0
     k0 = beam.n0 * omega0 / c0
     axes = make_axes(grid.Nx, grid.Ny, grid.Nt, grid.Lx, grid.Ly, grid.Twin)
 
-    if getattr(beam, "E0_peak", 0.0) == 0.0:
-        raise ValueError("Beam E0_peak is 0 and no energy_J/P0_peak provided; cannot build input field.")
-
-    E_xy = gaussian_beam_xy(axes.x, axes.y, beam.w0)[None, ...]
-    E_t = gaussian_pulse_t(axes.t, beam.tau_fwhm)
-    E = (beam.E0_peak * E_t * E_xy).astype(ctype)
+    E, input_profile = build_transverse_input_field(axes, beam, ctype)
 
     if getattr(beam, "focal_length", None):
         if str(getattr(prop, "linear_model", "uppe")).lower() == "uppe":
@@ -131,18 +219,10 @@ def run_demo(
             onej = xp.array(1j, dtype=E.dtype)
             E *= xp.exp(onej * xp.asarray(phase_lens, dtype=(xp.float32 if E.dtype == xp.complex64 else xp.float64)))
 
-    U_target = getattr(beam, "energy_J", None)
-    if U_target is not None:
-        I_in = intensity(E, beam.n0)
-        U_now = float(pulse_energy(I_in, axes.dt, axes.dx, axes.dy)) + 1e-30
-        if abs(U_now - U_target) / U_target > 1e-3:
-            scale = (float(U_target) / U_now) ** 0.5
-            E *= scale
-            print(f"[norm] input energy: {U_now:.3e} J -> target {U_target:.3e} J (scale {scale:.3e})")
-
     n2_used = float(getattr(prop, "n2", getattr(beam, "n2_air", n2_air)))
     print_sim_summary(grid=grid, beam=beam, prop=prop, ion=ion, heat=heat, run=run,
-                      axes=axes, E=E, n2_used=n2_used, raman=raman, dtype_str=dtype)
+                      axes=axes, E=E, n2_used=n2_used, raman=raman, dtype_str=dtype,
+                      input_profile=input_profile)
 
     def measure_input_waist(E0, axes):
         it0 = E0.shape[0] // 2
@@ -256,6 +336,7 @@ def run_demo(
         "I_out_center_t": to_cpu(I_out[:, grid.Ny // 2, grid.Nx // 2]),
         "dn_gas": to_cpu(dn_gas),
     }
+    out.update(input_profile)
     diag_keys = [
         "z_axis", "U_z", "I_max_z", "I_onaxis_max_z", "I_center_t0_z",
         "w_mom_z", "rho_onaxis_max_z", "rho_max_z",

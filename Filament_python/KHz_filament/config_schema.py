@@ -27,6 +27,13 @@ BEAM_DERIVED_FIELDS: Dict[str, str] = {
 }
 
 
+TRANSVERSE_PROFILE_TYPES: Set[str] = {
+    "gaussian",
+    "flat_top_cosine",
+    "super_gaussian",
+}
+
+
 RATE_ALIAS_MAP: Dict[str, str] = {
     # historical shorthand
     "ppt_talebpour_i": "ppt_talebpour_i_lut",

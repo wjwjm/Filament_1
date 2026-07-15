@@ -12,7 +12,7 @@
 | `Filament_python/khz_config.json` | 常规高分辨率传播 |
 | `Filament_python/khz_config_lut.json` | Talebpour LUT 缓存和焦区窗口 |
 
-`confio.py` 支持 JSON/YAML/TOML。规范化时，`energy_J` 与 `P0_peak` 互斥；仅当 `E0_peak=0` 时才由其中之一反推电场。`Twin` 缺省时按 `8 * tau_fwhm` 补齐，`species.fraction` 会归一化。
+`confio.py` 支持 JSON/YAML/TOML。规范化时，`energy_J` 与 `P0_peak` 互斥；二者的场幅归一化会在运行入口建立离散时空场后执行，避免把高斯解析面积错误套用于其他横向轮廓。`Twin` 缺省时按 `8 * tau_fwhm` 补齐，`species.fraction` 会归一化。
 
 ---
 
@@ -37,7 +37,8 @@
 - **tau_fwhm (float, s)**：脉冲强度包络的 FWHM（半高全宽）。
 - **E0_peak (float)**：电场幅值的峰值（注释强调“不是峰值强度”）。当你直接指定电场初始幅值时使用。
 - **energy_J (Optional[float], J)**：单脉冲能量。与 `P0_peak` 互斥；当 `E0_peak=0` 时用于反推幅值。
-- **P0_peak (Optional[float], W)**：脉冲中心的峰值功率。与 `energy_J` 互斥；当 `E0_peak=0` 时用于反推幅值。
+- **P0_peak (Optional[float], W)**：脉冲中心的峰值功率。与 `energy_J` 互斥；在离散横向轮廓建立后归一化，保证实际网格上的峰值功率匹配目标。
+- **transverse_profile (Optional[dict])**：横向强度轮廓。省略时沿用 `w0` 为 `1/e` 场半径的 Gaussian；可显式写为 `{ "type": "gaussian", "radius_m": ... }` 或 `{ "type": "flat_top_cosine", "radius_m": ..., "edge_start_fraction": 0.9 }`。平顶轮廓定义的是强度，电场幅度自动取其平方根。
 - **focal_length (float, m)**：透镜焦距（用于加入聚焦相位/等效曲率）。
 - **n2_air (float, (m²/W) 或等效单位)**：空气 Kerr 非线性系数 n₂（用于 `Δn = n2 * I`）。
 
