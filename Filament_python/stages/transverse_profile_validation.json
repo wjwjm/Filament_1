@@ -25,6 +25,7 @@
   "quality_gates": {"require_strictly_increasing_z": true, "maximum_energy_growth_fraction": 0.1, "maximum_adjacent_intensity_growth": 10.0, "maximum_electron_density_m3": 1e25, "require_positive_fwhm": true},
   "filament_threshold_m3": 1e21,
   "dtype": "fp32",
+  "simulation_resources": {"partition": "gpu", "gpus": 1, "cpus_per_task": 8, "memory": "126G", "time": "08:00:00"},
   "postprocess_resources": {"partition": "gpu", "gpus": 1, "cpus_per_task": 4, "time": "00:30:00"},
   "figure_dpi": 200,
   "z_shift_cm": 0.0,
