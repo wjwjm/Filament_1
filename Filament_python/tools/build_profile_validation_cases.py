@@ -66,6 +66,12 @@ def load_stage_spec(path: str | Path) -> dict[str, Any]:
             raise ValueError(f"profile validation simulation_resources missing {key}")
     if int(resources["gpus"]) != 1:
         raise ValueError("profile validation requires exactly one GPU per simulation case")
+    post_resources = spec["postprocess_resources"]
+    for key in ("partition", "gpus", "cpus_per_task", "memory", "time"):
+        if not post_resources.get(key):
+            raise ValueError(f"profile validation postprocess_resources missing {key}")
+    if int(post_resources["gpus"]) != 1:
+        raise ValueError("profile validation requires exactly one GPU for postprocessing")
     return spec
 
 
@@ -168,7 +174,8 @@ def submit_postprocess_job(spec: dict[str, Any], root: Path, jobs: dict[str, str
     command = [
         "sbatch", "--parsable", "--job-name=pv_post_g_ft90", f"--dependency={dependency}",
         f"--partition={resources['partition']}", f"--gres=gpu:{resources['gpus']}",
-        f"--cpus-per-task={resources['cpus_per_task']}", f"--time={resources['time']}",
+        f"--cpus-per-task={resources['cpus_per_task']}", f"--mem={resources['memory']}",
+        f"--time={resources['time']}",
         f"--output={root / 'logs' / 'profile-post-%j.out'}", f"--export=ALL,STAGE_DIR={root}",
         str(script_dir / "sub_profile_validation_postprocess.sh"),
     ]
