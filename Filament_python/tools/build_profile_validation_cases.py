@@ -146,9 +146,12 @@ def submit_simulation_jobs(spec: dict[str, Any], root: Path, config_paths: dict[
     for case in spec["cases"]:
         case_id = case["case_id"]
         paths = _paths(root, case_id)
+        # Slurm's --export syntax is comma-delimited, so preserve the readable
+        # label while replacing commas that would otherwise split the value.
+        case_label = str(case["label"]).replace(",", ";")
         exports = {
             "STAGE_ID": spec["stage_id"], "STAGE_NAME": spec["stage_name"], "RUN_ID": root.name,
-            "CASE_ID": case_id, "CASE_LABEL": case["label"], "PULSE_WIDTH_FS": "120",
+            "CASE_ID": case_id, "CASE_LABEL": case_label, "PULSE_WIDTH_FS": "120",
             "PROFILE_TYPE": case["profile_type"], "RUN_METADATA": str(paths["metadata"]),
             "CFG": str(config_paths[case_id]), "OUT": str(paths["npz"]), "MAT_DIR": str(paths["case_dir"]),
             "MAT_NAME": "result.mat", "FIG_DIR": str(paths["figures"]), "FIG_DPI": str(spec["figure_dpi"]),
@@ -205,7 +208,9 @@ def main() -> int:
     spec_path = Path(args.spec).resolve()
     spec = load_stage_spec(spec_path)
     configs = load_and_validate_case_configs(spec, spec_path)
-    run_id = args.run_id or f"{spec['stage_id']}_{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}"
+    run_id = str(args.run_id or f"{spec['stage_id']}_{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}").strip()
+    if not run_id:
+        raise ValueError("run ID must not be empty")
     root = _stage_root(script_dir, spec, run_id)
     if args.dry_run:
         manifest = build_manifest(
