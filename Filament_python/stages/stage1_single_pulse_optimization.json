@@ -1,0 +1,30 @@
+{
+  "stage_id": "stage1",
+  "stage_name": "single_pulse_filament_optimization",
+  "display_name": "Stage 1: Single-pulse filament optimization",
+  "objective": "Compare single-pulse filamentation at 40 fs and 120 fs under otherwise identical conditions.",
+  "base_config": "../khz_config.json",
+  "comparison_mode": "same_peak_power_different_pulse_duration",
+  "required_invariants": {
+    "run.Npulses": 1,
+    "beam.P0_peak": 17000000000.0,
+    "beam.energy_J": null
+  },
+  "cases": [
+    {"case_id": "40fs", "label": "40 fs", "tau_fwhm_fs": 40.0},
+    {"case_id": "120fs", "label": "120 fs", "tau_fwhm_fs": 120.0}
+  ],
+  "comparison_fields": ["I_max_z", "I_onaxis_max_z", "rho_onaxis_max_z", "rho_max_z", "w_mom_z", "U_z", "fwhm_plasma_z", "fwhm_fluence_z"],
+  "quality_gates": {
+    "require_strictly_increasing_z": true,
+    "maximum_energy_growth_fraction": 0.10,
+    "maximum_adjacent_intensity_growth": 10.0,
+    "maximum_electron_density_m3": 1.0e25,
+    "require_positive_fwhm": true
+  },
+  "postprocess_resources": {"partition": "gpu", "gpus": 1, "cpus_per_task": 4, "time": "00:30:00"},
+  "figure_dpi": 200,
+  "z_shift_cm": 0.0,
+  "convert_to_mat": true,
+  "remove_npz_after_success": true
+}

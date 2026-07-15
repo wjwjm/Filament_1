@@ -43,7 +43,7 @@ def test_generate_all_figures_and_summary(tmp_path: Path) -> None:
     npz_path = _write_synthetic_npz(tmp_path / "run.npz")
     figure_dir = tmp_path / "figures"
 
-    summary = generate_figures(npz_path, figure_dir, z_shift_cm=-20.0, dpi=80)
+    summary = generate_figures(npz_path, figure_dir, z_shift_cm=-20.0, dpi=80, metadata={"stage_id": "stage1", "case_id": "40fs", "pulse_width_fs": 40.0})
 
     assert set(summary["generated_figures"]) == set(FIGURE_SPECS.values())
     for name in FIGURE_SPECS.values():
@@ -53,6 +53,8 @@ def test_generate_all_figures_and_summary(tmp_path: Path) -> None:
     assert saved["metrics"]["z_I_max_peak_m"] == pytest.approx(0.02)
     assert saved["metrics"]["U_drift_pct"] == pytest.approx(-2.0)
     assert saved["z_shift_cm"] == -20.0
+    assert saved["stage_id"] == "stage1" and saved["case_id"] == "40fs"
+    assert saved["quality_observations"]["z_strictly_increasing"] is True
 
 
 def test_missing_optional_fields_skips_only_affected_figures(tmp_path: Path) -> None:
