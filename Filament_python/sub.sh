@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH -p gpu
-#SBATCH -x g0601,g0605
 
 set -euo pipefail
 
