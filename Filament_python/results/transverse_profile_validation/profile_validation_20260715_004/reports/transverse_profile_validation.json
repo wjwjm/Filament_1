@@ -1,0 +1,94 @@
+{
+  "stage_id": "profile_validation",
+  "stage_name": "transverse_profile_validation",
+  "objective": "Quantify the controlled effect of interpreting the measured beam radius as a Gaussian field radius versus an FT90 aperture radius.",
+  "technical_status": "completed",
+  "quality_gate_status": "passed",
+  "scientific_interpretation_status": "controlled_comparison_only",
+  "interpretation_limit": "No experimental reference curve is supplied; the report quantifies differences only and does not assign causal importance.",
+  "filament_threshold_m3": 1e+21,
+  "cases": {
+    "profile_g_120": {
+      "metadata": {
+        "stage_id": "profile_validation",
+        "stage_name": "transverse_profile_validation",
+        "run_id": "profile_validation_20260715_004",
+        "case_id": "profile_g_120",
+        "case_label": "Gaussian; 120 fs",
+        "pulse_width_fs": 120.0,
+        "profile_type": "gaussian",
+        "slurm_job_id": "170696",
+        "config_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/configs/profile_g_120.json",
+        "output_npz": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_g_120/result.npz",
+        "output_mat": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_g_120/result.mat",
+        "figure_dir": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_g_120/figures",
+        "status": "completed",
+        "exit_code": 0
+      },
+      "profile_type": "gaussian",
+      "input": {
+        "input_peak_power_W": 17000000000.000006,
+        "input_peak_intensity_W_m2": 2763652403162880.0,
+        "input_effective_area_m2": 6.1512800888216775e-06,
+        "input_second_moment_radius_m": 0.001978096850291704,
+        "input_r50_m": 0.0011644556802429193,
+        "input_r90_m": 0.0021236783573848938,
+        "input_boundary_I_fraction": 0.00030142939569711367
+      },
+      "filament_metrics": {
+        "status": "detected",
+        "rho_threshold_m3": 1e+21,
+        "rho_peak_m3": 5.17310249617558e+22,
+        "z_rho_peak_m": 0.8140000104904175,
+        "I_max_peak_W_m2": 6.52331864983339e+17,
+        "fwhm_plasma_at_rho_peak_m": 8.876636275090277e-05,
+        "z_on_m": 0.7789000272750854,
+        "z_end_m": 0.9873499870300293,
+        "filament_length_m": 0.20844995975494385
+      },
+      "quality_gate_failures": []
+    },
+    "profile_ft90_120": {
+      "metadata": {
+        "stage_id": "profile_validation",
+        "stage_name": "transverse_profile_validation",
+        "run_id": "profile_validation_20260715_004",
+        "case_id": "profile_ft90_120",
+        "case_label": "FT90; 120 fs",
+        "pulse_width_fs": 120.0,
+        "profile_type": "flat_top_cosine",
+        "slurm_job_id": "170697",
+        "config_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/configs/profile_ft90_120.json",
+        "output_npz": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_ft90_120/result.npz",
+        "output_mat": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_ft90_120/result.mat",
+        "figure_dir": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_ft90_120/figures",
+        "status": "completed",
+        "exit_code": 0
+      },
+      "profile_type": "flat_top_cosine",
+      "input": {
+        "input_peak_power_W": 17000000000.000002,
+        "input_peak_intensity_W_m2": 1530144103581916.0,
+        "input_effective_area_m2": 1.1110064705804298e-05,
+        "input_second_moment_radius_m": 0.0018825141432040637,
+        "input_r50_m": 0.0013295029616364154,
+        "input_r90_m": 0.001783715399103792,
+        "input_boundary_I_fraction": 0.0
+      },
+      "filament_metrics": {
+        "status": "detected",
+        "rho_threshold_m3": 1e+21,
+        "rho_peak_m3": 5.9098260930187965e+22,
+        "z_rho_peak_m": 0.8008000254631042,
+        "I_max_peak_W_m2": 5.756546728413102e+17,
+        "fwhm_plasma_at_rho_peak_m": 7.256853132275864e-05,
+        "z_on_m": 0.7738000154495239,
+        "z_end_m": 1.2963500022888184,
+        "filament_length_m": 0.5225499868392944
+      },
+      "quality_gate_failures": []
+    }
+  },
+  "comparison_summary": "comparison/comparison_summary.json",
+  "input_profile_figure": "reports/input_profiles.png"
+}

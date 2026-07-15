@@ -1,0 +1,43 @@
+{
+  "npz_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_g_120/result.npz",
+  "figure_dir": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_g_120/figures",
+  "Nz": 15000,
+  "z_shift_cm": 0.0,
+  "generated_figures": [
+    "01_intensity_vs_z.png",
+    "02_plasma_density_vs_z.png",
+    "03_beam_radius_vs_z.png",
+    "04_energy_vs_z.png",
+    "05_fwhm_vs_z.png",
+    "06_rho_onaxis_t_z.png"
+  ],
+  "skipped_figures": {},
+  "sanity_warnings": [],
+  "quality_observations": {
+    "z_strictly_increasing": true,
+    "max_energy_growth_fraction": 0.0,
+    "max_adjacent_intensity_growth": 1.0032677810584807,
+    "max_electron_density_m3": 5.17310249617558e+22,
+    "fwhm_all_positive_finite": true
+  },
+  "metrics": {
+    "I_max_peak_W_m2": 6.52331864983339e+17,
+    "z_I_max_peak_m": 0.8861500024795532,
+    "z_I_max_peak_plot_cm": 88.61500024795532,
+    "rho_onaxis_peak_m_3": 5.17310249617558e+22,
+    "z_rho_onaxis_peak_m": 0.8140000104904175,
+    "z_rho_onaxis_peak_plot_cm": 81.40000104904175,
+    "w_mom_min_m": 0.00019484912627376616,
+    "z_focus_est_m": 0.859000027179718,
+    "z_focus_est_plot_cm": 85.9000027179718,
+    "U0_J": 0.002171511063352227,
+    "U_end_J": 0.0020238803699612617,
+    "U_drift_pct": -6.798523658592992
+  },
+  "stage_id": "profile_validation",
+  "stage_name": "transverse_profile_validation",
+  "run_id": "profile_validation_20260715_004",
+  "case_id": "profile_g_120",
+  "case_label": "Gaussian; 120 fs",
+  "pulse_width_fs": 120.0
+}

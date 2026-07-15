@@ -1,0 +1,58 @@
+{
+  "cases": [
+    "profile_g_120",
+    "profile_ft90_120"
+  ],
+  "generated_figures": [
+    "compare_I_max_z.png",
+    "compare_I_onaxis_max_z.png",
+    "compare_rho_onaxis_max_z.png",
+    "compare_rho_max_z.png",
+    "compare_w_mom_z.png",
+    "compare_U_z.png",
+    "compare_fwhm_plasma_z.png",
+    "compare_fwhm_fluence_z.png",
+    "comparison_overview.png"
+  ],
+  "skipped_fields": {},
+  "comparison_metrics_csv": "comparison_metrics.csv",
+  "metrics": [
+    {
+      "case_id": "profile_g_120",
+      "case_label": "Gaussian, 120 fs",
+      "z_points": 15000,
+      "I_max_z_peak": 6.52331864983339e+17,
+      "z_I_max_z_peak_m": 0.8861500024795532,
+      "rho_onaxis_max_z_peak": 5.17310249617558e+22,
+      "z_rho_onaxis_max_z_peak_m": 0.8140000104904175,
+      "w_mom_min_m": 0.00019484912627376616,
+      "z_w_mom_min_m": 0.859000027179718,
+      "U0_J": 0.002171511063352227,
+      "U_end_J": 0.0020238803699612617,
+      "U_drift_pct": -6.798523658592992
+    },
+    {
+      "case_id": "profile_ft90_120",
+      "case_label": "FT90, 120 fs",
+      "z_points": 15000,
+      "I_max_z_peak": 5.756546728413102e+17,
+      "z_I_max_z_peak_m": 0.8306000232696533,
+      "rho_onaxis_max_z_peak": 5.9098260930187965e+22,
+      "z_rho_onaxis_max_z_peak_m": 0.8008000254631042,
+      "w_mom_min_m": 0.0003977399319410324,
+      "z_w_mom_min_m": 0.8435999751091003,
+      "U0_J": 0.00217151059769094,
+      "U_end_J": 0.002049626549705863,
+      "U_drift_pct": -5.612869129659392
+    }
+  ],
+  "rho_max_plot": {
+    "geometric_focus_m": 0.95,
+    "half_window_m": 0.2,
+    "density_unit": "1e16 cm^-3"
+  },
+  "stage_id": "profile_validation",
+  "stage_name": "transverse_profile_validation",
+  "comparison_mode": "same_peak_power_same_geometry_different_transverse_profile",
+  "fixed_peak_power_W": 17000000000.0
+}
