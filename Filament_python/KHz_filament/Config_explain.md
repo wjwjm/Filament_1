@@ -1,6 +1,18 @@
 # `Filament_python/KHz_filament/config.py` 参数说明
 
-> 按 `config.py` 中出现顺序逐项解释每个参数含义。单位以代码注释/常用约定为准。
+> `config.py` 是默认值来源；`config_schema.py` 定义字段和 rate 别名；`config_normalize.py` 负责兼容、校验和派生量。本页解释稳定的公共配置含义，不替代这三个源码文件。
+
+## 配置文件与加载规则
+
+当前仓库提供三份可运行 JSON 配置：
+
+| 文件 | 定位 |
+| --- | --- |
+| `Filament_python/config_ref.json` | 小网格、短距离的 smoke test/reference 基准 |
+| `Filament_python/khz_config.json` | 常规高分辨率传播 |
+| `Filament_python/khz_config_lut.json` | Talebpour LUT 缓存和焦区窗口 |
+
+`confio.py` 支持 JSON/YAML/TOML。规范化时，`energy_J` 与 `P0_peak` 互斥；仅当 `E0_peak=0` 时才由其中之一反推电场。`Twin` 缺省时按 `8 * tau_fwhm` 补齐，`species.fraction` 会归一化。
 
 ---
 
@@ -24,8 +36,8 @@
 - **w0 (float, m)**：束腰半径（1/e **电场**半径，高斯束常用定义）。
 - **tau_fwhm (float, s)**：脉冲强度包络的 FWHM（半高全宽）。
 - **E0_peak (float)**：电场幅值的峰值（注释强调“不是峰值强度”）。当你直接指定电场初始幅值时使用。
-- **energy_J (Optional[float], J)**：单脉冲能量（可用能量反推幅值；None 表示不通过能量约束）。
-- **P0_peak (Optional[float], W)**：峰值功率（通常指脉冲中心时刻对横截面积分得到的功率）。若提供，可能用于替代/辅助 `energy_J` 或用于诊断归一。
+- **energy_J (Optional[float], J)**：单脉冲能量。与 `P0_peak` 互斥；当 `E0_peak=0` 时用于反推幅值。
+- **P0_peak (Optional[float], W)**：脉冲中心的峰值功率。与 `energy_J` 互斥；当 `E0_peak=0` 时用于反推幅值。
 - **focal_length (float, m)**：透镜焦距（用于加入聚焦相位/等效曲率）。
 - **n2_air (float, (m²/W) 或等效单位)**：空气 Kerr 非线性系数 n₂（用于 `Δn = n2 * I`）。
 
@@ -111,15 +123,17 @@
 ## IonizationConfig（电离/等离子体相关配置）
 
 ### 物种与通道组合
-- **species (Optional[List[dict]])**：电离物种列表。每个 dict 描述一个组分/通道，按 `fraction` 加权叠加电离率 `W`。常见键（见代码注释）：
+- **species (Optional[List[dict]])**：电离物种列表。每个 dict 描述一个组分/通道，按 `fraction` 加权叠加电离率 `W`；规范化阶段会将非零 fraction 归一化。常见键：
   - `name`：物种名
-  - `rate`：速率模型（如 ppt/adk/powerlaw/off 等）
-  - `fraction`：该组分体积分数（通常应归一化使总和为 1；当前 `__post_init__` 被注释，说明可能在别处归一化或要求输入已归一）
+  - `rate`：速率模型
+  - `fraction`：该组分体积分数
   - 不同模型需要的参数（当前保留分支）：
-    - `ppt_talebpour_i_full` / `ppt_talebpour_i_legacy`：`Ip_eV, Ip_eV_eff, Zeff, l, m, max_terms(可选), sum_rel_tol(可选)`
-    - `popruzhenko_atom_i_full`：`Ip_eV, Z, l, m, max_terms(可选), sum_rel_tol(可选)`
+    - `ppt_talebpour_i_lut` / `ppt_talebpour_i_full_reference` / `ppt_talebpour_i_legacy`：`Ip_eV, Ip_eV_eff, Zeff, l, m` 等
+    - `popruzhenko_atom_i_lut` / `popruzhenko_atom_i_full_reference` / `popruzhenko_atom_i_legacy`：`Ip_eV, Z, l, m` 等
     - `mpa_fact`：`ell, I_mp`
-  - 兼容别名：`ppt_talebpour_i -> ppt_talebpour_i_full`，`popruzhenko_atom_i -> popruzhenko_atom_i_full`（运行时日志会提示映射）
+  - 兼容别名：`ppt_talebpour_i -> ppt_talebpour_i_lut`，`ppt_talebpour_i_full -> ppt_talebpour_i_full_reference`，`popruzhenko_atom_i -> popruzhenko_atom_i_lut`，`popruzhenko_atom_i_full -> popruzhenko_atom_i_full_reference`
+
+  已移除 `ppt_e`、`ppt_i`、`adk_e`、`powerlaw`、`mpa` 等旧名称；多光子近似使用 `mpa_fact`，禁用电离使用 `off`。
 
 ### 时间处理与积分方式
 - **time_mode (TimeMode)**：电离计算时间近似模式（见上）。

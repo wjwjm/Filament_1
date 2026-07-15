@@ -1,71 +1,56 @@
 # ionization 子包说明
 
-该子包实现电离相关功能，采用“模型 / LUT / 运行时”分层。
+本子包将电离实现分为“模型 / 注册表 / LUT / runtime”四层，目标是在不改变传播主循环接口的前提下，支持可验证的模型切换与缓存复用。
 
-- `models_ppt.py`：PPT/Talebpour 分支实现。
-- `models_popruzhenko.py`：Popruzhenko 原子分支实现。
-- `lut.py`：LUT 构建、签名、缓存与插值。
-- `runtime.py`：传播主循环调用接口（如 `make_Wfunc`、密度演化）。
-- `rate_registry.py`：rate 名称映射、别名与模型族管理。
-- `common.py`：数值安全与通用工具。
-- `__init__.py`：对外导出稳定 API。
+| 文件 | 职责 |
+| --- | --- |
+| `models_ppt.py` | PPT/Talebpour reference evaluator |
+| `models_popruzhenko.py` | Popruzhenko 原子 reference evaluator |
+| `rate_registry.py` | 支持的 rate、历史别名与移除项 |
+| `lut.py` | LUT 签名、构建、缓存和插值 |
+| `runtime.py` | `make_Wfunc` 与传播阶段的运行时接口 |
+| `common.py` | 单位、裁剪和数值安全工具 |
 
-目标：在不改变主循环接口的前提下，支持模型扩展与缓存复用。
+## 当前 rate 约定
 
-## 新增或修改电离模型的同步流程
-电离子包采用“模型 / LUT / runtime”分层。新增或修改 rate model 时，不应只改一个公式文件。
+- 推荐 runtime：`ppt_talebpour_i_lut`、`popruzhenko_atom_i_lut`。
+- reference 对照：`ppt_talebpour_i_full_reference`、`popruzhenko_atom_i_full_reference`。
+- 回归兼容：`ppt_talebpour_i_legacy`、`popruzhenko_atom_i_legacy`。
+- `ppt_talebpour_i_full` 和 `popruzhenko_atom_i_full` 是历史别名，会分别映射到对应的 `*_full_reference`。
+- `ppt_e`、`ppt_i`、`adk_e`、`powerlaw`、`mpa` 等已移除；多光子近似使用 `mpa_fact`。
 
-必须同步检查：
+N2/O2 使用原子模型时属于 atomic proxy，不能当作严格分子模型解释。物种参数、`Ip_eV_eff`、`Zeff`、`fraction`、`time_mode` 和限幅项会直接影响电子密度量级。
 
-1. `models_*.py`
-   - 放置具体电离率公式或 reference evaluator；
-   - 明确输入强度/电场单位和输出单位；
-   - 避免在模型内部读取全局配置文件。
+## 修改模型时的同步项
 
-2. `rate_registry.py`
-   - 注册新的 rate 名称；
-   - 明确别名映射；
-   - 明确模型族和是否支持 LUT；
-   - 删除或替换旧 rate 名称时，应给出清晰报错或迁移提示。
+1. 在 `models_*.py` 实现或修改 reference evaluator，明确输入/输出单位。
+2. 在 `rate_registry.py` 注册 rate、别名、模型族和 LUT 支持情况。
+3. 若支持 LUT，在 `lut.py` 中确保物理参数和采样/参考精度进入缓存签名。
+4. 在 `runtime.py` 保持主循环调用接口稳定；不要把模型选择散落到 `nonlinear.py`。
+5. 同步更新 [运行指南](../../README.md)、本文件、测试或 LUT 验证命令。
 
-3. `lut.py`
-   - 如果模型支持 LUT，需要纳入缓存签名；
-   - 确保物理参数、采样参数和 reference 精度参数变化时会触发重建；
-   - 检查插值模式是否适合速率动态范围。
+## 验证命令
 
-4. `runtime.py`
-   - 确保 `make_Wfunc` 或等价 runtime 接口能调用新模型；
-   - 保持传播主循环调用接口稳定；
-   - 避免把模型选择逻辑散落到 `nonlinear.py`。
-
-5. 文档与测试
-   - 在 `Filament_python/README.md` 中补充配置示例；
-   - 必要时更新本 README；
-   - 添加或更新最小测试、自检脚本或 LUT 验证命令。
-
-## 电离模型修改后的最低检查
-修改电离相关代码后，至少执行：
-
-```bash
+```powershell
 python -m compileall Filament_python/KHz_filament
 pytest -q Filament_python/tests/test_sanity.py
-PYTHONPATH=Filament_python python Filament_python/tests/ionization_selfcheck_min.py
+$previousPythonPath = $env:PYTHONPATH
+try {
+  $env:PYTHONPATH = (Resolve-Path Filament_python)
+  python Filament_python/tests/ionization_selfcheck_min.py
+} finally {
+  $env:PYTHONPATH = $previousPythonPath
+}
+python Filament_python/tools/validate_ion_lut_runtime.py --config Filament_python/khz_config_lut.json --outdir Filament_python/lut_validation
 ```
 
-如果修改了 LUT 逻辑，还应执行或说明未执行原因：
+`khz_config_lut.json` 是当前可运行的 LUT 配置；验证可能读取或构建 `cache/rate_tables`，不要将缓存纳入提交。
 
-```bash
-python Filament_python/tools/validate_ion_lut_runtime.py --config Filament_python/config.json
-```
+## 常见问题
 
-如果本地环境缺少依赖、GPU 或算力不足，应在提交摘要中说明实际执行了哪些替代检查。
-
-## 电离相关常见问题定位
 | 现象 | 优先检查 |
-|---|---|
-| 电子密度整体偏低 | `Ip_eV`、`Zeff`、`fraction`、`time_mode`、`W_scale`、强度单位 |
-| 电子密度整体偏高 | `I_cap`、`W_cap`、中性粒子密度、重复计算电离、单位换算 |
-| LUT 与 reference 差异大 | `lut.py`、采样范围、`interp_mode`、reference 精度参数 |
-| 缓存没有复用 | `rate_table` 配置、缓存签名、`force_rebuild`、`cache_dir` |
-| N2/O2 结果异常 | 是否误用 atomic proxy、`Ip_eV_eff`、`Zeff`、模型族映射 |
-| runtime 很慢 | 是否未启用 LUT、`cycle_avg_samples` 是否过大、是否重复构建表 |
+| --- | --- |
+| 电子密度偏低/偏高 | `Ip_eV`、`Ip_eV_eff`、`Zeff`、`fraction`、`time_mode`、`I_cap`、`W_cap`、强度单位 |
+| LUT 与 reference 偏差大 | 强度采样范围、`interp_mode`、reference 参数与缓存签名 |
+| 缓存未复用 | `rate_table`、`reuse_cache`、`force_rebuild`、`cache_dir` 和签名日志 |
+| runtime 过慢 | LUT 是否启用、`cycle_avg_samples`、是否重复构建表 |
