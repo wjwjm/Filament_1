@@ -24,6 +24,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--fig-dpi", type=int, default=200, help="PNG resolution for Slurm/headless diagnostics")
     p.add_argument("--z-shift-cm", type=float, default=0.0, help="Manual plotted z-axis shift in cm")
     p.add_argument("--no-plots", action="store_true", help="Skip diagnostic PNG generation even if --fig-dir is set")
+    p.add_argument("--fig-metadata-json", type=str, default=None, help="Optional stage/case metadata JSON added to diagnostic_summary.json")
     p.add_argument("--remove-npz", action="store_true", help="Remove npz only after all enabled plots and MAT conversion succeed")
     p.add_argument("--verbose-backend", action="store_true", help="Print backend debug details")
     return p
@@ -71,12 +72,21 @@ def _postprocess_output(args: argparse.Namespace) -> None:
     if args.fig_dir and not args.no_plots:
         from plot_khzfil_out import generate_figures
 
+        metadata = None
+        if getattr(args, "fig_metadata_json", None):
+            import json
+
+            metadata = json.loads(pathlib.Path(args.fig_metadata_json).read_text(encoding="utf-8"))
+            if not isinstance(metadata, dict):
+                raise ValueError("--fig-metadata-json must contain a JSON object")
+
         summary = generate_figures(
             npz_path=out_npz,
             figure_dir=args.fig_dir,
             selected_figures=args.fig_select,
             z_shift_cm=args.z_shift_cm,
             dpi=args.fig_dpi,
+            metadata=metadata,
         )
         for name in summary["generated_figures"]:
             print(f"[figures] wrote: {pathlib.Path(args.fig_dir) / name}")

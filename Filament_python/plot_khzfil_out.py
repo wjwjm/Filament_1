@@ -155,12 +155,43 @@ def _write_figure(fig: plt.Figure, path: Path, dpi: int) -> None:
     plt.close(fig)
 
 
+def _quality_observations(series: dict[str, np.ndarray], z: np.ndarray) -> dict[str, Any]:
+    """Return numerical facts used by stage quality gates."""
+    observations: dict[str, Any] = {
+        "z_strictly_increasing": bool(np.all(np.isfinite(z)) and np.all(np.diff(z) > 0)),
+        "max_energy_growth_fraction": None,
+        "max_adjacent_intensity_growth": None,
+        "max_electron_density_m3": None,
+        "fwhm_all_positive_finite": True,
+    }
+    if "U_z" in series:
+        valid = series["U_z"][np.isfinite(series["U_z"])]
+        if valid.size and valid[0] != 0:
+            observations["max_energy_growth_fraction"] = float(np.max(valid / valid[0] - 1.0))
+    if "I_max_z" in series:
+        values = _positive_for_log(series["I_max_z"])
+        ratios = values[1:] / values[:-1]
+        ratios = ratios[np.isfinite(ratios)]
+        if ratios.size:
+            observations["max_adjacent_intensity_growth"] = float(np.max(ratios))
+    if "rho_onaxis_max_z" in series:
+        values = series["rho_onaxis_max_z"]
+        values = values[np.isfinite(values)]
+        if values.size:
+            observations["max_electron_density_m3"] = float(np.max(values))
+    for name in ("fwhm_plasma_z", "fwhm_fluence_z"):
+        if name in series and np.any(~np.isfinite(series[name]) | (series[name] <= 0)):
+            observations["fwhm_all_positive_finite"] = False
+    return observations
+
+
 def generate_figures(
     npz_path: str | Path,
     figure_dir: str | Path,
     selected_figures: str | Iterable[str] = "all",
     z_shift_cm: float = 0.0,
     dpi: int = 200,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Generate selected diagnostics and return/write a JSON-serialisable summary.
 
@@ -220,6 +251,7 @@ def generate_figures(
     skipped: dict[str, str] = {}
     warnings = _sanity_warnings(series, z)
     metrics: dict[str, Any] = {}
+    quality_observations = _quality_observations(series, z)
 
     peak, index = _finite_peak(_positive_for_log(series["I_max_z"])) if "I_max_z" in series else (None, None)
     if peak is not None and index is not None:
@@ -375,8 +407,13 @@ def generate_figures(
         "generated_figures": generated,
         "skipped_figures": skipped,
         "sanity_warnings": warnings,
+        "quality_observations": {key: _json_value(value) for key, value in quality_observations.items()},
         "metrics": {key: _json_value(value) for key, value in metrics.items()},
     }
+    if metadata:
+        for key in ("stage_id", "stage_name", "run_id", "case_id", "case_label", "pulse_width_fs", "comparison_mode"):
+            if key in metadata:
+                summary[key] = _json_value(metadata[key])
     summary_path = figure_dir / "diagnostic_summary.json"
     summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     summary["summary_path"] = str(summary_path)
@@ -391,12 +428,18 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--z-shift-cm", type=float, default=0.0, help="Manual plotted z-axis shift in cm")
     parser.add_argument("--dpi", type=int, default=200, help="PNG resolution")
     parser.add_argument("--prefix", default="", help="Optional prefix added to generated PNG file names")
+    parser.add_argument("--metadata-json", default=None, help="Optional JSON file with stage/case metadata")
     return parser
 
 
 def main() -> int:
     args = _build_parser().parse_args()
-    summary = generate_figures(args.npz, args.fig_dir, args.fig_select, args.z_shift_cm, args.dpi)
+    metadata = None
+    if args.metadata_json:
+        metadata = json.loads(Path(args.metadata_json).read_text(encoding="utf-8"))
+        if not isinstance(metadata, dict):
+            raise ValueError("--metadata-json must contain a JSON object")
+    summary = generate_figures(args.npz, args.fig_dir, args.fig_select, args.z_shift_cm, args.dpi, metadata)
     prefix = args.prefix.strip()
     if prefix:
         figure_dir = Path(args.fig_dir)
