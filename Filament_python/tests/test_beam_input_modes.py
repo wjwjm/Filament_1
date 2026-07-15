@@ -33,7 +33,11 @@ def test_beam_derive_from_p0_peak(tmp_path):
     p.write_text(json.dumps(cfg), encoding="utf-8")
 
     _, beam, *_ = load_all(str(p))
-    assert beam.E0_peak > 0.0
+    # P0_peak is now normalized on the actual discrete transverse profile by
+    # runner.build_transverse_input_field, not with the Gaussian analytic area
+    # during configuration loading.
+    assert beam.E0_peak == 0.0
+    assert beam.P0_peak == 1e9
 
 
 def test_beam_energy_p0_mutually_exclusive(tmp_path):

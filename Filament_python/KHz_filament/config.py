@@ -20,6 +20,9 @@ class BeamConfig:
     E0_peak: float = 0.0            # 仍然支持直接给 E0   电场幅值，不是峰值强度
     energy_J: Optional[float] = 0.68e-3  # 新增：也可只给单脉冲能量
     P0_peak: Optional[float] = None  # 新增：峰值功率（W，脉冲中心时刻的横截面积分功率）
+    # Optional transverse intensity profile.  When omitted, the legacy
+    # Gaussian with ``w0`` as its 1/e field radius is used.
+    transverse_profile: Optional[dict] = None
     focal_length: float = 0.95     #透镜焦距 m
     n2_air: float = 7.8e-24
 @dataclass

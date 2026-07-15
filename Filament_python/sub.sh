@@ -26,8 +26,9 @@ RUN_ID="${RUN_ID:-}"
 CASE_ID="${CASE_ID:-}"
 CASE_LABEL="${CASE_LABEL:-}"
 PULSE_WIDTH_FS="${PULSE_WIDTH_FS:-}"
+PROFILE_TYPE="${PROFILE_TYPE:-}"
 RUN_METADATA="${RUN_METADATA:-}"
-export CFG OUT MAT_DIR MAT_NAME FIG_DIR STAGE_ID STAGE_NAME RUN_ID CASE_ID CASE_LABEL PULSE_WIDTH_FS RUN_METADATA
+export CFG OUT MAT_DIR MAT_NAME FIG_DIR STAGE_ID STAGE_NAME RUN_ID CASE_ID CASE_LABEL PULSE_WIDTH_FS PROFILE_TYPE RUN_METADATA
 
 write_run_metadata() {
   local status="$1"
@@ -49,6 +50,7 @@ data.update({
     "case_id": os.environ.get("CASE_ID", ""),
     "case_label": os.environ.get("CASE_LABEL", ""),
     "pulse_width_fs": float(os.environ["PULSE_WIDTH_FS"]) if os.environ.get("PULSE_WIDTH_FS") else None,
+    "profile_type": os.environ.get("PROFILE_TYPE", ""),
     "slurm_job_id": os.environ.get("SLURM_JOB_ID", ""),
     "config_path": os.environ.get("CFG", ""),
     "output_npz": os.environ.get("OUT", ""),
@@ -73,7 +75,7 @@ mkdir -p "$(dirname "$OUT")" "$MAT_DIR" "$FIG_DIR"
 write_run_metadata "running" 0
 
 echo "[stage] STAGE_ID=$STAGE_ID STAGE_NAME=$STAGE_NAME RUN_ID=$RUN_ID"
-echo "[stage] CASE_ID=$CASE_ID CASE_LABEL=$CASE_LABEL PULSE_WIDTH_FS=$PULSE_WIDTH_FS SLURM_JOB_ID=${SLURM_JOB_ID:-}"
+echo "[stage] CASE_ID=$CASE_ID CASE_LABEL=$CASE_LABEL PULSE_WIDTH_FS=$PULSE_WIDTH_FS PROFILE_TYPE=$PROFILE_TYPE SLURM_JOB_ID=${SLURM_JOB_ID:-}"
 echo "[stage] CFG=$CFG OUT=$OUT MAT_DIR=$MAT_DIR FIG_DIR=$FIG_DIR"
 
 if [[ ! -f "$CFG" ]]; then

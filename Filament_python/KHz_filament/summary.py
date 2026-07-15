@@ -5,7 +5,7 @@ from .ionization.rate_registry import RATE_ALIAS_MAP
 
 
 def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None,
-                      raman=None, dtype_str=None):
+                      raman=None, dtype_str=None, input_profile=None):
     import numpy as _np
     from .diagnostics import intensity, pulse_energy
 
@@ -168,6 +168,23 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     print(f"Linear(线性传播)      : model={linear_model} | factorize={onoff(factorize)} | chunk_t={chunk_t}  # 线性算子设置")
     print(f"Lens(透镜)           : {lens_mode} | f={fL_s} | lens_chunk_t={lens_chunk_t}  # 聚焦模型")
     print(f"Beam(入射光束)       : λ0={fmt(lam0,' m')} n0={fmt(n0)} w0={fmt(w0,' m')} τ_FWHM={fmt(tau,' s')}  # 初始脉冲参数")
+    if input_profile:
+        profile_type = str(input_profile.get("input_profile_type", "gaussian"))
+        radius = input_profile.get("input_profile_radius_m", w0)
+        edge_start = input_profile.get("input_profile_edge_start_fraction", _np.nan)
+        print(f"Profile(横向轮廓)    : {profile_type} | radius={fmt(radius, ' m')}")
+        if _np.isfinite(float(edge_start)):
+            print(f"  Edge start         : {float(edge_start):.3f} R")
+        print(
+            f"  Input P0/I0/Aeff   : {fmt(input_profile.get('input_peak_power_W'), ' W')} / "
+            f"{fmt(input_profile.get('input_peak_intensity_W_m2'), ' W/m^2')} / "
+            f"{fmt(input_profile.get('input_effective_area_m2'), ' m^2')}"
+        )
+        print(
+            f"  Moment/r50/r90     : {fmt(input_profile.get('input_second_moment_radius_m'), ' m')} / "
+            f"{fmt(input_profile.get('input_r50_m'), ' m')} / {fmt(input_profile.get('input_r90_m'), ' m')}"
+        )
+        print(f"  Boundary I fraction: {fmt(input_profile.get('input_boundary_I_fraction'))}")
     print(f"Energy(能量)         : config={fmt(Ucfg,' J')} | actual(after norm)={fmt(Uin,' J')} | E0_peak={fmt(E0p,' V/m')}  # 目标与归一化")
     norm_source = "E0_peak_direct"
     if P0cfg is not None:
