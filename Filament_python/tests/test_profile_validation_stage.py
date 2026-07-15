@@ -36,11 +36,11 @@ def test_profile_stage_requires_one_gpu_and_escapes_export_commas(tmp_path, monk
     for command in commands[:2]:
         assert "--gres=gpu:1" in command
         assert "--cpus-per-task=8" in command
-        assert "--mem=126G" in command
+        assert "--mem=120G" in command
         assert "--time=08:00:00" in command
         export = next(item for item in command if item.startswith("--export="))
         assert "CASE_LABEL=Gaussian; 120 fs" in export or "CASE_LABEL=FT90; 120 fs" in export
     assert "--gres=gpu:1" in commands[2]
     assert "--cpus-per-task=4" in commands[2]
-    assert "--mem=63G" in commands[2]
+    assert "--mem=60G" in commands[2]
     assert "--time=00:30:00" in commands[2]
