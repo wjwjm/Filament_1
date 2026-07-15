@@ -140,6 +140,12 @@ def _sbatch(command: list[str], cwd: Path) -> str:
     return result.stdout.strip().split(";", 1)[0]
 
 
+def _memory_sbatch_arg(resources: dict[str, Any]) -> list[str]:
+    """Honor partition-managed memory policies without issuing an override."""
+    memory = str(resources["memory"])
+    return [] if memory.startswith("partition_default_") else [f"--mem={memory}"]
+
+
 def submit_simulation_jobs(spec: dict[str, Any], root: Path, config_paths: dict[str, Path], script_dir: Path) -> dict[str, str]:
     jobs: dict[str, str] = {}
     resources = spec["simulation_resources"]
@@ -161,7 +167,7 @@ def submit_simulation_jobs(spec: dict[str, Any], root: Path, config_paths: dict[
         command = [
             "sbatch", "--parsable", f"--job-name=pv_{case_id}",
             f"--partition={resources['partition']}", f"--gres=gpu:{resources['gpus']}",
-            f"--cpus-per-task={resources['cpus_per_task']}", f"--mem={resources['memory']}",
+            f"--cpus-per-task={resources['cpus_per_task']}", *_memory_sbatch_arg(resources),
             f"--time={resources['time']}",
             f"--output={root / 'logs' / f'{case_id}-%j.out'}",
             "--export=" + "ALL," + ",".join(f"{key}={value}" for key, value in exports.items()),
@@ -177,7 +183,7 @@ def submit_postprocess_job(spec: dict[str, Any], root: Path, jobs: dict[str, str
     command = [
         "sbatch", "--parsable", "--job-name=pv_post_g_ft90", f"--dependency={dependency}",
         f"--partition={resources['partition']}", f"--gres=gpu:{resources['gpus']}",
-        f"--cpus-per-task={resources['cpus_per_task']}", f"--mem={resources['memory']}",
+        f"--cpus-per-task={resources['cpus_per_task']}", *_memory_sbatch_arg(resources),
         f"--time={resources['time']}",
         f"--output={root / 'logs' / 'profile-post-%j.out'}", f"--export=ALL,STAGE_DIR={root}",
         str(script_dir / "sub_profile_validation_postprocess.sh"),
