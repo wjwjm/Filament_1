@@ -26,7 +26,7 @@
   "filament_threshold_m3": 1e21,
   "dtype": "fp32",
   "simulation_resources": {"partition": "gpu", "gpus": 1, "cpus_per_task": 8, "memory": "126G", "time": "08:00:00"},
-  "postprocess_resources": {"partition": "gpu", "gpus": 1, "cpus_per_task": 4, "time": "00:30:00"},
+  "postprocess_resources": {"partition": "gpu", "gpus": 1, "cpus_per_task": 4, "memory": "63G", "time": "00:30:00"},
   "figure_dpi": 200,
   "z_shift_cm": 0.0,
   "convert_to_mat": true,
