@@ -50,3 +50,4 @@ def test_profile_validation_finalizer_writes_controlled_comparison_report(tmp_pa
     assert report["scientific_interpretation_status"] == "controlled_comparison_only"
     assert (tmp_path / "reports" / "transverse_profile_validation.md").is_file()
     assert (tmp_path / "reports" / "input_profiles.png").is_file()
+    assert "- comparison/rho_max_z.png" in (tmp_path / "reports" / "transverse_profile_validation.md").read_text(encoding="utf-8")

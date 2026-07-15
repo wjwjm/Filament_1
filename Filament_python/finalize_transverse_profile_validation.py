@@ -188,7 +188,7 @@ def finalize_stage(stage_dir: str | Path) -> dict[str, Any]:
             f"{metrics.get('z_rho_peak_m', '')} | {metrics.get('rho_peak_m3', '')} | "
             f"{metrics.get('z_end_m', '')} | {metrics.get('filament_length_m', '')} |"
         )
-    lines.extend(["", "## Outputs", "", "- reports/input_profiles.png", "- comparison/comparison_overview.png", "- comparison/rho_onaxis_max_z.png", "- comparison/I_max_z.png", "- comparison/fwhm_plasma_z.png", "", "## Interpretation limit", "", report["interpretation_limit"]])
+    lines.extend(["", "## Outputs", "", "- reports/input_profiles.png", "- comparison/comparison_overview.png", "- comparison/rho_onaxis_max_z.png", "- comparison/rho_max_z.png", "- comparison/I_max_z.png", "- comparison/fwhm_plasma_z.png", "", "## Interpretation limit", "", report["interpretation_limit"]])
     (reports_dir / "transverse_profile_validation.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return report
 
