@@ -169,7 +169,7 @@ def generate_comparison_figures(
             ax.set(
                 xlabel="z (cm)" if z_shift_cm == 0 else f"z (cm), shifted {z_shift_cm:+g} cm",
                 ylabel=ylabel,
-                title=f"{field}: 40 fs vs 120 fs",
+                title=f"{field}: {' vs '.join(label for _, label, _, _ in present)}",
             )
             ax.grid(True, which="both", alpha=0.3)
             ax.legend(loc="best")
@@ -221,8 +221,8 @@ def generate_comparison_figures(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Compare KHz-filament output files")
     parser.add_argument("--inputs", nargs=2, required=True)
-    parser.add_argument("--labels", nargs=2, default=["40 fs", "120 fs"])
-    parser.add_argument("--case-ids", nargs=2, default=["40fs", "120fs"])
+    parser.add_argument("--labels", nargs=2, default=None)
+    parser.add_argument("--case-ids", nargs=2, default=None)
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--fields", default=",".join(PLOT_SPECS))
     parser.add_argument("--dpi", type=int, default=200)
@@ -230,10 +230,16 @@ def main() -> int:
     parser.add_argument("--stage-spec", default=None)
     args = parser.parse_args()
     metadata = None
+    spec = None
     if args.stage_spec:
         spec = json.loads(Path(args.stage_spec).read_text(encoding="utf-8"))
-        metadata = {"stage_id": spec["stage_id"], "stage_name": spec["stage_name"], "comparison_mode": spec["comparison_mode"], "fixed_peak_power_W": spec["required_invariants"]["beam.P0_peak"], "cases": args.case_ids}
-    results = [(case_id, label, load_result_file(path)) for case_id, label, path in zip(args.case_ids, args.labels, args.inputs)]
+    case_ids = args.case_ids or ([str(case["case_id"]) for case in spec["cases"]] if spec else ["40fs", "120fs"])
+    labels = args.labels or ([str(case["label"]) for case in spec["cases"]] if spec else ["40 fs", "120 fs"])
+    if len(case_ids) != 2 or len(labels) != 2:
+        raise ValueError("exactly two case IDs and labels are required")
+    if spec:
+        metadata = {"stage_id": spec["stage_id"], "stage_name": spec["stage_name"], "comparison_mode": spec["comparison_mode"], "fixed_peak_power_W": spec["required_invariants"]["beam.P0_peak"], "cases": case_ids}
+    results = [(case_id, label, load_result_file(path)) for case_id, label, path in zip(case_ids, labels, args.inputs)]
     generate_comparison_figures(
         results, args.out_dir, [x for x in args.fields.split(",") if x], args.dpi, args.z_shift_cm, metadata,
         spec.get("rho_max_plot") if args.stage_spec else None,

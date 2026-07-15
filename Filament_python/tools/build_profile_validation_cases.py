@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-EXPECTED_CASE_IDS = ("profile_g_120", "profile_ft90_120")
+EXPECTED_PROFILE_TYPES = ("gaussian", "flat_top_cosine")
 
 
 def _get(data: dict[str, Any], path: str) -> Any:
@@ -54,8 +54,8 @@ def load_stage_spec(path: str | Path) -> dict[str, Any]:
     if missing:
         raise ValueError(f"profile validation stage spec missing: {', '.join(missing)}")
     cases = spec["cases"]
-    if not isinstance(cases, list) or tuple(case.get("case_id") for case in cases) != EXPECTED_CASE_IDS:
-        raise ValueError("profile validation must contain Gaussian and FT90 120 fs cases in the declared order")
+    if not isinstance(cases, list) or tuple(case.get("profile_type") for case in cases) != EXPECTED_PROFILE_TYPES:
+        raise ValueError("profile validation must contain Gaussian and FT90 cases in the declared order")
     for case in cases:
         for key in ("case_id", "label", "profile_type", "config"):
             if not case.get(key):
@@ -152,12 +152,14 @@ def submit_simulation_jobs(spec: dict[str, Any], root: Path, config_paths: dict[
     for case in spec["cases"]:
         case_id = case["case_id"]
         paths = _paths(root, case_id)
+        pulse_width_fs = float(json.loads(config_paths[case_id].read_text(encoding="utf-8"))["beam"]["tau_fwhm"]) * 1e15
         # Slurm's --export syntax is comma-delimited, so preserve the readable
         # label while replacing commas that would otherwise split the value.
         case_label = str(case["label"]).replace(",", ";")
         exports = {
             "STAGE_ID": spec["stage_id"], "STAGE_NAME": spec["stage_name"], "RUN_ID": root.name,
-            "CASE_ID": case_id, "CASE_LABEL": case_label, "PULSE_WIDTH_FS": "120",
+            "CASE_ID": case_id, "CASE_LABEL": case_label,
+            "PULSE_WIDTH_FS": f"{pulse_width_fs:g}",
             "PROFILE_TYPE": case["profile_type"], "RUN_METADATA": str(paths["metadata"]),
             "CFG": str(config_paths[case_id]), "OUT": str(paths["npz"]), "MAT_DIR": str(paths["case_dir"]),
             "MAT_NAME": "result.mat", "FIG_DIR": str(paths["figures"]), "FIG_DPI": str(spec["figure_dpi"]),
@@ -181,7 +183,7 @@ def submit_postprocess_job(spec: dict[str, Any], root: Path, jobs: dict[str, str
     resources = spec["postprocess_resources"]
     dependency = "afterok:" + ":".join(jobs[case["case_id"]] for case in spec["cases"])
     command = [
-        "sbatch", "--parsable", "--job-name=pv_post_g_ft90", f"--dependency={dependency}",
+        "sbatch", "--parsable", f"--job-name=pv_post_{spec['stage_id']}", f"--dependency={dependency}",
         f"--partition={resources['partition']}", f"--gres=gpu:{resources['gpus']}",
         f"--cpus-per-task={resources['cpus_per_task']}", *_memory_sbatch_arg(resources),
         f"--time={resources['time']}",

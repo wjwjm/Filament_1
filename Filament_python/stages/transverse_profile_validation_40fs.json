@@ -1,0 +1,38 @@
+{
+  "stage_id": "profile_validation_40fs",
+  "stage_name": "transverse_profile_validation_40fs",
+  "display_name": "Transverse profile validation: Gaussian vs FT90 at 40 fs",
+  "objective": "Quantify the controlled effect of interpreting the measured beam radius as a Gaussian field radius versus an FT90 aperture radius at 40 fs.",
+  "comparison_mode": "same_peak_power_same_geometry_different_transverse_profile",
+  "required_invariants": {
+    "grid.Nx": 512,
+    "grid.Ny": 512,
+    "grid.Lx": 0.008,
+    "grid.Ly": 0.008,
+    "grid.Nt": 384,
+    "beam.tau_fwhm": 4e-14,
+    "beam.P0_peak": 17000000000.0,
+    "beam.energy_J": null,
+    "beam.focal_length": 0.95,
+    "run.Npulses": 1,
+    "propagation.limit_focus_window": false
+  },
+  "cases": [
+    {"case_id": "profile_g_40", "label": "Gaussian, 40 fs", "profile_type": "gaussian", "config": "../configs/profile_validation/gaussian_40fs.json"},
+    {"case_id": "profile_ft90_40", "label": "FT90, 40 fs", "profile_type": "flat_top_cosine", "config": "../configs/profile_validation/flat_top_90_40fs.json"}
+  ],
+  "comparison_fields": ["I_max_z", "I_onaxis_max_z", "rho_onaxis_max_z", "rho_max_z", "w_mom_z", "U_z", "fwhm_plasma_z", "fwhm_fluence_z"],
+  "quality_gates": {"require_strictly_increasing_z": true, "maximum_energy_growth_fraction": 0.1, "maximum_adjacent_intensity_growth": 10.0, "maximum_electron_density_m3": 1e25, "require_positive_fwhm": true},
+  "filament_threshold_m3": 1e21,
+  "dtype": "fp32",
+  "simulation_resources": {"partition": "gpu", "gpus": 1, "cpus_per_task": 8, "memory": "partition_default_126GB_per_GPU", "time": "08:00:00"},
+  "postprocess_resources": {"partition": "gpu", "gpus": 1, "cpus_per_task": 4, "memory": "partition_default_126GB_per_GPU", "time": "00:30:00"},
+  "figure_dpi": 200,
+  "z_shift_cm": 0.0,
+  "rho_max_plot": {
+    "geometric_focus_m": 0.95,
+    "half_window_m": 0.2
+  },
+  "convert_to_mat": true,
+  "remove_npz_after_success": false
+}

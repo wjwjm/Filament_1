@@ -11,14 +11,15 @@ export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 export OPENBLAS_NUM_THREADS="$OMP_NUM_THREADS"
 export MKL_NUM_THREADS="$OMP_NUM_THREADS"
 
-for result in "$STAGE_DIR/cases/profile_g_120/result.npz" "$STAGE_DIR/cases/profile_ft90_120/result.npz"; do
+mapfile -t CASE_IDS < <(python -c 'import json, sys; print("\n".join(case["case_id"] for case in json.load(open(sys.argv[1], encoding="utf-8"))["cases"]))' "$STAGE_DIR/stage_spec_snapshot.json")
+[[ "${#CASE_IDS[@]}" -eq 2 ]] || { echo "[fatal] profile validation requires exactly two cases"; exit 2; }
+
+for result in "$STAGE_DIR/cases/${CASE_IDS[0]}/result.npz" "$STAGE_DIR/cases/${CASE_IDS[1]}/result.npz"; do
   [[ -f "$result" ]] || { echo "[fatal] missing result: $result"; exit 3; }
 done
 
 python compare_khzfil_outputs.py \
-  --inputs "$STAGE_DIR/cases/profile_g_120/result.npz" "$STAGE_DIR/cases/profile_ft90_120/result.npz" \
-  --labels "Gaussian, 120 fs" "FT90, 120 fs" \
-  --case-ids profile_g_120 profile_ft90_120 \
+  --inputs "$STAGE_DIR/cases/${CASE_IDS[0]}/result.npz" "$STAGE_DIR/cases/${CASE_IDS[1]}/result.npz" \
   --out-dir "$STAGE_DIR/comparison" \
   --stage-spec "$STAGE_DIR/stage_spec_snapshot.json"
 python finalize_transverse_profile_validation.py --stage-dir "$STAGE_DIR"
