@@ -49,7 +49,7 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 def load_stage_spec(path: str | Path) -> dict[str, Any]:
     spec = _read_json(Path(path))
-    required = ("stage_id", "stage_name", "cases", "required_invariants", "postprocess_resources")
+    required = ("stage_id", "stage_name", "cases", "required_invariants", "simulation_resources", "postprocess_resources")
     missing = [key for key in required if key not in spec]
     if missing:
         raise ValueError(f"profile validation stage spec missing: {', '.join(missing)}")
@@ -60,6 +60,12 @@ def load_stage_spec(path: str | Path) -> dict[str, Any]:
         for key in ("case_id", "label", "profile_type", "config"):
             if not case.get(key):
                 raise ValueError(f"profile validation case missing {key}")
+    resources = spec["simulation_resources"]
+    for key in ("partition", "gpus", "cpus_per_task", "memory", "time"):
+        if not resources.get(key):
+            raise ValueError(f"profile validation simulation_resources missing {key}")
+    if int(resources["gpus"]) != 1:
+        raise ValueError("profile validation requires exactly one GPU per simulation case")
     return spec
 
 
@@ -130,6 +136,7 @@ def _sbatch(command: list[str], cwd: Path) -> str:
 
 def submit_simulation_jobs(spec: dict[str, Any], root: Path, config_paths: dict[str, Path], script_dir: Path) -> dict[str, str]:
     jobs: dict[str, str] = {}
+    resources = spec["simulation_resources"]
     for case in spec["cases"]:
         case_id = case["case_id"]
         paths = _paths(root, case_id)
@@ -144,6 +151,9 @@ def submit_simulation_jobs(spec: dict[str, Any], root: Path, config_paths: dict[
         }
         command = [
             "sbatch", "--parsable", f"--job-name=pv_{case_id}",
+            f"--partition={resources['partition']}", f"--gres=gpu:{resources['gpus']}",
+            f"--cpus-per-task={resources['cpus_per_task']}", f"--mem={resources['memory']}",
+            f"--time={resources['time']}",
             f"--output={root / 'logs' / f'{case_id}-%j.out'}",
             "--export=" + "ALL," + ",".join(f"{key}={value}" for key, value in exports.items()),
             str(script_dir / "sub.sh"),
