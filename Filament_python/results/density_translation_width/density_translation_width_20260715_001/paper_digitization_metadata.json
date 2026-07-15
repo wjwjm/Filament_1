@@ -1,0 +1,50 @@
+{
+  "source": "Isaacs et al., Optics Express 30, 22316 (2022), Fig. 5(b), PyCAP curves",
+  "render_page": 11,
+  "render_dpi": 220,
+  "panel": "Fig. 5(b)",
+  "x_pixels": [
+    [
+      679,
+      -20.0
+    ],
+    [
+      1252,
+      20.0
+    ]
+  ],
+  "y_pixels": [
+    [
+      727,
+      0.0
+    ],
+    [
+      579,
+      6.0
+    ]
+  ],
+  "panel_bounds_px": {
+    "left": 679,
+    "right": 1252,
+    "top": 578,
+    "bottom": 735
+  },
+  "digitization_uncertainty": {
+    "x_focus_cm": 0.15,
+    "rho_1e16_cm3": 0.05
+  },
+  "image_path": "D:\\Filament_1\\tmp\\pdfs\\isaacs2022-11.png",
+  "curve_rules": {
+    "120fs_black": "max(R,G,B) <= 120; upper-right legend and panel label excluded",
+    "40fs_red": "R >= 170, G <= 145, B <= 145"
+  },
+  "subthreshold_handling": "points below 0.08 in 1e16 cm^-3 are treated as zero-level/axis-overlap and omitted; later interpolation uses zero outside the retained trace.",
+  "output_units": {
+    "x": "cm relative to the published vacuum focus",
+    "rho": "1e16 cm^-3"
+  },
+  "point_counts": {
+    "120fs": 201,
+    "40fs": 273
+  }
+}

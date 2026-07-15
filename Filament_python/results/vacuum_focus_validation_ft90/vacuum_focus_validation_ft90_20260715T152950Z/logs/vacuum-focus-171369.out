@@ -1,0 +1,46 @@
+{
+  "stage_id": "vacuum_focus_validation_ft90",
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); zero is permanently the geometric thin-lens focus.",
+  "config_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/configs/vacuum_focus_validation/flat_top_90_vacuum.json",
+  "stage_spec_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/stages/vacuum_focus_validation_ft90.json",
+  "backend": "cupy",
+  "geometry": {
+    "geometric_focus_m": 0.95,
+    "z_min_m": 0.75,
+    "z_max_m": 1.15,
+    "dz_output_m": 0.00025,
+    "samples": 1601
+  },
+  "input": {
+    "discrete_peak_power_W": 16999999999.999998,
+    "target_peak_power_W": 17000000000.0,
+    "relative_power_error": 1.121969784007353e-16,
+    "input_boundary_I_fraction": 0.0,
+    "profile_type": "flat_top_cosine",
+    "profile_radius_m": 0.001979,
+    "edge_start_fraction": 0.9
+  },
+  "focus_peak": {
+    "discrete_index": 637,
+    "z_discrete_m": 0.9092499999999825,
+    "z_parabolic_m": 0.9092602919156003,
+    "I_parabolic_W_m2": 3.641800053732147e+17,
+    "curvature_W_m2_per_m2": -3.672368833181595e+20,
+    "x_focus_cm": -4.073970808439964,
+    "sampling_half_step_uncertainty_cm": 0.0125
+  },
+  "power_conservation": {
+    "minimum_total_power_W": 16999995608.46893,
+    "maximum_total_power_W": 16999996557.213537,
+    "maximum_relative_drift": 2.583253569883459e-07
+  },
+  "quality_checks": {
+    "input_power_ok": true,
+    "power_drift_ok": true,
+    "focus_uncertainty_ok": true
+  },
+  "artifacts": {
+    "metrics_csv": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/vacuum_focus_validation_ft90/vacuum_focus_validation_ft90_20260715T152950Z/vacuum_focus_metrics.csv",
+    "focus_plane_npz": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/vacuum_focus_validation_ft90/vacuum_focus_validation_ft90_20260715T152950Z/vacuum_focus_plane.npz"
+  }
+}

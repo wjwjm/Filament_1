@@ -1,0 +1,49 @@
+{
+  "stage_id": "vacuum_focus_validation_ft90",
+  "stage_name": "vacuum_focus_validation_ft90",
+  "objective": "Measure the physical FT90 thin-lens focus in linear vacuum propagation without redefining the geometric-focus zero.",
+  "source_baseline_commit_minimum": "1e8add3",
+  "config": "../configs/vacuum_focus_validation/flat_top_90_vacuum.json",
+  "required_invariants": {
+    "grid.Nx": 512,
+    "grid.Ny": 512,
+    "grid.Lx": 0.008,
+    "grid.Ly": 0.008,
+    "beam.lam0": 8e-07,
+    "beam.n0": 1.0,
+    "beam.P0_peak": 17000000000.0,
+    "beam.focal_length": 0.95,
+    "beam.transverse_profile.type": "flat_top_cosine",
+    "beam.transverse_profile.radius_m": 0.001979,
+    "beam.transverse_profile.edge_start_fraction": 0.9,
+    "propagation.z_min_m": 0.75,
+    "propagation.z_max_m": 1.15,
+    "propagation.dz_output_m": 0.00025,
+    "propagation.geometric_focus_m": 0.95
+  },
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); zero is permanently the geometric thin-lens focus.",
+  "nonlinear_terms": {
+    "electron_kerr": false,
+    "rotational_raman": false,
+    "plasma_refraction": false,
+    "ionization": false,
+    "ionization_loss": false,
+    "collision": false,
+    "recombination": false,
+    "absorption": false,
+    "gas_dispersion": false,
+    "self_steepening": false
+  },
+  "resources": {
+    "partition": "gpu",
+    "gpus": 1,
+    "cpus_per_task": 4,
+    "memory": "partition_default_126GB_per_GPU",
+    "time": "00:30:00"
+  },
+  "quality_gates": {
+    "maximum_input_power_relative_error": 0.0001,
+    "maximum_power_drift_relative": 0.0001,
+    "maximum_peak_location_uncertainty_cm": 0.1
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "grid": {
+    "Nx": 512,
+    "Ny": 512,
+    "Lx": 0.008,
+    "Ly": 0.008,
+    "Nt": 2,
+    "Twin": 9.6e-13
+  },
+  "beam": {
+    "lam0": 8.0e-7,
+    "n0": 1.0,
+    "w0": 0.001979,
+    "tau_fwhm": 1.2e-13,
+    "E0_peak": 0.0,
+    "energy_J": null,
+    "P0_peak": 17000000000.0,
+    "focal_length": 0.95,
+    "transverse_profile": {
+      "type": "flat_top_cosine",
+      "radius_m": 0.001979,
+      "edge_start_fraction": 0.9
+    }
+  },
+  "propagation": {
+    "linear_model": "paraxial_angular_spectrum",
+    "linear_diffraction_only": true,
+    "gas_dispersion": false,
+    "electron_kerr": false,
+    "self_steepening": false,
+    "z_min_m": 0.75,
+    "z_max_m": 1.15,
+    "dz_output_m": 0.00025,
+    "geometric_focus_m": 0.95
+  },
+  "ionization": {
+    "enabled": false,
+    "plasma_refraction": false,
+    "ionization_loss": false,
+    "inverse_bremsstrahlung": false,
+    "collision": false,
+    "recombination": false,
+    "absorption": false
+  },
+  "raman": {
+    "enabled": false
+  }
+}
