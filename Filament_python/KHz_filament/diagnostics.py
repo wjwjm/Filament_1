@@ -66,6 +66,48 @@ NONLINEAR_DIAGNOSTIC_METADATA = {
         "unit": "rad",
         "use": "plasma defocusing phase budget",
     },
+    "delta_n_elec_applied_max_z": {
+        "meaning": "maximum electronic-Kerr refractive-index increment admitted to the propagation phase",
+        "source": "propagate.py: delta_n_elec gated by use_electronic_kerr",
+        "unit": "1",
+        "use": "verify electronic-Kerr switch isolation",
+    },
+    "delta_n_rot_applied_max_z": {
+        "meaning": "maximum rotational-Raman refractive-index increment admitted to the propagation phase",
+        "source": "propagate.py: delta_n_rot gated by use_raman_phase",
+        "unit": "1",
+        "use": "verify Raman-phase switch isolation",
+    },
+    "delta_n_plasma_applied_min_z": {
+        "meaning": "most negative plasma refractive-index increment admitted to the propagation phase",
+        "source": "propagate.py: plasma phase gated by use_plasma_phase",
+        "unit": "1",
+        "use": "verify plasma-phase switch isolation",
+    },
+    "dphi_elec_applied_max_abs_z": {
+        "meaning": "maximum electronic-Kerr phase estimate admitted before optional self-steepening",
+        "source": "propagate.py: applied delta_n_elec",
+        "unit": "rad",
+        "use": "separate raw and applied electronic Kerr",
+    },
+    "dphi_rot_applied_max_abs_z": {
+        "meaning": "maximum rotational-Raman phase estimate admitted before optional self-steepening",
+        "source": "propagate.py: applied delta_n_rot",
+        "unit": "rad",
+        "use": "separate raw and applied rotational Raman",
+    },
+    "dphi_plasma_raw_max_abs_z": {
+        "meaning": "maximum plasma phase calculated from rho before switch gating",
+        "source": "propagate.py: plasma_phase(rho, ...)",
+        "unit": "rad",
+        "use": "verify rho-derived plasma diagnostics when feedback is OFF",
+    },
+    "dphi_plasma_applied_max_abs_z": {
+        "meaning": "maximum plasma phase admitted to propagation",
+        "source": "propagate.py: raw plasma phase gated by use_plasma_phase",
+        "unit": "rad",
+        "use": "verify plasma-phase switch isolation",
+    },
     "alpha_ion_corr_max_z": {
         "meaning": "maximum ionization-loss coefficient used in propagation",
         "source": "propagate.py: alpha_ion after optional operator correction",
@@ -101,6 +143,24 @@ NONLINEAR_DIAGNOSTIC_METADATA = {
         "source": "propagate.py: alpha_ib + alpha_ion + alpha_R_eff",
         "unit": "m^-1",
         "use": "total nonlinear attenuation budget and step-size diagnosis",
+    },
+    "alpha_ion_applied_max_z": {
+        "meaning": "maximum ionization-loss coefficient admitted to total field attenuation",
+        "source": "propagate.py: alpha_ion gated by use_ionization_loss",
+        "unit": "m^-1",
+        "use": "separate potential ionization loss from propagated loss",
+    },
+    "alpha_R_raw_max_z": {
+        "meaning": "maximum Raman absorption coefficient calculated before switch gating",
+        "source": "propagate.py: selected Raman absorption model",
+        "unit": "m^-1",
+        "use": "retain Raman-loss diagnostics when propagation feedback is OFF",
+    },
+    "alpha_R_applied_max_z": {
+        "meaning": "maximum Raman absorption coefficient admitted to total field attenuation",
+        "source": "propagate.py: alpha_R_raw gated by use_raman_absorption",
+        "unit": "m^-1",
+        "use": "verify Raman-absorption switch isolation",
     },
     "E_dep_z": {
         "meaning": "ionization plus inverse-Bremsstrahlung energy deposited in each recorded z step",
@@ -169,21 +229,31 @@ Z_HISTORY_TRACE_KEYS = (
     "alpha_R_mean_z",
     "alpha_R_eff_z",
     "alpha_R_closed_z",
+    "alpha_R_raw_max_z",
+    "alpha_R_applied_max_z",
     "IR_max_z",
     "IR_abs_max_z",
     "delta_n_elec_max_z",
     "delta_n_rot_max_z",
     "delta_n_elec_peak_z",
     "delta_n_rot_peak_z",
+    "delta_n_elec_applied_max_z",
+    "delta_n_rot_applied_max_z",
     "alpha_ion_raw_max_z",
     "alpha_ion_corr_max_z",
+    "alpha_ion_applied_max_z",
     "alpha_ib_max_z",
     "alpha_total_max_z",
     "delta_n_plasma_min_z",
+    "delta_n_plasma_applied_min_z",
     "dphi_kerr_max_abs_z",
     "dphi_elec_max_abs_z",
     "dphi_rot_max_abs_z",
     "dphi_plasma_max_abs_z",
+    "dphi_elec_applied_max_abs_z",
+    "dphi_rot_applied_max_abs_z",
+    "dphi_plasma_raw_max_abs_z",
+    "dphi_plasma_applied_max_abs_z",
     "E_dep_total_z",
     "E_dep_cumulative_z",
     "U_rel_change_z",
@@ -268,10 +338,16 @@ def validate_nonlinear_diagnostics(diag: dict) -> dict:
 def write_nonlinear_diagnostic_report(path: str | Path, diag: dict, *, npz_path: str | Path) -> dict:
     """Write a compact, self-describing JSON report next to a result NPZ."""
     validation = validate_nonlinear_diagnostics(diag)
+    effective_switches = {
+        key.removeprefix("nonlinear_"): bool(_np.asarray(to_cpu(value)).item())
+        for key, value in diag.items()
+        if key.startswith("nonlinear_use_")
+    }
     report = {
         "schema": "khz_filament.nonlinear_diagnostics.v1",
         "npz_path": str(npz_path),
         "validation": validation,
+        "effective_nonlinear_switches": effective_switches,
         "variables": NONLINEAR_DIAGNOSTIC_METADATA,
     }
     path = Path(path)

@@ -12,6 +12,7 @@ from .heat import heat_Q_per_z
 from .linear_full import step_linear_full_factorized, step_linear_full_3d
 from .air_dispersion import n_of_omega
 from .constants import c0
+from .config import resolve_nonlinear_switches
 from .raman import make_raman_kernel, precompute_kernel_fft, raman_convolve_intensity, resolve_raman_rot_params
 from .diagnostics import (
     intensity,
@@ -122,6 +123,7 @@ def propagate_one_pulse(
 
     # ---------- 近焦缩步 ----------
     p = prop_conf
+    switches = resolve_nonlinear_switches(p, raman_conf, ion_conf)
     dz_base = float(dz)
     use_focus_win = bool(getattr(p, "focus_window_step", False))
     z_center = getattr(p, "focus_center_m", None) or getattr(p, "z_focus_hint", None)
@@ -160,8 +162,11 @@ def propagate_one_pulse(
         use_factor = bool(getattr(p, "full_linear_factorize", False))
 
     # ---------- 拉曼（延迟 Kerr + 可选吸收模型） ----------
-    use_raman = bool(getattr(raman_conf, "enabled", False)) if (raman_conf is not None) else False
-    raman_absorb_on = False
+    # The convolution and the field-feedback switches are intentionally
+    # separate: an OFF feedback switch must not erase its raw diagnostic.
+    use_raman = switches.compute_raman_convolution
+    raman_absorb_on = switches.use_raman_absorption
+    raman_absorption_compute = switches.compute_raman_absorption
     absorption_model = "poynting"
     omega_R = Gamma_R = None
     tau_fwhm_cfg = None
@@ -187,9 +192,9 @@ def propagate_one_pulse(
         else:
             H_w = None
 
-        # 可选：仅关闭吸收，保留延迟 Kerr
+        # The resolved Phase-2 switch controls whether this raw coefficient is
+        # applied; the legacy raman fields only provide compatibility defaults.
         absorption_model = str(getattr(raman_conf, "absorption_model", "poynting")).lower()
-        raman_absorb_on = bool(getattr(raman_conf, "absorption", True))
 
         # closed_form 需要的参数（都有默认）
         omega_R, Gamma_R = resolve_raman_rot_params(
@@ -208,15 +213,18 @@ def propagate_one_pulse(
     # ---------- 电离速率 ----------
 
 
-    Wfunc = make_Wfunc(getattr(ion_conf, "model", "none"), ion_conf, omega0, n0)
-    ion_input = getattr(Wfunc, "_expects", None)
-    if ion_input in ("uses_E", "E"):
-        ion_input = "E"
-    elif ion_input in ("uses_I", "I"):
-        ion_input = "I"
+    ion_off = not switches.use_ionization_solver
+    if ion_off:
+        Wfunc, ion_input = None, "none"
     else:
-        ion_input = _ion_input_domain(ion_conf)  # 兜底
-    ion_off = str(getattr(ion_conf, "model", "none")).lower() in ("none", "off", "zero") and not getattr(ion_conf, "species", None)
+        Wfunc = make_Wfunc(getattr(ion_conf, "model", "none"), ion_conf, omega0, n0)
+        ion_input = getattr(Wfunc, "_expects", None)
+        if ion_input in ("uses_E", "E"):
+            ion_input = "E"
+        elif ion_input in ("uses_I", "I"):
+            ion_input = "I"
+        else:
+            ion_input = _ion_input_domain(ion_conf)  # 兜底
     use_ion_op_corr = bool(getattr(ion_conf, "use_ionization_operator_correction", False))
     ion_op_method = str(getattr(ion_conf, "ionization_operator_method", "tdiff")).lower()
 
@@ -248,6 +256,11 @@ def propagate_one_pulse(
     dphi_kerr_max_abs_z_list, dphi_elec_max_abs_z_list = [], []
     dphi_rot_max_abs_z_list, dphi_plasma_max_abs_z_list = [], []
     IR_abs_max_z_list = []
+    delta_n_elec_applied_max_z_list, delta_n_rot_applied_max_z_list = [], []
+    delta_n_plasma_applied_min_z_list = []
+    dphi_elec_applied_max_abs_z_list, dphi_rot_applied_max_abs_z_list = [], []
+    dphi_plasma_raw_max_abs_z_list, dphi_plasma_applied_max_abs_z_list = [], []
+    alpha_ion_applied_max_z_list, alpha_R_raw_max_z_list, alpha_R_applied_max_z_list = [], [], []
     E_dep_cumulative = 0.0
     U_previous = U0_baseline
     # ---------- 主循环 ----------
@@ -303,9 +316,11 @@ def propagate_one_pulse(
             IR = None
         delta_n_elec = n2_elec * I
         delta_n_rot = n_R * IR if (IR is not None) else xp.zeros_like(I, dtype=rdtype)
-        delta_n_kerr = delta_n_elec + delta_n_rot
+        delta_n_elec_applied = delta_n_elec if switches.use_electronic_kerr else xp.zeros_like(I, dtype=rdtype)
+        delta_n_rot_applied = delta_n_rot if switches.use_raman_phase else xp.zeros_like(I, dtype=rdtype)
+        delta_n_kerr = delta_n_elec_applied + delta_n_rot_applied
 
-        if bool(getattr(p, "use_self_steepening", False)):
+        if switches.use_self_steepening:
             delta_n_kerr = shock_intensity(
                 delta_n_kerr, axes.Omega, omega0, dt=dt,
                 method=str(getattr(p, "self_steepening_method", "tdiff")).lower()
@@ -370,7 +385,7 @@ def propagate_one_pulse(
         Q_rot_vol = None
 
 
-        if use_raman and raman_absorb_on:
+        if use_raman and raman_absorption_compute:
             # 文献参数（允许在 config 中覆盖）
             omega_R_use = float(getattr(raman_conf, "omega_R", 1.6e13))
             Gamma_R_use = float(getattr(raman_conf, "Gamma_R", 1.3e13))
@@ -459,12 +474,16 @@ def propagate_one_pulse(
                 alpha_R_eff = 0.0
                 E_dep_rot_step = 0.0
 
-        # —— 把等效 α_R_eff 加入总吸收参与传播 ——
-        alpha_total = alpha_ib + alpha_ion + float(alpha_R_eff)
+        # Keep raw loss diagnostics even when a corresponding propagation
+        # feedback is disabled.  Only *_applied quantities enter alpha_total.
+        alpha_ion_applied = alpha_ion if switches.use_ionization_loss else xp.zeros_like(I, dtype=rdtype)
+        alpha_R_applied = float(alpha_R_eff) if raman_absorb_on else 0.0
+        alpha_total = alpha_ib + alpha_ion_applied + alpha_R_applied
 
         # 相位
         dphi_k = kerr_phase_from_deltan(delta_n_kerr.astype(rdtype, copy=False), k0, dz_try, rdtype=rdtype)
-        dphi_p = plasma_phase(rho.astype(rdtype, copy=False), k0, omega0, dz_try, rdtype=rdtype)
+        dphi_p_raw = plasma_phase(rho.astype(rdtype, copy=False), k0, omega0, dz_try, rdtype=rdtype)
+        dphi_p = dphi_p_raw if switches.use_plasma_phase else xp.zeros_like(dphi_p_raw, dtype=rdtype)
         phase  = dphi_k + dphi_p
 
         E = apply_nonlinear(E, phase, alpha_total, dz_try, dn_gas=dn_gas, k0=k0)
@@ -555,27 +574,39 @@ def propagate_one_pulse(
             U_previous = U_now
             alpha_ion_raw_max_z_list.append(float(xp.max(xp.maximum(alpha_ion_raw, 0.0))))
             alpha_ion_corr_max_z_list.append(float(xp.max(alpha_ion)))
+            alpha_ion_applied_max_z_list.append(float(xp.max(alpha_ion_applied)))
             alpha_ib_max_z_list.append(float(xp.max(alpha_ib)))
             alpha_total_max_z_list.append(float(xp.max(alpha_total)))
             # 拉曼沉积
-            if use_raman and raman_absorb_on:
+            if use_raman and raman_absorption_compute:
                 E_dep_rot = E_dep_rot_step
-                alphaR_max = float(alpha_R_eff)
-                alphaR_mean = float(alpha_R_eff)
+                alphaR_raw = float(alpha_R_eff)
             else:
-                E_dep_rot = alphaR_max = alphaR_mean = 0.0
+                E_dep_rot = alphaR_raw = 0.0
+            alphaR_applied = float(alpha_R_applied)
+            alphaR_max = alphaR_applied
+            alphaR_mean = alphaR_applied
 
             E_dep_rot_z_list.append(E_dep_rot)
             alpha_R_max_z_list.append(alphaR_max)
             alpha_R_mean_z_list.append(alphaR_mean)
-            alpha_R_eff_z_list.append(float(alpha_R_eff))
-            alpha_R_closed_z_list.append(float(alpha_R_closed))
+            alpha_R_eff_z_list.append(alphaR_applied)
+            alpha_R_closed_z_list.append(float(alpha_R_closed) if raman_absorb_on else 0.0)
+            alpha_R_raw_max_z_list.append(alphaR_raw)
+            alpha_R_applied_max_z_list.append(alphaR_applied)
             IR_max_z_list.append(float(xp.max(IR)) if IR is not None else 0.0)
             IR_abs_max_z_list.append(float(xp.max(xp.abs(IR))) if IR is not None else 0.0)
-            delta_n_plasma_min_z_list.append(float(xp.min(dphi_p)) / (float(k0) * dz_try))
+            delta_n_plasma_min_z_list.append(float(xp.min(dphi_p_raw)) / (float(k0) * dz_try))
+            delta_n_elec_applied_max_z_list.append(float(xp.max(delta_n_elec_applied)))
+            delta_n_rot_applied_max_z_list.append(float(xp.max(delta_n_rot_applied)))
+            delta_n_plasma_applied_min_z_list.append(float(xp.min(dphi_p)) / (float(k0) * dz_try))
             dphi_kerr_max_abs_z_list.append(float(xp.max(xp.abs(dphi_k))))
             dphi_elec_max_abs_z_list.append(float(xp.max(xp.abs(float(k0) * delta_n_elec * dz_try))))
             dphi_rot_max_abs_z_list.append(float(xp.max(xp.abs(float(k0) * delta_n_rot * dz_try))))
+            dphi_elec_applied_max_abs_z_list.append(float(xp.max(xp.abs(float(k0) * delta_n_elec_applied * dz_try))))
+            dphi_rot_applied_max_abs_z_list.append(float(xp.max(xp.abs(float(k0) * delta_n_rot_applied * dz_try))))
+            dphi_plasma_raw_max_abs_z_list.append(float(xp.max(xp.abs(dphi_p_raw))))
+            dphi_plasma_applied_max_abs_z_list.append(float(xp.max(xp.abs(dphi_p))))
             dphi_plasma_max_abs_z_list.append(float(xp.max(xp.abs(dphi_p))))
 
             # FWHM：等离子体通道 与 能量密度
@@ -599,8 +630,8 @@ def propagate_one_pulse(
                             f"Δn_p,min={delta_n_plasma_min_z_list[-1]:.3e}  "
                             f"|φ_K|={dphi_kerr_max_abs_z_list[-1]:.3e} rad  "
                             f"|φ_p|={dphi_plasma_max_abs_z_list[-1]:.3e} rad  "
-                            f"α_ion={alpha_ion_corr_max_z_list[-1]:.3e}  "
-                            f"α_IB={alpha_ib_max_z_list[-1]:.3e}  α_R={alpha_R_eff_z_list[-1]:.3e} m^-1  "
+                            f"α_ion(raw/appl)={alpha_ion_corr_max_z_list[-1]:.3e}/{alpha_ion_applied_max_z_list[-1]:.3e}  "
+                            f"α_IB={alpha_ib_max_z_list[-1]:.3e}  α_R(raw/appl)={alpha_R_raw_max_z_list[-1]:.3e}/{alpha_R_applied_max_z_list[-1]:.3e} m^-1  "
                             f"Edep={E_dep_total_z_list[-1]:.3e} J"
                         )
                     # --- monitor PPT_i cap-hit (after evolve_rho_time) ---
@@ -647,26 +678,39 @@ def propagate_one_pulse(
         "fwhm_plasma_z":            _np.asarray(fwhm_plasma_z_list,       dtype=rdtype_np),
         "fwhm_fluence_z":           _np.asarray(fwhm_fluence_z_list,      dtype=rdtype_np),
         "I_onaxis_max_interp_list": _np.asarray(I_onaxis_max_interp_list, dtype=rdtype_np),
-        "raman_absorption_on":      bool(use_raman and raman_absorb_on),  # ← 新增：用于 summary 的 ON/OFF
+        "raman_absorption_on":      bool(use_raman and raman_absorb_on),
+        "raman_absorption_calculated": bool(use_raman and raman_absorption_compute),
+        "ionization_loss_on": bool(switches.use_ionization_loss),
+        "ionization_solver_on": bool(switches.use_ionization_solver),
         "E_dep_rot_z": _np.asarray(E_dep_rot_z_list, dtype=rdtype_np),
         "alpha_R_max_z": _np.asarray(alpha_R_max_z_list, dtype=rdtype_np),
         "alpha_R_mean_z": _np.asarray(alpha_R_mean_z_list, dtype=rdtype_np),
         "alpha_R_eff_z": _np.asarray(alpha_R_eff_z_list, dtype=rdtype_np),
         "alpha_R_closed_z": _np.asarray(alpha_R_closed_z_list, dtype=rdtype_np),
+        "alpha_R_raw_max_z": _np.asarray(alpha_R_raw_max_z_list, dtype=rdtype_np),
+        "alpha_R_applied_max_z": _np.asarray(alpha_R_applied_max_z_list, dtype=rdtype_np),
         "IR_max_z": _np.asarray(IR_max_z_list, dtype=rdtype_np),
         "IR_abs_max_z": _np.asarray(IR_abs_max_z_list, dtype=rdtype_np),
         "delta_n_elec_max_z": _np.asarray(delta_n_elec_max_z_list, dtype=rdtype_np),
         "delta_n_rot_max_z": _np.asarray(delta_n_rot_max_z_list, dtype=rdtype_np),
         "delta_n_elec_peak_z": _np.asarray(delta_n_elec_peak_z_list, dtype=rdtype_np),
         "delta_n_rot_peak_z": _np.asarray(delta_n_rot_peak_z_list, dtype=rdtype_np),
+        "delta_n_elec_applied_max_z": _np.asarray(delta_n_elec_applied_max_z_list, dtype=rdtype_np),
+        "delta_n_rot_applied_max_z": _np.asarray(delta_n_rot_applied_max_z_list, dtype=rdtype_np),
         "alpha_ion_raw_max_z": _np.asarray(alpha_ion_raw_max_z_list, dtype=rdtype_np),
         "alpha_ion_corr_max_z": _np.asarray(alpha_ion_corr_max_z_list, dtype=rdtype_np),
+        "alpha_ion_applied_max_z": _np.asarray(alpha_ion_applied_max_z_list, dtype=rdtype_np),
         "alpha_ib_max_z": _np.asarray(alpha_ib_max_z_list, dtype=rdtype_np),
         "alpha_total_max_z": _np.asarray(alpha_total_max_z_list, dtype=rdtype_np),
         "delta_n_plasma_min_z": _np.asarray(delta_n_plasma_min_z_list, dtype=rdtype_np),
+        "delta_n_plasma_applied_min_z": _np.asarray(delta_n_plasma_applied_min_z_list, dtype=rdtype_np),
         "dphi_kerr_max_abs_z": _np.asarray(dphi_kerr_max_abs_z_list, dtype=rdtype_np),
         "dphi_elec_max_abs_z": _np.asarray(dphi_elec_max_abs_z_list, dtype=rdtype_np),
         "dphi_rot_max_abs_z": _np.asarray(dphi_rot_max_abs_z_list, dtype=rdtype_np),
+        "dphi_elec_applied_max_abs_z": _np.asarray(dphi_elec_applied_max_abs_z_list, dtype=rdtype_np),
+        "dphi_rot_applied_max_abs_z": _np.asarray(dphi_rot_applied_max_abs_z_list, dtype=rdtype_np),
+        "dphi_plasma_raw_max_abs_z": _np.asarray(dphi_plasma_raw_max_abs_z_list, dtype=rdtype_np),
+        "dphi_plasma_applied_max_abs_z": _np.asarray(dphi_plasma_applied_max_abs_z_list, dtype=rdtype_np),
         "dphi_plasma_max_abs_z": _np.asarray(dphi_plasma_max_abs_z_list, dtype=rdtype_np),
         "n2_elec_used": float(n2_elec),
         "n_R_used": float(n_R),
@@ -674,6 +718,13 @@ def propagate_one_pulse(
         "raman_absorption_model": absorption_model,  # 便于外部读
         "ionization_operator_correction_on": bool(use_ion_op_corr),
         "ionization_operator_method": ion_op_method,
+        "nonlinear_use_electronic_kerr": bool(switches.use_electronic_kerr),
+        "nonlinear_use_raman_phase": bool(switches.use_raman_phase),
+        "nonlinear_use_plasma_phase": bool(switches.use_plasma_phase),
+        "nonlinear_use_ionization_loss": bool(switches.use_ionization_loss),
+        "nonlinear_use_raman_absorption": bool(switches.use_raman_absorption),
+        "nonlinear_use_self_steepening": bool(switches.use_self_steepening),
+        "nonlinear_use_ionization_solver": bool(switches.use_ionization_solver),
     }
     if record_onaxis_rho_time and (rho_onaxis_time_list is not None and len(rho_onaxis_time_list) > 0):
         diag["rho_onaxis_t_z"] = _np.stack(rho_onaxis_time_list, axis=0).astype(rdtype_np, copy=False)

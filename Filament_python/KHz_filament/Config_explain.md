@@ -61,6 +61,19 @@
   - False：可能构建 3D（Nt×Ny×Nx）级别相位/算子（更快但占内存）
 - **use_self_steepening (bool)**：是否开启自陡峭（非线性项中加入时间导数/频域因子修正，导致前沿变陡、频谱展宽等）。
 
+### 独立非线性反馈开关（Phase 2）
+
+以下字段均位于 `propagation`。省略时保留旧配置行为；显式新字段优先于旧的 `raman.enabled` / `raman.absorption`，并会在启动摘要和 NPZ 元数据中记录最终有效值。
+
+- **use_electronic_kerr (bool | null)**：是否将已计算的 `n2*I` 加入传播相位；关闭后仍保存原始电子 Kerr 诊断。
+- **use_raman_phase (bool | null)**：是否将已计算的 `n_R I_R` 加入传播相位；关闭后仍保留 Raman convolution 与原始 Raman 诊断。
+- **use_plasma_phase (bool | null)**：是否将由电子密度得到的 plasma phase 加入传播相位；关闭后仍求解并保存 `rho` 与原始 plasma phase。
+- **use_ionization_loss (bool | null)**：是否将已计算的 `alpha_ion` 加入 `alpha_total`；关闭后仍保存原始电离率、电子密度和潜在沉积。
+- **use_raman_absorption (bool | null)**：是否将 Raman absorption 加入 `alpha_total`；可与 Raman phase 独立设置。
+- **use_ionization_solver (bool | null)**：是否执行电离率和电子密度求解。纯线性或纯 Kerr 基准可显式设为 false，避免无用电离计算。
+
+`null` 只表示“未显式设置”，通常不应写入 JSON；旧 JSON 未包含上述字段时，等效关系为：电子 Kerr / plasma phase / ionization loss 为 ON，Raman phase 跟随 `raman.enabled`，Raman absorption 跟随 `raman.enabled and raman.absorption`，电离求解跟随是否存在 `species`。
+
 ### 空气色散模型（线性折射率/色散）
 - **air_model (str)**：空气折射率/色散模型名称（此处为 `"ciddor_simple"` 简化 Ciddor）。
 - **air_T (float, K)**：空气温度（用于折射率模型）。

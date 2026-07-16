@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .device import xp
+from .config import resolve_nonlinear_switches
 from .ionization.rate_registry import RATE_ALIAS_MAP
 
 
@@ -8,6 +9,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
                       raman=None, dtype_str=None, input_profile=None):
     import numpy as _np
     from .diagnostics import intensity, pulse_energy
+    switches = resolve_nonlinear_switches(prop, raman, ion)
 
     backend = getattr(xp, "__name__", "numpy")
     using_gpu = (backend == "cupy")
@@ -69,7 +71,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     n2_used = n2_used if n2_used is not None else float(getattr(prop, "n2", getattr(beam, "n2", 3.2e-23)))
     kerr_on = (n2_used > 0.0)
 
-    use_shock = bool(getattr(prop, "use_self_steepening", False))
+    use_shock = switches.use_self_steepening
     shock_method = str(getattr(prop, "self_steepening_method", "tdiff")).lower()
     shock_chunk = int(getattr(prop, "shock_chunk_pixels", 65536))
 
@@ -215,6 +217,20 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     print(f"  - ionization.time_mode={time_mode}  integrator={integrator}")
     print(f"  - propagation.auto_substep={auto}  dz={fmt(dz,' m')}  dz_focus={fmt(dz_focus,' m')}")
     print(f"  - beam.energy_J={'null' if getattr(beam, 'energy_J', None) is None else fmt(getattr(beam, 'energy_J'), ' J')}  P0_peak={'null' if P0cfg is None else fmt(P0cfg, ' W')}  norm_source={norm_source}")
+    print(
+        "  - nonlinear switches: "
+        f"electronic_kerr={onoff(switches.use_electronic_kerr)} "
+        f"raman_phase={onoff(switches.use_raman_phase)} "
+        f"plasma_phase={onoff(switches.use_plasma_phase)} "
+        f"ionization_loss={onoff(switches.use_ionization_loss)}"
+    )
+    print(
+        "  - nonlinear switches: "
+        f"raman_absorption={onoff(switches.use_raman_absorption)} "
+        f"self_steepening={onoff(switches.use_self_steepening)} "
+        f"ionization_solver={onoff(switches.use_ionization_solver)} "
+        f"raman_convolution={onoff(switches.compute_raman_convolution)}"
+    )
 
     species_ok = (species and isinstance(species, (list, tuple)) and len(species) > 0)
     if species_ok:
