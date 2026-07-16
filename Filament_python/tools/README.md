@@ -9,6 +9,7 @@
 | `validate_ion_lut_runtime.py` | 验证传播运行时使用的 LUT evaluator |
 | `build_nonlinear_ablation_configs.py` | 从 FT90 基准配置和声明式覆盖项生成非线性消融配置与 manifest；该工具不含 `sbatch` 或作业提交功能 |
 | `validate_nonlinear_switch_isolation.py` | 运行 CPU 小网格开关隔离/全模型回归检查，只写 JSON 报告并删除临时 NPZ |
+| `validate_ionization_time_integrator.py` | 复用生产电离求解器执行 0D 时间包络扫描，输出每个 species 的 `I(t)`、`W(t)`、`rho(t)` 和稳定性基础指标 |
 
 推荐使用仓库现有 LUT 配置：
 

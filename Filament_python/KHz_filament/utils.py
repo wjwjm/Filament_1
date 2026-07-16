@@ -58,7 +58,10 @@ def gaussian_beam_xy(x, y, w0):
 
 def gaussian_pulse_t(t, tau_fwhm):
     """
-    Return a [Nt, 1, 1] temporal Gaussian (field-level) with FWHM = tau_fwhm.
+    Return a [Nt, 1, 1] field-level temporal Gaussian.
+
+    ``tau_fwhm`` is the intensity FWHM: callers obtain the intensity envelope
+    with ``abs(gaussian_pulse_t(...))**2``.
     """
     import math
     tau = tau_fwhm / math.sqrt(2.0 * math.log(2.0))  # field sigma
