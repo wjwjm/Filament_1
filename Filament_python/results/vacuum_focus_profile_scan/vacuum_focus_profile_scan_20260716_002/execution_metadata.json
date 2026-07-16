@@ -1,0 +1,19 @@
+{
+  "execution": "linear vacuum only; no Kerr, Raman, ionization, plasma, absorption, collision, recombination, gas dispersion, or self-steepening",
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m geometric focus",
+  "slurm_arrays": ["172780", "172791", "172819"],
+  "account": "scvi806@nc-n50r5",
+  "remote_bundle_root": "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles/vacuum_focus_profile_scan_20260716_002_padded",
+  "source_commit": "703ec5632473644dd978384c28c1b04255e0b019",
+  "bundle_sha256": "beebba0a2d9006e9470dba705293674ba33f5ec7e555214686247c23e87f5b48",
+  "downloaded_light_results_sha256": "a4bf01cd65cdc61f28a6e5d5abf506cfb1350c9ec5c561355c87e6633795bc74",
+  "case_count": 25,
+  "completed_case_groups": [
+    "P1-P6 at 8 mm / 512^2",
+    "P1-P6 at 10 mm / 640^2",
+    "P1-P6 at 12 mm / 768^2",
+    "P1-P6 at 14 mm / 896^2",
+    "P1 at 8 mm / 1024^2"
+  ],
+  "raw_npz_committed": false
+}
