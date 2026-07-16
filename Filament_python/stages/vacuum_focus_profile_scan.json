@@ -44,6 +44,9 @@
   ],
   "resolution_check": {"id": "8mm_1024", "profile_id": "P1_current_ft90", "Nx": 1024, "Ny": 1024, "Lx_m": 0.008, "Ly_m": 0.008},
   "fresnel_radial_samples": 16385,
+  "propagation_padding_factor_cosine": 3.0,
+  "propagation_padding_factor_hard_R": 4.0,
+  "propagation_padding_factor_hard_0p9R": 2.0,
   "resources": {"partition": "gpu", "gpus": 1, "cpus_per_task": 4, "time": "00:45:00", "array_concurrency": 3},
   "quality_gates": {
     "maximum_input_power_relative_error": 0.0001,

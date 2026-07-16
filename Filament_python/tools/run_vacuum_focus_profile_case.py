@@ -173,29 +173,44 @@ def main() -> int:
 
     case = json.loads(Path(args.case).read_text(encoding="utf-8"))
     common, profile, grid = case["common"], case["profile"], case["grid"]
-    axes = make_axes(int(grid["Nx"]), int(grid["Ny"]), 2, float(grid["Lx_m"]), float(grid["Ly_m"]), 1.0)
-    gI = _profile_intensity(xp, axes.x, axes.y, profile)
+    input_axes = make_axes(int(grid["Nx"]), int(grid["Ny"]), 2, float(grid["Lx_m"]), float(grid["Ly_m"]), 1.0)
+    gI = _profile_intensity(xp, input_axes.x, input_axes.y, profile)
     gI_cpu = np.asarray(to_cpu(gI), dtype=np.float64)
-    x = np.asarray(to_cpu(axes.x), dtype=np.float64); y = np.asarray(to_cpu(axes.y), dtype=np.float64)
+    x_input = np.asarray(to_cpu(input_axes.x), dtype=np.float64); y_input = np.asarray(to_cpu(input_axes.y), dtype=np.float64)
     prefactor = 0.5 * eps0 * c0 * float(common["refractive_index"])
-    amplitude, input_metrics = _input_metrics(gI_cpu, x, y, axes.dx, axes.dy, prefactor, float(common["peak_power_W"]))
-    field = (amplitude * xp.sqrt(gI)).astype(xp.complex64)
+    amplitude, input_metrics = _input_metrics(gI_cpu, x_input, y_input, input_axes.dx, input_axes.dy, prefactor, float(common["peak_power_W"]))
+    input_field = (amplitude * xp.sqrt(gI)).astype(xp.complex64)
+    pad_factor = float(case.get("propagation_padding_factor", 1.0))
+    if pad_factor < 1.0:
+        raise ValueError("propagation_padding_factor must be >= 1")
+    pad_nx = int(round(int(grid["Nx"]) * pad_factor)); pad_ny = int(round(int(grid["Ny"]) * pad_factor))
+    if pad_nx < int(grid["Nx"]) or pad_ny < int(grid["Ny"]) or (pad_nx - int(grid["Nx"])) % 2 or (pad_ny - int(grid["Ny"])) % 2:
+        raise ValueError("padding must preserve centred integer grid placement")
+    axes = make_axes(pad_nx, pad_ny, 2, input_axes.dx * pad_nx, input_axes.dy * pad_ny, 1.0)
+    field = xp.zeros((pad_ny, pad_nx), dtype=xp.complex64)
+    y0 = (pad_ny - int(grid["Ny"])) // 2; x0 = (pad_nx - int(grid["Nx"])) // 2
+    field[y0:y0 + int(grid["Ny"]), x0:x0 + int(grid["Nx"])] = input_field
+    x = np.asarray(to_cpu(axes.x), dtype=np.float64); y = np.asarray(to_cpu(axes.y), dtype=np.float64)
     k0 = 2.0 * np.pi / float(common["wavelength_m"])
     X, Y = xp.meshgrid(axes.x, axes.y, indexing="xy")
-    field *= xp.exp(xp.array(-1j, dtype=field.dtype) * (k0 / (2.0 * float(common["focal_length_m"]))) * (X**2 + Y**2))
+    r2_gpu = X**2 + Y**2
+    field *= xp.exp(xp.array(-1j, dtype=field.dtype) * (k0 / (2.0 * float(common["focal_length_m"]))) * r2_gpu)
+    del X, Y
     field_k = xp.fft.fft2(field)
     z = np.arange(float(common["z_min_m"]), float(common["z_max_m"]) + 0.5 * float(common["dz_output_m"]), float(common["dz_output_m"]), dtype=float)
     z = z[z <= float(common["z_max_m"]) + 1e-12]
     ix0, iy0 = int(np.argmin(abs(x))), int(np.argmin(abs(y)))
-    X_cpu, Y_cpu = np.meshgrid(x, y, indexing="xy"); r2 = X_cpu**2 + Y_cpu**2
     rows: list[dict[str, float]] = []; best = (-np.inf, None, -1)
     for index, zz in enumerate(z):
         propagated = xp.fft.ifft2(field_k * lin_propagator(axes.kperp2, k0, float(zz), ctype=field.dtype))
-        intensity = np.asarray(to_cpu(prefactor * xp.abs(propagated)**2), dtype=np.float64)
-        maximum = int(np.argmax(intensity)); iy, ix = np.unravel_index(maximum, intensity.shape)
-        imax = float(intensity[iy, ix]); total = float(intensity.sum()) * axes.dx * axes.dy
-        rows.append({"z_m": float(zz), "x_focus_cm": 100.0 * (float(zz) - float(common["focal_length_m"])), "I_onaxis_W_m2": float(intensity[iy0, ix0]), "I_max_W_m2": imax, "I_max_x_m": float(x[ix]), "I_max_y_m": float(y[iy]), "w_second_moment_m": math.sqrt(2.0 * float((r2 * intensity).sum()) / float(intensity.sum())), "boundary_power_fraction": _boundary_power_fraction(intensity, axes.dx, axes.dy), "total_power_W": total})
-        if imax > best[0]: best = (imax, intensity, index)
+        intensity = prefactor * xp.abs(propagated)**2
+        intensity_sum = float(to_cpu(xp.sum(intensity)))
+        maximum = int(to_cpu(xp.argmax(intensity))); iy, ix = divmod(maximum, pad_nx)
+        imax = float(to_cpu(intensity[iy, ix])); total = intensity_sum * axes.dx * axes.dy
+        boundary_sum = float(to_cpu(xp.sum(intensity[0, :]) + xp.sum(intensity[-1, :]) + xp.sum(intensity[1:-1, 0]) + xp.sum(intensity[1:-1, -1])))
+        rows.append({"z_m": float(zz), "x_focus_cm": 100.0 * (float(zz) - float(common["focal_length_m"])), "I_onaxis_W_m2": float(to_cpu(intensity[iy0, ix0])), "I_max_W_m2": imax, "I_max_x_m": float(x[ix]), "I_max_y_m": float(y[iy]), "w_second_moment_m": math.sqrt(2.0 * float(to_cpu(xp.sum(r2_gpu * intensity))) / intensity_sum), "boundary_power_fraction": boundary_sum / intensity_sum, "total_power_W": total})
+        if imax > best[0]:
+            best = (imax, np.asarray(to_cpu(intensity), dtype=np.float64) if args.save_focus_plane else None, index)
     x_focus = np.asarray([row["x_focus_cm"] for row in rows], dtype=float)
     imax_signal = np.asarray([row["I_max_W_m2"] for row in rows], dtype=float)
     onaxis_signal = np.asarray([row["I_onaxis_W_m2"] for row in rows], dtype=float)
@@ -215,7 +230,8 @@ def main() -> int:
         np.savez_compressed(out / "focus_plane.npz", x_m=x, y_m=y, intensity_W_m2=best[1], z_m=z[best[2]])
     summary: dict[str, Any] = {
         "case_id": case["case_id"], "label": case["label"], "coordinate_definition": case["coordinate_definition"],
-        "backend": getattr(xp, "__name__", "numpy"), "common": common, "grid": grid, "profile": profile,
+        "backend": getattr(xp, "__name__", "numpy"), "common": common, "grid": grid,
+        "propagation_grid": {"Nx": pad_nx, "Ny": pad_ny, "Lx_m": input_axes.dx * pad_nx, "Ly_m": input_axes.dy * pad_ny, "padding_factor": pad_factor}, "profile": profile,
         "input": input_metrics, "focus_peak": peak, "focus_peak_onaxis": peak_onaxis,
         "axial_shape": {"imax": shape_imax, "onaxis": shape_onaxis},
         "focus_metrics": {

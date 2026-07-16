@@ -86,7 +86,13 @@ def main() -> int:
         "profile": profile_for(resolution["profile_id"], resolution_grid), "grid": resolution_grid,
     })
     for index, item in enumerate(generated):
-        item.update({"coordinate_definition": stage["coordinate_definition"], "common": common, "fresnel_radial_samples": int(stage["fresnel_radial_samples"]), "index": index})
+        if item["profile_id"] == "P4_hard_top_R":
+            padding_key = "propagation_padding_factor_hard_R"
+        elif item["profile_id"] == "P5_hard_top_0p9R":
+            padding_key = "propagation_padding_factor_hard_0p9R"
+        else:
+            padding_key = "propagation_padding_factor_cosine"
+        item.update({"coordinate_definition": stage["coordinate_definition"], "common": common, "fresnel_radial_samples": int(stage["fresnel_radial_samples"]), "propagation_padding_factor": float(stage[padding_key]), "index": index})
         (cases_dir / f"{index:02d}_{item['case_id']}.json").write_text(json.dumps(item, indent=2) + "\n", encoding="utf-8", newline="\n")
     manifest = {
         "stage_id": stage["stage_id"], "coordinate_definition": stage["coordinate_definition"], "source_stage": str(Path(args.stage)),

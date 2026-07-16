@@ -32,6 +32,8 @@ def test_all_window_grids_keep_transverse_spacing_and_cover_p1_to_p6() -> None:
     dx = [item["Lx_m"] / item["Nx"] for item in windows]
     assert max(dx) - min(dx) < 1e-12
     assert len(stage["profiles"]) == 6
+    assert stage["propagation_padding_factor_cosine"] >= 2.0
+    assert stage["propagation_padding_factor_hard_R"] >= stage["propagation_padding_factor_cosine"]
 
 
 def test_bundle_generates_every_profile_window_case(tmp_path: Path) -> None:
