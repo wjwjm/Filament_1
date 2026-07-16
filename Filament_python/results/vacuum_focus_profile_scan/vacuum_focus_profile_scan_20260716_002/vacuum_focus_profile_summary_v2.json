@@ -1,0 +1,40 @@
+{
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m thin-lens geometric focus for every profile and every grid.",
+  "final_window": "14mm_896",
+  "density_rising_shifts_cm": {
+    "120 fs": -2.588853860883189,
+    "40 fs": -3.269598860979032
+  },
+  "numerical_status": {
+    "resolution_convergence_ok": true,
+    "window_convergence_ok": true,
+    "independent_fresnel_crosscheck_ok": true,
+    "fft_imax_onaxis_consistent": true
+  },
+  "resolution_delta_cm": -0.0789379464928075,
+  "window_pairs": {
+    "10_to_12_ok": false,
+    "12_to_14_ok": true
+  },
+  "physical_evidence": {
+    "all_candidate_differential_shifts_cm": {
+      "P2_zero_at_90_narrow": -2.08904428911535,
+      "P3_zero_at_90_wide": -2.753817016339644,
+      "P4_hard_top_R": 0.48742877479162017,
+      "P5_hard_top_0p9R": -1.3338382376236861,
+      "P6_P2_second_moment_matched": 0.037989203843501684
+    },
+    "candidates_closing_both_pulse_widths": [],
+    "largest_positive_delta_x_vac_cm": 0.48742877479162017
+  },
+  "final_classification": "not_supported",
+  "quality_gates": {
+    "maximum_input_power_relative_error": 0.0001,
+    "maximum_power_drift_relative": 0.0001,
+    "maximum_peak_location_uncertainty_cm": 0.1,
+    "maximum_resolution_delta_cm": 0.1,
+    "maximum_window_delta_cm": 0.1,
+    "maximum_crosscheck_delta_cm": 0.1,
+    "maximum_fft_imax_onaxis_delta_cm": 0.1
+  }
+}

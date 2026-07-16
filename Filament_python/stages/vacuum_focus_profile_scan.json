@@ -1,6 +1,6 @@
 {
-  "stage_id": "vacuum_focus_profile_scan_20260715_001",
-  "objective": "Differential linear-vacuum focus scan for physically distinct FT90 mathematical definitions; the geometric-focus coordinate is never recentered.",
+  "stage_id": "vacuum_focus_profile_scan_20260716_002",
+  "objective": "Close window convergence and independently verify every FT90 profile with continuous radial Fresnel propagation; the geometric-focus coordinate is never recentered.",
   "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m thin-lens geometric focus for every profile and every grid.",
   "common": {
     "wavelength_m": 8.0e-7,
@@ -36,18 +36,25 @@
     {"id": "P5_hard_top_0p9R", "label": "P5 hard top 0.9R", "kind": "hard", "flat_fraction": 0.9, "zero_fraction": 0.9},
     {"id": "P6_P2_second_moment_matched", "label": "P6 P2 cosine, second-moment matched to P1", "kind": "cosine", "flat_fraction": 0.8, "zero_fraction": 0.9, "match_second_moment_to": "P1_current_ft90"}
   ],
-  "convergence": [
-    {"id": "P1_current_ft90_coarse", "profile_id": "P1_current_ft90", "Nx": 256, "Ny": 256, "Lx_m": 0.008, "Ly_m": 0.008},
-    {"id": "P1_current_ft90_baseline", "profile_id": "P1_current_ft90", "Nx": 512, "Ny": 512, "Lx_m": 0.008, "Ly_m": 0.008},
-    {"id": "P1_current_ft90_refined", "profile_id": "P1_current_ft90", "Nx": 1024, "Ny": 1024, "Lx_m": 0.008, "Ly_m": 0.008},
-    {"id": "P1_current_ft90_window10mm", "profile_id": "P1_current_ft90", "Nx": 640, "Ny": 640, "Lx_m": 0.01, "Ly_m": 0.01}
+  "window_scan": [
+    {"id": "8mm_512", "Nx": 512, "Ny": 512, "Lx_m": 0.008, "Ly_m": 0.008},
+    {"id": "10mm_640", "Nx": 640, "Ny": 640, "Lx_m": 0.01, "Ly_m": 0.01},
+    {"id": "12mm_768", "Nx": 768, "Ny": 768, "Lx_m": 0.012, "Ly_m": 0.012},
+    {"id": "14mm_896", "Nx": 896, "Ny": 896, "Lx_m": 0.014, "Ly_m": 0.014}
   ],
-  "resources": {"partition": "gpu", "gpus": 1, "cpus_per_task": 4, "time": "00:35:00", "array_concurrency": 3},
+  "resolution_check": {"id": "8mm_1024", "profile_id": "P1_current_ft90", "Nx": 1024, "Ny": 1024, "Lx_m": 0.008, "Ly_m": 0.008},
+  "fresnel_radial_samples": 16385,
+  "propagation_padding_factor_cosine": 3.0,
+  "propagation_padding_factor_hard_R": 4.0,
+  "propagation_padding_factor_hard_0p9R": 2.0,
+  "resources": {"partition": "gpu", "gpus": 1, "cpus_per_task": 4, "time": "00:45:00", "array_concurrency": 3},
   "quality_gates": {
     "maximum_input_power_relative_error": 0.0001,
     "maximum_power_drift_relative": 0.0001,
     "maximum_peak_location_uncertainty_cm": 0.1,
-    "maximum_convergence_delta_cm": 0.1,
-    "maximum_crosscheck_delta_cm": 0.1
+    "maximum_resolution_delta_cm": 0.1,
+    "maximum_window_delta_cm": 0.1,
+    "maximum_crosscheck_delta_cm": 0.1,
+    "maximum_fft_imax_onaxis_delta_cm": 0.1
   }
 }
