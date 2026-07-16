@@ -1,7 +1,283 @@
 from __future__ import annotations
 from .device import xp, to_cpu
 from .constants import eps0, c0
-import math,numpy as _np
+import json
+import math
+from pathlib import Path
+
+import numpy as _np
+
+
+# Every entry below is a one-dimensional history indexed by ``z_axis``.  Keep
+# this registry close to the validation code so additions cannot silently miss
+# the output/checking path.
+NONLINEAR_DIAGNOSTIC_METADATA = {
+    "delta_n_elec_max_z": {
+        "meaning": "maximum instantaneous electronic-Kerr refractive-index increment",
+        "source": "propagate.py: delta_n_elec = n2_elec * I",
+        "unit": "1",
+        "use": "electronic Kerr strength and self-focusing onset",
+    },
+    "delta_n_rot_max_z": {
+        "meaning": "maximum rotational-Raman refractive-index increment",
+        "source": "propagate.py: delta_n_rot = n_R * (Raman convolution of I)",
+        "unit": "1",
+        "use": "delayed Kerr contribution and Raman ablation studies",
+    },
+    "IR_max_z": {
+        "meaning": "maximum Raman-convolved intensity response",
+        "source": "propagate.py: raman_convolve_intensity(I, ...)",
+        "unit": "W/m^2",
+        "use": "verify Raman convolution magnitude along propagation",
+    },
+    "IR_abs_max_z": {
+        "meaning": "maximum absolute Raman-convolved intensity response",
+        "source": "propagate.py: abs(raman_convolve_intensity(I, ...))",
+        "unit": "W/m^2",
+        "use": "detect signed Raman response even when its positive maximum is small",
+    },
+    "delta_n_plasma_min_z": {
+        "meaning": "most negative plasma refractive-index increment",
+        "source": "propagate.py: plasma_phase(rho, ...) divided by k0*dz",
+        "unit": "1",
+        "use": "plasma defocusing strength",
+    },
+    "dphi_kerr_max_abs_z": {
+        "meaning": "maximum absolute applied total Kerr phase per nonlinear step",
+        "source": "propagate.py: dphi_k after optional self-steepening correction",
+        "unit": "rad",
+        "use": "nonlinear phase budget and step-size diagnosis",
+    },
+    "dphi_elec_max_abs_z": {
+        "meaning": "maximum absolute electronic-Kerr phase estimate before optional self-steepening correction",
+        "source": "propagate.py: k0 * delta_n_elec * dz",
+        "unit": "rad",
+        "use": "separate electronic Kerr from rotational Raman in a phase budget",
+    },
+    "dphi_rot_max_abs_z": {
+        "meaning": "maximum absolute rotational-Raman phase estimate before optional self-steepening correction",
+        "source": "propagate.py: k0 * delta_n_rot * dz",
+        "unit": "rad",
+        "use": "separate delayed Raman Kerr from electronic Kerr in a phase budget",
+    },
+    "dphi_plasma_max_abs_z": {
+        "meaning": "maximum absolute applied plasma phase per nonlinear step",
+        "source": "propagate.py: plasma_phase(rho, ...)",
+        "unit": "rad",
+        "use": "plasma defocusing phase budget",
+    },
+    "alpha_ion_corr_max_z": {
+        "meaning": "maximum ionization-loss coefficient used in propagation",
+        "source": "propagate.py: alpha_ion after optional operator correction",
+        "unit": "m^-1",
+        "use": "ionization absorption and operator-correction comparisons",
+    },
+    "alpha_ion_raw_max_z": {
+        "meaning": "maximum ionization-loss coefficient before optional operator correction",
+        "source": "propagate.py: ion_source_raw / (I + I_floor)",
+        "unit": "m^-1",
+        "use": "quantify the effect of the ionization operator correction",
+    },
+    "alpha_ib_max_z": {
+        "meaning": "maximum inverse-Bremsstrahlung absorption coefficient",
+        "source": "propagate.py: ib_alpha(rho, sigma_ib)",
+        "unit": "m^-1",
+        "use": "separate plasma collisional loss from ionization loss",
+    },
+    "alpha_R_eff_z": {
+        "meaning": "effective Raman absorption coefficient used in propagation",
+        "source": "propagate.py: Raman absorption model",
+        "unit": "m^-1",
+        "use": "Raman-absorption ablation and loss budget",
+    },
+    "alpha_R_closed_z": {
+        "meaning": "effective Raman coefficient from the closed-form absorption branch; zero for other Raman models",
+        "source": "propagate.py: closed_form / alpha_local Raman absorption branch",
+        "unit": "m^-1",
+        "use": "distinguish the closed-form Raman-loss branch from convolution-derivative loss",
+    },
+    "alpha_total_max_z": {
+        "meaning": "maximum total absorption coefficient applied to the field",
+        "source": "propagate.py: alpha_ib + alpha_ion + alpha_R_eff",
+        "unit": "m^-1",
+        "use": "total nonlinear attenuation budget and step-size diagnosis",
+    },
+    "E_dep_z": {
+        "meaning": "ionization plus inverse-Bremsstrahlung energy deposited in each recorded z step",
+        "source": "propagate.py: heat_Q_per_z",
+        "unit": "J",
+        "use": "ionization/plasma heat-deposition history",
+    },
+    "E_dep_rot_z": {
+        "meaning": "rotational-Raman energy deposited in each recorded z step",
+        "source": "propagate.py: Raman absorption model",
+        "unit": "J",
+        "use": "Raman energy-transfer history",
+    },
+    "E_dep_total_z": {
+        "meaning": "sum of ionization/IB and Raman deposited energy for each recorded z step",
+        "source": "propagate.py: E_dep_z + E_dep_rot_z",
+        "unit": "J",
+        "use": "total nonlinear deposition budget",
+    },
+    "E_dep_cumulative_z": {
+        "meaning": "cumulative nonlinear deposited energy",
+        "source": "propagate.py: cumulative sum of E_dep_total_z",
+        "unit": "J",
+        "use": "compare cumulative material deposition along z",
+    },
+    "U_rel_change_z": {
+        "meaning": "pulse-energy change relative to the input propagation plane",
+        "source": "propagate.py: (U_z - U0)/U0",
+        "unit": "1",
+        "use": "energy-conservation and loss monitoring",
+    },
+    "U_step_change_z": {
+        "meaning": "pulse-energy change over each recorded propagation interval",
+        "source": "propagate.py: U_z difference from previous record (first uses U0)",
+        "unit": "J",
+        "use": "localize sudden energy-loss or numerical-instability events",
+    },
+    "E_loss_from_input_z": {
+        "meaning": "observed pulse-energy loss relative to the input propagation plane",
+        "source": "propagate.py: U0 - U_z",
+        "unit": "J",
+        "use": "compare field-energy loss against deposited-energy diagnostics",
+    },
+}
+
+
+NONLINEAR_TRACE_KEYS = tuple(NONLINEAR_DIAGNOSTIC_METADATA)
+
+# Existing and Phase-1 histories that must all have one record per z_axis
+# entry.  Scalars, text configuration tags, and rho_onaxis_t_z (which has a
+# z-leading 2D shape) intentionally do not belong here.
+Z_HISTORY_TRACE_KEYS = (
+    "U_z",
+    "I_max_z",
+    "I_onaxis_max_z",
+    "I_center_t0_z",
+    "w_mom_z",
+    "rho_max_z",
+    "rho_onaxis_max_z",
+    "E_dep_z",
+    "fwhm_plasma_z",
+    "fwhm_fluence_z",
+    "I_onaxis_max_interp_list",
+    "E_dep_rot_z",
+    "alpha_R_max_z",
+    "alpha_R_mean_z",
+    "alpha_R_eff_z",
+    "alpha_R_closed_z",
+    "IR_max_z",
+    "IR_abs_max_z",
+    "delta_n_elec_max_z",
+    "delta_n_rot_max_z",
+    "delta_n_elec_peak_z",
+    "delta_n_rot_peak_z",
+    "alpha_ion_raw_max_z",
+    "alpha_ion_corr_max_z",
+    "alpha_ib_max_z",
+    "alpha_total_max_z",
+    "delta_n_plasma_min_z",
+    "dphi_kerr_max_abs_z",
+    "dphi_elec_max_abs_z",
+    "dphi_rot_max_abs_z",
+    "dphi_plasma_max_abs_z",
+    "E_dep_total_z",
+    "E_dep_cumulative_z",
+    "U_rel_change_z",
+    "U_step_change_z",
+    "E_loss_from_input_z",
+)
+
+
+def validate_nonlinear_diagnostics(diag: dict) -> dict:
+    """Validate the z-history diagnostics without changing propagation data.
+
+    Empty traces, length mismatches, and non-finite values are hard failures.
+    A trace containing only zeros is reported but not failed: zero is physically
+    valid when the corresponding nonlinear switch or density is zero.
+    """
+    if "z_axis" not in diag:
+        raise ValueError("diagnostic validation requires z_axis")
+    z_axis = _np.asarray(to_cpu(diag["z_axis"]))
+    n_records = int(z_axis.size)
+    if n_records <= 0:
+        raise ValueError("diagnostic validation found an empty z_axis")
+    if not _np.all(_np.isfinite(z_axis)):
+        raise ValueError("diagnostic validation found non-finite z_axis values")
+    # The legacy loop may emit one final record separated only by floating-point
+    # roundoff when z_max is reached.  It is still a valid completed history;
+    # reject actual backward motion, not a numerically coincident endpoint.
+    if n_records > 1 and _np.any(_np.diff(z_axis) < 0.0):
+        raise ValueError("diagnostic validation requires a non-decreasing z_axis")
+
+    checked = list(Z_HISTORY_TRACE_KEYS)
+    all_zero = []
+    for key in checked:
+        if key not in diag:
+            raise ValueError(f"diagnostic validation missing required trace: {key}")
+        values = _np.asarray(to_cpu(diag[key]))
+        if values.ndim != 1 or values.size != n_records:
+            raise ValueError(
+                f"diagnostic validation length mismatch for {key}: "
+                f"expected ({n_records},), got {values.shape}"
+            )
+        if not _np.all(_np.isfinite(values)):
+            raise ValueError(f"diagnostic validation found NaN/Inf in {key}")
+        if _np.all(values == 0.0):
+            all_zero.append(key)
+
+    rho_tz = diag.get("rho_onaxis_t_z")
+    if rho_tz is not None:
+        rho_tz = _np.asarray(to_cpu(rho_tz))
+        if rho_tz.ndim != 2 or rho_tz.shape[0] != n_records:
+            raise ValueError(
+                "diagnostic validation length mismatch for rho_onaxis_t_z: "
+                f"expected first dimension {n_records}, got {rho_tz.shape}"
+            )
+        if not _np.all(_np.isfinite(rho_tz)):
+            raise ValueError("diagnostic validation found NaN/Inf in rho_onaxis_t_z")
+
+    U_z = _np.asarray(to_cpu(diag["U_z"]), dtype=float)
+    U_step = _np.asarray(to_cpu(diag["U_step_change_z"]), dtype=float)
+    U0 = float(U_z[0] - U_step[0])
+    if not _np.isfinite(U0) or U0 <= 0.0:
+        raise ValueError("diagnostic validation reconstructed a non-positive input energy")
+    expected_rel = (U_z - U0) / (U0 if abs(U0) > 1e-30 else 1e-30)
+    if not _np.allclose(_np.asarray(to_cpu(diag["U_rel_change_z"]), dtype=float), expected_rel, rtol=2e-5, atol=2e-8):
+        raise ValueError("diagnostic validation failed U_rel_change_z consistency")
+    expected_step = _np.diff(_np.concatenate(([U0], U_z)))
+    if not _np.allclose(U_step, expected_step, rtol=2e-5, atol=2e-10):
+        raise ValueError("diagnostic validation failed U_step_change_z consistency")
+    expected_deposition = _np.asarray(to_cpu(diag["E_dep_z"]), dtype=float) + _np.asarray(to_cpu(diag["E_dep_rot_z"]), dtype=float)
+    if not _np.allclose(_np.asarray(to_cpu(diag["E_dep_total_z"]), dtype=float), expected_deposition, rtol=2e-5, atol=2e-12):
+        raise ValueError("diagnostic validation failed E_dep_total_z consistency")
+    if not _np.allclose(_np.asarray(to_cpu(diag["E_dep_cumulative_z"]), dtype=float), _np.cumsum(expected_deposition), rtol=2e-5, atol=2e-12):
+        raise ValueError("diagnostic validation failed E_dep_cumulative_z consistency")
+
+    return {
+        "passed": True,
+        "z_records": n_records,
+        "checked_traces": checked,
+        "all_zero_traces": all_zero,
+    }
+
+
+def write_nonlinear_diagnostic_report(path: str | Path, diag: dict, *, npz_path: str | Path) -> dict:
+    """Write a compact, self-describing JSON report next to a result NPZ."""
+    validation = validate_nonlinear_diagnostics(diag)
+    report = {
+        "schema": "khz_filament.nonlinear_diagnostics.v1",
+        "npz_path": str(npz_path),
+        "validation": validation,
+        "variables": NONLINEAR_DIAGNOSTIC_METADATA,
+    }
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return report
 
 def intensity(E, n0: float):
     """Compute intensity (W/m^2) from complex field E."""

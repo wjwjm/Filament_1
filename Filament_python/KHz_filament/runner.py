@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import os
 import time
+from pathlib import Path
 import numpy as _np
 
 from .air_dispersion import n_of_omega
@@ -17,7 +18,13 @@ from .config import (
     RunConfig,
 )
 from .device import to_cpu, xp
-from .diagnostics import intensity, peak_intensity, pulse_energy, save_npz
+from .diagnostics import (
+    intensity,
+    peak_intensity,
+    pulse_energy,
+    save_npz,
+    write_nonlinear_diagnostic_report,
+)
 from .grids import make_axes
 from .heat import diffuse_dn_gas
 from .propagate import propagate_one_pulse
@@ -337,18 +344,23 @@ def run_demo(
         "dn_gas": to_cpu(dn_gas),
     }
     out.update(input_profile)
-    diag_keys = [
-        "z_axis", "U_z", "I_max_z", "I_onaxis_max_z", "I_center_t0_z",
-        "w_mom_z", "rho_onaxis_max_z", "rho_max_z",
-        "E_dep_z", "E_dep_rot_z", "fwhm_plasma_z", "fwhm_fluence_z", "rho_onaxis_t_z", "I_onaxis_max_interp_list",
-    ]
     if last_diag:
-        for k in diag_keys:
-            if k in last_diag and last_diag[k] is not None:
-                out[k] = to_cpu(last_diag[k])
+        # Propagation owns the diagnostic schema.  Copy every returned field so
+        # newly added observability traces cannot be calculated but omitted
+        # from the NPZ by a stale allow-list here.
+        for k, value in last_diag.items():
+            if value is not None:
+                out[k] = to_cpu(value)
 
     save_npz(out_path, **{k: v for k, v in out.items() if v is not None})
     print(f"Saved diagnostics to {out_path}")
+    if last_diag:
+        report_path = Path(out_path).with_suffix(".diagnostic_report.json")
+        report = write_nonlinear_diagnostic_report(report_path, last_diag, npz_path=out_path)
+        print(
+            f"[diagnostic-check] PASS: {report['validation']['z_records']} z records; "
+            f"report={report_path}"
+        )
 
 
 def run_from_file(cfg_path: str, out_path: str = "khzfil_out.npz", dtype: str = "fp32"):

@@ -13,7 +13,15 @@ from .linear_full import step_linear_full_factorized, step_linear_full_3d
 from .air_dispersion import n_of_omega
 from .constants import c0
 from .raman import make_raman_kernel, precompute_kernel_fft, raman_convolve_intensity, resolve_raman_rot_params
-from .diagnostics import intensity, pulse_energy, second_moment_radius,_fwhm_time_1d,parabola_peak,_fwhm_diameter_xy_center
+from .diagnostics import (
+    intensity,
+    pulse_energy,
+    second_moment_radius,
+    _fwhm_time_1d,
+    parabola_peak,
+    _fwhm_diameter_xy_center,
+    validate_nonlinear_diagnostics,
+)
 
 def _linear_phase_per_meter(linear_model, k0, axes, K02_w=None, omega0=None, nee_denom_floor=1e-4):
     """返回线性传播子对应的 |kz| (rad/m) 的 max 值，用于估计 Δφ_linear = kz_max * dz"""
@@ -225,7 +233,9 @@ def propagate_one_pulse(
     I_onaxis_max_z_list, I_center_t0_z_list = [], []
     w_mom_z_list, rho_onaxis_max_list = [], []
 
-    E_dep_z_list, E_dep_rot_z_list = [], []  # ← 新增：拉曼沉积
+    E_dep_z_list, E_dep_rot_z_list = [], []  # 电离+IB、拉曼沉积
+    E_dep_total_z_list, E_dep_cumulative_z_list = [], []
+    U_rel_change_z_list, U_step_change_z_list, E_loss_from_input_z_list = [], [], []
     fwhm_plasma_z_list, fwhm_fluence_z_list = [], []
     rho_onaxis_time_list = [] if record_onaxis_rho_time else None
     I_onaxis_max_interp_list,alpha_R_mean_z_list,alpha_R_closed_z_list,IR_max_z_list = [],[],[],[]
@@ -233,6 +243,13 @@ def propagate_one_pulse(
     delta_n_elec_peak_z_list, delta_n_rot_peak_z_list = [], []
     alpha_R_max_z_list = []
     alpha_ion_raw_max_z_list, alpha_ion_corr_max_z_list = [], []
+    alpha_ib_max_z_list, alpha_total_max_z_list, alpha_R_eff_z_list = [], [], []
+    delta_n_plasma_min_z_list = []
+    dphi_kerr_max_abs_z_list, dphi_elec_max_abs_z_list = [], []
+    dphi_rot_max_abs_z_list, dphi_plasma_max_abs_z_list = [], []
+    IR_abs_max_z_list = []
+    E_dep_cumulative = 0.0
+    U_previous = U0_baseline
     # ---------- 主循环 ----------
     z = 0.0
     # Qacc 累积到面密度 J/m^2（把体功率密度在 t,z 两方向积分）
@@ -347,6 +364,7 @@ def propagate_one_pulse(
         # —— 拉曼吸收 —— 两种模型二选一
 
         alpha_R_eff = 0.0                    # 标量/2D 等效吸收，用于传播
+        alpha_R_closed = 0.0                 # 仅 closed_form 模型保留其等效系数
         E_dep_rot_step = 0.0                 # 本 z 步旋转拉曼总沉积能量 [J]
         IR_max = 0.0
         Q_rot_vol = None
@@ -434,6 +452,7 @@ def propagate_one_pulse(
                 # alpha_eff = (∫α F dA)/(∫F dA)
                 denomF = float(xp.sum(F_xy) * axes.dx * axes.dy) + 1e-30
                 alpha_R_eff = float(xp.sum(alpha_map * F_xy) * axes.dx * axes.dy) / denomF
+                alpha_R_closed = alpha_R_eff
 
             else:
                 # 未知方案：关闭吸收，仅延迟 Kerr
@@ -526,8 +545,18 @@ def propagate_one_pulse(
             # 步内沉积能量（J）
             E_dep = float(xp.sum(Qslice) * axes.dx * axes.dy * dz_try)  # 电离+IB
             E_dep_z_list.append(E_dep)
+            E_dep_total = E_dep + float(E_dep_rot_step)
+            E_dep_cumulative += E_dep_total
+            E_dep_total_z_list.append(E_dep_total)
+            E_dep_cumulative_z_list.append(E_dep_cumulative)
+            U_rel_change_z_list.append((U_now - U0_baseline) / U0_baseline)
+            U_step_change_z_list.append(U_now - U_previous)
+            E_loss_from_input_z_list.append(U0_baseline - U_now)
+            U_previous = U_now
             alpha_ion_raw_max_z_list.append(float(xp.max(xp.maximum(alpha_ion_raw, 0.0))))
             alpha_ion_corr_max_z_list.append(float(xp.max(alpha_ion)))
+            alpha_ib_max_z_list.append(float(xp.max(alpha_ib)))
+            alpha_total_max_z_list.append(float(xp.max(alpha_total)))
             # 拉曼沉积
             if use_raman and raman_absorb_on:
                 E_dep_rot = E_dep_rot_step
@@ -539,6 +568,15 @@ def propagate_one_pulse(
             E_dep_rot_z_list.append(E_dep_rot)
             alpha_R_max_z_list.append(alphaR_max)
             alpha_R_mean_z_list.append(alphaR_mean)
+            alpha_R_eff_z_list.append(float(alpha_R_eff))
+            alpha_R_closed_z_list.append(float(alpha_R_closed))
+            IR_max_z_list.append(float(xp.max(IR)) if IR is not None else 0.0)
+            IR_abs_max_z_list.append(float(xp.max(xp.abs(IR))) if IR is not None else 0.0)
+            delta_n_plasma_min_z_list.append(float(xp.min(dphi_p)) / (float(k0) * dz_try))
+            dphi_kerr_max_abs_z_list.append(float(xp.max(xp.abs(dphi_k))))
+            dphi_elec_max_abs_z_list.append(float(xp.max(xp.abs(float(k0) * delta_n_elec * dz_try))))
+            dphi_rot_max_abs_z_list.append(float(xp.max(xp.abs(float(k0) * delta_n_rot * dz_try))))
+            dphi_plasma_max_abs_z_list.append(float(xp.max(xp.abs(dphi_p))))
 
             # FWHM：等离子体通道 与 能量密度
             fwhm_plasma = _fwhm_diameter_xy_center(rho_maxt, axes, x0, y0)
@@ -553,6 +591,18 @@ def propagate_one_pulse(
                 if (steps_done % energy_print_every == 0) or (z_now >= z_max - 1e-16):
                     drel = 100.0 * (U_now - U0_baseline) / U0_baseline
                     print(f"[U] z={z_now:0.3f} m  U={U_now: .3e} J  Δrel={drel:.2f}%")
+                    if bool(getattr(p, "diag_extra", False)):
+                        print(
+                            f"[NL] z={z_now:0.3f} m  Ipk={I_max_z_list[-1]:.3e} W/m^2  "
+                            f"Δn_e={delta_n_elec_max_z_list[-1]:.3e}  Δn_R={delta_n_rot_max_z_list[-1]:.3e}  "
+                            f"IR={IR_abs_max_z_list[-1]:.3e} W/m^2  "
+                            f"Δn_p,min={delta_n_plasma_min_z_list[-1]:.3e}  "
+                            f"|φ_K|={dphi_kerr_max_abs_z_list[-1]:.3e} rad  "
+                            f"|φ_p|={dphi_plasma_max_abs_z_list[-1]:.3e} rad  "
+                            f"α_ion={alpha_ion_corr_max_z_list[-1]:.3e}  "
+                            f"α_IB={alpha_ib_max_z_list[-1]:.3e}  α_R={alpha_R_eff_z_list[-1]:.3e} m^-1  "
+                            f"Edep={E_dep_total_z_list[-1]:.3e} J"
+                        )
                     # --- monitor PPT_i cap-hit (after evolve_rho_time) ---
                     W_cap_used = float(getattr(ion_conf, "W_cap", 0.0))
                     if W_cap_used > 0.0:
@@ -588,6 +638,11 @@ def propagate_one_pulse(
         "rho_max_z":                _np.asarray(rho_max_z_list,           dtype=rdtype_np),
         "rho_onaxis_max_z":         _np.asarray(rho_onaxis_max_list,      dtype=rdtype_np),
         "E_dep_z":                  _np.asarray(E_dep_z_list,             dtype=rdtype_np),   # 电离+IB
+        "E_dep_total_z":            _np.asarray(E_dep_total_z_list,       dtype=rdtype_np),
+        "E_dep_cumulative_z":       _np.asarray(E_dep_cumulative_z_list,  dtype=rdtype_np),
+        "U_rel_change_z":           _np.asarray(U_rel_change_z_list,      dtype=rdtype_np),
+        "U_step_change_z":          _np.asarray(U_step_change_z_list,     dtype=rdtype_np),
+        "E_loss_from_input_z":      _np.asarray(E_loss_from_input_z_list, dtype=rdtype_np),
 
         "fwhm_plasma_z":            _np.asarray(fwhm_plasma_z_list,       dtype=rdtype_np),
         "fwhm_fluence_z":           _np.asarray(fwhm_fluence_z_list,      dtype=rdtype_np),
@@ -596,14 +651,23 @@ def propagate_one_pulse(
         "E_dep_rot_z": _np.asarray(E_dep_rot_z_list, dtype=rdtype_np),
         "alpha_R_max_z": _np.asarray(alpha_R_max_z_list, dtype=rdtype_np),
         "alpha_R_mean_z": _np.asarray(alpha_R_mean_z_list, dtype=rdtype_np),
+        "alpha_R_eff_z": _np.asarray(alpha_R_eff_z_list, dtype=rdtype_np),
         "alpha_R_closed_z": _np.asarray(alpha_R_closed_z_list, dtype=rdtype_np),
         "IR_max_z": _np.asarray(IR_max_z_list, dtype=rdtype_np),
+        "IR_abs_max_z": _np.asarray(IR_abs_max_z_list, dtype=rdtype_np),
         "delta_n_elec_max_z": _np.asarray(delta_n_elec_max_z_list, dtype=rdtype_np),
         "delta_n_rot_max_z": _np.asarray(delta_n_rot_max_z_list, dtype=rdtype_np),
         "delta_n_elec_peak_z": _np.asarray(delta_n_elec_peak_z_list, dtype=rdtype_np),
         "delta_n_rot_peak_z": _np.asarray(delta_n_rot_peak_z_list, dtype=rdtype_np),
         "alpha_ion_raw_max_z": _np.asarray(alpha_ion_raw_max_z_list, dtype=rdtype_np),
         "alpha_ion_corr_max_z": _np.asarray(alpha_ion_corr_max_z_list, dtype=rdtype_np),
+        "alpha_ib_max_z": _np.asarray(alpha_ib_max_z_list, dtype=rdtype_np),
+        "alpha_total_max_z": _np.asarray(alpha_total_max_z_list, dtype=rdtype_np),
+        "delta_n_plasma_min_z": _np.asarray(delta_n_plasma_min_z_list, dtype=rdtype_np),
+        "dphi_kerr_max_abs_z": _np.asarray(dphi_kerr_max_abs_z_list, dtype=rdtype_np),
+        "dphi_elec_max_abs_z": _np.asarray(dphi_elec_max_abs_z_list, dtype=rdtype_np),
+        "dphi_rot_max_abs_z": _np.asarray(dphi_rot_max_abs_z_list, dtype=rdtype_np),
+        "dphi_plasma_max_abs_z": _np.asarray(dphi_plasma_max_abs_z_list, dtype=rdtype_np),
         "n2_elec_used": float(n2_elec),
         "n_R_used": float(n_R),
         "f_R_ignored_rot_sinexp": bool(fR_ignored_rot_sinexp),
@@ -613,6 +677,11 @@ def propagate_one_pulse(
     }
     if record_onaxis_rho_time and (rho_onaxis_time_list is not None and len(rho_onaxis_time_list) > 0):
         diag["rho_onaxis_t_z"] = _np.stack(rho_onaxis_time_list, axis=0).astype(rdtype_np, copy=False)
+
+    validation = validate_nonlinear_diagnostics(diag)
+    diag["diagnostic_validation_passed"] = _np.bool_(validation["passed"])
+    diag["diagnostic_validation_trace_count"] = _np.int64(validation["z_records"])
+    diag["diagnostic_all_zero_traces"] = _np.asarray(validation["all_zero_traces"], dtype="U64")
 
 
     # Qacc 是 2D（J/m^2）：用于慢时间热扩散
