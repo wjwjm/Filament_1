@@ -1,6 +1,6 @@
 {
   "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m thin-lens geometric focus for every profile and every grid.",
-  "p1_x_vac_cm": -4.073970808441296,
+  "p1_x_vac_cm": -4.073967717774451,
   "density_rising_shifts_cm": {
     "120 fs": -2.588853860883189,
     "40 fs": -3.269598860979032

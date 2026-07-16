@@ -27,8 +27,8 @@ No candidate produces the positive 2.5–3.1 cm vacuum-focus displacement needed
 - 512²/8 mm versus 1024²/8 mm: **0.0035 cm**, passing the 0.1 cm high-resolution check.
 - 512²/8 mm versus 640²/10 mm (matched transverse spacing): **−0.4286 cm**, failing the required 0.1 cm window check.
 
-The final classification is therefore **inconclusive**, not a physical endorsement or rejection of FT90 edge physics: the prescribed baseline-window convergence gate fails.  A GPU Slurm array bundle with nine distinct cases is prepared, but this session could not submit it because `papp_cloud acct` failed authentication (E402/E304).  No full nonlinear filamentation job was submitted.
+The final classification is therefore **inconclusive**, not a physical endorsement or rejection of FT90 edge physics: the prescribed baseline-window convergence gate fails.  The nine distinct cases were completed as GPU Slurm array **172588** on `scvi806@nc-n50r5` (submitted 2026-07-16 02:05:52 UTC); only CSV/JSON diagnostics were downloaded and committed.  No full nonlinear filamentation job was submitted.
 
 ## Next action
 
-Do not change the FT90 edge, nonlinear coefficients, or production filament parameters on the basis of this scan.  First restore GPU-account authentication and rerun the prepared array, then resolve the 8 mm versus 10 mm linear-window discrepancy.  Only after that quality gate passes should a single controlled nonlinear validation be considered; the only candidate parameter allowed to change would be the documented transverse-profile mathematical definition.
+Do not change the FT90 edge, nonlinear coefficients, or production filament parameters on the basis of this scan.  First resolve the 8 mm versus 10 mm linear-window discrepancy.  Only after that quality gate passes should a single controlled nonlinear validation be considered; the only candidate parameter allowed to change would be the documented transverse-profile mathematical definition.

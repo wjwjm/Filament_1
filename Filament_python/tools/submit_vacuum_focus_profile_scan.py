@@ -96,7 +96,7 @@ if [[ "$CASE_ID" == "P1_current_ft90" ]]; then EXTRA+=(--save-focus-plane); fi
 mkdir -p "results/$CASE_ID"
 python tools/run_vacuum_focus_profile_case.py --case "$CASE_FILE" --out-dir "results/$CASE_ID" --gpu "${{EXTRA[@]}}"
 '''
-    path = out / "submit_profile_scan.sh"; path.write_text(script, encoding="utf-8"); path.chmod(0o755)
+    path = out / "submit_profile_scan.sh"; path.write_text(script, encoding="utf-8", newline="\n"); path.chmod(0o755)
     print(json.dumps({"bundle": str(out), "cases": len(generated), "p6_scale": scale}, indent=2))
     return 0
 
