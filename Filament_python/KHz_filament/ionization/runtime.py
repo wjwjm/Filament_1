@@ -217,7 +217,7 @@ def _species_ui_joule(sp: dict, idx: int) -> float:
     raise ValueError(f"[ionization] species '{name}' 缺少电离能：请提供 Ui_J 或 Ip_eV。")
 
 
-def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *, quasi_static_time: bool = False, time_stat: str = "peak", mean_clip_frac: float = 1e-3, expects: str | None = None, return_species_terms: bool = False):
+def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *, quasi_static_time: bool = False, time_stat: str = "peak", mean_clip_frac: float = 1e-3, expects: str | None = None, return_species_terms: bool = False, diagnose_integrator_stability: bool = False):
     tm = str(getattr(Wfunc, "_time_mode", "")).lower()
     if tm in ("qs_peak", "qs_mean", "qs_mean_esq"):
         quasi_static_time = True
@@ -232,6 +232,39 @@ def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *
 
     sp_entries = getattr(Wfunc, "_species_entries", None)
     if sp_entries and len(sp_entries) > 0:
+        stability = None
+        if diagnose_integrator_stability:
+            stability = {
+                "integrator": str(getattr(Wfunc, "_integrator", "rk4")).lower(),
+                "species": {
+                    str(s.get("name", f"species[{j}]")): {
+                        "preclip_step_min": float("inf"),
+                        "preclip_step_max": float("-inf"),
+                        "preclip_intermediate_min": float("inf"),
+                        "preclip_intermediate_max": float("-inf"),
+                        "step_clip_count": 0,
+                        "intermediate_violation_count": 0,
+                    }
+                    for j, s in enumerate(sp_entries)
+                },
+            }
+
+        def _observe_preclip(j, candidate, *, intermediate: bool) -> None:
+            if stability is None:
+                return
+            name = str(sp_entries[j].get("name", f"species[{j}]"))
+            record = stability["species"][name]
+            cmin = float(xp.min(candidate))
+            cmax = float(xp.max(candidate))
+            violations = int(xp.count_nonzero((candidate < 0.0) | (candidate > 1.0)))
+            if intermediate:
+                record["preclip_intermediate_min"] = min(record["preclip_intermediate_min"], cmin)
+                record["preclip_intermediate_max"] = max(record["preclip_intermediate_max"], cmax)
+                record["intermediate_violation_count"] += violations
+            else:
+                record["preclip_step_min"] = min(record["preclip_step_min"], cmin)
+                record["preclip_step_max"] = max(record["preclip_step_max"], cmax)
+                record["step_clip_count"] += violations
         fracs = xp.asarray([max(0.0, float(s["fraction"])) for s in sp_entries], dtype=rdtype)
         ssum = float(fracs.sum())
         fracs = (fracs / ssum) if (xp.isfinite(ssum) and ssum > 0.0) else (xp.ones_like(fracs) / float(len(sp_entries)))
@@ -251,12 +284,16 @@ def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *
                         betaN = beta_list[j]
                         k1 = W1 * (1.0 - u) - betaN * (u * u)
                         u2 = u + 0.5 * dt * k1
+                        _observe_preclip(j, u2, intermediate=True)
                         k2 = W2 * (1.0 - u2) - betaN * (u2 * u2)
                         u3 = u + 0.5 * dt * k2
+                        _observe_preclip(j, u3, intermediate=True)
                         k3 = W2 * (1.0 - u3) - betaN * (u3 * u3)
                         u4 = u + dt * k3
+                        _observe_preclip(j, u4, intermediate=True)
                         k4 = W4 * (1.0 - u4) - betaN * (u4 * u4)
                         u_next = u + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
+                        _observe_preclip(j, u_next, intermediate=False)
                         _minmax_inplace(u_next, 0.0, 1.0)
                         u_list[j][it + 1] = u_next
                 else:
@@ -274,6 +311,7 @@ def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *
                             u = u_list[j][it]
                             du = dt_sub * (Wt_list[j][it] * (1.0 - u) - beta_list[j] * (u * u))
                             u = u + du
+                            _observe_preclip(j, u, intermediate=False)
                             _minmax_inplace(u, 0.0, 1.0)
                             u_list[j][it] = u
                     for j in range(len(sp_entries)):
@@ -294,7 +332,11 @@ def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *
                     drho_j_dt = Wt_list[j] * xp.clip(float(N0_j_list[j]) - rho_j, 0.0, float(N0_j_list[j])) - float(beta_rec) * (rho_j * rho_j)
                     drho_dt_u_sum = drho_dt_u_sum + float(ui_j) * drho_j_dt
                 species_terms = {"drho_dt_u_sum": drho_dt_u_sum}
+                if stability is not None:
+                    return rho_sum, Wt_total, species_terms, stability
                 return rho_sum, Wt_total, species_terms
+            if stability is not None:
+                return rho_sum, Wt_total, stability
             return rho_sum, Wt_total
 
         stat = str(time_stat).lower()

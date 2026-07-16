@@ -34,6 +34,16 @@ TRANSVERSE_PROFILE_TYPES: Set[str] = {
 }
 
 
+NONLINEAR_SWITCH_FIELDS: Set[str] = {
+    "use_electronic_kerr",
+    "use_raman_phase",
+    "use_plasma_phase",
+    "use_ionization_loss",
+    "use_raman_absorption",
+    "use_ionization_solver",
+}
+
+
 RATE_ALIAS_MAP: Dict[str, str] = {
     # historical shorthand
     "ppt_talebpour_i": "ppt_talebpour_i_lut",

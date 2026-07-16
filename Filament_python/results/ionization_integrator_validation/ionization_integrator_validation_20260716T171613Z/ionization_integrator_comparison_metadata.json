@@ -1,0 +1,675 @@
+{
+  "schema": "khz_filament.ionization_integrator_comparison.v1",
+  "code_commit_sha": "e1023da2445a9ee975dcb5eb9b1a8ee382738ca2",
+  "generated_at_utc": "2026-07-16T17:21:43.036846+00:00",
+  "refinements": [
+    1,
+    2,
+    4,
+    8
+  ],
+  "reference": "per-species no-recombination cumulative trapezoid integral of production W(t)",
+  "candidate_exponential_update": "reported only; production RK4 is not replaced",
+  "rho_floor_m3": 10000000000.0,
+  "rise_threshold_m3": 1e+20,
+  "cases": [
+    {
+      "case_label": "tau40fs_I1p000ep15",
+      "config_path": "D:\\Filament_1\\.codex_worktrees\\phase2-phase3\\Filament_python\\configs\\profile_validation\\flat_top_90_40fs.json",
+      "tau_fwhm_fs": 40.0,
+      "I_peak_W_m2": 1000000000000000.0,
+      "refinements": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "species_rates": {
+        "N2": "popruzhenko_atom_i_lut",
+        "O2": "popruzhenko_atom_i_lut"
+      },
+      "species_fractions": {
+        "N2": 0.8,
+        "O2": 0.2
+      },
+      "production_grid": {
+        "Nt": 384,
+        "Twin_fs": 960.0,
+        "dt_fs": 2.5
+      },
+      "species_parameters": [
+        {
+          "name": "N2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.2
+        }
+      ]
+    },
+    {
+      "case_label": "tau40fs_I3p000ep15",
+      "config_path": "D:\\Filament_1\\.codex_worktrees\\phase2-phase3\\Filament_python\\configs\\profile_validation\\flat_top_90_40fs.json",
+      "tau_fwhm_fs": 40.0,
+      "I_peak_W_m2": 3000000000000000.0,
+      "refinements": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "species_rates": {
+        "N2": "popruzhenko_atom_i_lut",
+        "O2": "popruzhenko_atom_i_lut"
+      },
+      "species_fractions": {
+        "N2": 0.8,
+        "O2": 0.2
+      },
+      "production_grid": {
+        "Nt": 384,
+        "Twin_fs": 960.0,
+        "dt_fs": 2.5
+      },
+      "species_parameters": [
+        {
+          "name": "N2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.2
+        }
+      ]
+    },
+    {
+      "case_label": "tau40fs_I1p000ep16",
+      "config_path": "D:\\Filament_1\\.codex_worktrees\\phase2-phase3\\Filament_python\\configs\\profile_validation\\flat_top_90_40fs.json",
+      "tau_fwhm_fs": 40.0,
+      "I_peak_W_m2": 1e+16,
+      "refinements": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "species_rates": {
+        "N2": "popruzhenko_atom_i_lut",
+        "O2": "popruzhenko_atom_i_lut"
+      },
+      "species_fractions": {
+        "N2": 0.8,
+        "O2": 0.2
+      },
+      "production_grid": {
+        "Nt": 384,
+        "Twin_fs": 960.0,
+        "dt_fs": 2.5
+      },
+      "species_parameters": [
+        {
+          "name": "N2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.2
+        }
+      ]
+    },
+    {
+      "case_label": "tau40fs_I3p000ep16",
+      "config_path": "D:\\Filament_1\\.codex_worktrees\\phase2-phase3\\Filament_python\\configs\\profile_validation\\flat_top_90_40fs.json",
+      "tau_fwhm_fs": 40.0,
+      "I_peak_W_m2": 3e+16,
+      "refinements": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "species_rates": {
+        "N2": "popruzhenko_atom_i_lut",
+        "O2": "popruzhenko_atom_i_lut"
+      },
+      "species_fractions": {
+        "N2": 0.8,
+        "O2": 0.2
+      },
+      "production_grid": {
+        "Nt": 384,
+        "Twin_fs": 960.0,
+        "dt_fs": 2.5
+      },
+      "species_parameters": [
+        {
+          "name": "N2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.2
+        }
+      ]
+    },
+    {
+      "case_label": "tau40fs_I1p000ep17",
+      "config_path": "D:\\Filament_1\\.codex_worktrees\\phase2-phase3\\Filament_python\\configs\\profile_validation\\flat_top_90_40fs.json",
+      "tau_fwhm_fs": 40.0,
+      "I_peak_W_m2": 1e+17,
+      "refinements": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "species_rates": {
+        "N2": "popruzhenko_atom_i_lut",
+        "O2": "popruzhenko_atom_i_lut"
+      },
+      "species_fractions": {
+        "N2": 0.8,
+        "O2": 0.2
+      },
+      "production_grid": {
+        "Nt": 384,
+        "Twin_fs": 960.0,
+        "dt_fs": 2.5
+      },
+      "species_parameters": [
+        {
+          "name": "N2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.2
+        }
+      ]
+    },
+    {
+      "case_label": "tau40fs_I3p000ep17",
+      "config_path": "D:\\Filament_1\\.codex_worktrees\\phase2-phase3\\Filament_python\\configs\\profile_validation\\flat_top_90_40fs.json",
+      "tau_fwhm_fs": 40.0,
+      "I_peak_W_m2": 3e+17,
+      "refinements": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "species_rates": {
+        "N2": "popruzhenko_atom_i_lut",
+        "O2": "popruzhenko_atom_i_lut"
+      },
+      "species_fractions": {
+        "N2": 0.8,
+        "O2": 0.2
+      },
+      "production_grid": {
+        "Nt": 384,
+        "Twin_fs": 960.0,
+        "dt_fs": 2.5
+      },
+      "species_parameters": [
+        {
+          "name": "N2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.2
+        }
+      ]
+    },
+    {
+      "case_label": "tau40fs_I1p000ep18",
+      "config_path": "D:\\Filament_1\\.codex_worktrees\\phase2-phase3\\Filament_python\\configs\\profile_validation\\flat_top_90_40fs.json",
+      "tau_fwhm_fs": 40.0,
+      "I_peak_W_m2": 1e+18,
+      "refinements": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "species_rates": {
+        "N2": "popruzhenko_atom_i_lut",
+        "O2": "popruzhenko_atom_i_lut"
+      },
+      "species_fractions": {
+        "N2": 0.8,
+        "O2": 0.2
+      },
+      "production_grid": {
+        "Nt": 384,
+        "Twin_fs": 960.0,
+        "dt_fs": 2.5
+      },
+      "species_parameters": [
+        {
+          "name": "N2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.2
+        }
+      ]
+    },
+    {
+      "case_label": "tau120fs_I1p000ep15",
+      "config_path": "D:\\Filament_1\\.codex_worktrees\\phase2-phase3\\Filament_python\\configs\\profile_validation\\flat_top_90_120fs.json",
+      "tau_fwhm_fs": 120.0,
+      "I_peak_W_m2": 1000000000000000.0,
+      "refinements": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "species_rates": {
+        "N2": "popruzhenko_atom_i_lut",
+        "O2": "popruzhenko_atom_i_lut"
+      },
+      "species_fractions": {
+        "N2": 0.8,
+        "O2": 0.2
+      },
+      "production_grid": {
+        "Nt": 384,
+        "Twin_fs": 960.0,
+        "dt_fs": 2.5
+      },
+      "species_parameters": [
+        {
+          "name": "N2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.2
+        }
+      ]
+    },
+    {
+      "case_label": "tau120fs_I3p000ep15",
+      "config_path": "D:\\Filament_1\\.codex_worktrees\\phase2-phase3\\Filament_python\\configs\\profile_validation\\flat_top_90_120fs.json",
+      "tau_fwhm_fs": 120.0,
+      "I_peak_W_m2": 3000000000000000.0,
+      "refinements": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "species_rates": {
+        "N2": "popruzhenko_atom_i_lut",
+        "O2": "popruzhenko_atom_i_lut"
+      },
+      "species_fractions": {
+        "N2": 0.8,
+        "O2": 0.2
+      },
+      "production_grid": {
+        "Nt": 384,
+        "Twin_fs": 960.0,
+        "dt_fs": 2.5
+      },
+      "species_parameters": [
+        {
+          "name": "N2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.2
+        }
+      ]
+    },
+    {
+      "case_label": "tau120fs_I1p000ep16",
+      "config_path": "D:\\Filament_1\\.codex_worktrees\\phase2-phase3\\Filament_python\\configs\\profile_validation\\flat_top_90_120fs.json",
+      "tau_fwhm_fs": 120.0,
+      "I_peak_W_m2": 1e+16,
+      "refinements": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "species_rates": {
+        "N2": "popruzhenko_atom_i_lut",
+        "O2": "popruzhenko_atom_i_lut"
+      },
+      "species_fractions": {
+        "N2": 0.8,
+        "O2": 0.2
+      },
+      "production_grid": {
+        "Nt": 384,
+        "Twin_fs": 960.0,
+        "dt_fs": 2.5
+      },
+      "species_parameters": [
+        {
+          "name": "N2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.2
+        }
+      ]
+    },
+    {
+      "case_label": "tau120fs_I3p000ep16",
+      "config_path": "D:\\Filament_1\\.codex_worktrees\\phase2-phase3\\Filament_python\\configs\\profile_validation\\flat_top_90_120fs.json",
+      "tau_fwhm_fs": 120.0,
+      "I_peak_W_m2": 3e+16,
+      "refinements": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "species_rates": {
+        "N2": "popruzhenko_atom_i_lut",
+        "O2": "popruzhenko_atom_i_lut"
+      },
+      "species_fractions": {
+        "N2": 0.8,
+        "O2": 0.2
+      },
+      "production_grid": {
+        "Nt": 384,
+        "Twin_fs": 960.0,
+        "dt_fs": 2.5
+      },
+      "species_parameters": [
+        {
+          "name": "N2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.2
+        }
+      ]
+    },
+    {
+      "case_label": "tau120fs_I1p000ep17",
+      "config_path": "D:\\Filament_1\\.codex_worktrees\\phase2-phase3\\Filament_python\\configs\\profile_validation\\flat_top_90_120fs.json",
+      "tau_fwhm_fs": 120.0,
+      "I_peak_W_m2": 1e+17,
+      "refinements": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "species_rates": {
+        "N2": "popruzhenko_atom_i_lut",
+        "O2": "popruzhenko_atom_i_lut"
+      },
+      "species_fractions": {
+        "N2": 0.8,
+        "O2": 0.2
+      },
+      "production_grid": {
+        "Nt": 384,
+        "Twin_fs": 960.0,
+        "dt_fs": 2.5
+      },
+      "species_parameters": [
+        {
+          "name": "N2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.2
+        }
+      ]
+    },
+    {
+      "case_label": "tau120fs_I3p000ep17",
+      "config_path": "D:\\Filament_1\\.codex_worktrees\\phase2-phase3\\Filament_python\\configs\\profile_validation\\flat_top_90_120fs.json",
+      "tau_fwhm_fs": 120.0,
+      "I_peak_W_m2": 3e+17,
+      "refinements": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "species_rates": {
+        "N2": "popruzhenko_atom_i_lut",
+        "O2": "popruzhenko_atom_i_lut"
+      },
+      "species_fractions": {
+        "N2": 0.8,
+        "O2": 0.2
+      },
+      "production_grid": {
+        "Nt": 384,
+        "Twin_fs": 960.0,
+        "dt_fs": 2.5
+      },
+      "species_parameters": [
+        {
+          "name": "N2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.2
+        }
+      ]
+    },
+    {
+      "case_label": "tau120fs_I1p000ep18",
+      "config_path": "D:\\Filament_1\\.codex_worktrees\\phase2-phase3\\Filament_python\\configs\\profile_validation\\flat_top_90_120fs.json",
+      "tau_fwhm_fs": 120.0,
+      "I_peak_W_m2": 1e+18,
+      "refinements": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "species_rates": {
+        "N2": "popruzhenko_atom_i_lut",
+        "O2": "popruzhenko_atom_i_lut"
+      },
+      "species_fractions": {
+        "N2": 0.8,
+        "O2": 0.2
+      },
+      "production_grid": {
+        "Nt": 384,
+        "Twin_fs": 960.0,
+        "dt_fs": 2.5
+      },
+      "species_parameters": [
+        {
+          "name": "N2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.8
+        },
+        {
+          "name": "O2",
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference",
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "fraction": 0.2
+        }
+      ]
+    }
+  ]
+}

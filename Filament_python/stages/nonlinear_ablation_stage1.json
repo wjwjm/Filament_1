@@ -1,0 +1,115 @@
+{
+  "stage_id": "nonlinear_ablation_stage1",
+  "stage_name": "single_pulse_nonlinear_ablation",
+  "description": "Generate reproducible nonlinearity-ablation configurations from the validated FT90 40 fs and 120 fs production inputs. This stage never submits a job.",
+  "duration_cases": [
+    {
+      "case_id": "40fs",
+      "pulse_width_fs": 40.0,
+      "base_config": "../configs/profile_validation/flat_top_90_40fs.json"
+    },
+    {
+      "case_id": "120fs",
+      "pulse_width_fs": 120.0,
+      "base_config": "../configs/profile_validation/flat_top_90_120fs.json"
+    }
+  ],
+  "variants": [
+    {
+      "name": "vacuum",
+      "description": "Linear vacuum baseline; disables the ionization solver and Raman kernel to avoid unused nonlinear work.",
+      "overrides": {
+        "propagation": {
+          "use_electronic_kerr": false,
+          "use_raman_phase": false,
+          "use_plasma_phase": false,
+          "use_ionization_loss": false,
+          "use_raman_absorption": false,
+          "use_self_steepening": false,
+          "use_ionization_solver": false
+        },
+        "raman": {
+          "enabled": false
+        }
+      }
+    },
+    {
+      "name": "electronic_kerr_only",
+      "description": "Electronic Kerr only; ionization solver and Raman kernel are disabled.",
+      "overrides": {
+        "propagation": {
+          "use_electronic_kerr": true,
+          "use_raman_phase": false,
+          "use_plasma_phase": false,
+          "use_ionization_loss": false,
+          "use_raman_absorption": false,
+          "use_self_steepening": false,
+          "use_ionization_solver": false
+        },
+        "raman": {
+          "enabled": false
+        }
+      }
+    },
+    {
+      "name": "electronic_kerr_plus_raman_phase",
+      "description": "Electronic Kerr plus delayed rotational Raman phase, without plasma or loss feedback.",
+      "overrides": {
+        "propagation": {
+          "use_electronic_kerr": true,
+          "use_raman_phase": true,
+          "use_plasma_phase": false,
+          "use_ionization_loss": false,
+          "use_raman_absorption": false,
+          "use_self_steepening": false,
+          "use_ionization_solver": false
+        }
+      }
+    },
+    {
+      "name": "kerr_raman_ionization_plasma_no_loss",
+      "description": "Kerr, Raman phase, ionization solve and plasma phase with ionization/Raman attenuation disabled.",
+      "overrides": {
+        "propagation": {
+          "use_electronic_kerr": true,
+          "use_raman_phase": true,
+          "use_plasma_phase": true,
+          "use_ionization_loss": false,
+          "use_raman_absorption": false,
+          "use_self_steepening": false,
+          "use_ionization_solver": true
+        }
+      }
+    },
+    {
+      "name": "kerr_raman_ionization_plasma_with_ionization_loss",
+      "description": "Previous variant plus ionization attenuation; Raman attenuation remains disabled.",
+      "overrides": {
+        "propagation": {
+          "use_electronic_kerr": true,
+          "use_raman_phase": true,
+          "use_plasma_phase": true,
+          "use_ionization_loss": true,
+          "use_raman_absorption": false,
+          "use_self_steepening": false,
+          "use_ionization_solver": true
+        }
+      }
+    },
+    {
+      "name": "full_model",
+      "description": "Production-equivalent full nonlinear model with all current feedback channels enabled.",
+      "overrides": {
+        "propagation": {
+          "use_electronic_kerr": true,
+          "use_raman_phase": true,
+          "use_plasma_phase": true,
+          "use_ionization_loss": true,
+          "use_raman_absorption": true,
+          "use_self_steepening": true,
+          "use_ionization_solver": true
+        }
+      }
+    }
+  ]
+}

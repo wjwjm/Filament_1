@@ -34,6 +34,15 @@ class PropagationConfig:
     linear_model: str = "uppe"  # "uppe" | "paraxial" | "bk_nee"
     full_linear_factorize: bool = False  # True: ω-切片逐片做2D FFT，省内存（更稳）
     use_self_steepening: bool = True  # 建议开启
+    # Phase 2: independent propagation feedback switches.  ``None`` means
+    # legacy compatibility, resolved from raman.enabled / raman.absorption at
+    # runtime so old configuration files retain their exact behavior.
+    use_electronic_kerr: Optional[bool] = None
+    use_raman_phase: Optional[bool] = None
+    use_plasma_phase: Optional[bool] = None
+    use_ionization_loss: Optional[bool] = None
+    use_raman_absorption: Optional[bool] = None
+    use_ionization_solver: Optional[bool] = None
     #若显存/内存充裕且想更快，把 full_linear_factorize=False（会创建 [Nt,Ny,Nx] 级别的 3D相位，内存压力大）。
     # 空气色散模型参数（简化 Ciddor）
     air_model: str = "ciddor_simple"
@@ -154,3 +163,58 @@ class RamanConfig:
     n_rot_frac: float =0.99
     R0_mode: str ="mom"
     R0_fixed_m: float =2.0e-4
+
+
+@dataclass(frozen=True)
+class EffectiveNonlinearSwitches:
+    """Resolved nonlinear switches that are actually applied in propagation."""
+
+    use_electronic_kerr: bool
+    use_raman_phase: bool
+    use_plasma_phase: bool
+    use_ionization_loss: bool
+    use_raman_absorption: bool
+    use_self_steepening: bool
+    use_ionization_solver: bool
+    compute_raman_convolution: bool
+    compute_raman_absorption: bool
+
+
+def resolve_nonlinear_switches(prop: PropagationConfig, raman: RamanConfig | None,
+                               ion: IonizationConfig | None) -> EffectiveNonlinearSwitches:
+    """Resolve new optional switches while preserving legacy configuration behavior.
+
+    New explicit propagation switches override the legacy Raman fields.  The
+    legacy fields remain the source of defaults only, so an existing JSON file
+    that contains none of the new fields is numerically unchanged.
+    """
+    raman_enabled = bool(getattr(raman, "enabled", False)) if raman is not None else False
+    legacy_raman_absorption = raman_enabled and bool(getattr(raman, "absorption", True))
+    has_species = bool(getattr(ion, "species", None)) if ion is not None else False
+
+    def _resolve(name: str, legacy: bool) -> bool:
+        value = getattr(prop, name, None)
+        return bool(legacy) if value is None else bool(value)
+
+    use_raman_phase = _resolve("use_raman_phase", raman_enabled)
+    use_raman_absorption = _resolve("use_raman_absorption", legacy_raman_absorption)
+    explicit_raman_absorption = getattr(prop, "use_raman_absorption", None)
+    compute_raman = bool(raman_enabled or use_raman_phase or use_raman_absorption)
+    # A newly explicit Raman-absorption switch requests the raw absorption
+    # diagnostic even when the feedback switch is OFF.  With no new switch,
+    # preserve the old raman.absorption performance behavior.
+    compute_raman_absorption = bool(
+        compute_raman and (legacy_raman_absorption or explicit_raman_absorption is not None)
+    )
+
+    return EffectiveNonlinearSwitches(
+        use_electronic_kerr=_resolve("use_electronic_kerr", True),
+        use_raman_phase=use_raman_phase,
+        use_plasma_phase=_resolve("use_plasma_phase", True),
+        use_ionization_loss=_resolve("use_ionization_loss", True),
+        use_raman_absorption=use_raman_absorption,
+        use_self_steepening=bool(getattr(prop, "use_self_steepening", False)),
+        use_ionization_solver=_resolve("use_ionization_solver", has_species),
+        compute_raman_convolution=compute_raman,
+        compute_raman_absorption=compute_raman_absorption,
+    )

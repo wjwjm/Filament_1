@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import Any, Dict
 
 from .constants import eps0, c0
-from .config_schema import RATE_ALIAS_MAP, REMOVED_RATES, TRANSVERSE_PROFILE_TYPES
+from .config_schema import NONLINEAR_SWITCH_FIELDS, RATE_ALIAS_MAP, REMOVED_RATES, TRANSVERSE_PROFILE_TYPES
 
 
 def E0_from_energy(U: float, w0: float, tau_fwhm: float, n0: float) -> float:
@@ -122,13 +122,25 @@ def _normalize_species(ion: Dict[str, Any]) -> None:
                 sp["fraction"] = float(sp["fraction"] / total)
 
 
+def _normalize_nonlinear_switches(propagation: Dict[str, Any]) -> None:
+    """Validate optional Phase-2 propagation switches without inventing defaults."""
+    for name in NONLINEAR_SWITCH_FIELDS:
+        if name not in propagation or propagation[name] is None:
+            continue
+        if not isinstance(propagation[name], bool):
+            raise ValueError(f"propagation.{name} must be true, false, or omitted for legacy compatibility.")
+
+
 def normalize_config(raw: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize raw config dict into a single canonical representation."""
     out = deepcopy(raw or {})
     out["grid"] = dict(out.get("grid", {}))
     out["beam"] = dict(out.get("beam", {}))
+    out["propagation"] = dict(out.get("propagation", {}))
     out["ionization"] = dict(out.get("ionization", {}))
+    out["raman"] = dict(out.get("raman", {}))
 
     _normalize_beam(out["beam"], grid=out["grid"])
     _normalize_species(out["ionization"])
+    _normalize_nonlinear_switches(out["propagation"])
     return out
