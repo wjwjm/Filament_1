@@ -35,3 +35,5 @@ python Filament_python/tools/validate_ionization_time_integrator.py --compare-re
 Comparison mode recomputes the production Gaussian envelope and production `W(t)` evaluator on `dt`, `dt/2`, `dt/4`, and `dt/8` grids. It compares the production `evolve_rho_time(..., integrator='rk4')` result with a no-recombination per-species trapezoid reference. The optional exponential-average update is reported only as a candidate; it does not replace production RK4.
 
 The resulting error CSV records final/peak/time-history density errors, fixed-threshold rise-time error, `max(W*dt)`, pre-clip RK4 extrema, intermediate-stage violations, and actual clip counts. Pre-clip statistics are returned only when `diagnose_integrator_stability=True`; ordinary production calls retain the original return shape and numerical result.
+
+Add `--write-final-report` to create `ionization_integrator_validation_report.md` and `ionization_integrator_validation_summary.json`. The automatic conclusion is one of `not_supported`, `inconclusive`, or `supported`; it uses the 1%/5% density-error gates, a 0.5 fs fixed-threshold timing gate, and any pre-clip violation as specified in the Phase 3 task.

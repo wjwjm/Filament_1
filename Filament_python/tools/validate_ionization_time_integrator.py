@@ -472,12 +472,124 @@ def run_integrator_comparison(config_paths: Iterable[Path], intensities_W_m2: It
     return metadata
 
 
+def _as_float(row: dict[str, Any], key: str) -> float:
+    try:
+        return float(row.get(key, "nan"))
+    except (TypeError, ValueError):
+        return float("nan")
+
+
+def classify_integrator_evidence(case_rows: list[dict[str, Any]], error_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Classify the production-dt evidence using the Phase-3 quantitative gates."""
+    final_fraction = {row["case_label"]: _as_float(row, "final_ionization_fraction") for row in case_rows}
+    total_rows = [row for row in error_rows if row.get("species") == "total" and int(row.get("refinement_factor", 0)) == 1]
+    relevant = [row for row in total_rows if final_fraction.get(row["case_label"], 0.0) >= 1e-6]
+    nonsaturated = [row for row in relevant if final_fraction.get(row["case_label"], 0.0) < 0.95]
+    clips = [row for row in relevant if int(float(row.get("step_clip_count", 0))) > 0 or int(float(row.get("intermediate_violation_count", 0))) > 0]
+    severe = [
+        row for row in nonsaturated
+        if _as_float(row, "rho_final_rel_error") > 0.05
+        or _as_float(row, "rho_time_max_rel_error") > 0.05
+        or (np.isfinite(_as_float(row, "rise_time_error_fs")) and abs(_as_float(row, "rise_time_error_fs")) > 0.5)
+    ]
+    passed = [
+        row for row in nonsaturated
+        if _as_float(row, "rho_final_rel_error") < 0.01
+        and _as_float(row, "rho_time_max_rel_error") < 0.01
+        and (not np.isfinite(_as_float(row, "rise_time_error_fs")) or abs(_as_float(row, "rise_time_error_fs")) < 0.5)
+    ]
+    if not nonsaturated:
+        classification = "inconclusive"
+        rationale = "No non-saturated case reached the automatic meaningful-ionization threshold."
+    elif clips or severe:
+        classification = "supported"
+        rationale = "At least one meaningful non-saturated case exceeded the 5%/0.5 fs gate or required clipping."
+    elif len(passed) == len(nonsaturated):
+        classification = "not_supported"
+        rationale = "All meaningful non-saturated production-dt cases satisfy the 1%/0.5 fs gates without clipping."
+    else:
+        classification = "inconclusive"
+        rationale = "No severe failure occurred, but one or more meaningful cases fall in the 1%–5% warning band."
+    return {
+        "classification": classification,
+        "rationale": rationale,
+        "meaningful_ionization_fraction_floor": 1e-6,
+        "saturation_fraction_threshold": 0.95,
+        "relevant_case_count": len(relevant),
+        "nonsaturated_case_count": len(nonsaturated),
+        "clip_case_count": len(clips),
+        "severe_case_count": len(severe),
+        "passed_case_count": len(passed),
+        "relevant_intensity_range_W_m2": [
+            min((_as_float(row, "I_peak_W_m2") for row in relevant), default=float("nan")),
+            max((_as_float(row, "I_peak_W_m2") for row in relevant), default=float("nan")),
+        ],
+    }
+
+
+def write_integrator_validation_report(out_dir: Path) -> dict[str, Any]:
+    """Build the Task-3 Markdown conclusion from already-auditable CSV outputs."""
+    out_dir = Path(out_dir)
+    with (out_dir / "ionization_integrator_cases.csv").open(encoding="utf-8", newline="") as handle:
+        case_rows = list(csv.DictReader(handle))
+    with (out_dir / "ionization_integrator_error_summary.csv").open(encoding="utf-8", newline="") as handle:
+        error_rows = list(csv.DictReader(handle))
+    metadata = json.loads((out_dir / "ionization_integrator_comparison_metadata.json").read_text(encoding="utf-8"))
+    classification = classify_integrator_evidence(case_rows, error_rows)
+    total_rows = [row for row in error_rows if row.get("species") == "total" and int(row.get("refinement_factor", 0)) == 1]
+    lines = [
+        "# Ionization time-integrator validation report",
+        "",
+        f"- Code SHA: `{metadata['code_commit_sha']}`",
+        f"- Generated (UTC): {metadata['generated_at_utc']}",
+        "- Production path: `make_Wfunc` → `evolve_rho_time` with the supplied configuration evaluator (LUT/reference as configured).",
+        f"- Temporal refinements: {', '.join(str(value) for value in metadata['refinements'])}",
+        f"- Fixed rise threshold: {metadata['rise_threshold_m3']:.3e} m^-3",
+        "- `tau_fwhm` is the intensity FWHM; `gaussian_pulse_t` produces the field envelope and the rate receives `I(t)` in W/m².",
+        "",
+        "## Production-dt total-density results",
+        "",
+        "| tau (fs) | Ipeak (W/m²) | final rho error | time-max rho error | rise error (fs) | max(Wdt) | step clips | intermediate violations |",
+        "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for row in sorted(total_rows, key=lambda item: (_as_float(item, "tau_fwhm_fs"), _as_float(item, "I_peak_W_m2"))):
+        lines.append(
+            f"| {_as_float(row, 'tau_fwhm_fs'):.0f} | {_as_float(row, 'I_peak_W_m2'):.3e} | "
+            f"{_as_float(row, 'rho_final_rel_error'):.3e} | {_as_float(row, 'rho_time_max_rel_error'):.3e} | "
+            f"{_as_float(row, 'rise_time_error_fs'):.3e} | {_as_float(row, 'max_W_dt'):.3e} | "
+            f"{int(float(row['step_clip_count']))} | {int(float(row['intermediate_violation_count']))} |"
+        )
+    lines += [
+        "",
+        "## Decision gates",
+        "",
+        "- `not_supported`: every meaningful non-saturated production-dt case has final and time-history errors below 1%, fixed-threshold rise-time error below 0.5 fs (when crossed), and no pre-clip violation.",
+        "- `inconclusive`: no severe failure, but a meaningful case is in the 1%–5% warning band or lacks a decisive threshold crossing.",
+        "- `supported`: a meaningful non-saturated case exceeds 5%, exceeds 0.5 fs in rise time, or shows a pre-clip violation.",
+        "",
+        "## Causal conclusion",
+        "",
+        f"**{classification['classification']}** — {classification['rationale']}",
+        "",
+        f"Automatic meaningful intensity interval: {classification['relevant_intensity_range_W_m2'][0]:.3e} to {classification['relevant_intensity_range_W_m2'][1]:.3e} W/m²; "
+        f"non-saturated cases: {classification['nonsaturated_case_count']}; clip cases: {classification['clip_case_count']}.",
+        "",
+        "This conclusion concerns whether the current fixed-step RK4 can be the principal cause of the observed filament electron-density onset/peak/tail discrepancy. It does not change the production integrator.",
+    ]
+    report_path = out_dir / "ionization_integrator_validation_report.md"
+    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    summary = {"report_path": str(report_path), **classification}
+    (out_dir / "ionization_integrator_validation_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return summary
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, action="append", help="production config; repeat for 40 fs and 120 fs")
     parser.add_argument("--intensity-W-m2", type=float, nargs="+", default=list(DEFAULT_INTENSITIES_W_M2))
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--compare-refinements", action="store_true", help="run RK4/refinement/reference comparison instead of Task-1 harness-only output")
+    parser.add_argument("--write-final-report", action="store_true", help="write the Task-3 Markdown classification after comparison")
     parser.add_argument("--rise-threshold-m3", type=float, default=1e20)
     args = parser.parse_args()
     configs = args.config if args.config else list(DEFAULT_CONFIGS)
@@ -486,6 +598,10 @@ def main() -> int:
         if args.compare_refinements
         else run_0d_ionization_harness(configs, args.intensity_W_m2, args.out_dir)
     )
+    if args.write_final_report:
+        if not args.compare_refinements:
+            raise ValueError("--write-final-report requires --compare-refinements")
+        metadata["validation_report"] = write_integrator_validation_report(args.out_dir)
     print(json.dumps(metadata, ensure_ascii=False, indent=2))
     return 0
 

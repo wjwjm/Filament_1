@@ -75,3 +75,17 @@ def test_stability_diagnostic_does_not_change_production_rk4_solution(tmp_path):
     np.testing.assert_allclose(plain.rho_total_m3, diagnosed.rho_total_m3, rtol=0.0, atol=0.0)
     assert diagnosed.stability_by_species is not None
     assert set(diagnosed.stability_by_species) == {"N2", "O2"}
+
+
+def test_classifier_uses_quantitative_error_and_preclip_gates():
+    cases = [{"case_label": "case", "final_ionization_fraction": "1e-3"}]
+    baseline = {
+        "case_label": "case", "species": "total", "refinement_factor": "1", "I_peak_W_m2": "1e17",
+        "rho_final_rel_error": "0.005", "rho_time_max_rel_error": "0.006", "rise_time_error_fs": "0.2",
+        "step_clip_count": "0", "intermediate_violation_count": "0",
+    }
+    assert harness.classify_integrator_evidence(cases, [baseline])["classification"] == "not_supported"
+    severe = dict(baseline, rho_time_max_rel_error="0.06")
+    assert harness.classify_integrator_evidence(cases, [severe])["classification"] == "supported"
+    clipped = dict(baseline, step_clip_count="1")
+    assert harness.classify_integrator_evidence(cases, [clipped])["classification"] == "supported"
