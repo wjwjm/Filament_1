@@ -330,6 +330,7 @@ def run_integrator_comparison(config_paths: Iterable[Path], intensities_W_m2: It
 
     for config_path in config_paths:
         for intensity in intensities_W_m2:
+            config_grid, _config_beam, _config_prop, config_ion, _config_heat, _config_run, _config_raman = load_all(str(config_path))
             solutions = {
                 factor: run_production_0d_case(
                     Path(config_path), float(intensity), time_refinement=int(factor), diagnose_integrator_stability=True
@@ -338,7 +339,7 @@ def run_integrator_comparison(config_paths: Iterable[Path], intensities_W_m2: It
             }
             coarse = solutions[1]
             finest = solutions[refinements[-1]]
-            if not math.isclose(float(load_all(str(config_path))[3].beta_rec), 0.0, abs_tol=0.0):
+            if not math.isclose(float(config_ion.beta_rec), 0.0, abs_tol=0.0):
                 raise ValueError("cumulative-rate reference is only valid when ionization.beta_rec=0")
 
             case_rows.append(case_summary_row(coarse))
@@ -452,6 +453,19 @@ def run_integrator_comparison(config_paths: Iterable[Path], intensities_W_m2: It
                 "refinements": list(refinements),
                 "species_rates": coarse.species_rates,
                 "species_fractions": coarse.species_fractions,
+                "production_grid": {
+                    "Nt": int(config_grid.Nt),
+                    "Twin_fs": float(config_grid.Twin) * 1e15,
+                    "dt_fs": coarse.dt_s * 1e15,
+                },
+                "species_parameters": [
+                    {
+                        key: item[key]
+                        for key in ("name", "rate", "reference_model", "Ip_eV", "Ip_eV_eff", "Z", "Zeff", "l", "m", "fraction")
+                        if key in item
+                    }
+                    for item in (config_ion.species or [])
+                ],
             })
 
     _write_csv(out_dir / "ionization_integrator_cases.csv", case_rows)
@@ -482,7 +496,8 @@ def _as_float(row: dict[str, Any], key: str) -> float:
 def classify_integrator_evidence(case_rows: list[dict[str, Any]], error_rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Classify the production-dt evidence using the Phase-3 quantitative gates."""
     final_fraction = {row["case_label"]: _as_float(row, "final_ionization_fraction") for row in case_rows}
-    total_rows = [row for row in error_rows if row.get("species") == "total" and int(row.get("refinement_factor", 0)) == 1]
+    production_rows = [row for row in error_rows if int(row.get("refinement_factor", 0)) == 1]
+    total_rows = [row for row in production_rows if row.get("species") == "total"]
     relevant = [row for row in total_rows if final_fraction.get(row["case_label"], 0.0) >= 1e-6]
     nonsaturated = [row for row in relevant if final_fraction.get(row["case_label"], 0.0) < 0.95]
     clips = [row for row in relevant if int(float(row.get("step_clip_count", 0))) > 0 or int(float(row.get("intermediate_violation_count", 0))) > 0]
@@ -547,15 +562,29 @@ def write_integrator_validation_report(out_dir: Path) -> dict[str, Any]:
         f"- Fixed rise threshold: {metadata['rise_threshold_m3']:.3e} m^-3",
         "- `tau_fwhm` is the intensity FWHM; `gaussian_pulse_t` produces the field envelope and the rate receives `I(t)` in W/m².",
         "",
-        "## Production-dt total-density results",
+        "## Test configuration",
         "",
-        "| tau (fs) | Ipeak (W/m²) | final rho error | time-max rho error | rise error (fs) | max(Wdt) | step clips | intermediate violations |",
-        "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
-    for row in sorted(total_rows, key=lambda item: (_as_float(item, "tau_fwhm_fs"), _as_float(item, "I_peak_W_m2"))):
+    config_summaries: dict[str, dict[str, Any]] = {}
+    for item in metadata["cases"]:
+        config_summaries.setdefault(item["config_path"], item)
+    for item in config_summaries.values():
+        grid = item["production_grid"]
+        lines += [
+            f"- {item['tau_fwhm_fs']:.0f} fs: `{item['config_path']}`; Nt={grid['Nt']}, Twin={grid['Twin_fs']:.1f} fs, dt={grid['dt_fs']:.3f} fs; species={json.dumps(item['species_parameters'], ensure_ascii=False)}",
+        ]
+    lines += [
+        "",
+        "## Production-dt density errors",
+        "",
+        "| tau (fs) | Ipeak (W/m²) | species | final rho error | time-max rho error | rise error (fs) | max(Wdt) | step clips | intermediate violations |",
+        "| ---: | ---: | :--- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    species_order = {"N2": 0, "O2": 1, "total": 2}
+    for row in sorted(production_rows, key=lambda item: (_as_float(item, "tau_fwhm_fs"), _as_float(item, "I_peak_W_m2"), species_order.get(item["species"], 99))):
         lines.append(
             f"| {_as_float(row, 'tau_fwhm_fs'):.0f} | {_as_float(row, 'I_peak_W_m2'):.3e} | "
-            f"{_as_float(row, 'rho_final_rel_error'):.3e} | {_as_float(row, 'rho_time_max_rel_error'):.3e} | "
+            f"{row['species']} | {_as_float(row, 'rho_final_rel_error'):.3e} | {_as_float(row, 'rho_time_max_rel_error'):.3e} | "
             f"{_as_float(row, 'rise_time_error_fs'):.3e} | {_as_float(row, 'max_W_dt'):.3e} | "
             f"{int(float(row['step_clip_count']))} | {int(float(row['intermediate_violation_count']))} |"
         )
