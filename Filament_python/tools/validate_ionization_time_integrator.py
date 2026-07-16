@@ -551,6 +551,7 @@ def write_integrator_validation_report(out_dir: Path) -> dict[str, Any]:
         error_rows = list(csv.DictReader(handle))
     metadata = json.loads((out_dir / "ionization_integrator_comparison_metadata.json").read_text(encoding="utf-8"))
     classification = classify_integrator_evidence(case_rows, error_rows)
+    production_rows = [row for row in error_rows if int(row.get("refinement_factor", 0)) == 1]
     total_rows = [row for row in error_rows if row.get("species") == "total" and int(row.get("refinement_factor", 0)) == 1]
     lines = [
         "# Ionization time-integrator validation report",
