@@ -1,0 +1,16 @@
+{
+  "report_path": "D:\\Filament_1\\.codex_worktrees\\phase2-phase3\\Filament_python\\results\\ionization_integrator_validation\\ionization_integrator_validation_20260716T171613Z\\ionization_integrator_validation_report.md",
+  "classification": "not_supported",
+  "rationale": "All meaningful non-saturated production-dt cases satisfy the 1%/0.5 fs gates without clipping.",
+  "meaningful_ionization_fraction_floor": 1e-06,
+  "saturation_fraction_threshold": 0.95,
+  "relevant_case_count": 4,
+  "nonsaturated_case_count": 4,
+  "clip_case_count": 0,
+  "severe_case_count": 0,
+  "passed_case_count": 4,
+  "relevant_intensity_range_W_m2": [
+    3e+17,
+    1e+18
+  ]
+}
