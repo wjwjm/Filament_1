@@ -1,0 +1,341 @@
+{
+  "stage_id": "vacuum_focus_profile_scan_20260715_001",
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m thin-lens geometric focus for every profile and every grid.",
+  "source_stage": "Filament_python\\stages\\vacuum_focus_profile_scan.json",
+  "p6_nominal_radius_scale": 1.1172834041640693,
+  "p1_discrete_second_moment_radius_m": 0.0018825141432040637,
+  "cases": [
+    {
+      "case_id": "P1_current_ft90",
+      "label": "P1 current FT90",
+      "profile": {
+        "id": "P1_current_ft90",
+        "kind": "cosine",
+        "flat_radius_m": 0.0017810999999999999,
+        "zero_radius_m": 0.001979,
+        "nominal_radius_scale": 1.0
+      },
+      "grid": {
+        "Nx": 512,
+        "Ny": 512,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008
+      },
+      "kind": "profile",
+      "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m thin-lens geometric focus for every profile and every grid.",
+      "common": {
+        "wavelength_m": 8e-07,
+        "refractive_index": 1.0,
+        "peak_power_W": 17000000000.0,
+        "focal_length_m": 0.95,
+        "nominal_radius_m": 0.001979,
+        "z_min_m": 0.75,
+        "z_max_m": 1.15,
+        "dz_output_m": 0.00025,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008,
+        "Nx": 512,
+        "Ny": 512
+      },
+      "index": 0
+    },
+    {
+      "case_id": "P2_zero_at_90_narrow",
+      "label": "P2 zero at 0.9R, narrow",
+      "profile": {
+        "id": "P2_zero_at_90_narrow",
+        "kind": "cosine",
+        "flat_radius_m": 0.0015831999999999999,
+        "zero_radius_m": 0.0017810999999999999,
+        "nominal_radius_scale": 1.0
+      },
+      "grid": {
+        "Nx": 512,
+        "Ny": 512,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008
+      },
+      "kind": "profile",
+      "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m thin-lens geometric focus for every profile and every grid.",
+      "common": {
+        "wavelength_m": 8e-07,
+        "refractive_index": 1.0,
+        "peak_power_W": 17000000000.0,
+        "focal_length_m": 0.95,
+        "nominal_radius_m": 0.001979,
+        "z_min_m": 0.75,
+        "z_max_m": 1.15,
+        "dz_output_m": 0.00025,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008,
+        "Nx": 512,
+        "Ny": 512
+      },
+      "index": 1
+    },
+    {
+      "case_id": "P3_zero_at_90_wide",
+      "label": "P3 zero at 0.9R, wide",
+      "profile": {
+        "id": "P3_zero_at_90_wide",
+        "kind": "cosine",
+        "flat_radius_m": 0.0013853,
+        "zero_radius_m": 0.0017810999999999999,
+        "nominal_radius_scale": 1.0
+      },
+      "grid": {
+        "Nx": 512,
+        "Ny": 512,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008
+      },
+      "kind": "profile",
+      "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m thin-lens geometric focus for every profile and every grid.",
+      "common": {
+        "wavelength_m": 8e-07,
+        "refractive_index": 1.0,
+        "peak_power_W": 17000000000.0,
+        "focal_length_m": 0.95,
+        "nominal_radius_m": 0.001979,
+        "z_min_m": 0.75,
+        "z_max_m": 1.15,
+        "dz_output_m": 0.00025,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008,
+        "Nx": 512,
+        "Ny": 512
+      },
+      "index": 2
+    },
+    {
+      "case_id": "P4_hard_top_R",
+      "label": "P4 hard top R",
+      "profile": {
+        "id": "P4_hard_top_R",
+        "kind": "hard",
+        "flat_radius_m": 0.001979,
+        "zero_radius_m": 0.001979,
+        "nominal_radius_scale": 1.0
+      },
+      "grid": {
+        "Nx": 512,
+        "Ny": 512,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008
+      },
+      "kind": "profile",
+      "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m thin-lens geometric focus for every profile and every grid.",
+      "common": {
+        "wavelength_m": 8e-07,
+        "refractive_index": 1.0,
+        "peak_power_W": 17000000000.0,
+        "focal_length_m": 0.95,
+        "nominal_radius_m": 0.001979,
+        "z_min_m": 0.75,
+        "z_max_m": 1.15,
+        "dz_output_m": 0.00025,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008,
+        "Nx": 512,
+        "Ny": 512
+      },
+      "index": 3
+    },
+    {
+      "case_id": "P5_hard_top_0p9R",
+      "label": "P5 hard top 0.9R",
+      "profile": {
+        "id": "P5_hard_top_0p9R",
+        "kind": "hard",
+        "flat_radius_m": 0.0017810999999999999,
+        "zero_radius_m": 0.0017810999999999999,
+        "nominal_radius_scale": 1.0
+      },
+      "grid": {
+        "Nx": 512,
+        "Ny": 512,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008
+      },
+      "kind": "profile",
+      "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m thin-lens geometric focus for every profile and every grid.",
+      "common": {
+        "wavelength_m": 8e-07,
+        "refractive_index": 1.0,
+        "peak_power_W": 17000000000.0,
+        "focal_length_m": 0.95,
+        "nominal_radius_m": 0.001979,
+        "z_min_m": 0.75,
+        "z_max_m": 1.15,
+        "dz_output_m": 0.00025,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008,
+        "Nx": 512,
+        "Ny": 512
+      },
+      "index": 4
+    },
+    {
+      "case_id": "P6_P2_second_moment_matched",
+      "label": "P6 P2 cosine, second-moment matched to P1",
+      "profile": {
+        "id": "P6_P2_second_moment_matched",
+        "kind": "cosine",
+        "flat_radius_m": 0.0017688830854725543,
+        "zero_radius_m": 0.0019899934711566235,
+        "nominal_radius_scale": 1.1172834041640693
+      },
+      "grid": {
+        "Nx": 512,
+        "Ny": 512,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008
+      },
+      "kind": "profile",
+      "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m thin-lens geometric focus for every profile and every grid.",
+      "common": {
+        "wavelength_m": 8e-07,
+        "refractive_index": 1.0,
+        "peak_power_W": 17000000000.0,
+        "focal_length_m": 0.95,
+        "nominal_radius_m": 0.001979,
+        "z_min_m": 0.75,
+        "z_max_m": 1.15,
+        "dz_output_m": 0.00025,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008,
+        "Nx": 512,
+        "Ny": 512
+      },
+      "index": 5
+    },
+    {
+      "case_id": "P1_current_ft90_coarse",
+      "label": "P1_current_ft90_coarse",
+      "profile": {
+        "id": "P1_current_ft90",
+        "kind": "cosine",
+        "flat_radius_m": 0.0017810999999999999,
+        "zero_radius_m": 0.001979,
+        "nominal_radius_scale": 1.0
+      },
+      "grid": {
+        "Nx": 256,
+        "Ny": 256,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008
+      },
+      "kind": "convergence",
+      "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m thin-lens geometric focus for every profile and every grid.",
+      "common": {
+        "wavelength_m": 8e-07,
+        "refractive_index": 1.0,
+        "peak_power_W": 17000000000.0,
+        "focal_length_m": 0.95,
+        "nominal_radius_m": 0.001979,
+        "z_min_m": 0.75,
+        "z_max_m": 1.15,
+        "dz_output_m": 0.00025,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008,
+        "Nx": 512,
+        "Ny": 512
+      },
+      "index": 6
+    },
+    {
+      "case_id": "P1_current_ft90_refined",
+      "label": "P1_current_ft90_refined",
+      "profile": {
+        "id": "P1_current_ft90",
+        "kind": "cosine",
+        "flat_radius_m": 0.0017810999999999999,
+        "zero_radius_m": 0.001979,
+        "nominal_radius_scale": 1.0
+      },
+      "grid": {
+        "Nx": 1024,
+        "Ny": 1024,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008
+      },
+      "kind": "convergence",
+      "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m thin-lens geometric focus for every profile and every grid.",
+      "common": {
+        "wavelength_m": 8e-07,
+        "refractive_index": 1.0,
+        "peak_power_W": 17000000000.0,
+        "focal_length_m": 0.95,
+        "nominal_radius_m": 0.001979,
+        "z_min_m": 0.75,
+        "z_max_m": 1.15,
+        "dz_output_m": 0.00025,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008,
+        "Nx": 512,
+        "Ny": 512
+      },
+      "index": 7
+    },
+    {
+      "case_id": "P1_current_ft90_window10mm",
+      "label": "P1_current_ft90_window10mm",
+      "profile": {
+        "id": "P1_current_ft90",
+        "kind": "cosine",
+        "flat_radius_m": 0.0017810999999999999,
+        "zero_radius_m": 0.001979,
+        "nominal_radius_scale": 1.0
+      },
+      "grid": {
+        "Nx": 640,
+        "Ny": 640,
+        "Lx_m": 0.01,
+        "Ly_m": 0.01
+      },
+      "kind": "convergence",
+      "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95); x_focus=0 is the 0.95 m thin-lens geometric focus for every profile and every grid.",
+      "common": {
+        "wavelength_m": 8e-07,
+        "refractive_index": 1.0,
+        "peak_power_W": 17000000000.0,
+        "focal_length_m": 0.95,
+        "nominal_radius_m": 0.001979,
+        "z_min_m": 0.75,
+        "z_max_m": 1.15,
+        "dz_output_m": 0.00025,
+        "Lx_m": 0.008,
+        "Ly_m": 0.008,
+        "Nx": 512,
+        "Ny": 512
+      },
+      "index": 8
+    }
+  ],
+  "resources": {
+    "partition": "gpu",
+    "gpus": 1,
+    "cpus_per_task": 4,
+    "time": "00:35:00",
+    "array_concurrency": 3
+  },
+  "quality_gates": {
+    "maximum_input_power_relative_error": 0.0001,
+    "maximum_power_drift_relative": 0.0001,
+    "maximum_peak_location_uncertainty_cm": 0.1,
+    "maximum_convergence_delta_cm": 0.1,
+    "maximum_crosscheck_delta_cm": 0.1
+  },
+  "nonlinear_terms": {
+    "electron_kerr": false,
+    "rotational_raman": false,
+    "plasma_refraction": false,
+    "ionization": false,
+    "ionization_loss": false,
+    "collision": false,
+    "recombination": false,
+    "absorption": false,
+    "gas_dispersion": false,
+    "self_steepening": false
+  }
+}

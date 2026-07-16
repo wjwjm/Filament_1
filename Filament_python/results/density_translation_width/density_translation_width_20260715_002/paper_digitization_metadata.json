@@ -1,0 +1,117 @@
+{
+  "source": "Isaacs et al., Optics Express 30, 22316 (2022), Fig. 5(b), rendered page 11",
+  "render_dpi": 220,
+  "coordinate_definition": "x_focus_cm = 100 * (z - 0.95); zero remains the published vacuum/geometric focus.",
+  "panel_bounds_px": {
+    "left": 679,
+    "right": 1252,
+    "top": 532,
+    "bottom": 735
+  },
+  "x_calibration": {
+    "slope": 0.06978356867229095,
+    "intercept": -67.38301390996418,
+    "ticks": [
+      {
+        "pixel": 679.0,
+        "value": -20.0,
+        "residual": -2.9218521376606077e-05
+      },
+      {
+        "pixel": 822.0,
+        "value": -10.0,
+        "residual": 0.020920461341013663
+      },
+      {
+        "pixel": 966.0,
+        "value": 0.0,
+        "residual": -0.027913427468874374
+      },
+      {
+        "pixel": 1109.0,
+        "value": 10.0,
+        "residual": -0.006963747606491211
+      },
+      {
+        "pixel": 1252.0,
+        "value": 20.0,
+        "residual": 0.013985932255906164
+      }
+    ],
+    "max_abs_residual": 0.027913427468874374
+  },
+  "y_calibration": {
+    "slope": -0.0355233062544365,
+    "intercept": 25.797081788784617,
+    "ticks": [
+      {
+        "pixel": 726.0,
+        "value": 0.0,
+        "residual": -0.007161448063719433
+      },
+      {
+        "pixel": 670.0,
+        "value": 2.0,
+        "residual": 0.003533401687835891
+      },
+      {
+        "pixel": 614.0,
+        "value": 4.0,
+        "residual": 0.014228251439391215
+      },
+      {
+        "pixel": 557.0,
+        "value": 6.0,
+        "residual": -0.010600205063486356
+      }
+    ],
+    "max_abs_residual": 0.014228251439391215
+  },
+  "excluded_regions_px": {
+    "panel_label": {
+      "x0": 683,
+      "x1": 724,
+      "y0": 536,
+      "y1": 579
+    },
+    "legend": {
+      "x0": 1044,
+      "x1": 1247,
+      "y0": 540,
+      "y1": 588
+    }
+  },
+  "curve_rules": {
+    "120fs": "near-neutral dark candidate pixels, connected-component selection, bounded-jump path",
+    "40fs": "red-dominant candidate pixels, connected-component selection, bounded-jump path"
+  },
+  "zero_overlap_rule": "Pixels on the x-axis/border are excluded before tracing. The CSV starts at the lowest unambiguous above-axis curve pixel; downstream interpolation is zero outside the retained trace.",
+  "trace_diagnostics": {
+    "120fs": {
+      "components_total": 4,
+      "components_retained": [
+        1,
+        2,
+        3
+      ],
+      "long_gaps": [],
+      "max_jump_px": 12.0,
+      "max_interpolated_gap_columns": 4,
+      "max_gap_cm": 0.0
+    },
+    "40fs": {
+      "components_total": 1,
+      "components_retained": [
+        1
+      ],
+      "long_gaps": [],
+      "max_jump_px": 12.0,
+      "max_interpolated_gap_columns": 4,
+      "max_gap_cm": 0.0
+    }
+  },
+  "quality_gates": {
+    "vertical_calibration_max_abs_residual": 0.014228251439391215,
+    "120fs_peak_above_6": true
+  }
+}
