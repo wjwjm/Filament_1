@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import csv
 from pathlib import Path
 
 import numpy as np
@@ -48,3 +49,29 @@ def test_harness_writes_required_0d_series_and_metrics(tmp_path, monkeypatch):
             assert f"{case_id}__{suffix}" in data
         assert np.all(data[f"{case_id}__I_W_m2"] >= 0.0)
         assert np.all(data[f"{case_id}__rho_total_m3"] >= 0.0)
+
+
+def test_comparison_recomputes_refined_grids_and_reports_preclip_stability(tmp_path, monkeypatch):
+    monkeypatch.setattr(harness, "_git_sha", lambda: "e" * 40)
+    config = _config(tmp_path / "40fs.json", 40e-15)
+    metadata = harness.run_integrator_comparison([config], [1e16], tmp_path / "comparison")
+    assert metadata["refinements"] == [1, 2, 4, 8]
+    with (tmp_path / "comparison" / "ionization_integrator_error_summary.csv").open(encoding="utf-8", newline="") as handle:
+        errors = list(csv.DictReader(handle))
+    assert {int(row["refinement_factor"]) for row in errors} == {1, 2, 4, 8}
+    assert {row["species"] for row in errors} == {"N2", "O2", "total"}
+    assert all(np.isfinite(float(row["max_W_dt"])) for row in errors)
+    assert "preclip_step_max" in errors[0]
+    with np.load(tmp_path / "comparison" / "ionization_integrator_timeseries.npz", allow_pickle=False) as data:
+        key = str(errors[0]["case_label"])
+        assert f"{key}__rho_N2_rk4_f8_m3" in data
+        assert f"{key}__rho_total_reference_f8_m3" in data
+
+
+def test_stability_diagnostic_does_not_change_production_rk4_solution(tmp_path):
+    config = _config(tmp_path / "40fs.json", 40e-15)
+    plain = harness.run_production_0d_case(config, 1e17, diagnose_integrator_stability=False)
+    diagnosed = harness.run_production_0d_case(config, 1e17, diagnose_integrator_stability=True)
+    np.testing.assert_allclose(plain.rho_total_m3, diagnosed.rho_total_m3, rtol=0.0, atol=0.0)
+    assert diagnosed.stability_by_species is not None
+    assert set(diagnosed.stability_by_species) == {"N2", "O2"}
