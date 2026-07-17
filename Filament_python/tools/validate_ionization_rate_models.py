@@ -152,6 +152,11 @@ def make_rate_evaluator(production_ion: Any, beam: Any, production_species: dict
     def evaluator(I_W_m2: np.ndarray) -> np.ndarray:
         return _as_numpy(Wfunc(np.asarray(I_W_m2, dtype=np.float64)))
 
+    # Publicly useful for the local-density harness: this retains the exact
+    # production evaluator attributes consumed by evolve_rho_time.
+    evaluator.production_Wfunc = Wfunc  # type: ignore[attr-defined]
+    evaluator.ionization_config = ion  # type: ignore[attr-defined]
+
     table_cfg = _ion_rate_table_defaults(ion)
     table_cfg_metadata = deepcopy(table_cfg)
     cache_path = Path(str(table_cfg_metadata["cache_dir"])).resolve()
