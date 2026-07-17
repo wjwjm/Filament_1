@@ -1,0 +1,71 @@
+{
+  "schema": "khz_filament.phase5.ionization_model_propagation_configs.v1",
+  "generation_git_sha": "36f9aa66526fc226dec6b4a90bd19fb7f653710c",
+  "execution_git_sha_requirement": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95)",
+  "cases": [
+    {
+      "case_id": "120fs_talebpour_full_model",
+      "pulse_width": "120fs",
+      "base_config": "Filament_python/configs/profile_validation/flat_top_90_120fs.json",
+      "base_config_sha256": "195f59f1292a4cb7380332be39f5365969ce021492ba12ec93b0db9a7987641f",
+      "generated_config": "Filament_python/configs/ionization_model_propagation/120fs_talebpour_full_model.json",
+      "generated_config_sha256": "dd440b5e5462a1d9f01cf26c04f56f1cfa21615cb1cb58d2ab4538ba44ac4688",
+      "allowed_differences": [
+        "ionization.species[0].Ip_eV_eff",
+        "ionization.species[0].Zeff",
+        "ionization.species[0].rate",
+        "ionization.species[0].reference_model",
+        "ionization.species[1].Ip_eV_eff",
+        "ionization.species[1].Zeff",
+        "ionization.species[1].rate",
+        "ionization.species[1].reference_model"
+      ],
+      "talebpour_effective_parameters": {
+        "N2": {
+          "Ip_eV_eff": 15.6,
+          "Zeff": 0.9
+        },
+        "O2": {
+          "Ip_eV_eff": 12.55,
+          "Zeff": 0.53
+        }
+      },
+      "submission_authorized": false
+    },
+    {
+      "case_id": "40fs_talebpour_full_model",
+      "pulse_width": "40fs",
+      "base_config": "Filament_python/configs/profile_validation/flat_top_90_40fs.json",
+      "base_config_sha256": "dcc9761c71a3ae3f1da3898a4d2070f89a04dfd4c393b31d83676729d6eec20d",
+      "generated_config": "Filament_python/configs/ionization_model_propagation/40fs_talebpour_full_model.json",
+      "generated_config_sha256": "ec257b9190f91ea887740bac16e0210e6b9b67b9fe9c1ddfefa44dcfeaad2ac6",
+      "allowed_differences": [
+        "ionization.species[0].Ip_eV_eff",
+        "ionization.species[0].Zeff",
+        "ionization.species[0].rate",
+        "ionization.species[0].reference_model",
+        "ionization.species[1].Ip_eV_eff",
+        "ionization.species[1].Zeff",
+        "ionization.species[1].rate",
+        "ionization.species[1].reference_model"
+      ],
+      "talebpour_effective_parameters": {
+        "N2": {
+          "Ip_eV_eff": 15.6,
+          "Zeff": 0.9
+        },
+        "O2": {
+          "Ip_eV_eff": 12.55,
+          "Zeff": 0.53
+        }
+      },
+      "submission_authorized": false
+    }
+  ],
+  "prohibited_submissions": [
+    "40fs_talebpour_full_model",
+    "120fs_O2_off"
+  ],
+  "next_gate": "Only preflight and submit 120fs_talebpour_full_model after the formal Popruzhenko baseline gate is passed."
+}
