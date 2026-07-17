@@ -1,0 +1,17 @@
+{
+  "schema": "khz_filament.phase5.final_summary.v1",
+  "phase5_status": "completed_with_40fs_talebpour_validation",
+  "controlled_120fs_classification": "propagation_supported",
+  "jobs": {
+    "popruzhenko_120fs": "175050",
+    "talebpour_120fs": "175354",
+    "talebpour_40fs": "175950"
+  },
+  "execution_git_sha": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95)",
+  "talebpour_minus_popruzhenko_120fs_1e21_shift_cm": 0.3315164577695775,
+  "epsilon_x_cm": 0.1,
+  "o2_off_submitted": false,
+  "raw_arrays_committed": false,
+  "40fs_note": "No current-observability Popruzhenko 40 fs run was authorized; this is Talebpour validation rather than a matched causal pair."
+}

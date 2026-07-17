@@ -1,0 +1,143 @@
+{
+  "schema": "khz_filament.phase5.current_observability_baseline.v1",
+  "formal_baseline_gate": "passed",
+  "npz_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/talebpour_40fs_20260717T151324Z/cases/40fs_talebpour_full_model/result.npz",
+  "config_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/talebpour_40fs_20260717T151324Z/configs/40fs_talebpour_full_model.json",
+  "summary": {
+    "z_records": 15000,
+    "z_start_m": 9.999999747378752e-05,
+    "z_end_m": 1.2999999523162842,
+    "z_median_step_m": 0.00010000169277191162,
+    "npz_sha256": "62fb1e7f29e7c5d4ee73dd39aad71f4b4661a3b63822478f66ab83680f2bacec",
+    "npz_size_bytes": 27440996,
+    "config_sha256": "ec257b9190f91ea887740bac16e0210e6b9b67b9fe9c1ddfefa44dcfeaad2ac6",
+    "field_status": {
+      "z_axis": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "I_onaxis_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "I_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "delta_n_plasma_min_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "E_dep_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "E_loss_from_input_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "E_dep_cumulative_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "U_rel_change_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "dphi_plasma_raw_max_abs_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "dphi_plasma_applied_max_abs_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "alpha_ion_raw_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "alpha_ion_applied_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_N2_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_O2_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_O2_fraction_at_rho_total_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "dz_used_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "adaptive_rejection_count_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "safety_mode_trigger_count_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      }
+    },
+    "diagnostic_validation_passed": true,
+    "safety_mode_event_summary": "{\"configured_mode\": \"on\", \"rejection_count\": 0, \"source\": \"live propagation-loop counters\", \"trigger_count\": 0}"
+  },
+  "run_metadata": {
+    "case_id": "40fs_talebpour_full_model",
+    "status": "completed",
+    "exit_code": 0,
+    "slurm_job_id": "175950",
+    "execution_git_sha": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0\r",
+    "config_sha256": "ec257b9190f91ea887740bac16e0210e6b9b67b9fe9c1ddfefa44dcfeaad2ac6",
+    "diagnostic_schema": "khz_filament.propagation_observability.v1"
+  },
+  "failures": []
+}
