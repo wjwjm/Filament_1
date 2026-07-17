@@ -1,0 +1,33 @@
+{
+  "schema": "khz_filament.phase5.current_observability_archive.v1",
+  "case_id": "120fs_popruzhenko_full_model_current_observability",
+  "slurm_job_id": "175050",
+  "remote_run_root": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/popruzhenko_120_current_observability_20260717T055731Z",
+  "execution_git_sha": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
+  "config_snapshot_sha256": "9c2ce3786eff4ff30ee201f939a5a3430b7d1d6517b27be68af898b2367d1f37",
+  "raw_npz": {
+    "remote_relative_path": "cases/120fs_popruzhenko_full_model_current_observability/result.npz",
+    "sha256": "2bd1606c455bef7c8439b6b05aca043a52f655f15c17e4eaee5dce311778d61f",
+    "size_bytes": 27440996,
+    "committed": false
+  },
+  "formal_baseline_gate": "passed",
+  "lightweight_artifacts": {
+    "120fs_popruzhenko_full_model_current_observability.json": "9c2ce3786eff4ff30ee201f939a5a3430b7d1d6517b27be68af898b2367d1f37",
+    "baseline_axial_diagnostics.csv": "d571e1f2735e14ce20fb8e227205e8265122419e42993f57483bc7f7ad5779ae",
+    "baseline_reaudit.json": "f7741dd6819a4691e789a7278019d61ee19b6bd0d26ea2f3a4212fbef69bac41",
+    "baseline_reaudit_report.md": "e4833c22a1340a42c9ddc488c17418eda3670b3286b479d001c6a74964e5d02c",
+    "run_metadata.json": "95349c981ef937072f27462bc8a0adc6233e75a19d88d954f45774e87f8b2126",
+    "figures/diagnostic_summary.json": "c222708bb61acb0b0c19a3af780c30983f0be1204e62601d8ecbfc35a96da566"
+  },
+  "remote_only_slurm_logs": {
+    "pop120obs-175050.out": {
+      "sha256": "6505fd3b7123b7f57fe27eb98798727d6b6dbb041c63c71a8dda84dc63c5b46d",
+      "size_bytes": 227963
+    },
+    "pop120obs-175050.err": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    }
+  }
+}

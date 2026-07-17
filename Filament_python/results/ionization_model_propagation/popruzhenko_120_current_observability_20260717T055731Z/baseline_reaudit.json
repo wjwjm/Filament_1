@@ -1,0 +1,145 @@
+{
+  "schema": "khz_filament.phase5.current_observability_baseline.v1",
+  "formal_baseline_gate": "passed",
+  "npz_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/popruzhenko_120_current_observability_20260717T055731Z/cases/120fs_popruzhenko_full_model_current_observability/result.npz",
+  "config_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/popruzhenko_120_current_observability_20260717T055731Z/configs/120fs_popruzhenko_full_model_current_observability.json",
+  "summary": {
+    "z_records": 15000,
+    "z_start_m": 9.999999747378752e-05,
+    "z_end_m": 1.2999999523162842,
+    "z_median_step_m": 0.00010000169277191162,
+    "npz_sha256": "2bd1606c455bef7c8439b6b05aca043a52f655f15c17e4eaee5dce311778d61f",
+    "npz_size_bytes": 27440996,
+    "config_sha256": "9c2ce3786eff4ff30ee201f939a5a3430b7d1d6517b27be68af898b2367d1f37",
+    "field_status": {
+      "z_axis": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "I_onaxis_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "I_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "delta_n_plasma_min_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "E_dep_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "E_loss_from_input_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "E_dep_cumulative_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "U_rel_change_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "dphi_plasma_raw_max_abs_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "dphi_plasma_applied_max_abs_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "alpha_ion_raw_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "alpha_ion_applied_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_N2_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_O2_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_O2_fraction_at_rho_total_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "dz_used_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "adaptive_rejection_count_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "safety_mode_trigger_count_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      }
+    },
+    "diagnostic_validation_passed": true,
+    "safety_mode_event_summary": "{\"configured_mode\": \"on\", \"rejection_count\": 0, \"source\": \"live propagation-loop counters\", \"trigger_count\": 0}"
+  },
+  "run_metadata": {
+    "case_id": "120fs_popruzhenko_full_model_current_observability",
+    "status": "completed",
+    "exit_code": 0,
+    "slurm_job_id": "175050",
+    "execution_git_sha": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0\r",
+    "config_sha256": "9c2ce3786eff4ff30ee201f939a5a3430b7d1d6517b27be68af898b2367d1f37",
+    "config_path": "configs/120fs_popruzhenko_full_model_current_observability.json",
+    "output_npz": "cases/120fs_popruzhenko_full_model_current_observability/result.npz",
+    "diagnostic_schema": "khz_filament.propagation_observability.v1"
+  },
+  "failures": []
+}
