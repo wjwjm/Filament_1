@@ -1,0 +1,114 @@
+{
+  "schema": "khz_filament.phase5.talebpour_120fs_preflight.v1",
+  "case_id": "120fs_talebpour_full_model",
+  "generation_git_sha": "9eaff5c7624ef73b4c4755b2b2143eb9461d1b34",
+  "execution_git_sha": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
+  "worktree_dirty": false,
+  "config_path": "Filament_python/configs/ionization_model_propagation/120fs_talebpour_full_model.json",
+  "config_sha256": "dd440b5e5462a1d9f01cf26c04f56f1cfa21615cb1cb58d2ab4538ba44ac4688",
+  "config_snapshot": "Filament_python/results/ionization_model_propagation/talebpour_120fs_preflight_20260717T114321Z/120fs_talebpour_full_model.json",
+  "config_snapshot_sha256": "dd440b5e5462a1d9f01cf26c04f56f1cfa21615cb1cb58d2ab4538ba44ac4688",
+  "remote_run_root": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/talebpour_120fs_20260717T114321Z",
+  "remote_target_verified_empty": true,
+  "lut_tables": [
+    {
+      "model": "ppt_talebpour_i_full_reference",
+      "species": "N2",
+      "metadata": {
+        "schema_version": "ion-lut-v1",
+        "model_name": "ppt_talebpour_i_full_reference",
+        "species_name": "N2",
+        "species_params": {
+          "Ip_eV": 15.6,
+          "Ip_eV_eff": 15.6,
+          "Z": 1,
+          "Zeff": 0.9,
+          "l": 0,
+          "m": 0,
+          "rate": "ppt_talebpour_i_lut",
+          "reference_model": "ppt_talebpour_i_full_reference"
+        },
+        "omega0_SI": 2354564459136066.5,
+        "n0": 1.00027,
+        "I_min_SI": 100000000.0,
+        "I_max_SI": 1e+19,
+        "n_samples": 3000,
+        "spacing": "log",
+        "interp_mode": "loglog",
+        "ref_cycle_avg_samples": 64,
+        "popruzhenko_sum_tol": 1e-06,
+        "popruzhenko_max_terms": 256
+      }
+    },
+    {
+      "model": "ppt_talebpour_i_full_reference",
+      "species": "O2",
+      "metadata": {
+        "schema_version": "ion-lut-v1",
+        "model_name": "ppt_talebpour_i_full_reference",
+        "species_name": "O2",
+        "species_params": {
+          "Ip_eV": 12.1,
+          "Ip_eV_eff": 12.55,
+          "Z": 1,
+          "Zeff": 0.53,
+          "l": 0,
+          "m": 0,
+          "rate": "ppt_talebpour_i_lut",
+          "reference_model": "ppt_talebpour_i_full_reference"
+        },
+        "omega0_SI": 2354564459136066.5,
+        "n0": 1.00027,
+        "I_min_SI": 100000000.0,
+        "I_max_SI": 1e+19,
+        "n_samples": 3000,
+        "spacing": "log",
+        "interp_mode": "loglog",
+        "ref_cycle_avg_samples": 64,
+        "popruzhenko_sum_tol": 1e-06,
+        "popruzhenko_max_terms": 256
+      }
+    }
+  ],
+  "rate_probe_s-1": [
+    1.5133440549053992e-65,
+    0.03237364528242828,
+    549194234222.6548,
+    783348900140299.8
+  ],
+  "dry_run": {
+    "passed": true,
+    "missing_fields": [],
+    "invalid_fields": []
+  },
+  "required_diagnostics": [
+    "z_axis",
+    "rho_max_z",
+    "I_onaxis_max_z",
+    "I_max_z",
+    "delta_n_plasma_min_z",
+    "E_dep_z",
+    "E_loss_from_input_z",
+    "E_dep_cumulative_z",
+    "U_rel_change_z",
+    "dphi_plasma_raw_max_abs_z",
+    "dphi_plasma_applied_max_abs_z",
+    "alpha_ion_raw_max_z",
+    "alpha_ion_applied_max_z",
+    "rho_N2_max_z",
+    "rho_O2_max_z",
+    "rho_O2_fraction_at_rho_total_max_z",
+    "dz_used_z",
+    "adaptive_rejection_count_z",
+    "safety_mode_trigger_count_z",
+    "safety_mode_event_summary",
+    "propagation_observability_schema",
+    "diagnostic_validation_passed"
+  ],
+  "single_job_script": "Filament_python/results/ionization_model_propagation/talebpour_120fs_preflight_20260717T114321Z/submit_talebpour_120fs.sh",
+  "preflight_passed": true,
+  "prohibited_jobs": [
+    "40fs_talebpour_full_model",
+    "120fs_O2_off"
+  ]
+}
