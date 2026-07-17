@@ -1,0 +1,502 @@
+{
+  "schema": "khz_filament.ionization_rate_model_validation.v1",
+  "generated_at_utc": "2026-07-17T03:40:19.464133+00:00",
+  "code_commit_sha": "26ba07099f09678d7d72238852e2a9559f30a22e",
+  "config_path": "Filament_python/configs/profile_validation/flat_top_90_40fs.json",
+  "config_sha256": "dcc9761c71a3ae3f1da3898a4d2070f89a04dfd4c393b31d83676729d6eec20d",
+  "intensity_unit": "W/m^2",
+  "intensity_scan": {
+    "I_min_W_m2": 100000000000000.0,
+    "I_max_W_m2": 1e+19,
+    "n_points": 501
+  },
+  "relevant_intensity_range_W_m2": [
+    1e+16,
+    1e+18
+  ],
+  "W_meaningful_floor_s-1": 1.0,
+  "lut_acceptance_max_relative_error": 0.03,
+  "models": {
+    "N2": {
+      "production_species": {
+        "name": "N2",
+        "rate": "popruzhenko_atom_i_lut",
+        "reference_model": "popruzhenko_atom_i_full_reference",
+        "Ip_eV": 15.6,
+        "Z": 1,
+        "l": 0,
+        "m": 0,
+        "fraction": 0.8
+      },
+      "popruzhenko": {
+        "reference": {
+          "rate": "popruzhenko_atom_i_full_reference",
+          "family": "popruzhenko",
+          "species": {
+            "name": "N2",
+            "rate": "popruzhenko_atom_i_full_reference",
+            "reference_model": "popruzhenko_atom_i_full_reference",
+            "Ip_eV": 15.6,
+            "Z": 1,
+            "l": 0,
+            "m": 0,
+            "fraction": 1.0
+          },
+          "cycle_avg_samples": 32,
+          "W_cap_s-1": 1e+19,
+          "rate_table": {
+            "enabled": true,
+            "reuse_cache": true,
+            "cache_dir": "Filament_python/results/ionization_rate_model_validation/ionization_rate_model_validation_20260717T034015Z/lut_cache",
+            "force_rebuild": false,
+            "I_min_SI": 100000000.0,
+            "I_max_SI": 1e+19,
+            "n_samples": 3000,
+            "spacing": "log",
+            "interp_mode": "loglog",
+            "ref_cycle_avg_samples": 64,
+            "popruzhenko_sum_tol": 1e-06,
+            "popruzhenko_max_terms": 256,
+            "rebuild_if_missing": true,
+            "save_tables": true,
+            "max_rel_error_target": 0.03,
+            "filament_I_min_SI": 10000000000000.0,
+            "filament_I_max_SI": 1000000000000000.0
+          },
+          "lut_signature": null
+        },
+        "lut": {
+          "rate": "popruzhenko_atom_i_lut",
+          "family": "popruzhenko",
+          "species": {
+            "name": "N2",
+            "rate": "popruzhenko_atom_i_lut",
+            "reference_model": "popruzhenko_atom_i_full_reference",
+            "Ip_eV": 15.6,
+            "Z": 1,
+            "l": 0,
+            "m": 0,
+            "fraction": 1.0
+          },
+          "cycle_avg_samples": 32,
+          "W_cap_s-1": 1e+19,
+          "rate_table": {
+            "enabled": true,
+            "reuse_cache": true,
+            "cache_dir": "Filament_python/results/ionization_rate_model_validation/ionization_rate_model_validation_20260717T034015Z/lut_cache",
+            "force_rebuild": false,
+            "I_min_SI": 100000000.0,
+            "I_max_SI": 1e+19,
+            "n_samples": 3000,
+            "spacing": "log",
+            "interp_mode": "loglog",
+            "ref_cycle_avg_samples": 64,
+            "popruzhenko_sum_tol": 1e-06,
+            "popruzhenko_max_terms": 256,
+            "rebuild_if_missing": true,
+            "save_tables": true,
+            "max_rel_error_target": 0.03,
+            "filament_I_min_SI": 10000000000000.0,
+            "filament_I_max_SI": 1000000000000000.0
+          },
+          "lut_signature": "f6f8708c2b2edca2998a878d348fcd2d76c0545e8de42643f1ad2e496455859b"
+        }
+      },
+      "talebpour": {
+        "reference": {
+          "rate": "ppt_talebpour_i_full_reference",
+          "family": "talebpour",
+          "species": {
+            "name": "N2",
+            "rate": "ppt_talebpour_i_full_reference",
+            "reference_model": "ppt_talebpour_i_full_reference",
+            "Ip_eV": 15.6,
+            "l": 0,
+            "m": 0,
+            "fraction": 1.0,
+            "Ip_eV_eff": 15.6,
+            "Zeff": 0.9
+          },
+          "cycle_avg_samples": 32,
+          "W_cap_s-1": 1e+19,
+          "rate_table": {
+            "enabled": true,
+            "reuse_cache": true,
+            "cache_dir": "Filament_python/results/ionization_rate_model_validation/ionization_rate_model_validation_20260717T034015Z/lut_cache",
+            "force_rebuild": false,
+            "I_min_SI": 100000000.0,
+            "I_max_SI": 1e+19,
+            "n_samples": 3000,
+            "spacing": "log",
+            "interp_mode": "loglog",
+            "ref_cycle_avg_samples": 64,
+            "popruzhenko_sum_tol": 1e-06,
+            "popruzhenko_max_terms": 256,
+            "rebuild_if_missing": true,
+            "save_tables": true,
+            "max_rel_error_target": 0.03,
+            "filament_I_min_SI": 10000000000000.0,
+            "filament_I_max_SI": 1000000000000000.0
+          },
+          "lut_signature": null
+        },
+        "lut": {
+          "rate": "ppt_talebpour_i_lut",
+          "family": "talebpour",
+          "species": {
+            "name": "N2",
+            "rate": "ppt_talebpour_i_lut",
+            "reference_model": "ppt_talebpour_i_full_reference",
+            "Ip_eV": 15.6,
+            "l": 0,
+            "m": 0,
+            "fraction": 1.0,
+            "Ip_eV_eff": 15.6,
+            "Zeff": 0.9
+          },
+          "cycle_avg_samples": 32,
+          "W_cap_s-1": 1e+19,
+          "rate_table": {
+            "enabled": true,
+            "reuse_cache": true,
+            "cache_dir": "Filament_python/results/ionization_rate_model_validation/ionization_rate_model_validation_20260717T034015Z/lut_cache",
+            "force_rebuild": false,
+            "I_min_SI": 100000000.0,
+            "I_max_SI": 1e+19,
+            "n_samples": 3000,
+            "spacing": "log",
+            "interp_mode": "loglog",
+            "ref_cycle_avg_samples": 64,
+            "popruzhenko_sum_tol": 1e-06,
+            "popruzhenko_max_terms": 256,
+            "rebuild_if_missing": true,
+            "save_tables": true,
+            "max_rel_error_target": 0.03,
+            "filament_I_min_SI": 10000000000000.0,
+            "filament_I_max_SI": 1000000000000000.0
+          },
+          "lut_signature": "7db9d71aa7427510a51afb06f062ecaf98947ce867d93c91baad2a52133a9ae2"
+        }
+      },
+      "lut_validation_references": {
+        "cycle_avg_samples": 64,
+        "popruzhenko": {
+          "rate": "popruzhenko_atom_i_full_reference",
+          "family": "popruzhenko",
+          "species": {
+            "name": "N2",
+            "rate": "popruzhenko_atom_i_full_reference",
+            "reference_model": "popruzhenko_atom_i_full_reference",
+            "Ip_eV": 15.6,
+            "Z": 1,
+            "l": 0,
+            "m": 0,
+            "fraction": 1.0
+          },
+          "cycle_avg_samples": 64,
+          "W_cap_s-1": 1e+19,
+          "rate_table": {
+            "enabled": true,
+            "reuse_cache": true,
+            "cache_dir": "Filament_python/results/ionization_rate_model_validation/ionization_rate_model_validation_20260717T034015Z/lut_cache",
+            "force_rebuild": false,
+            "I_min_SI": 100000000.0,
+            "I_max_SI": 1e+19,
+            "n_samples": 3000,
+            "spacing": "log",
+            "interp_mode": "loglog",
+            "ref_cycle_avg_samples": 64,
+            "popruzhenko_sum_tol": 1e-06,
+            "popruzhenko_max_terms": 256,
+            "rebuild_if_missing": true,
+            "save_tables": true,
+            "max_rel_error_target": 0.03,
+            "filament_I_min_SI": 10000000000000.0,
+            "filament_I_max_SI": 1000000000000000.0
+          },
+          "lut_signature": null
+        },
+        "talebpour": {
+          "rate": "ppt_talebpour_i_full_reference",
+          "family": "talebpour",
+          "species": {
+            "name": "N2",
+            "rate": "ppt_talebpour_i_full_reference",
+            "reference_model": "ppt_talebpour_i_full_reference",
+            "Ip_eV": 15.6,
+            "l": 0,
+            "m": 0,
+            "fraction": 1.0,
+            "Ip_eV_eff": 15.6,
+            "Zeff": 0.9
+          },
+          "cycle_avg_samples": 64,
+          "W_cap_s-1": 1e+19,
+          "rate_table": {
+            "enabled": true,
+            "reuse_cache": true,
+            "cache_dir": "Filament_python/results/ionization_rate_model_validation/ionization_rate_model_validation_20260717T034015Z/lut_cache",
+            "force_rebuild": false,
+            "I_min_SI": 100000000.0,
+            "I_max_SI": 1e+19,
+            "n_samples": 3000,
+            "spacing": "log",
+            "interp_mode": "loglog",
+            "ref_cycle_avg_samples": 64,
+            "popruzhenko_sum_tol": 1e-06,
+            "popruzhenko_max_terms": 256,
+            "rebuild_if_missing": true,
+            "save_tables": true,
+            "max_rel_error_target": 0.03,
+            "filament_I_min_SI": 10000000000000.0,
+            "filament_I_max_SI": 1000000000000000.0
+          },
+          "lut_signature": null
+        }
+      }
+    },
+    "O2": {
+      "production_species": {
+        "name": "O2",
+        "rate": "popruzhenko_atom_i_lut",
+        "reference_model": "popruzhenko_atom_i_full_reference",
+        "Ip_eV": 12.1,
+        "Z": 1,
+        "l": 0,
+        "m": 0,
+        "fraction": 0.2
+      },
+      "popruzhenko": {
+        "reference": {
+          "rate": "popruzhenko_atom_i_full_reference",
+          "family": "popruzhenko",
+          "species": {
+            "name": "O2",
+            "rate": "popruzhenko_atom_i_full_reference",
+            "reference_model": "popruzhenko_atom_i_full_reference",
+            "Ip_eV": 12.1,
+            "Z": 1,
+            "l": 0,
+            "m": 0,
+            "fraction": 1.0
+          },
+          "cycle_avg_samples": 32,
+          "W_cap_s-1": 1e+19,
+          "rate_table": {
+            "enabled": true,
+            "reuse_cache": true,
+            "cache_dir": "Filament_python/results/ionization_rate_model_validation/ionization_rate_model_validation_20260717T034015Z/lut_cache",
+            "force_rebuild": false,
+            "I_min_SI": 100000000.0,
+            "I_max_SI": 1e+19,
+            "n_samples": 3000,
+            "spacing": "log",
+            "interp_mode": "loglog",
+            "ref_cycle_avg_samples": 64,
+            "popruzhenko_sum_tol": 1e-06,
+            "popruzhenko_max_terms": 256,
+            "rebuild_if_missing": true,
+            "save_tables": true,
+            "max_rel_error_target": 0.03,
+            "filament_I_min_SI": 10000000000000.0,
+            "filament_I_max_SI": 1000000000000000.0
+          },
+          "lut_signature": null
+        },
+        "lut": {
+          "rate": "popruzhenko_atom_i_lut",
+          "family": "popruzhenko",
+          "species": {
+            "name": "O2",
+            "rate": "popruzhenko_atom_i_lut",
+            "reference_model": "popruzhenko_atom_i_full_reference",
+            "Ip_eV": 12.1,
+            "Z": 1,
+            "l": 0,
+            "m": 0,
+            "fraction": 1.0
+          },
+          "cycle_avg_samples": 32,
+          "W_cap_s-1": 1e+19,
+          "rate_table": {
+            "enabled": true,
+            "reuse_cache": true,
+            "cache_dir": "Filament_python/results/ionization_rate_model_validation/ionization_rate_model_validation_20260717T034015Z/lut_cache",
+            "force_rebuild": false,
+            "I_min_SI": 100000000.0,
+            "I_max_SI": 1e+19,
+            "n_samples": 3000,
+            "spacing": "log",
+            "interp_mode": "loglog",
+            "ref_cycle_avg_samples": 64,
+            "popruzhenko_sum_tol": 1e-06,
+            "popruzhenko_max_terms": 256,
+            "rebuild_if_missing": true,
+            "save_tables": true,
+            "max_rel_error_target": 0.03,
+            "filament_I_min_SI": 10000000000000.0,
+            "filament_I_max_SI": 1000000000000000.0
+          },
+          "lut_signature": "4f22fb2fbe3e92b78ecc5934d1198429bc5c2e00c3e3b4322fd59d1bb4b240ea"
+        }
+      },
+      "talebpour": {
+        "reference": {
+          "rate": "ppt_talebpour_i_full_reference",
+          "family": "talebpour",
+          "species": {
+            "name": "O2",
+            "rate": "ppt_talebpour_i_full_reference",
+            "reference_model": "ppt_talebpour_i_full_reference",
+            "Ip_eV": 12.1,
+            "l": 0,
+            "m": 0,
+            "fraction": 1.0,
+            "Ip_eV_eff": 12.55,
+            "Zeff": 0.53
+          },
+          "cycle_avg_samples": 32,
+          "W_cap_s-1": 1e+19,
+          "rate_table": {
+            "enabled": true,
+            "reuse_cache": true,
+            "cache_dir": "Filament_python/results/ionization_rate_model_validation/ionization_rate_model_validation_20260717T034015Z/lut_cache",
+            "force_rebuild": false,
+            "I_min_SI": 100000000.0,
+            "I_max_SI": 1e+19,
+            "n_samples": 3000,
+            "spacing": "log",
+            "interp_mode": "loglog",
+            "ref_cycle_avg_samples": 64,
+            "popruzhenko_sum_tol": 1e-06,
+            "popruzhenko_max_terms": 256,
+            "rebuild_if_missing": true,
+            "save_tables": true,
+            "max_rel_error_target": 0.03,
+            "filament_I_min_SI": 10000000000000.0,
+            "filament_I_max_SI": 1000000000000000.0
+          },
+          "lut_signature": null
+        },
+        "lut": {
+          "rate": "ppt_talebpour_i_lut",
+          "family": "talebpour",
+          "species": {
+            "name": "O2",
+            "rate": "ppt_talebpour_i_lut",
+            "reference_model": "ppt_talebpour_i_full_reference",
+            "Ip_eV": 12.1,
+            "l": 0,
+            "m": 0,
+            "fraction": 1.0,
+            "Ip_eV_eff": 12.55,
+            "Zeff": 0.53
+          },
+          "cycle_avg_samples": 32,
+          "W_cap_s-1": 1e+19,
+          "rate_table": {
+            "enabled": true,
+            "reuse_cache": true,
+            "cache_dir": "Filament_python/results/ionization_rate_model_validation/ionization_rate_model_validation_20260717T034015Z/lut_cache",
+            "force_rebuild": false,
+            "I_min_SI": 100000000.0,
+            "I_max_SI": 1e+19,
+            "n_samples": 3000,
+            "spacing": "log",
+            "interp_mode": "loglog",
+            "ref_cycle_avg_samples": 64,
+            "popruzhenko_sum_tol": 1e-06,
+            "popruzhenko_max_terms": 256,
+            "rebuild_if_missing": true,
+            "save_tables": true,
+            "max_rel_error_target": 0.03,
+            "filament_I_min_SI": 10000000000000.0,
+            "filament_I_max_SI": 1000000000000000.0
+          },
+          "lut_signature": "63b9aef697f3fa0e6689e395251ee6c171017dd86bbe097c99ccd095a57b7c2b"
+        }
+      },
+      "lut_validation_references": {
+        "cycle_avg_samples": 64,
+        "popruzhenko": {
+          "rate": "popruzhenko_atom_i_full_reference",
+          "family": "popruzhenko",
+          "species": {
+            "name": "O2",
+            "rate": "popruzhenko_atom_i_full_reference",
+            "reference_model": "popruzhenko_atom_i_full_reference",
+            "Ip_eV": 12.1,
+            "Z": 1,
+            "l": 0,
+            "m": 0,
+            "fraction": 1.0
+          },
+          "cycle_avg_samples": 64,
+          "W_cap_s-1": 1e+19,
+          "rate_table": {
+            "enabled": true,
+            "reuse_cache": true,
+            "cache_dir": "Filament_python/results/ionization_rate_model_validation/ionization_rate_model_validation_20260717T034015Z/lut_cache",
+            "force_rebuild": false,
+            "I_min_SI": 100000000.0,
+            "I_max_SI": 1e+19,
+            "n_samples": 3000,
+            "spacing": "log",
+            "interp_mode": "loglog",
+            "ref_cycle_avg_samples": 64,
+            "popruzhenko_sum_tol": 1e-06,
+            "popruzhenko_max_terms": 256,
+            "rebuild_if_missing": true,
+            "save_tables": true,
+            "max_rel_error_target": 0.03,
+            "filament_I_min_SI": 10000000000000.0,
+            "filament_I_max_SI": 1000000000000000.0
+          },
+          "lut_signature": null
+        },
+        "talebpour": {
+          "rate": "ppt_talebpour_i_full_reference",
+          "family": "talebpour",
+          "species": {
+            "name": "O2",
+            "rate": "ppt_talebpour_i_full_reference",
+            "reference_model": "ppt_talebpour_i_full_reference",
+            "Ip_eV": 12.1,
+            "l": 0,
+            "m": 0,
+            "fraction": 1.0,
+            "Ip_eV_eff": 12.55,
+            "Zeff": 0.53
+          },
+          "cycle_avg_samples": 64,
+          "W_cap_s-1": 1e+19,
+          "rate_table": {
+            "enabled": true,
+            "reuse_cache": true,
+            "cache_dir": "Filament_python/results/ionization_rate_model_validation/ionization_rate_model_validation_20260717T034015Z/lut_cache",
+            "force_rebuild": false,
+            "I_min_SI": 100000000.0,
+            "I_max_SI": 1e+19,
+            "n_samples": 3000,
+            "spacing": "log",
+            "interp_mode": "loglog",
+            "ref_cycle_avg_samples": 64,
+            "popruzhenko_sum_tol": 1e-06,
+            "popruzhenko_max_terms": 256,
+            "rebuild_if_missing": true,
+            "save_tables": true,
+            "max_rel_error_target": 0.03,
+            "filament_I_min_SI": 10000000000000.0,
+            "filament_I_max_SI": 1000000000000000.0
+          },
+          "lut_signature": null
+        }
+      }
+    }
+  },
+  "outputs": [
+    "ionization_rate_N2.csv",
+    "ionization_rate_O2.csv",
+    "ionization_rate_lut_validation.csv"
+  ]
+}

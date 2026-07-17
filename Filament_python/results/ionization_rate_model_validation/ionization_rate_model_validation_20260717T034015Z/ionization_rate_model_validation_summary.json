@@ -1,0 +1,85 @@
+{
+  "schema": "khz_filament.ionization_rate_model_decision.v1",
+  "generated_at_utc": "2026-07-17T03:51:51.167087+00:00",
+  "code_commit_sha": "609c4f56bc5f3554079ace02aff7e103bd72f7cc",
+  "validation_directory": "Filament_python/results/ionization_rate_model_validation/ionization_rate_model_validation_20260717T034015Z",
+  "classification": "supported",
+  "rationale": "Both pulse widths show a same-direction >=10% fixed-threshold intensity shift in the 1e20–1e21 m^-3 onset band.",
+  "popruzhenko_lut_passed": true,
+  "talebpour_lut_passed": true,
+  "relevant_intensity_range_W_m2": [
+    1e+16,
+    1e+18
+  ],
+  "N2_max_model_difference": {
+    "max_abs_relative_difference": 0.9491570329498059,
+    "max_abs_log10_rate_difference": 1.2937691131942022
+  },
+  "O2_max_model_difference": {
+    "max_abs_relative_difference": 3.4057742104290663,
+    "max_abs_log10_rate_difference": 0.6440222364195195
+  },
+  "threshold_intensity_shift_40fs": [
+    {
+      "tau_fwhm_fs": 40.0,
+      "density_threshold_m3": 1e+19,
+      "I_threshold_ratio_pop_over_tal": 0.9959593031688992,
+      "delta_log10_I_pop_minus_tal": -0.0017584073295928704
+    },
+    {
+      "tau_fwhm_fs": 40.0,
+      "density_threshold_m3": 1e+20,
+      "I_threshold_ratio_pop_over_tal": 0.9409528653373611,
+      "delta_log10_I_pop_minus_tal": -0.02643213091555552
+    },
+    {
+      "tau_fwhm_fs": 40.0,
+      "density_threshold_m3": 1e+21,
+      "I_threshold_ratio_pop_over_tal": 0.8593172076754306,
+      "delta_log10_I_pop_minus_tal": -0.0658464914500918
+    },
+    {
+      "tau_fwhm_fs": 40.0,
+      "density_threshold_m3": 1e+22,
+      "I_threshold_ratio_pop_over_tal": 0.9004758319400326,
+      "delta_log10_I_pop_minus_tal": -0.04552793880883854
+    }
+  ],
+  "threshold_intensity_shift_120fs": [
+    {
+      "tau_fwhm_fs": 120.0,
+      "density_threshold_m3": 1e+19,
+      "I_threshold_ratio_pop_over_tal": 1.0166125128834043,
+      "delta_log10_I_pop_minus_tal": 0.0071554508740341305
+    },
+    {
+      "tau_fwhm_fs": 120.0,
+      "density_threshold_m3": 1e+20,
+      "I_threshold_ratio_pop_over_tal": 0.9710958506978662,
+      "delta_log10_I_pop_minus_tal": -0.012737901528954154
+    },
+    {
+      "tau_fwhm_fs": 120.0,
+      "density_threshold_m3": 1e+21,
+      "I_threshold_ratio_pop_over_tal": 0.8703373282427331,
+      "delta_log10_I_pop_minus_tal": -0.060312389450000836
+    },
+    {
+      "tau_fwhm_fs": 120.0,
+      "density_threshold_m3": 1e+22,
+      "I_threshold_ratio_pop_over_tal": 0.9259552067591338,
+      "delta_log10_I_pop_minus_tal": -0.03341002187946884
+    }
+  ],
+  "O2_onset_fraction": {
+    "minimum": 0.97793435562551,
+    "maximum": 0.9991755331979887,
+    "sample_count": 12
+  },
+  "recommended_full_propagation_cases": [
+    "120 fs: current Popruzhenko full model versus Talebpour full-model control",
+    "40 fs: Talebpour full-model control only after the 120 fs comparison confirms a material propagation effect"
+  ],
+  "production_physics_changed": false,
+  "slurm_jobs_submitted": false
+}

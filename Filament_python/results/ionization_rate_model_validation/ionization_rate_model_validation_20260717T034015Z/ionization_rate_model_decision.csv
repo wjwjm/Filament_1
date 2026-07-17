@@ -1,0 +1,2 @@
+classification,rationale,recommended_full_propagation_case_count,production_physics_changed,slurm_jobs_submitted
+supported,Both pulse widths show a same-direction >=10% fixed-threshold intensity shift in the 1e20–1e21 m^-3 onset band.,2,False,False
