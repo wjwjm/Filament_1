@@ -1,0 +1,134 @@
+{
+  "schema": "khz_filament.phase5.popruzhenko_current_observability_preflight.v1",
+  "generated_at_utc": "2026-07-17T05:57:37.588285+00:00",
+  "case_id": "120fs_popruzhenko_full_model_current_observability",
+  "git_sha": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
+  "worktree_dirty": false,
+  "config_path": "Filament_python/configs/profile_validation/flat_top_90_120fs.json",
+  "config_sha256": "195f59f1292a4cb7380332be39f5365969ce021492ba12ec93b0db9a7987641f",
+  "config_snapshot": "Filament_python/results/ionization_model_propagation/popruzhenko_120_current_observability_preflight_20260717T055731Z/120fs_popruzhenko_full_model_current_observability.json",
+  "config_snapshot_sha256": "9c2ce3786eff4ff30ee201f939a5a3430b7d1d6517b27be68af898b2367d1f37",
+  "remote_run_root": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/popruzhenko_120_current_observability_20260717T055731Z",
+  "remote_target_verified_empty": true,
+  "effective_species": [
+    {
+      "name": "N2",
+      "rate": "popruzhenko_atom_i_lut",
+      "fraction": 0.8,
+      "Ip_eV": 15.6,
+      "Ui_J": null
+    },
+    {
+      "name": "O2",
+      "rate": "popruzhenko_atom_i_lut",
+      "fraction": 0.2,
+      "Ip_eV": 12.1,
+      "Ui_J": null
+    }
+  ],
+  "effective_nonlinear_switches": {
+    "use_electronic_kerr": true,
+    "use_raman_phase": true,
+    "use_plasma_phase": true,
+    "use_ionization_loss": true,
+    "use_raman_absorption": true,
+    "use_self_steepening": true,
+    "use_ionization_solver": true
+  },
+  "lut_tables": [
+    {
+      "model": "popruzhenko_atom_i_full_reference",
+      "species": "N2",
+      "metadata": {
+        "schema_version": "ion-lut-v1",
+        "model_name": "popruzhenko_atom_i_full_reference",
+        "species_name": "N2",
+        "species_params": {
+          "Ip_eV": 15.6,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference"
+        },
+        "omega0_SI": 2354564459136066.5,
+        "n0": 1.00027,
+        "I_min_SI": 100000000.0,
+        "I_max_SI": 1e+19,
+        "n_samples": 3000,
+        "spacing": "log",
+        "interp_mode": "loglog",
+        "ref_cycle_avg_samples": 64,
+        "popruzhenko_sum_tol": 1e-06,
+        "popruzhenko_max_terms": 256
+      }
+    },
+    {
+      "model": "popruzhenko_atom_i_full_reference",
+      "species": "O2",
+      "metadata": {
+        "schema_version": "ion-lut-v1",
+        "model_name": "popruzhenko_atom_i_full_reference",
+        "species_name": "O2",
+        "species_params": {
+          "Ip_eV": 12.1,
+          "Z": 1,
+          "l": 0,
+          "m": 0,
+          "rate": "popruzhenko_atom_i_lut",
+          "reference_model": "popruzhenko_atom_i_full_reference"
+        },
+        "omega0_SI": 2354564459136066.5,
+        "n0": 1.00027,
+        "I_min_SI": 100000000.0,
+        "I_max_SI": 1e+19,
+        "n_samples": 3000,
+        "spacing": "log",
+        "interp_mode": "loglog",
+        "ref_cycle_avg_samples": 64,
+        "popruzhenko_sum_tol": 1e-06,
+        "popruzhenko_max_terms": 256
+      }
+    }
+  ],
+  "rate_probe_s-1": [
+    0.14301183176762328,
+    822870.4150539539,
+    1085608330719.5548
+  ],
+  "required_diagnostic_fields": [
+    "z_axis",
+    "rho_max_z",
+    "I_onaxis_max_z",
+    "I_max_z",
+    "delta_n_plasma_min_z",
+    "E_dep_z",
+    "E_loss_from_input_z",
+    "E_dep_cumulative_z",
+    "U_rel_change_z",
+    "dphi_plasma_raw_max_abs_z",
+    "dphi_plasma_applied_max_abs_z",
+    "alpha_ion_raw_max_z",
+    "alpha_ion_applied_max_z",
+    "rho_N2_max_z",
+    "rho_O2_max_z",
+    "rho_O2_fraction_at_rho_total_max_z",
+    "dz_used_z",
+    "adaptive_rejection_count_z",
+    "safety_mode_trigger_count_z",
+    "safety_mode_event_summary",
+    "propagation_observability_schema",
+    "diagnostic_validation_passed"
+  ],
+  "dry_run": {
+    "npz": "Filament_python/results/ionization_model_propagation/popruzhenko_120_current_observability_preflight_20260717T055731Z/dry_run.npz",
+    "missing_fields": [],
+    "invalid_fields": [],
+    "passed": true
+  },
+  "single_job_script": "Filament_python/results/ionization_model_propagation/popruzhenko_120_current_observability_preflight_20260717T055731Z/submit_popruzhenko_120fs_current_observability.sh",
+  "execution_git_sha_file": "Filament_python/results/ionization_model_propagation/popruzhenko_120_current_observability_preflight_20260717T055731Z/EXECUTION_GIT_SHA",
+  "expected_remote_output": "cases/120fs_popruzhenko_full_model_current_observability/result.npz",
+  "estimated_output_size_bytes": 31000000,
+  "preflight_passed": true
+}
