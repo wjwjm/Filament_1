@@ -103,8 +103,12 @@ python tools/validate_current_observability_baseline.py --npz "$OUT" --config "$
     path.write_text(script, encoding="utf-8", newline="\n")
 
 
-def prepare(config_path: Path, out_dir: Path, remote_run_root: str) -> dict[str, Any]:
+def prepare(config_path: Path, out_dir: Path, remote_run_root: str, *, remote_target_verified_empty: bool) -> dict[str, Any]:
     config_path, out_dir = config_path.resolve(), out_dir.resolve()
+    # Capture the source-tree state before this tool creates its own expected
+    # preflight artefacts; those artefacts must not make a clean source tree
+    # appear dirty in the report.
+    worktree_dirty_before_preflight = bool(_git(["git", "status", "--porcelain"]))
     if out_dir.exists():
         raise FileExistsError(f"preflight output already exists: {out_dir}")
     config = json.loads(config_path.read_text(encoding="utf-8")); _verify_config(config)
@@ -132,16 +136,17 @@ def prepare(config_path: Path, out_dir: Path, remote_run_root: str) -> dict[str,
     _write_remote_job(job_script, remote_run_root)
     execution_sha_file = out_dir / "EXECUTION_GIT_SHA"
     execution_sha_file.write_text(_git(["git", "rev-parse", "HEAD"]) + "\n", encoding="utf-8")
-    status = not missing_dry and not bad and bool(np.all(np.isfinite(rate_probe)))
+    status = (not worktree_dirty_before_preflight) and remote_target_verified_empty and not missing_dry and not bad and bool(np.all(np.isfinite(rate_probe)))
     manifest = {
         "schema": "khz_filament.phase5.popruzhenko_current_observability_preflight.v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "case_id": CASE_ID,
         "git_sha": _git(["git", "rev-parse", "HEAD"]),
-        "worktree_dirty": bool(_git(["git", "status", "--porcelain"])),
+        "worktree_dirty": worktree_dirty_before_preflight,
         "config_path": _repo_relative(config_path), "config_sha256": sha256(config_path),
         "config_snapshot": _repo_relative(config_snapshot), "config_snapshot_sha256": sha256(config_snapshot),
         "remote_run_root": remote_run_root,
+        "remote_target_verified_empty": bool(remote_target_verified_empty),
         "effective_species": effective_species,
         "effective_nonlinear_switches": {
             key: bool(getattr(prop, key))
@@ -158,7 +163,7 @@ def prepare(config_path: Path, out_dir: Path, remote_run_root: str) -> dict[str,
         "preflight_passed": status,
     }
     (out_dir / "popruzhenko_120fs_current_observability_preflight.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    lines = ["# Popruzhenko 120 fs current-observability preflight", "", f"Preflight: **{'passed' if status else 'failed'}**.", "", f"- Git SHA: `{manifest['git_sha']}`", f"- Worktree clean: `{not manifest['worktree_dirty']}`", f"- Config: `{manifest['config_path']}`", f"- Config SHA256: `{manifest['config_sha256']}`", f"- Parsed species: `{effective_species}`", f"- Full-model switches: `{manifest['effective_nonlinear_switches']}`", f"- Remote output root: `{remote_run_root}`", f"- Single-job script: `{manifest['single_job_script']}`", f"- Estimated compressed NPZ size: `{manifest['estimated_output_size_bytes']}` bytes.", f"- Dry run: `{status}`; missing diagnostics: `{missing_dry}`; invalid diagnostics: `{bad}`.", "", "No Talebpour, 40 fs, or O2-off job is present in the generated submission script."]
+    lines = ["# Popruzhenko 120 fs current-observability preflight", "", f"Preflight: **{'passed' if status else 'failed'}**.", "", f"- Git SHA: `{manifest['git_sha']}`", f"- Worktree clean before preflight artefacts: `{not manifest['worktree_dirty']}`", f"- Config: `{manifest['config_path']}`", f"- Config SHA256: `{manifest['config_sha256']}`", f"- Parsed species: `{effective_species}`", f"- Full-model switches: `{manifest['effective_nonlinear_switches']}`", f"- Remote output root: `{remote_run_root}`", f"- Remote target verified empty: `{manifest['remote_target_verified_empty']}`", f"- Single-job script: `{manifest['single_job_script']}`", f"- Estimated compressed NPZ size: `{manifest['estimated_output_size_bytes']}` bytes.", f"- Dry run passed: `{not missing_dry and not bad and bool(np.all(np.isfinite(rate_probe)))}`; missing diagnostics: `{missing_dry}`; invalid diagnostics: `{bad}`.", "", "No Talebpour, 40 fs, or O2-off job is present in the generated submission script."]
     (out_dir / "popruzhenko_120fs_current_observability_preflight_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     if not status:
         raise RuntimeError("preflight failed")
@@ -170,8 +175,9 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--remote-run-root", required=True)
+    parser.add_argument("--remote-target-verified-empty", action="store_true")
     args = parser.parse_args()
-    result = prepare(args.config, args.out_dir, args.remote_run_root)
+    result = prepare(args.config, args.out_dir, args.remote_run_root, remote_target_verified_empty=args.remote_target_verified_empty)
     print(f"preflight_passed={result['preflight_passed']}")
 
 
