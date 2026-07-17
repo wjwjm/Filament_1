@@ -78,7 +78,7 @@ source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
 conda activate Filament_python
 export CUDA_DEVICE_ORDER=PCI_BUS_ID UPPE_USE_GPU=1 PYTHONUNBUFFERED=1
 export OMP_NUM_THREADS="${{SLURM_CPUS_PER_TASK}}" OPENBLAS_NUM_THREADS="${{SLURM_CPUS_PER_TASK}}" MKL_NUM_THREADS="${{SLURM_CPUS_PER_TASK}}" NUMEXPR_NUM_THREADS="${{SLURM_CPUS_PER_TASK}}"
-CODE_SHA="$(git -C "$CODE_DIR" rev-parse HEAD)"
+CODE_SHA="$(cat "$RUN_ROOT/EXECUTION_GIT_SHA")"
 CFG_SHA="$(sha256sum "$CFG" | awk '{{print $1}}')"
 write_meta() {{
   STATUS="$1" RC="$2" CODE_SHA="$CODE_SHA" CFG_SHA="$CFG_SHA" python - "$META" <<'PY'
@@ -130,6 +130,8 @@ def prepare(config_path: Path, out_dir: Path, remote_run_root: str) -> dict[str,
         bad = [key for key in REQUIRED_Z_FIELDS if key in data.files and (data[key].ndim != 1 or data[key].size != data["z_axis"].size or not np.all(np.isfinite(data[key])))]
     job_script = out_dir / "submit_popruzhenko_120fs_current_observability.sh"
     _write_remote_job(job_script, remote_run_root)
+    execution_sha_file = out_dir / "EXECUTION_GIT_SHA"
+    execution_sha_file.write_text(_git(["git", "rev-parse", "HEAD"]) + "\n", encoding="utf-8")
     status = not missing_dry and not bad and bool(np.all(np.isfinite(rate_probe)))
     manifest = {
         "schema": "khz_filament.phase5.popruzhenko_current_observability_preflight.v1",
@@ -141,16 +143,22 @@ def prepare(config_path: Path, out_dir: Path, remote_run_root: str) -> dict[str,
         "config_snapshot": _repo_relative(config_snapshot), "config_snapshot_sha256": sha256(config_snapshot),
         "remote_run_root": remote_run_root,
         "effective_species": effective_species,
+        "effective_nonlinear_switches": {
+            key: bool(getattr(prop, key))
+            for key in ("use_electronic_kerr", "use_raman_phase", "use_plasma_phase", "use_ionization_loss", "use_raman_absorption", "use_self_steepening", "use_ionization_solver")
+        },
         "lut_tables": [{"model": table["model_name"], "species": table["species_name"], "metadata": table.get("metadata", {})} for table in tables],
         "rate_probe_s-1": rate_probe.tolist(),
         "required_diagnostic_fields": list(REQUIRED_Z_FIELDS + REQUIRED_SCALARS),
         "dry_run": {"npz": _repo_relative(dry_out), "missing_fields": missing_dry, "invalid_fields": bad, "passed": status},
         "single_job_script": _repo_relative(job_script),
+        "execution_git_sha_file": _repo_relative(execution_sha_file),
         "expected_remote_output": f"cases/{CASE_ID}/result.npz",
+        "estimated_output_size_bytes": 31000000,
         "preflight_passed": status,
     }
     (out_dir / "popruzhenko_120fs_current_observability_preflight.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    lines = ["# Popruzhenko 120 fs current-observability preflight", "", f"Preflight: **{'passed' if status else 'failed'}**.", "", f"- Git SHA: `{manifest['git_sha']}`", f"- Worktree clean: `{not manifest['worktree_dirty']}`", f"- Config: `{manifest['config_path']}`", f"- Config SHA256: `{manifest['config_sha256']}`", f"- Remote output root: `{remote_run_root}`", f"- Single-job script: `{manifest['single_job_script']}`", f"- Dry run: `{status}`; missing diagnostics: `{missing_dry}`; invalid diagnostics: `{bad}`.", "", "No Talebpour, 40 fs, or O2-off job is present in the generated submission script."]
+    lines = ["# Popruzhenko 120 fs current-observability preflight", "", f"Preflight: **{'passed' if status else 'failed'}**.", "", f"- Git SHA: `{manifest['git_sha']}`", f"- Worktree clean: `{not manifest['worktree_dirty']}`", f"- Config: `{manifest['config_path']}`", f"- Config SHA256: `{manifest['config_sha256']}`", f"- Parsed species: `{effective_species}`", f"- Full-model switches: `{manifest['effective_nonlinear_switches']}`", f"- Remote output root: `{remote_run_root}`", f"- Single-job script: `{manifest['single_job_script']}`", f"- Estimated compressed NPZ size: `{manifest['estimated_output_size_bytes']}` bytes.", f"- Dry run: `{status}`; missing diagnostics: `{missing_dry}`; invalid diagnostics: `{bad}`.", "", "No Talebpour, 40 fs, or O2-off job is present in the generated submission script."]
     (out_dir / "popruzhenko_120fs_current_observability_preflight_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     if not status:
         raise RuntimeError("preflight failed")
