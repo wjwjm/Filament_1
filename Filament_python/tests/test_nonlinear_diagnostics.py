@@ -70,6 +70,14 @@ def test_minimal_run_saves_complete_nonlinear_diagnostics(tmp_path):
             assert values.shape == (n_records,)
             assert np.all(np.isfinite(values))
         assert bool(data["diagnostic_validation_passed"])
+        assert np.all(data["rho_N2_max_z"] >= 0.0)
+        assert np.all(data["rho_O2_max_z"] >= 0.0)
+        assert np.all((data["rho_O2_fraction_at_rho_total_max_z"] >= 0.0) & (data["rho_O2_fraction_at_rho_total_max_z"] <= 1.0))
+        assert np.all(data["dz_used_z"] > 0.0)
+        assert np.all(np.diff(data["adaptive_rejection_count_z"]) >= 0.0)
+        assert np.all(np.diff(data["safety_mode_trigger_count_z"]) >= 0.0)
+        assert str(data["propagation_observability_schema"].item()) == "khz_filament.propagation_observability.v1"
+        assert "live propagation-loop counters" in str(data["safety_mode_event_summary"].item())
 
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["validation"]["passed"] is True

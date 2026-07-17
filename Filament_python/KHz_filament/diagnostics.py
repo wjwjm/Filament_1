@@ -204,6 +204,42 @@ NONLINEAR_DIAGNOSTIC_METADATA = {
         "unit": "J",
         "use": "compare field-energy loss against deposited-energy diagnostics",
     },
+    "rho_N2_max_z": {
+        "meaning": "maximum N2 electron density over time and transverse coordinates",
+        "source": "propagate.py: existing per-species rho_list returned by evolve_rho_time",
+        "unit": "m^-3",
+        "use": "separate N2 contribution from total plasma density",
+    },
+    "rho_O2_max_z": {
+        "meaning": "maximum O2 electron density over time and transverse coordinates",
+        "source": "propagate.py: existing per-species rho_list returned by evolve_rho_time",
+        "unit": "m^-3",
+        "use": "separate O2 contribution from total plasma density",
+    },
+    "rho_O2_fraction_at_rho_total_max_z": {
+        "meaning": "O2 density fraction at the spatiotemporal maximum of total electron density",
+        "source": "propagate.py: rho_O2 / rho_total at argmax(rho_total)",
+        "unit": "1",
+        "use": "identify species controlling the local total-density maximum",
+    },
+    "dz_used_z": {
+        "meaning": "actual accepted propagation step used to reach each recorded z sample",
+        "source": "propagate.py: live dz_try in the propagation loop",
+        "unit": "m",
+        "use": "distinguish physical changes from actual propagation-step changes",
+    },
+    "adaptive_rejection_count_z": {
+        "meaning": "cumulative count of actual propagation-step rejections at each recorded z sample",
+        "source": "propagate.py: live rejection counter",
+        "unit": "count",
+        "use": "verify whether rejection/retry logic affected a comparison",
+    },
+    "safety_mode_trigger_count_z": {
+        "meaning": "cumulative count of actual safety-mode triggers at each recorded z sample",
+        "source": "propagate.py: live safety-mode trigger counter",
+        "unit": "count",
+        "use": "verify whether safety-mode control altered a comparison",
+    },
 }
 
 
@@ -259,6 +295,12 @@ Z_HISTORY_TRACE_KEYS = (
     "U_rel_change_z",
     "U_step_change_z",
     "E_loss_from_input_z",
+    "rho_N2_max_z",
+    "rho_O2_max_z",
+    "rho_O2_fraction_at_rho_total_max_z",
+    "dz_used_z",
+    "adaptive_rejection_count_z",
+    "safety_mode_trigger_count_z",
 )
 
 
@@ -326,6 +368,21 @@ def validate_nonlinear_diagnostics(diag: dict) -> dict:
         raise ValueError("diagnostic validation failed E_dep_total_z consistency")
     if not _np.allclose(_np.asarray(to_cpu(diag["E_dep_cumulative_z"]), dtype=float), _np.cumsum(expected_deposition), rtol=2e-5, atol=2e-12):
         raise ValueError("diagnostic validation failed E_dep_cumulative_z consistency")
+
+    for key in ("rho_N2_max_z", "rho_O2_max_z"):
+        values = _np.asarray(to_cpu(diag[key]), dtype=float)
+        if _np.any(values < -1e-12):
+            raise ValueError(f"diagnostic validation found negative species density in {key}")
+    o2_fraction = _np.asarray(to_cpu(diag["rho_O2_fraction_at_rho_total_max_z"]), dtype=float)
+    if _np.any((o2_fraction < -1e-8) | (o2_fraction > 1.0 + 1e-8)):
+        raise ValueError("diagnostic validation found O2 fraction outside [0, 1]")
+    dz_used = _np.asarray(to_cpu(diag["dz_used_z"]), dtype=float)
+    if _np.any(dz_used <= 0.0):
+        raise ValueError("diagnostic validation requires positive actual dz_used_z")
+    for key in ("adaptive_rejection_count_z", "safety_mode_trigger_count_z"):
+        values = _np.asarray(to_cpu(diag[key]), dtype=float)
+        if _np.any(values < 0.0) or _np.any(_np.diff(values) < 0.0):
+            raise ValueError(f"diagnostic validation requires non-decreasing non-negative {key}")
 
     return {
         "passed": True,

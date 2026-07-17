@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 from .device import xp, to_cpu
 from .linear import lin_propagator, step_linear, step_linear_bk_nee_factorized
 from .ionization import (
@@ -261,8 +262,16 @@ def propagate_one_pulse(
     dphi_elec_applied_max_abs_z_list, dphi_rot_applied_max_abs_z_list = [], []
     dphi_plasma_raw_max_abs_z_list, dphi_plasma_applied_max_abs_z_list = [], []
     alpha_ion_applied_max_z_list, alpha_R_raw_max_z_list, alpha_R_applied_max_z_list = [], [], []
+    rho_N2_max_z_list, rho_O2_max_z_list = [], []
+    rho_N2_at_rho_total_max_z_list, rho_O2_at_rho_total_max_z_list = [], []
+    rho_O2_fraction_at_rho_total_max_z_list = []
+    dz_used_z_list, adaptive_rejection_count_z_list, safety_mode_trigger_count_z_list = [], [], []
     E_dep_cumulative = 0.0
     U_previous = U0_baseline
+    # The current loop has no reject/retry branch; retain live counters so a
+    # future controller is observable without inferring state from z_axis.
+    adaptive_rejection_count = 0
+    safety_mode_trigger_count = 0
     # ---------- 主循环 ----------
     z = 0.0
     # Qacc 累积到面密度 J/m^2（把体功率密度在 t,z 两方向积分）
@@ -339,6 +348,7 @@ def propagate_one_pulse(
                 quasi_static_time=bool(getattr(ion_conf, "quasi_static_time", False)),
                 time_stat=str(getattr(ion_conf, "time_stat", "peak")),
                 return_species_terms=True,
+                return_species_densities=True,
             )
             if len(rho_out) == 3:
                 rho, Wt, species_terms = rho_out
@@ -348,19 +358,22 @@ def propagate_one_pulse(
             xp.maximum(rho, 0.0, out=rho)
             xp.minimum(rho, N0, out=rho)
             ion_source_raw = species_terms.get("drho_dt_u_sum", None)
+            rho_by_species = species_terms.get("rho_by_species", {})
             if ion_source_raw is None:
                 d_rho_dt = Wt * xp.clip(N0 - rho, 0.0, N0)
                 ion_source_raw = Ui * d_rho_dt
 
+        if ion_off:
+            rho_by_species = {}
 
-            # Drude IB：优先 nu_ei_const，退回 sigma_ib·rho
-            sigma_ib = float(getattr(ion_conf, "sigma_ib", 0.0))
-            nu_ei = getattr(ion_conf, "nu_ei_const", None)
-            if nu_ei is not None:
-                from .constants import e as qe, me, eps0 as _eps0, c0 as _c0
-                sigma_ib = (qe * qe / (_eps0 * me * _c0)) * (float(nu_ei) / (float(nu_ei) ** 2 + omega0 ** 2))
-            alpha_ib = ib_alpha(rho.astype(rdtype, copy=False), sigma_ib, rdtype=rdtype)
-            xp.maximum(alpha_ib, 0.0, out=alpha_ib)
+        # Drude IB：优先 nu_ei_const，退回 sigma_ib·rho
+        sigma_ib = float(getattr(ion_conf, "sigma_ib", 0.0))
+        nu_ei = getattr(ion_conf, "nu_ei_const", None)
+        if nu_ei is not None:
+            from .constants import e as qe, me, eps0 as _eps0, c0 as _c0
+            sigma_ib = (qe * qe / (_eps0 * me * _c0)) * (float(nu_ei) / (float(nu_ei) ** 2 + omega0 ** 2))
+        alpha_ib = ib_alpha(rho.astype(rdtype, copy=False), sigma_ib, rdtype=rdtype)
+        xp.maximum(alpha_ib, 0.0, out=alpha_ib)
 
         # 电离吸收 α_ion（只参与传播与热，避免在 Q 中重复计 IB）
         I_floor = 1e-6 * float(getattr(ion_conf, "I_cap", 1e19))
@@ -560,6 +573,22 @@ def propagate_one_pulse(
 
             rho_maxt = xp.max(rho, axis=0)
             rho_max_z_list.append(float(rho_maxt.max()))
+            rho_total_flat_index = int(xp.argmax(rho))
+            rho_total_max = float(rho.ravel()[rho_total_flat_index])
+            rho_n2 = rho_by_species.get("N2")
+            rho_o2 = rho_by_species.get("O2")
+            rho_n2_max = float(xp.max(rho_n2)) if rho_n2 is not None else 0.0
+            rho_o2_max = float(xp.max(rho_o2)) if rho_o2 is not None else 0.0
+            rho_n2_at_total_max = float(rho_n2.ravel()[rho_total_flat_index]) if rho_n2 is not None else 0.0
+            rho_o2_at_total_max = float(rho_o2.ravel()[rho_total_flat_index]) if rho_o2 is not None else 0.0
+            rho_N2_max_z_list.append(rho_n2_max)
+            rho_O2_max_z_list.append(rho_o2_max)
+            rho_N2_at_rho_total_max_z_list.append(rho_n2_at_total_max)
+            rho_O2_at_rho_total_max_z_list.append(rho_o2_at_total_max)
+            rho_O2_fraction_at_rho_total_max_z_list.append(rho_o2_at_total_max / max(rho_total_max, 1e-30))
+            dz_used_z_list.append(float(dz_try))
+            adaptive_rejection_count_z_list.append(int(adaptive_rejection_count))
+            safety_mode_trigger_count_z_list.append(int(safety_mode_trigger_count))
 
             # 步内沉积能量（J）
             E_dep = float(xp.sum(Qslice) * axes.dx * axes.dy * dz_try)  # 电离+IB
@@ -674,6 +703,21 @@ def propagate_one_pulse(
         "U_rel_change_z":           _np.asarray(U_rel_change_z_list,      dtype=rdtype_np),
         "U_step_change_z":          _np.asarray(U_step_change_z_list,     dtype=rdtype_np),
         "E_loss_from_input_z":      _np.asarray(E_loss_from_input_z_list, dtype=rdtype_np),
+        "rho_N2_max_z": _np.asarray(rho_N2_max_z_list, dtype=rdtype_np),
+        "rho_O2_max_z": _np.asarray(rho_O2_max_z_list, dtype=rdtype_np),
+        "rho_N2_at_rho_total_max_z": _np.asarray(rho_N2_at_rho_total_max_z_list, dtype=rdtype_np),
+        "rho_O2_at_rho_total_max_z": _np.asarray(rho_O2_at_rho_total_max_z_list, dtype=rdtype_np),
+        "rho_O2_fraction_at_rho_total_max_z": _np.asarray(rho_O2_fraction_at_rho_total_max_z_list, dtype=rdtype_np),
+        "dz_used_z": _np.asarray(dz_used_z_list, dtype=rdtype_np),
+        "adaptive_rejection_count_z": _np.asarray(adaptive_rejection_count_z_list, dtype=rdtype_np),
+        "safety_mode_trigger_count_z": _np.asarray(safety_mode_trigger_count_z_list, dtype=rdtype_np),
+        "safety_mode_event_summary": _np.asarray(json.dumps({
+            "configured_mode": str(getattr(p, "safety_mode", "off")),
+            "trigger_count": int(safety_mode_trigger_count),
+            "rejection_count": int(adaptive_rejection_count),
+            "source": "live propagation-loop counters",
+        }, sort_keys=True)),
+        "propagation_observability_schema": _np.asarray("khz_filament.propagation_observability.v1"),
 
         "fwhm_plasma_z":            _np.asarray(fwhm_plasma_z_list,       dtype=rdtype_np),
         "fwhm_fluence_z":           _np.asarray(fwhm_fluence_z_list,      dtype=rdtype_np),

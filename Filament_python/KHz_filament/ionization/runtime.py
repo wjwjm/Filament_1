@@ -217,7 +217,7 @@ def _species_ui_joule(sp: dict, idx: int) -> float:
     raise ValueError(f"[ionization] species '{name}' 缺少电离能：请提供 Ui_J 或 Ip_eV。")
 
 
-def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *, quasi_static_time: bool = False, time_stat: str = "peak", mean_clip_frac: float = 1e-3, expects: str | None = None, return_species_terms: bool = False, diagnose_integrator_stability: bool = False):
+def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *, quasi_static_time: bool = False, time_stat: str = "peak", mean_clip_frac: float = 1e-3, expects: str | None = None, return_species_terms: bool = False, return_species_densities: bool = False, diagnose_integrator_stability: bool = False):
     tm = str(getattr(Wfunc, "_time_mode", "")).lower()
     if tm in ("qs_peak", "qs_mean", "qs_mean_esq"):
         quasi_static_time = True
@@ -332,6 +332,15 @@ def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *
                     drho_j_dt = Wt_list[j] * xp.clip(float(N0_j_list[j]) - rho_j, 0.0, float(N0_j_list[j])) - float(beta_rec) * (rho_j * rho_j)
                     drho_dt_u_sum = drho_dt_u_sum + float(ui_j) * drho_j_dt
                 species_terms = {"drho_dt_u_sum": drho_dt_u_sum}
+                if return_species_densities:
+                    # These are the exact per-species density arrays already
+                    # used to form rho_sum above.  Returning references only
+                    # exposes observability; it does not re-evaluate rates or
+                    # alter the production RK4 update.
+                    species_terms["rho_by_species"] = {
+                        str(sp_entries[j].get("name", f"species[{j}]")): rho_list[j]
+                        for j in range(len(sp_entries))
+                    }
                 if stability is not None:
                     return rho_sum, Wt_total, species_terms, stability
                 return rho_sum, Wt_total, species_terms
@@ -383,6 +392,11 @@ def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *
                 drho_j_dt = Wc_list[j][None, ...] * xp.clip(float(N0_j_list[j]) - rho_j, 0.0, float(N0_j_list[j]))
                 drho_dt_u_sum = drho_dt_u_sum + float(ui_j) * drho_j_dt
             species_terms = {"drho_dt_u_sum": drho_dt_u_sum}
+            if return_species_densities:
+                species_terms["rho_by_species"] = {
+                    str(sp_entries[j].get("name", f"species[{j}]")): rho_list[j]
+                    for j in range(len(sp_entries))
+                }
             return xp.asarray(rho_sum, dtype=rdtype), Wt_total, species_terms
         return xp.asarray(rho_sum, dtype=rdtype), Wt_total
 
