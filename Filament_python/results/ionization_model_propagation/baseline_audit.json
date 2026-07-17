@@ -1,0 +1,89 @@
+{
+  "schema": "khz_filament.ionization_model_propagation.baseline_audit.v1",
+  "generated_at_utc": "2026-07-17T05:31:00Z",
+  "audit_status": "failed_formal_baseline_gate",
+  "gate_decision": "stop_before_talebpour_submission",
+  "reason": "The existing Popruzhenko FT90 runs are technically complete legacy propagations, but their NPZ outputs and run metadata cannot support the required Phase-5 causal comparison against a Talebpour run produced with the current observability framework.",
+  "current_main_sha": "2508e9f051def32b5528362a175db661dd177518",
+  "current_ft90_120_config": {
+    "path": "Filament_python/configs/profile_validation/flat_top_90_120fs.json",
+    "sha256": "195f59f1292a4cb7380332be39f5365969ce021492ba12ec93b0db9a7987641f"
+  },
+  "candidates": [
+    {
+      "case": "120fs_popruzhenko_full_model",
+      "result_directory": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_ft90_120",
+      "main_output": "result.npz",
+      "output_size_bytes": 24901696,
+      "output_sha256": "30011e0c738d54245575b41ffea3978dae12b7a735c49067a8d396037b8ca527",
+      "config_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/configs/profile_ft90_120.json",
+      "config_sha256": "d841949e39f3bda71a8f0bda013c89c5a9b20ee612c1007a4cdf11333ecfbd46",
+      "run_metadata": {"slurm_job_id": "170697", "status": "completed", "exit_code": 0},
+      "physical_configuration": {
+        "tau_fwhm_fs": 120.0,
+        "P0_peak_W": 17000000000.0,
+        "focal_length_m": 0.95,
+        "transverse_profile": {"type": "flat_top_cosine", "radius_m": 0.001979, "edge_start_fraction": 0.9},
+        "ionization_rates": ["popruzhenko_atom_i_lut", "popruzhenko_atom_i_lut"],
+        "resolved_full_model_switches": "legacy null switches resolve to the full-model defaults; current config serializes the equivalent switches explicitly as true"
+      },
+      "integrity": {
+        "z_count": 15000,
+        "z_start_m": 9.999999747378752e-05,
+        "z_end_m": 1.2999999523162842,
+        "z_strictly_increasing": true,
+        "all_numeric_arrays_finite": true,
+        "diagnostic_summary_passed": true
+      },
+      "missing_phase5_fields": [
+        "E_dep_cumulative_z", "U_rel_change_z", "dphi_plasma_raw_max_abs_z",
+        "dphi_plasma_applied_max_abs_z", "alpha_ion_raw_max_z", "alpha_ion_applied_max_z",
+        "rho_N2_max_z", "rho_O2_max_z", "rho_O2_fraction_at_rho_total_max_z",
+        "dz_used_z", "adaptive_rejection_count_z", "safety_mode_event_summary"
+      ],
+      "execution_git_sha": null,
+      "formal_baseline_usable": false
+    },
+    {
+      "case": "40fs_popruzhenko_full_model",
+      "result_directory": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation_40fs/profile_validation_40fs_20260715_001/cases/profile_ft90_40",
+      "main_output": "result.npz",
+      "output_size_bytes": 24901696,
+      "output_sha256": "78152308fbb443b0d09eaeaa88e4866020b6dbc0e436351808cff0f5b9490c7d",
+      "config_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation_40fs/profile_validation_40fs_20260715_001/configs/profile_ft90_40.json",
+      "config_sha256": "c5b95fbd301b5215c8b79648890dd89f026ebe026a080d20a1fb7492d4bd38bb",
+      "run_metadata": {"slurm_job_id": "170913", "status": "completed", "exit_code": 0},
+      "physical_configuration": {
+        "tau_fwhm_fs": 40.0,
+        "P0_peak_W": 17000000000.0,
+        "focal_length_m": 0.95,
+        "transverse_profile": {"type": "flat_top_cosine", "radius_m": 0.001979, "edge_start_fraction": 0.9},
+        "ionization_rates": ["popruzhenko_atom_i_lut", "popruzhenko_atom_i_lut"]
+      },
+      "integrity": {
+        "z_count": 15000,
+        "z_start_m": 9.999999747378752e-05,
+        "z_end_m": 1.2999999523162842,
+        "z_strictly_increasing": true,
+        "all_numeric_arrays_finite": true,
+        "diagnostic_summary_passed": true
+      },
+      "missing_phase5_fields": [
+        "E_dep_cumulative_z", "U_rel_change_z", "dphi_plasma_raw_max_abs_z",
+        "dphi_plasma_applied_max_abs_z", "alpha_ion_raw_max_z", "alpha_ion_applied_max_z",
+        "rho_N2_max_z", "rho_O2_max_z", "rho_O2_fraction_at_rho_total_max_z",
+        "dz_used_z", "adaptive_rejection_count_z", "safety_mode_event_summary"
+      ],
+      "execution_git_sha": null,
+      "formal_baseline_usable": false
+    }
+  ],
+  "remote_repository_current_sha_observed": "bb592ef1c16ee9c9572f041b2ba31db4d53b4582",
+  "remote_repository_current_sha_note": "Observed after the historical runs and therefore not evidence of the code revision used to produce either candidate output.",
+  "blocked_actions": [
+    "Do not generate or submit 120fs_talebpour_full_model.",
+    "Do not generate or submit 40fs_talebpour_full_model.",
+    "Do not submit O2 ionization off."
+  ],
+  "required_user_direction_before_resuming": "Authorize one current-observability Popruzhenko 120 fs baseline rerun, or explicitly relax the Phase-5 comparison requirements. The task instructions prohibit silently rerunning multiple baselines."
+}
