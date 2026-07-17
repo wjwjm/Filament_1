@@ -1,0 +1,94 @@
+{
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95)",
+  "epsilon_x_cm": 0.1,
+  "metrics": {
+    "popruzhenko": {
+      "rho_peak_m3": 5.9098260930187965e+22,
+      "peak_x_cm": -14.919997453689572,
+      "peak_top_center_cm": -14.92000043392181,
+      "fwhm_cm": 13.723643475156512,
+      "post_peak_half_distance_cm": 12.590810739548408,
+      "tail_area_above_half_m3_cm": 1.661322477309354e+23,
+      "thresholds": {
+        "10000000000000000000": {
+          "status": "crossed_interpolated",
+          "x_cm": -19.154124255093837
+        },
+        "100000000000000000000": {
+          "status": "crossed_interpolated",
+          "x_cm": -18.403557006521662
+        },
+        "1000000000000000000000": {
+          "status": "crossed_interpolated",
+          "x_cm": -17.629418668409656
+        },
+        "10000000000000000000000": {
+          "status": "crossed_interpolated",
+          "x_cm": -16.5553198720171
+        }
+      }
+    },
+    "talebpour": {
+      "rho_peak_m3": 6.460902306022546e+22,
+      "peak_x_cm": -14.440001249313351,
+      "peak_top_center_cm": -14.405001401901242,
+      "fwhm_cm": 12.075501620625838,
+      "post_peak_half_distance_cm": 10.762434233569731,
+      "tail_area_above_half_m3_cm": 1.6659067815088284e+23,
+      "thresholds": {
+        "10000000000000000000": {
+          "status": "crossed_interpolated",
+          "x_cm": -19.19399851718201
+        },
+        "100000000000000000000": {
+          "status": "crossed_interpolated",
+          "x_cm": -18.327101012541323
+        },
+        "1000000000000000000000": {
+          "status": "crossed_interpolated",
+          "x_cm": -17.29790221064008
+        },
+        "10000000000000000000000": {
+          "status": "crossed_interpolated",
+          "x_cm": -16.411900580443586
+        }
+      }
+    },
+    "pycap": {
+      "rho_peak_m3": 6.4546415332439435e+22,
+      "peak_x_cm": -12.184211090182039,
+      "peak_top_center_cm": -12.044643952837454,
+      "fwhm_cm": 8.73799136602939,
+      "post_peak_half_distance_cm": 7.491321874245567,
+      "tail_area_above_half_m3_cm": 1.3525016584404954e+23,
+      "thresholds": {
+        "10000000000000000000": {
+          "status": "not_crossed",
+          "x_cm": null
+        },
+        "100000000000000000000": {
+          "status": "not_crossed",
+          "x_cm": null
+        },
+        "1000000000000000000000": {
+          "status": "not_crossed",
+          "x_cm": null
+        },
+        "10000000000000000000000": {
+          "status": "crossed_interpolated",
+          "x_cm": -14.027210012757275
+        }
+      }
+    }
+  },
+  "unshifted_rmse_m3": {
+    "popruzhenko_vs_pycap": 1.8768166644378579e+22,
+    "talebpour_vs_pycap": 1.8723185068331606e+22,
+    "talebpour_vs_pycap_rising_weighted": 2.2635581928915195e+22
+  },
+  "diagnostic_best_shift_cm_for_talebpour_to_pycap": -2.0500000000000034,
+  "threshold_1e21_shift_tal_minus_pop_cm": 0.3315164577695775,
+  "peak_center_improves_vs_pycap": true,
+  "tail_unacceptably_worse": false,
+  "classification": "propagation_supported"
+}

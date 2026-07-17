@@ -1,0 +1,9 @@
+{
+  "case_id": "120fs_talebpour_full_model",
+  "status": "completed",
+  "exit_code": 0,
+  "slurm_job_id": "175354",
+  "execution_git_sha": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0\r",
+  "config_sha256": "dd440b5e5462a1d9f01cf26c04f56f1cfa21615cb1cb58d2ab4538ba44ac4688",
+  "diagnostic_schema": "khz_filament.propagation_observability.v1"
+}
