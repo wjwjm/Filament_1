@@ -43,9 +43,10 @@ def _relative(path: Path) -> str:
     return path.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
 
 
-def _verify(config: dict) -> None:
+def _verify(config: dict, case_id: str) -> None:
     beam, prop, ion = config["beam"], config["propagation"], config["ionization"]
-    assert math.isclose(float(beam["tau_fwhm"]), 120e-15, abs_tol=1e-27)
+    expected_tau = 40e-15 if case_id.startswith("40fs_") else 120e-15
+    assert math.isclose(float(beam["tau_fwhm"]), expected_tau, abs_tol=1e-27)
     assert float(beam["P0_peak"]) == 17e9 and float(beam["focal_length"]) == 0.95
     assert beam["transverse_profile"] == {"type": "flat_top_cosine", "radius_m": 0.001979, "edge_start_fraction": 0.9}
     assert ion["time_mode"] == "full" and ion["integrator"] == "rk4"
@@ -57,22 +58,23 @@ def _verify(config: dict) -> None:
         assert prop[key] is True
 
 
-def _job_script(remote_root: str) -> str:
+def _job_script(remote_root: str, case_id: str) -> str:
+    tag = "tal40" if case_id.startswith("40fs_") else "tal120"
     return f'''#!/bin/bash
-#SBATCH -J tal120
+#SBATCH -J {tag}
 #SBATCH -p gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH -t 08:00:00
-#SBATCH -o {remote_root}/logs/tal120-%j.out
-#SBATCH -e {remote_root}/logs/tal120-%j.err
+#SBATCH -o {remote_root}/logs/{tag}-%j.out
+#SBATCH -e {remote_root}/logs/{tag}-%j.err
 set -euo pipefail
 RUN_ROOT="{remote_root}"
 CODE_DIR="$RUN_ROOT/source/Filament_python"
-CFG="$RUN_ROOT/configs/{CASE_ID}.json"
-OUT="$RUN_ROOT/cases/{CASE_ID}/result.npz"
-META="$RUN_ROOT/cases/{CASE_ID}/run_metadata.json"
-mkdir -p "$(dirname "$OUT")" "$RUN_ROOT/logs" "$RUN_ROOT/cases/{CASE_ID}/figures" "$RUN_ROOT/analysis"
+CFG="$RUN_ROOT/configs/{case_id}.json"
+OUT="$RUN_ROOT/cases/{case_id}/result.npz"
+META="$RUN_ROOT/cases/{case_id}/run_metadata.json"
+mkdir -p "$(dirname "$OUT")" "$RUN_ROOT/logs" "$RUN_ROOT/cases/{case_id}/figures" "$RUN_ROOT/analysis"
 source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
 conda activate Filament_python
 export CUDA_DEVICE_ORDER=PCI_BUS_ID UPPE_USE_GPU=1 PYTHONUNBUFFERED=1
@@ -83,10 +85,10 @@ python - "$META" <<'PY'
 import json, os, sys
 from pathlib import Path
 p=Path(sys.argv[1]); p.parent.mkdir(parents=True,exist_ok=True)
-p.write_text(json.dumps({{'case_id':'{CASE_ID}','status':'running','exit_code':0,'slurm_job_id':os.environ.get('SLURM_JOB_ID',''),'execution_git_sha':os.environ['CODE_SHA'],'config_sha256':os.environ['CFG_SHA'],'diagnostic_schema':'khz_filament.propagation_observability.v1'}},indent=2)+'\\n')
+p.write_text(json.dumps({{'case_id':'{case_id}','status':'running','exit_code':0,'slurm_job_id':os.environ.get('SLURM_JOB_ID',''),'execution_git_sha':os.environ['CODE_SHA'],'config_sha256':os.environ['CFG_SHA'],'diagnostic_schema':'khz_filament.propagation_observability.v1'}},indent=2)+'\\n')
 PY
 cd "$CODE_DIR"
-python test_run.py --cfg "$CFG" --gpu --dtype fp32 --out "$OUT" --fig-dir "$RUN_ROOT/cases/{CASE_ID}/figures" --fig-dpi 200
+python test_run.py --cfg "$CFG" --gpu --dtype fp32 --out "$OUT" --fig-dir "$RUN_ROOT/cases/{case_id}/figures" --fig-dpi 200
 STATUS=completed python - "$META" <<'PY'
 import json, os, sys
 from pathlib import Path
@@ -96,15 +98,15 @@ python tools/validate_current_observability_baseline.py --npz "$OUT" --config "$
 '''
 
 
-def prepare(config_path: Path, out_dir: Path, remote_run_root: str, *, remote_target_verified_empty: bool) -> dict:
+def prepare(config_path: Path, out_dir: Path, remote_run_root: str, *, remote_target_verified_empty: bool, case_id: str = CASE_ID) -> dict:
     if not remote_run_root.startswith("/data/run01/scvi806/"):
         raise ValueError("unsafe remote root")
     dirty = bool(_git(["git", "status", "--porcelain"]))
     if out_dir.exists():
         raise FileExistsError(out_dir)
-    config = json.loads(config_path.read_text(encoding="utf-8")); _verify(config)
+    config = json.loads(config_path.read_text(encoding="utf-8")); _verify(config, case_id)
     out_dir.mkdir(parents=True)
-    snapshot = out_dir / f"{CASE_ID}.json"; snapshot.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    snapshot = out_dir / f"{case_id}.json"; snapshot.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
     grid, beam, prop, ion, heat, run, raman = load_all(str(snapshot))
     ion_lut = copy.deepcopy(ion); ion_lut.rate_table = dict(ion.rate_table); ion_lut.rate_table.update({"cache_dir": str(out_dir / "lut_cache"), "save_tables": True})
     omega0 = 2 * math.pi * float(c0) / float(beam.lam0)
@@ -124,19 +126,21 @@ def prepare(config_path: Path, out_dir: Path, remote_run_root: str, *, remote_ta
     with np.load(dry, allow_pickle=False) as data:
         missing = [k for k in REQUIRED_Z_FIELDS + REQUIRED_SCALARS if k not in data.files]
         bad = [k for k in REQUIRED_Z_FIELDS if k in data.files and (data[k].ndim != 1 or data[k].size != data["z_axis"].size or not np.all(np.isfinite(data[k])))]
-    job = out_dir / "submit_talebpour_120fs.sh"; job.write_text(_job_script(remote_run_root), encoding="utf-8", newline="\n")
+    job = out_dir / f"submit_{case_id}.sh"; job.write_text(_job_script(remote_run_root, case_id), encoding="utf-8", newline="\n")
     (out_dir / "EXECUTION_GIT_SHA").write_text(EXECUTION_SHA + "\n", encoding="utf-8")
     passed = (not dirty) and remote_target_verified_empty and not missing and not bad and bool(np.all(np.isfinite(probe)))
-    manifest = {"schema":"khz_filament.phase5.talebpour_120fs_preflight.v1","case_id":CASE_ID,"generation_git_sha":_git(["git","rev-parse","HEAD"]),"execution_git_sha":EXECUTION_SHA,"worktree_dirty":dirty,"config_path":_relative(config_path),"config_sha256":sha256(config_path),"config_snapshot":_relative(snapshot),"config_snapshot_sha256":sha256(snapshot),"remote_run_root":remote_run_root,"remote_target_verified_empty":remote_target_verified_empty,"lut_tables":[{"model":t["model_name"],"species":t["species_name"],"metadata":t.get("metadata",{})} for t in tables],"rate_probe_s-1":probe.tolist(),"dry_run":{"passed":not missing and not bad,"missing_fields":missing,"invalid_fields":bad},"required_diagnostics":list(REQUIRED_Z_FIELDS+REQUIRED_SCALARS),"single_job_script":_relative(job),"preflight_passed":passed,"prohibited_jobs":["40fs_talebpour_full_model","120fs_O2_off"]}
-    (out_dir / "talebpour_120fs_preflight.json").write_text(json.dumps(manifest,indent=2)+"\n",encoding="utf-8")
-    (out_dir / "talebpour_120fs_preflight_report.md").write_text(f"# Talebpour 120 fs preflight\\n\\nPreflight: **{'passed' if passed else 'failed'}**.\\n\\n- Execution Git SHA: `{EXECUTION_SHA}`\\n- Config SHA256: `{manifest['config_sha256']}`\\n- Remote target verified empty: `{remote_target_verified_empty}`\\n- LUTs: Talebpour-only N2/O2 tables covering `1e8-1e19 W/m2`.\\n- Dry run passed: `{manifest['dry_run']['passed']}`.\\n- Script contains one 120 fs Talebpour job only; it does not submit it.\\n",encoding="utf-8")
+    prefix = case_id.split("_")[0]
+    manifest = {"schema":"khz_filament.phase5.talebpour_preflight.v1","case_id":case_id,"generation_git_sha":_git(["git","rev-parse","HEAD"]),"execution_git_sha":EXECUTION_SHA,"worktree_dirty":dirty,"config_path":_relative(config_path),"config_sha256":sha256(config_path),"config_snapshot":_relative(snapshot),"config_snapshot_sha256":sha256(snapshot),"remote_run_root":remote_run_root,"remote_target_verified_empty":remote_target_verified_empty,"lut_tables":[{"model":t["model_name"],"species":t["species_name"],"metadata":t.get("metadata",{})} for t in tables],"rate_probe_s-1":probe.tolist(),"dry_run":{"passed":not missing and not bad,"missing_fields":missing,"invalid_fields":bad},"required_diagnostics":list(REQUIRED_Z_FIELDS+REQUIRED_SCALARS),"single_job_script":_relative(job),"preflight_passed":passed,"prohibited_jobs":["120fs_O2_off"]}
+    (out_dir / f"talebpour_{prefix}_preflight.json").write_text(json.dumps(manifest,indent=2)+"\n",encoding="utf-8")
+    (out_dir / f"talebpour_{prefix}_preflight_report.md").write_text(f"# Talebpour {prefix} preflight\\n\\nPreflight: **{'passed' if passed else 'failed'}**.\\n\\n- Execution Git SHA: `{EXECUTION_SHA}`\\n- Config SHA256: `{manifest['config_sha256']}`\\n- Remote target verified empty: `{remote_target_verified_empty}`\\n- LUTs: Talebpour-only N2/O2 tables covering `1e8-1e19 W/m2`.\\n- Dry run passed: `{manifest['dry_run']['passed']}`.\\n- Script contains one {prefix} Talebpour job only; it does not submit it.\\n",encoding="utf-8")
     if not passed: raise RuntimeError("Talebpour preflight failed")
     return manifest
 
 
 def main() -> None:
-    p=argparse.ArgumentParser(description=__doc__); p.add_argument("--config",type=Path,default=DEFAULT_CONFIG); p.add_argument("--out-dir",type=Path,required=True); p.add_argument("--remote-run-root",required=True); p.add_argument("--remote-target-verified-empty",action="store_true"); a=p.parse_args()
-    print(f"preflight_passed={prepare(a.config,a.out_dir,a.remote_run_root,remote_target_verified_empty=a.remote_target_verified_empty)['preflight_passed']}")
+    p=argparse.ArgumentParser(description=__doc__); p.add_argument("--case-id",default=CASE_ID); p.add_argument("--config",type=Path,default=None); p.add_argument("--out-dir",type=Path,required=True); p.add_argument("--remote-run-root",required=True); p.add_argument("--remote-target-verified-empty",action="store_true"); a=p.parse_args()
+    cfg = a.config or (FILAMENT_ROOT / "configs" / "ionization_model_propagation" / f"{a.case_id}.json")
+    print(f"preflight_passed={prepare(cfg,a.out_dir,a.remote_run_root,remote_target_verified_empty=a.remote_target_verified_empty,case_id=a.case_id)['preflight_passed']}")
 
 
 if __name__ == "__main__": main()
