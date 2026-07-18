@@ -1,0 +1,108 @@
+{
+  "schema": "khz_filament.phase6.raman_phase_causality.v1",
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95)",
+  "formal_curve_shift_cm": 0.0,
+  "epsilon_x_cm": 0.1,
+  "classification": "raman_phase_partially_supported",
+  "decision": {
+    "onset_1e21_full_minus_off_cm": -1.2531329334541716,
+    "effect_resolved": true,
+    "onset_improves_vs_pycap": false,
+    "peak_center_improves_vs_pycap": false,
+    "peak_collapse": false,
+    "tail_unacceptably_worse": true,
+    "numerical_path_ok": true
+  },
+  "metrics": {
+    "talebpour_full": {
+      "rho_peak_m3": 6.460902306022546e+22,
+      "peak_x_cm": -14.440001249313351,
+      "peak_top_center_cm": -14.405001401901242,
+      "fwhm_cm": 12.075501620625838,
+      "post_peak_half_distance_cm": 10.762434233569731,
+      "tail_area_above_half_m3_cm": 1.6659067815088284e+23,
+      "threshold_crossings_cm": {
+        "10000000000000000000": -19.19399851718201,
+        "100000000000000000000": -18.327101012541323,
+        "1000000000000000000000": -17.29790221064008,
+        "10000000000000000000000": -16.411900580443586
+      },
+      "threshold_duration_cm": {
+        "10000000000000000000": null,
+        "100000000000000000000": 23.711563296614017,
+        "1000000000000000000000": 20.047348756258483,
+        "10000000000000000000000": 16.172488271940452
+      }
+    },
+    "raman_phase_off": {
+      "rho_peak_m3": 2.4977816965526158e+22,
+      "peak_x_cm": -10.329998731613156,
+      "peak_top_center_cm": -10.269997715950009,
+      "fwhm_cm": 12.841942864692358,
+      "post_peak_half_distance_cm": 9.452084203561148,
+      "tail_area_above_half_m3_cm": 6.596420139476342e+22,
+      "threshold_crossings_cm": {
+        "10000000000000000000": -19.24839206100622,
+        "100000000000000000000": -17.90914718647249,
+        "1000000000000000000000": -16.044769277185907,
+        "10000000000000000000000": -14.013635670804236
+      },
+      "threshold_duration_cm": {
+        "10000000000000000000": 35.22705529046091,
+        "100000000000000000000": 31.277106603570004,
+        "1000000000000000000000": 25.45376793967432,
+        "10000000000000000000000": 14.97096709327643
+      }
+    },
+    "pycap_120fs": {
+      "rho_peak_m3": 6.4546415332439435e+22,
+      "peak_x_cm": -12.184211090182039,
+      "peak_top_center_cm": -12.044643952837454,
+      "fwhm_cm": 8.73799136602939,
+      "post_peak_half_distance_cm": 7.491321874245567,
+      "tail_area_above_half_m3_cm": 1.3525016584404954e+23,
+      "threshold_crossings_cm": {
+        "10000000000000000000": null,
+        "100000000000000000000": null,
+        "1000000000000000000000": null,
+        "10000000000000000000000": -14.027210012757275
+      },
+      "threshold_duration_cm": {
+        "10000000000000000000": null,
+        "100000000000000000000": null,
+        "1000000000000000000000": null,
+        "10000000000000000000000": 12.568783007306473
+      }
+    }
+  },
+  "unshifted_rmse_m3": {
+    "full_vs_pycap": 1.8723185068331606e+22,
+    "raman_phase_off_vs_pycap": 2.144254368153124e+22
+  },
+  "raman_peaks": {
+    "dphi_rot_max_abs_z": {
+      "full": 0.008454331196844578,
+      "raman_phase_off": 0.00664452975615859
+    },
+    "dphi_rot_applied_max_abs_z": {
+      "full": 0.008454331196844578,
+      "raman_phase_off": 0.0
+    },
+    "alpha_R_applied_max_z": {
+      "full": 0.017791403457522392,
+      "raman_phase_off": 0.018092110753059387
+    }
+  },
+  "numerical_path": {
+    "full": {
+      "dz_used_z": 9.999999747378752e-05,
+      "adaptive_rejection_count_z": 0.0,
+      "safety_mode_trigger_count_z": 0.0
+    },
+    "raman_phase_off": {
+      "dz_used_z": 9.999999747378752e-05,
+      "adaptive_rejection_count_z": 0.0,
+      "safety_mode_trigger_count_z": 0.0
+    }
+  }
+}

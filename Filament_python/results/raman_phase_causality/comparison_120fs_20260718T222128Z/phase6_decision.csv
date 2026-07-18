@@ -1,0 +1,2 @@
+classification,epsilon_x_cm,onset_1e21_full_minus_off_cm,effect_resolved,onset_improves_vs_pycap,peak_center_improves_vs_pycap,peak_collapse,tail_unacceptably_worse,numerical_path_ok
+raman_phase_partially_supported,0.1,-1.2531329334541716,True,False,False,False,True,True
