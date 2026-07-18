@@ -15,11 +15,11 @@ def blob(rev,path):
  try:return sh(['git','rev-parse',f'{rev}:{path}'])
  except subprocess.CalledProcessError:return None
 def main():
- p=argparse.ArgumentParser();p.add_argument('--out-dir',type=Path,required=True);a=p.parse_args();a.out_dir.mkdir(parents=True,exist_ok=True)
+ p=argparse.ArgumentParser();p.add_argument('--out-dir',type=Path,required=True);a=p.parse_args(); dirty_before=bool(sh(['git','status','--porcelain'])); a.out_dir.mkdir(parents=True,exist_ok=True)
  rows=[]
  for path in CRITICAL:
   old,new=blob(EXEC_SHA,path),blob('HEAD',path);rows.append({'path':path,'baseline_blob':old,'current_blob':new,'identical':old==new})
- payload={'schema':'khz_filament.phase6.execution_version_gate.v1','baseline_execution_sha':EXEC_SHA,'current_git_sha':sh(['git','rev-parse','HEAD']),'branch':sh(['git','branch','--show-current']),'worktree_dirty':bool(sh(['git','status','--porcelain'])), 'critical_files':rows}
+ payload={'schema':'khz_filament.phase6.execution_version_gate.v1','baseline_execution_sha':EXEC_SHA,'current_git_sha':sh(['git','rev-parse','HEAD']),'branch':sh(['git','branch','--show-current']),'worktree_dirty':dirty_before, 'critical_files':rows}
  payload['phase6_execution_version_gate']='accepted' if all(r['identical'] for r in rows) and not payload['worktree_dirty'] else 'failed'
  (a.out_dir/'phase6_execution_version_gate.json').write_text(json.dumps(payload,indent=2)+'\n',encoding='utf-8')
  report=['# Phase 6 execution-version gate','',f"Gate: **{payload['phase6_execution_version_gate']}**.",'',f"- Baseline execution SHA: `{EXEC_SHA}`",f"- Current SHA: `{payload['current_git_sha']}`",f"- Dirty before gate: `{payload['worktree_dirty']}`"]
