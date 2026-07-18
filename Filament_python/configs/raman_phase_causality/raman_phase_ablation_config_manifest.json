@@ -1,0 +1,50 @@
+{
+  "schema": "khz_filament.phase6.raman_phase_ablation_config.v1",
+  "case_id": "120fs_talebpour_full_model_raman_phase_off",
+  "base_config": "Filament_python/configs/ionization_model_propagation/120fs_talebpour_full_model.json",
+  "base_sha256": "ffb1cb8753d1371992698c6bf5146c16b8cd38b6a4d76061162f0a6fcac3c549",
+  "config_sha256": "d57aadda4c75999722f63919ac92d6a7a42c743d9c3ae2837d502e98176a49b5",
+  "git_sha": "f7610d5db9b1421c4f33e1adbc3d5c1b6a0c8345",
+  "override": {
+    "propagation.use_raman_phase": [
+      true,
+      false
+    ]
+  },
+  "execution_version_gate": "accepted",
+  "nonlinear_switches": {
+    "use_self_steepening": true,
+    "use_electronic_kerr": true,
+    "use_raman_phase": false,
+    "use_plasma_phase": true,
+    "use_ionization_loss": true,
+    "use_raman_absorption": true,
+    "use_ionization_solver": true
+  },
+  "species": [
+    {
+      "name": "N2",
+      "rate": "ppt_talebpour_i_lut",
+      "reference_model": "ppt_talebpour_i_full_reference",
+      "Ip_eV": 15.6,
+      "Z": 1,
+      "l": 0,
+      "m": 0,
+      "fraction": 0.8,
+      "Ip_eV_eff": 15.6,
+      "Zeff": 0.9
+    },
+    {
+      "name": "O2",
+      "rate": "ppt_talebpour_i_lut",
+      "reference_model": "ppt_talebpour_i_full_reference",
+      "Ip_eV": 12.1,
+      "Z": 1,
+      "l": 0,
+      "m": 0,
+      "fraction": 0.2,
+      "Ip_eV_eff": 12.55,
+      "Zeff": 0.53
+    }
+  ]
+}
