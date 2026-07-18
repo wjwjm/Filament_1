@@ -1,0 +1,10 @@
+{
+  "differences": [
+    {
+      "path": "propagation.use_raman_phase",
+      "full": true,
+      "raman_off": false
+    }
+  ],
+  "valid_only_raman_phase_switch": true
+}

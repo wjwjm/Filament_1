@@ -1,29 +1,19 @@
 from __future__ import annotations
-
-import pathlib
-import sys
-
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-if str(ROOT / "tools") not in sys.path: sys.path.insert(0, str(ROOT / "tools"))
-
-from compare_raman_phase_causality import classify
-
-
-def _metrics(onset, center, fwhm=1.0, peak=1e22, tail=1.0):
-    return {"rho_peak_m3": peak, "peak_top_center_cm": center, "fwhm_cm": fwhm, "tail_area_above_half_m3_cm": tail, "threshold_crossings_cm": {"1000000000000000000000": onset}}
-
-
-def test_classify_supports_resolved_noncollapsing_improvement():
-    full, off, paper = _metrics(-1.0, 0.0), _metrics(-1.3, -0.3), _metrics(-1.0, 0.0)
-    label, decision = classify(full, off, paper, epsilon_x_cm=0.1, numerical_ok=True)
-    assert label == "raman_phase_supported" and decision["effect_resolved"]
-
-
-def test_classify_marks_no_resolved_effect_not_supported():
-    full, off, paper = _metrics(-1.0, 0.0), _metrics(-1.03, 0.02), _metrics(-1.0, 0.0)
-    assert classify(full, off, paper, epsilon_x_cm=0.1, numerical_ok=True)[0] == "raman_phase_not_supported"
-
-
-def test_classify_marks_bad_numerical_path_inconclusive():
-    full, off, paper = _metrics(-1.0, 0.0), _metrics(-1.3, -0.3), _metrics(-1.0, 0.0)
-    assert classify(full, off, paper, epsilon_x_cm=0.1, numerical_ok=False)[0] == "raman_phase_inconclusive"
+import pathlib,sys
+ROOT=pathlib.Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/"tools"))
+from compare_raman_phase_causality import classify,is_peak_collapse,status,tail_compare
+def test_peak_collapse_direction_is_off_over_full():
+ assert is_peak_collapse(6.4609e22,2.4978e22) is True
+ assert is_peak_collapse(6.0,3.1) is False
+def test_tail_uses_error_to_pycap_not_full_off_ratio():
+ r=tail_compare(1.666e23,.660e23,1.353e23)
+ assert r["tail_full_over_off"]>1 and r["tail_improves_vs_pycap"] is True and r["tail_worsens_vs_pycap"] is False
+ assert tail_compare(1.1,1.,1.)["tail_worsens_vs_pycap"] is True
+ assert tail_compare(1.,1.+5e-13,1.)["tail_improves_vs_pycap"] is False
+def test_missing_pycap_crossing_is_unavailable_not_false():
+ assert status(-2.,-1.,None)=="not_available_in_pycap"
+def test_all_classification_paths():
+ assert classify(valid=False,numerical=True,effect=True,collapse=False,improvements=4,conflict=False)=="raman_phase_inconclusive"
+ assert classify(valid=True,numerical=True,effect=False,collapse=False,improvements=4,conflict=False)=="raman_phase_not_supported"
+ assert classify(valid=True,numerical=True,effect=True,collapse=False,improvements=4,conflict=False)=="raman_phase_supported"
+ assert classify(valid=True,numerical=True,effect=True,collapse=True,improvements=1,conflict=True)=="raman_phase_partially_supported"

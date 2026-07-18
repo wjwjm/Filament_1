@@ -1,0 +1,2 @@
+causal_effect_resolved,classification,epsilon_x_cm,numerical_path_comparable,peak_collapse,rmse_full_vs_pycap,rmse_off_vs_pycap,tail_full_rel_error,tail_off_rel_error,validity_gate
+True,raman_phase_partially_supported,0.1,True,True,1.8723185068331606e+22,2.144254368153124e+22,0.23172254252886118,0.5122800701714217,True
