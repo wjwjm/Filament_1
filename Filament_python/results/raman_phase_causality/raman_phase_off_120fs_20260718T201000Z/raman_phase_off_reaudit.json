@@ -1,0 +1,197 @@
+{
+  "schema": "khz_filament.phase6.raman_phase_off_reaudit.v1",
+  "raman_phase_off_gate": "passed",
+  "npz_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/raman_phase_causality/raman_phase_off_120fs_20260718T201000Z/cases/120fs_talebpour_full_model_raman_phase_off/result.npz",
+  "config_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/raman_phase_causality/raman_phase_off_120fs_20260718T201000Z/configs/120fs_talebpour_full_model_raman_phase_off.json",
+  "npz_sha256": "fdf143647174d238638278736c0cc0af2ba0a8850cf04c2ef4ef31ea4bc0f77d",
+  "config_sha256": "d57aadda4c75999722f63919ac92d6a7a42c743d9c3ae2837d502e98176a49b5",
+  "run_metadata": {
+    "case_id": "120fs_talebpour_full_model_raman_phase_off",
+    "status": "completed",
+    "exit_code": 0,
+    "slurm_job_id": "176915",
+    "execution_git_sha": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0\r",
+    "config_sha256": "d57aadda4c75999722f63919ac92d6a7a42c743d9c3ae2837d502e98176a49b5",
+    "diagnostic_schema": "khz_filament.propagation_observability.v1"
+  },
+  "expected_execution_sha": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
+  "base_summary": {
+    "z_records": 15000,
+    "z_start_m": 9.999999747378752e-05,
+    "z_end_m": 1.2999999523162842,
+    "z_median_step_m": 0.00010000169277191162,
+    "npz_sha256": "fdf143647174d238638278736c0cc0af2ba0a8850cf04c2ef4ef31ea4bc0f77d",
+    "npz_size_bytes": 27441508,
+    "config_sha256": "d57aadda4c75999722f63919ac92d6a7a42c743d9c3ae2837d502e98176a49b5",
+    "field_status": {
+      "z_axis": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "I_onaxis_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "I_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "delta_n_plasma_min_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "E_dep_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "E_loss_from_input_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "E_dep_cumulative_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "U_rel_change_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "dphi_plasma_raw_max_abs_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "dphi_plasma_applied_max_abs_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "alpha_ion_raw_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "alpha_ion_applied_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_N2_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_O2_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_O2_fraction_at_rho_total_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "dz_used_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "adaptive_rejection_count_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "safety_mode_trigger_count_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      }
+    },
+    "diagnostic_validation_passed": true,
+    "safety_mode_event_summary": "{\"configured_mode\": \"on\", \"rejection_count\": 0, \"source\": \"live propagation-loop counters\", \"trigger_count\": 0}"
+  },
+  "raman_field_status": {
+    "IR_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 3.6773022080067174e+17
+    },
+    "delta_n_rot_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 8.457795047434047e-06
+    },
+    "delta_n_rot_applied_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.0
+    },
+    "dphi_rot_max_abs_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.00664452975615859
+    },
+    "dphi_rot_applied_max_abs_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.0
+    },
+    "alpha_R_raw_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.018092110753059387
+    },
+    "alpha_R_applied_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.018092110753059387
+    }
+  },
+  "failures": []
+}
