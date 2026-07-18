@@ -1,0 +1,22 @@
+absorption_usage,configured,field,notes,phase_usage,status
+no,True,enabled,,no,conditionally_active
+no,0.15,f_R,,no,read_but_unused
+yes,2.3e-23,n_R,,yes,active
+no,rot_sinexp,model,,yes,active
+no,8e-11,T2,Omega_R is not consulted by current resolver; T_R/T2 are fallback only for rot_sinexp.,no,shadowed_by_higher_priority_field
+no,8.4e-12,T_R,Omega_R is not consulted by current resolver; T_R/T2 are fallback only for rot_sinexp.,no,shadowed_by_higher_priority_field
+no,,Omega_R,Omega_R is not consulted by current resolver; T_R/T2 are fallback only for rot_sinexp.,no,unused
+yes,16000000000000.0,omega_R,,yes,active
+yes,13000000000000.0,Gamma_R,,yes,active
+no,,tau2,,no,unused
+yes,iir,method,,yes,active
+yes,65536,chunk_pixels,,yes,active
+no,True,diagnose,,no,diagnostic_only
+yes,conv_deriv,absorption_model,,no,active
+yes,True,absorption,,no,conditionally_active
+yes,0.001,abs_mask_frac,,no,active
+yes,0.002,max_alpha_dz,,no,active
+no,,tau_fwhm,,no,read_but_unused
+no,,n_rot_frac,,no,read_but_unused
+no,,R0_mode,,no,read_but_unused
+no,,R0_fixed_m,,no,read_but_unused

@@ -1,0 +1,170 @@
+[
+  {
+    "field": "enabled",
+    "configured": true,
+    "status": "conditionally_active",
+    "phase_usage": "no",
+    "absorption_usage": "no",
+    "notes": ""
+  },
+  {
+    "field": "f_R",
+    "configured": 0.15,
+    "status": "read_but_unused",
+    "phase_usage": "no",
+    "absorption_usage": "no",
+    "notes": ""
+  },
+  {
+    "field": "n_R",
+    "configured": 2.3e-23,
+    "status": "active",
+    "phase_usage": "yes",
+    "absorption_usage": "yes",
+    "notes": ""
+  },
+  {
+    "field": "model",
+    "configured": "rot_sinexp",
+    "status": "active",
+    "phase_usage": "yes",
+    "absorption_usage": "no",
+    "notes": ""
+  },
+  {
+    "field": "T2",
+    "configured": 8e-11,
+    "status": "shadowed_by_higher_priority_field",
+    "phase_usage": "no",
+    "absorption_usage": "no",
+    "notes": "Omega_R is not consulted by current resolver; T_R/T2 are fallback only for rot_sinexp."
+  },
+  {
+    "field": "T_R",
+    "configured": 8.4e-12,
+    "status": "shadowed_by_higher_priority_field",
+    "phase_usage": "no",
+    "absorption_usage": "no",
+    "notes": "Omega_R is not consulted by current resolver; T_R/T2 are fallback only for rot_sinexp."
+  },
+  {
+    "field": "Omega_R",
+    "configured": null,
+    "status": "unused",
+    "phase_usage": "no",
+    "absorption_usage": "no",
+    "notes": "Omega_R is not consulted by current resolver; T_R/T2 are fallback only for rot_sinexp."
+  },
+  {
+    "field": "omega_R",
+    "configured": 16000000000000.0,
+    "status": "active",
+    "phase_usage": "yes",
+    "absorption_usage": "yes",
+    "notes": ""
+  },
+  {
+    "field": "Gamma_R",
+    "configured": 13000000000000.0,
+    "status": "active",
+    "phase_usage": "yes",
+    "absorption_usage": "yes",
+    "notes": ""
+  },
+  {
+    "field": "tau2",
+    "configured": null,
+    "status": "unused",
+    "phase_usage": "no",
+    "absorption_usage": "no",
+    "notes": ""
+  },
+  {
+    "field": "method",
+    "configured": "iir",
+    "status": "active",
+    "phase_usage": "yes",
+    "absorption_usage": "yes",
+    "notes": ""
+  },
+  {
+    "field": "chunk_pixels",
+    "configured": 65536,
+    "status": "active",
+    "phase_usage": "yes",
+    "absorption_usage": "yes",
+    "notes": ""
+  },
+  {
+    "field": "diagnose",
+    "configured": true,
+    "status": "diagnostic_only",
+    "phase_usage": "no",
+    "absorption_usage": "no",
+    "notes": ""
+  },
+  {
+    "field": "absorption_model",
+    "configured": "conv_deriv",
+    "status": "active",
+    "phase_usage": "no",
+    "absorption_usage": "yes",
+    "notes": ""
+  },
+  {
+    "field": "absorption",
+    "configured": true,
+    "status": "conditionally_active",
+    "phase_usage": "no",
+    "absorption_usage": "yes",
+    "notes": ""
+  },
+  {
+    "field": "abs_mask_frac",
+    "configured": 0.001,
+    "status": "active",
+    "phase_usage": "no",
+    "absorption_usage": "yes",
+    "notes": ""
+  },
+  {
+    "field": "max_alpha_dz",
+    "configured": 0.002,
+    "status": "active",
+    "phase_usage": "no",
+    "absorption_usage": "yes",
+    "notes": ""
+  },
+  {
+    "field": "tau_fwhm",
+    "configured": null,
+    "status": "read_but_unused",
+    "phase_usage": "no",
+    "absorption_usage": "no",
+    "notes": ""
+  },
+  {
+    "field": "n_rot_frac",
+    "configured": null,
+    "status": "read_but_unused",
+    "phase_usage": "no",
+    "absorption_usage": "no",
+    "notes": ""
+  },
+  {
+    "field": "R0_mode",
+    "configured": null,
+    "status": "read_but_unused",
+    "phase_usage": "no",
+    "absorption_usage": "no",
+    "notes": ""
+  },
+  {
+    "field": "R0_fixed_m",
+    "configured": null,
+    "status": "read_but_unused",
+    "phase_usage": "no",
+    "absorption_usage": "no",
+    "notes": ""
+  }
+]
