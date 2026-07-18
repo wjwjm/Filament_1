@@ -1,0 +1,46 @@
+{
+  "schema": "khz_filament.phase6.execution_version_gate.v1",
+  "baseline_execution_sha": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
+  "current_git_sha": "bab3f8e489a7c13797668eb904ff736f04bd510f",
+  "branch": "codex/phase6-raman-causality",
+  "worktree_dirty": false,
+  "critical_files": [
+    {
+      "path": "Filament_python/KHz_filament/propagate.py",
+      "baseline_blob": "ad5a8e090ae655bcc7c2b9f6bde8de0b487648d2",
+      "current_blob": "ad5a8e090ae655bcc7c2b9f6bde8de0b487648d2",
+      "identical": true
+    },
+    {
+      "path": "Filament_python/KHz_filament/diagnostics.py",
+      "baseline_blob": "6d7ef8505ef8f25a463aef91226f02ffe8989baf",
+      "current_blob": "6d7ef8505ef8f25a463aef91226f02ffe8989baf",
+      "identical": true
+    },
+    {
+      "path": "Filament_python/KHz_filament/ionization/runtime.py",
+      "baseline_blob": "7b52c9380a951700fdfc73fc31f6b2936e48cc08",
+      "current_blob": "7b52c9380a951700fdfc73fc31f6b2936e48cc08",
+      "identical": true
+    },
+    {
+      "path": "Filament_python/KHz_filament/ionization",
+      "baseline_blob": "2763ce29302dcf12200a0351b9bd5771664464ce",
+      "current_blob": "2763ce29302dcf12200a0351b9bd5771664464ce",
+      "identical": true
+    },
+    {
+      "path": "Filament_python/KHz_filament/config.py",
+      "baseline_blob": "14d7ecd985a2ce20a6f04653476b569c6e53c046",
+      "current_blob": "14d7ecd985a2ce20a6f04653476b569c6e53c046",
+      "identical": true
+    },
+    {
+      "path": "Filament_python/KHz_filament/confio.py",
+      "baseline_blob": "fee9f26f5bbcd3a7fef066771c0515c9b526d0ef",
+      "current_blob": "fee9f26f5bbcd3a7fef066771c0515c9b526d0ef",
+      "identical": true
+    }
+  ],
+  "phase6_execution_version_gate": "accepted"
+}

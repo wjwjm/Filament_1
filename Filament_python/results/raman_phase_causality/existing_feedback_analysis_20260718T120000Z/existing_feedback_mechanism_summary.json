@@ -1,0 +1,28 @@
+{
+  "schema": "khz_filament.phase6.feedback_analysis.v1",
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95)",
+  "epsilon_x_cm": 0.1,
+  "feedback_classification": "feedback_after_ionization",
+  "pre_ionization_intensity_max_shift_cm": 1.8990011760422476e-05,
+  "rho_1e19_crossings_cm": {
+    "pop": -19.154124255093837,
+    "tal": -19.19399851718201
+  },
+  "numerical_path": [
+    {
+      "case": "popruzhenko",
+      "dz_min_m": 4.999999873689376e-05,
+      "dz_max_m": 9.999999747378752e-05,
+      "rejections_max": 0.0,
+      "safety_max": 0.0
+    },
+    {
+      "case": "talebpour",
+      "dz_min_m": 4.999999873689376e-05,
+      "dz_max_m": 9.999999747378752e-05,
+      "rejections_max": 0.0,
+      "safety_max": 0.0
+    }
+  ],
+  "raman_fields_present": true
+}
