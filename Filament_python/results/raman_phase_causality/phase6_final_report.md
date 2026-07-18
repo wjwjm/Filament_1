@@ -1,47 +1,44 @@
-# Phase 6 final report: 120 fs Raman-phase causality
+# Phase 6 final report — corrected postprocessing closure
 
-## Outcome
+## Formal status
 
-The controlled 120 fs Raman-phase ablation is classified as **`raman_phase_partially_supported`**. Raman phase has a resolved causal effect on the Talebpour propagation history, but its removal does not improve every absolute-coordinate comparison with the digitized PyCAP curve. The conclusion is deliberately limited to 120 fs.
+The propagation experiment is **accepted** and the feedback analysis, classification, and reporting are **corrected and complete**. This correction uses only archived CSV/JSON/Markdown/PyCAP data; it submitted no Slurm jobs, reran no propagation, changed no production physics, and committed no NPZ/MAT/LUT files.
 
-## Controls and gates
+All curves retain the fixed coordinate `x_focus_cm = 100 * (z_m - 0.95)`. The original Phase-6 classification remains **`raman_phase_partially_supported`**, but the rationale below supersedes the earlier postprocessing.
 
-- Coordinate for every comparison: `x_focus_cm = 100 * (z_m - 0.95)`; no formal curve shift was applied.
-- Execution-parity gate: **accepted**. The propagation-critical files at the formal Talebpour execution revision `8dcd01e` and the Phase 6 branch were identical before non-core Phase 6 tooling changes.
-- Existing Popruzhenko/Talebpour feedback analysis: **`feedback_after_ionization`**. The pre-ionization intensity-threshold separation was `1.90e-05 cm`, below `epsilon_x = 0.10 cm`.
-- Raman-off configuration changed only `propagation.use_raman_phase: true -> false`; Raman absorption remained enabled.
+## Corrected data and validity gates
 
-## Raman-phase-off propagation audit
+- Input audit passed: full and Raman-off axes are identical, each has 15,000 finite records, and the Raman raw/applied/absorption diagnostics are complete.
+- The U0 source is each case's own `diagnostic_summary.json.metrics.U0_J`: `2.1715106e-3 J` for full and Raman-off. `U_rel_change_z` is not used as energy.
+- Raman-off raw response is finite and nonzero, applied phase is zero, Raman absorption remains on, and rejection/safety counters are equal and zero.
+- PyCAP has no valid first rising crossing for `1e19`, `1e20`, or `1e21 m^-3`; those rows are explicitly marked `not_available_in_pycap`, never as a failed improvement.
 
-The only Phase 6 full propagation, Slurm job `176915`, completed on July 18, 2026 with `COMPLETED` and exit code `0:0`. It reached `z = 1.300 m` with 15,000 aligned records.
+## Answers to the required physical questions
 
-- Execution SHA: `8dcd01ee38adf2167a2fd6083ae4785e94de89a0`
-- Configuration SHA256: `d57aadda4c75999722f63919ac92d6a7a42c743d9c3ae2837d502e98176a49b5`
-- Raman raw phase maximum: `6.645e-03 rad`; raw response remained finite and nonzero.
-- Raman applied phase maximum: `0.0 rad`; the intended ablation was realized.
-- Raman absorption remained applied, with maximum `alpha_R = 1.809e-02 m^-1`.
-- Species bounds, energy diagnostics, actual step size, rejection counters and safety counters all passed. The latter two counters were zero.
+1. **Pop/Tal intensity before significant ionization:** no resolved separation. The maximum pre-ionization intensity-threshold separation is `1.90e-05 cm`, below `epsilon_x = 0.10 cm`.
+2. **Correct energy-deposition order:** `f_dep=E_dep,cumulative/U0` crosses `1e-6`, `1e-5`, and `1e-4` at essentially the same locations for Pop/Tal (`-94.096`, `-86.670`, `-48.687 cm`). The Tal `1e-3` and `1e-2` events occur at `-15.717` and `-12.451 cm`, versus Pop at `-15.926` and `-12.734 cm`.
+3. **Where the ionization-rate-model difference emerges:** the corrected event-chain classification is `feedback_after_ionization`; the material divergence appears after the density feedback becomes appreciable rather than in pre-ionization intensity growth.
+4. **Raman phase density causal shifts, full minus off:** `1e19: +0.054 cm` (unresolved), `1e20: -0.418 cm`, `1e21: -1.253 cm`, `1e22: -2.398 cm`. Negative values mean Raman-on develops earlier.
+5. **Peak-top-center shift:** full minus Raman-off is `-4.135 cm`; Raman phase advances the peak-top position.
+6. **Peak collapse on Raman removal:** yes. Full/off peaks are `6.4609e22`/`2.4978e22 m^-3`; off/full is `0.3866`, below the specified `0.5` collapse threshold (a 61.3% reduction).
+7. **Peak density relative to PyCAP:** PyCAP is `6.4546e22 m^-3`; full differs by `6.26e19 m^-3` (~0.10%), Raman-off by `3.96e22 m^-3` (~61.3%).
+8. **FWHM:** full/off/PyCAP are `12.076/12.842/8.738 cm`; full is closer to PyCAP.
+9. **Tail:** full/off/PyCAP areas are `1.666e23/6.596e22/1.353e23 m^-3 cm`. Relative errors are `0.232/0.512`; full is closer. The obsolete full/off tail ratio is retained only descriptively (`2.525`), not used for classification.
+10. **Global density RMSE:** full is lower (`1.872e22 m^-3`) than Raman-off (`2.144e22 m^-3`).
+11. **PyCAP peak-top bracketing:** yes: full `-14.405 cm <` PyCAP `-12.045 cm <` Raman-off `-10.270 cm`.
+12. **Raman endpoint diagnostic:** `R_Raman=(x_off-x_full)/(x_PyCAP-x_full)=1.752`. Raman-off crosses past PyCAP. This is an on/off endpoint diagnostic only; nonlinear propagation means it cannot be used to rescale `n_R` or `f_R`.
+13. **Why Raman phase cannot simply be removed:** removal gives a severe peak-density collapse, worsens RMSE and FWHM, and makes the tail farther from PyCAP even though it improves the available `1e22` crossing and peak-center errors.
+14. **Why the conclusion is 120 fs only:** no matched 40 fs Raman-off propagation was authorized or run.
+15. **Next priorities:** validate Raman response normalization first, then check possible `n_R/f_R` double weighting, the Raman temporal-response model, and finally electronic Kerr under separately authorized single-factor controls.
 
-The raw NPZ remains only on the remote execution directory; this repository contains CSV/JSON/Markdown/PNG/log summaries only.
+## Corrected classification
 
-## Causal comparison
+`raman_phase_partially_supported` is justified by resolved medium/high-density and peak-top causal shifts together with a severe Raman-off peak collapse and mixed PyCAP metrics. The classification is not based on unavailable low-density PyCAP crossings, the old reverse collapse check, or the old full/off-only tail ratio.
 
-`epsilon_x = 0.10 cm`. With Raman phase enabled, the first `rho = 1e21 m^-3` crossing is `1.253 cm` earlier than in the Raman-phase-off propagation, far above the positional resolution. This establishes a resolved Raman-phase contribution to the 120 fs axial feedback chain.
+## Traceability and validation
 
-The comparison is mixed rather than uniformly corrective relative to the digitized PyCAP trace:
-
-- The unshifted density RMSE is lower for Talebpour full (`1.872e22 m^-3`) than Raman-phase-off (`2.144e22 m^-3`).
-- The full-model peak density (`6.461e22 m^-3`) closely matches PyCAP (`6.455e22 m^-3`), whereas Raman-off peaks at `2.498e22 m^-3`.
-- The peak-top center shifts from `-10.270 cm` (Raman off) to `-14.405 cm` (full), while PyCAP is `-12.045 cm`; therefore the global-position criterion is not uniformly improved.
-- The full-model half-maximum tail area is larger than Raman-off. This prevents an unconditional “supported” classification even though the full-model tail is closer to the PyCAP tail than the Raman-off tail.
-
-Accordingly, Raman phase is a material 120 fs causal contributor, but this single-factor ablation does not show that it alone resolves the full axial-position discrepancy.
-
-## Scope and exclusions
-
-- `40fs_raman_phase_off`: not submitted.
-- `O2-off`: not submitted.
-- `electronic-Kerr-only` and all other ablations: not submitted.
-- Production default physics: unchanged.
-
-No Phase 6 conclusion should be extended to a 40 fs common-advance explanation without a separately authorized matched 40 fs study.
+- Input main SHA: `0a5264cbc07cea48e4fc579964dbc7dc0dcbca05`; the correction worktree began clean on `codex/phase6-postprocess-correction`.
+- Local checks: `python -m compileall Filament_python/tools` and `pytest -q Filament_python/tests`.
+- Result: `84 passed`, `0 failed`; Python `3.13.0`, NumPy `2.4.4`.
+- Local pytest passed; **no GitHub Actions CI run was available**.
+- Detailed corrected artifacts are under `phase6_postprocess_correction/`; the prior outputs remain for traceability and are superseded only by the changelog below.

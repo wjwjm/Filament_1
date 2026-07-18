@@ -1,30 +1,37 @@
 {
-  "schema": "khz_filament.phase6.final_summary.v1",
-  "phase6_status": "completed_with_120fs_raman_phase_single_factor_ablation",
+  "schema": "khz_filament.phase6.final_summary.corrected.v1",
+  "phase6_propagation_experiment": "accepted",
+  "phase6_feedback_analysis": "corrected",
+  "phase6_classification": "corrected",
+  "phase6_reporting": "completed",
+  "phase6_overall_status": "fully accepted",
   "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95)",
-  "execution_version_gate": "accepted",
-  "feedback_classification": "feedback_after_ionization",
-  "raman_phase_off_job": {
-    "id": "176915",
-    "state": "COMPLETED",
-    "exit_code": "0:0",
-    "execution_git_sha": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
-    "config_sha256": "d57aadda4c75999722f63919ac92d6a7a42c743d9c3ae2837d502e98176a49b5",
-    "reaudit_gate": "passed"
-  },
-  "raman_phase_classification": "raman_phase_partially_supported",
-  "epsilon_x_cm": 0.1,
-  "full_minus_raman_off_rho_1e21_onset_cm": -1.2531329334541716,
-  "unshifted_rmse_m3": {
-    "talebpour_full_vs_pycap": 1.8723185068331606e+22,
-    "raman_phase_off_vs_pycap": 2.144254368153124e+22
-  },
-  "additional_jobs_submitted": {
-    "40fs_raman_phase_off": false,
-    "o2_off": false,
-    "electronic_kerr_only": false
-  },
-  "production_default_physics_changed": false,
+  "corrected_artifact_directory": "Filament_python/results/raman_phase_causality/phase6_postprocess_correction",
+  "classification": "raman_phase_partially_supported",
+  "energy_normalization_corrected": true,
+  "peak_collapse_direction_corrected": true,
+  "tail_criterion_relative_to_pycap": true,
+  "missing_pycap_crossings_handled_explicitly": true,
+  "classification_regression_tests_passed": true,
+  "all_requested_csv_json_artifacts_generated": true,
+  "new_slurm_jobs_submitted": 0,
+  "propagation_rerun": false,
+  "production_physics_changed": false,
   "raw_npz_committed": false,
-  "scope_note": "The conclusion is limited to the controlled 120 fs Raman-phase single-factor ablation and is not a 40 fs explanation."
+  "analysis_base_git_sha": "0a5264cbc07cea48e4fc579964dbc7dc0dcbca05",
+  "local_test": {
+    "command": "python -m compileall Filament_python/tools; pytest -q Filament_python/tests",
+    "passed": 84,
+    "failed": 0,
+    "python": "3.13.0",
+    "numpy": "2.4.4",
+    "github_actions_ci": "not available"
+  },
+  "peak_collapse": {
+    "full_m3": 6.460902306022546e+22,
+    "raman_off_m3": 2.4977816965526158e+22,
+    "off_over_full": 0.3865995147805133,
+    "threshold": 0.5,
+    "collapsed": true
+  }
 }
