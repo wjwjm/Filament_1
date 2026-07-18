@@ -1,0 +1,132 @@
+{
+  "schema": "khz_filament.phase6.postprocess_input_audit.v1",
+  "passed": true,
+  "failures": [],
+  "inputs": [
+    {
+      "label": "full",
+      "records": 15000,
+      "missing_fields": [],
+      "all_finite": true,
+      "field_finite": {
+        "z_m": true,
+        "x_focus_cm": true,
+        "rho_max_z": true,
+        "I_onaxis_max_z": true,
+        "I_max_z": true,
+        "delta_n_plasma_min_z": true,
+        "E_dep_z": true,
+        "E_loss_from_input_z": true,
+        "E_dep_cumulative_z": true,
+        "U_rel_change_z": true,
+        "dphi_plasma_raw_max_abs_z": true,
+        "dphi_plasma_applied_max_abs_z": true,
+        "alpha_ion_raw_max_z": true,
+        "alpha_ion_applied_max_z": true,
+        "rho_N2_max_z": true,
+        "rho_O2_max_z": true,
+        "rho_O2_fraction_at_rho_total_max_z": true,
+        "dz_used_z": true,
+        "adaptive_rejection_count_z": true,
+        "safety_mode_trigger_count_z": true
+      },
+      "z_end_m": 1.2999999523162842
+    },
+    {
+      "label": "full_raman",
+      "records": 15000,
+      "missing_fields": [],
+      "all_finite": true,
+      "field_finite": {
+        "z_m": true,
+        "x_focus_cm": true,
+        "IR_max_z": true,
+        "delta_n_rot_max_z": true,
+        "delta_n_rot_applied_max_z": true,
+        "dphi_rot_max_abs_z": true,
+        "dphi_rot_applied_max_abs_z": true,
+        "alpha_R_raw_max_z": true,
+        "alpha_R_applied_max_z": true
+      },
+      "z_end_m": 1.2999999523162842
+    },
+    {
+      "label": "raman_off",
+      "records": 15000,
+      "missing_fields": [],
+      "all_finite": true,
+      "field_finite": {
+        "z_m": true,
+        "x_focus_cm": true,
+        "rho_max_z": true,
+        "I_onaxis_max_z": true,
+        "I_max_z": true,
+        "delta_n_plasma_min_z": true,
+        "E_dep_z": true,
+        "E_loss_from_input_z": true,
+        "E_dep_cumulative_z": true,
+        "U_rel_change_z": true,
+        "dphi_plasma_raw_max_abs_z": true,
+        "dphi_plasma_applied_max_abs_z": true,
+        "alpha_ion_raw_max_z": true,
+        "alpha_ion_applied_max_z": true,
+        "rho_N2_max_z": true,
+        "rho_O2_max_z": true,
+        "rho_O2_fraction_at_rho_total_max_z": true,
+        "dz_used_z": true,
+        "adaptive_rejection_count_z": true,
+        "safety_mode_trigger_count_z": true
+      },
+      "z_end_m": 1.2999999523162842
+    },
+    {
+      "label": "raman_off_raman",
+      "records": 15000,
+      "missing_fields": [],
+      "all_finite": true,
+      "field_finite": {
+        "z_m": true,
+        "x_focus_cm": true,
+        "IR_max_z": true,
+        "delta_n_rot_max_z": true,
+        "delta_n_rot_applied_max_z": true,
+        "dphi_rot_max_abs_z": true,
+        "dphi_rot_applied_max_abs_z": true,
+        "alpha_R_raw_max_z": true,
+        "alpha_R_applied_max_z": true
+      },
+      "z_end_m": 1.2999999523162842
+    }
+  ],
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95)",
+  "u0_sources": {
+    "full": {
+      "source": "diagnostic_summary.json.metrics.U0_J",
+      "value_J": 0.00217151059769094
+    },
+    "raman_off": {
+      "source": "diagnostic_summary.json.metrics.U0_J",
+      "value_J": 0.00217151059769094
+    }
+  },
+  "traceability": {
+    "full": {
+      "execution_git_sha": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
+      "config_sha256": "dd440b5e5462a1d9f01cf26c04f56f1cfa21615cb1cb58d2ab4538ba44ac4688"
+    },
+    "raman_off": {
+      "execution_git_sha": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
+      "config_sha256": "d57aadda4c75999722f63919ac92d6a7a42c743d9c3ae2837d502e98176a49b5"
+    },
+    "pycap_path": "results\\density_translation_width\\density_translation_width_20260715_002\\paper_pycap_120fs.csv",
+    "input_sha256": {
+      "results\\ionization_model_propagation\\talebpour_120fs_20260717T114321Z\\baseline_axial_diagnostics.csv": "c84744eafb1316ef2aaa24f33cd4d19921c9339d677d8fdb05eb66f7e222f7ae",
+      "results\\raman_phase_causality\\existing_feedback_inputs_20260718T120000Z\\talebpour_120fs_raman_extras.csv": "dae4e4d974fb1341f2bbbe73ba16b10a3938d0a771096492f49a46d407fba3e2",
+      "results\\raman_phase_causality\\raman_phase_off_120fs_20260718T201000Z\\raman_phase_off_axial_diagnostics.csv": "8e7539ab1a226712d7870b31500d99af4fa99bda8be4085cc9461aad15b2bb27",
+      "results\\raman_phase_causality\\raman_phase_off_120fs_20260718T201000Z\\raman_phase_off_raman_extras.csv": "d1595886b2383d63e8cc2ffbe796fb13eea4a450e914db60d7aab2cee1cbcefb",
+      "results\\density_translation_width\\density_translation_width_20260715_002\\paper_pycap_120fs.csv": "9b43e75ebc08ccb0a7796829e45c6727b42ab12cd661b9a3d8d235ef89d31461",
+      "results\\ionization_model_propagation\\talebpour_120fs_20260717T114321Z\\diagnostic_summary.json": "7089a0010338c42fa77da5bcb94f99d99f24d1cd713fc97241bdd71aa84a59da",
+      "results\\raman_phase_causality\\raman_phase_off_120fs_20260718T201000Z\\diagnostic_summary.json": "9139149a4ab79f17f7a06b8725c9b06a020d95246bc8dbde5e55c1b7f6950550"
+    }
+  }
+}
