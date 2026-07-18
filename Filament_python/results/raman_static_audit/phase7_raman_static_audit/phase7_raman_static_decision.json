@@ -1,0 +1,346 @@
+{
+  "schema": "khz_filament.phase7.raman_static_audit.v1",
+  "overall_static_audit_status": "not_ready_parameter_conflict",
+  "gates": {
+    "parameter_precedence_gate": {
+      "status": "failed",
+      "evidence": "resolver and propagation call",
+      "numerical_result": "omega/Gamma override T_R/T2",
+      "physical_impact": "silent contradictory time scales",
+      "production_impact": "silent contradictory time scales",
+      "required_action": "resolve provenance before propagation"
+    },
+    "parameter_provenance_gate": {
+      "status": "inconclusive",
+      "evidence": "repository history only",
+      "numerical_result": "no primary physical source verified",
+      "physical_impact": "normalization unresolved",
+      "production_impact": "normalization unresolved",
+      "required_action": "obtain primary source"
+    },
+    "coefficient_semantics_gate": {
+      "status": "inconclusive",
+      "evidence": "n_R/n2 and f_R usage",
+      "numerical_result": "n_R/n2=2.94872",
+      "physical_impact": "double-weighting risk unresolved",
+      "production_impact": "double-weighting risk unresolved",
+      "required_action": "document coefficient source"
+    },
+    "kernel_continuous_normalization_gate": {
+      "status": "passed",
+      "evidence": "analytic sin-exp integral",
+      "numerical_result": 1.0,
+      "physical_impact": "none",
+      "production_impact": "none",
+      "required_action": "none"
+    },
+    "kernel_discrete_normalization_gate": {
+      "status": "passed",
+      "evidence": "sum h dt",
+      "numerical_result": 0.9997811283119443,
+      "physical_impact": "discrete response scale",
+      "production_impact": "discrete response scale",
+      "required_action": "inspect sampling"
+    },
+    "iir_reference_gate": {
+      "status": "passed",
+      "evidence": "IIR versus direct",
+      "numerical_result": [
+        {
+          "pulse": "40fs",
+          "path": "iir_current",
+          "relative_error_to_reference": 0.02541263660301565,
+          "iir_peak_offset_fs": -2.5,
+          "output_unit": "W/m^2"
+        },
+        {
+          "pulse": "120fs",
+          "path": "iir_current",
+          "relative_error_to_reference": 0.012558237989960813,
+          "iir_peak_offset_fs": 0.0,
+          "output_unit": "W/m^2"
+        }
+      ],
+      "physical_impact": "production IIR correctness",
+      "production_impact": "production IIR correctness",
+      "required_action": "fix before propagation if failed"
+    },
+    "fft_reference_gate": {
+      "status": "failed",
+      "evidence": "FFT versus direct",
+      "numerical_result": [
+        {
+          "pulse": "40fs",
+          "path": "fft_current",
+          "relative_error_to_reference": 400000000000000.2,
+          "fft_missing_dt_factor": true,
+          "fft_circular_wraparound_detected": true,
+          "output_unit": "W/m^2_claimed"
+        },
+        {
+          "pulse": "120fs",
+          "path": "fft_current",
+          "relative_error_to_reference": 400000000000000.0,
+          "fft_missing_dt_factor": true,
+          "fft_circular_wraparound_detected": true,
+          "output_unit": "W/m^2_claimed"
+        }
+      ],
+      "physical_impact": "latent nonproduction defect; production uses IIR",
+      "production_impact": "latent nonproduction defect; production uses IIR",
+      "required_action": "do not use FFT until fixed"
+    },
+    "pulse_window_gate": {
+      "status": "passed",
+      "evidence": "960 fs window versus actual decay",
+      "numerical_result": {
+        "window_fs": 960,
+        "dephasing_fs": 76.92307692307692
+      },
+      "physical_impact": "none",
+      "production_impact": "none",
+      "required_action": "none"
+    },
+    "phase_weighting_gate": {
+      "status": "inconclusive",
+      "evidence": "f_R ignored and coefficient provenance missing",
+      "numerical_result": 2.948717948717949,
+      "physical_impact": "may exceed electronic Kerr",
+      "production_impact": "may exceed electronic Kerr",
+      "required_action": "resolve source"
+    },
+    "absorption_energy_gate": {
+      "status": "failed",
+      "evidence": "signed versus positive-clipped static integral",
+      "numerical_result": [
+        {
+          "pulse": "40fs",
+          "signed_time_integral_J_m3": -171.86739978887235,
+          "positive_clipped_J_m3": 15.734728387951188,
+          "negative_component_J_m3": -187.60212817682353,
+          "positive_over_abs_signed": 0.09155155897674751,
+          "mask_fraction": 0.001,
+          "unit_wR": "W/m^3",
+          "unit_integral": "J/m^3"
+        },
+        {
+          "pulse": "120fs",
+          "signed_time_integral_J_m3": -477.9535082649229,
+          "positive_clipped_J_m3": 90.45913893566568,
+          "negative_component_J_m3": -568.4126472005886,
+          "positive_over_abs_signed": 0.18926346887598416,
+          "mask_fraction": 0.001,
+          "unit_wR": "W/m^3",
+          "unit_integral": "J/m^3"
+        }
+      ],
+      "physical_impact": "positive clipping is not signed energy exchange",
+      "production_impact": "positive clipping is not signed energy exchange",
+      "required_action": "validate energy closure before next propagation"
+    },
+    "config_field_usage_gate": {
+      "status": "failed",
+      "evidence": "usage table",
+      "numerical_result": [
+        {
+          "field": "enabled",
+          "configured": true,
+          "status": "conditionally_active",
+          "phase_usage": "no",
+          "absorption_usage": "no",
+          "notes": ""
+        },
+        {
+          "field": "f_R",
+          "configured": 0.15,
+          "status": "read_but_unused",
+          "phase_usage": "no",
+          "absorption_usage": "no",
+          "notes": ""
+        },
+        {
+          "field": "n_R",
+          "configured": 2.3e-23,
+          "status": "active",
+          "phase_usage": "yes",
+          "absorption_usage": "yes",
+          "notes": ""
+        },
+        {
+          "field": "model",
+          "configured": "rot_sinexp",
+          "status": "active",
+          "phase_usage": "yes",
+          "absorption_usage": "no",
+          "notes": ""
+        },
+        {
+          "field": "T2",
+          "configured": 8e-11,
+          "status": "shadowed_by_higher_priority_field",
+          "phase_usage": "no",
+          "absorption_usage": "no",
+          "notes": "Omega_R is not consulted by current resolver; T_R/T2 are fallback only for rot_sinexp."
+        },
+        {
+          "field": "T_R",
+          "configured": 8.4e-12,
+          "status": "shadowed_by_higher_priority_field",
+          "phase_usage": "no",
+          "absorption_usage": "no",
+          "notes": "Omega_R is not consulted by current resolver; T_R/T2 are fallback only for rot_sinexp."
+        },
+        {
+          "field": "Omega_R",
+          "configured": null,
+          "status": "unused",
+          "phase_usage": "no",
+          "absorption_usage": "no",
+          "notes": "Omega_R is not consulted by current resolver; T_R/T2 are fallback only for rot_sinexp."
+        },
+        {
+          "field": "omega_R",
+          "configured": 16000000000000.0,
+          "status": "active",
+          "phase_usage": "yes",
+          "absorption_usage": "yes",
+          "notes": ""
+        },
+        {
+          "field": "Gamma_R",
+          "configured": 13000000000000.0,
+          "status": "active",
+          "phase_usage": "yes",
+          "absorption_usage": "yes",
+          "notes": ""
+        },
+        {
+          "field": "tau2",
+          "configured": null,
+          "status": "unused",
+          "phase_usage": "no",
+          "absorption_usage": "no",
+          "notes": ""
+        },
+        {
+          "field": "method",
+          "configured": "iir",
+          "status": "active",
+          "phase_usage": "yes",
+          "absorption_usage": "yes",
+          "notes": ""
+        },
+        {
+          "field": "chunk_pixels",
+          "configured": 65536,
+          "status": "active",
+          "phase_usage": "yes",
+          "absorption_usage": "yes",
+          "notes": ""
+        },
+        {
+          "field": "diagnose",
+          "configured": true,
+          "status": "diagnostic_only",
+          "phase_usage": "no",
+          "absorption_usage": "no",
+          "notes": ""
+        },
+        {
+          "field": "absorption_model",
+          "configured": "conv_deriv",
+          "status": "active",
+          "phase_usage": "no",
+          "absorption_usage": "yes",
+          "notes": ""
+        },
+        {
+          "field": "absorption",
+          "configured": true,
+          "status": "conditionally_active",
+          "phase_usage": "no",
+          "absorption_usage": "yes",
+          "notes": ""
+        },
+        {
+          "field": "abs_mask_frac",
+          "configured": 0.001,
+          "status": "active",
+          "phase_usage": "no",
+          "absorption_usage": "yes",
+          "notes": ""
+        },
+        {
+          "field": "max_alpha_dz",
+          "configured": 0.002,
+          "status": "active",
+          "phase_usage": "no",
+          "absorption_usage": "yes",
+          "notes": ""
+        },
+        {
+          "field": "tau_fwhm",
+          "configured": null,
+          "status": "read_but_unused",
+          "phase_usage": "no",
+          "absorption_usage": "no",
+          "notes": ""
+        },
+        {
+          "field": "n_rot_frac",
+          "configured": null,
+          "status": "read_but_unused",
+          "phase_usage": "no",
+          "absorption_usage": "no",
+          "notes": ""
+        },
+        {
+          "field": "R0_mode",
+          "configured": null,
+          "status": "read_but_unused",
+          "phase_usage": "no",
+          "absorption_usage": "no",
+          "notes": ""
+        },
+        {
+          "field": "R0_fixed_m",
+          "configured": null,
+          "status": "read_but_unused",
+          "phase_usage": "no",
+          "absorption_usage": "no",
+          "notes": ""
+        }
+      ],
+      "physical_impact": "shadowed/unused/document mismatch fields",
+      "production_impact": "shadowed/unused/document mismatch fields",
+      "required_action": "clean up or document before new case"
+    }
+  },
+  "resolved_parameters": {
+    "actual_omega_R_rad_s": 16000000000000.0,
+    "actual_Gamma_R_s": 13000000000000.0,
+    "actual_rotational_period_s": 3.9269908169872413e-13,
+    "actual_dephasing_time_s": 7.692307692307692e-14,
+    "from_TR_omega_rad_s": 747998250854.7126,
+    "from_T2_Gamma_s": 12500000000.0,
+    "omega_ratio_actual_over_TR": 21.390424351550735,
+    "gamma_ratio_actual_over_T2": 1040.0,
+    "T_R_T2_ignored_in_production_path": true,
+    "f_R_used_in_rot_sinexp_phase": false,
+    "n_R_over_n2_air": 2.948717948717949,
+    "combined_n2_plus_nR_over_n2": 3.9487179487179485,
+    "assumption_A_n2_electronic": 6.63e-24,
+    "assumption_A_n2_delayed": 1.17e-24,
+    "assumption_B_n2_delayed": 1.3764705882352942e-24,
+    "config_40_equals_120": true,
+    "raman_off_only_phase_switch": {
+      "use_raman_phase": false
+    }
+  },
+  "recommended_next_propagation_cases": "none until provenance is resolved",
+  "new_slurm_jobs_submitted": 0,
+  "propagation_rerun": false,
+  "production_Raman_parameters_changed": false,
+  "production_physics_changed": false,
+  "raw_NPZ_MAT_LUT_committed": false
+}
