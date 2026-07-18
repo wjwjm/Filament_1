@@ -54,8 +54,9 @@ def _verify(config: dict, case_id: str) -> None:
     for sp in ion["species"]:
         assert sp["rate"] == "ppt_talebpour_i_lut" and sp["reference_model"] == "ppt_talebpour_i_full_reference"
         assert (float(sp["Ip_eV_eff"]), float(sp["Zeff"])) == expected[sp["name"]]
-    for key in ("use_electronic_kerr", "use_raman_phase", "use_plasma_phase", "use_ionization_loss", "use_raman_absorption", "use_self_steepening", "use_ionization_solver"):
+    for key in ("use_electronic_kerr", "use_plasma_phase", "use_ionization_loss", "use_raman_absorption", "use_self_steepening", "use_ionization_solver"):
         assert prop[key] is True
+    assert prop['use_raman_phase'] is (not case_id.endswith('raman_phase_off'))
 
 
 def _job_script(remote_root: str, case_id: str) -> str:
@@ -126,6 +127,11 @@ def prepare(config_path: Path, out_dir: Path, remote_run_root: str, *, remote_ta
     with np.load(dry, allow_pickle=False) as data:
         missing = [k for k in REQUIRED_Z_FIELDS + REQUIRED_SCALARS if k not in data.files]
         bad = [k for k in REQUIRED_Z_FIELDS if k in data.files and (data[k].ndim != 1 or data[k].size != data["z_axis"].size or not np.all(np.isfinite(data[k])))]
+        if case_id.endswith('raman_phase_off'):
+            for key in ('IR_max_z','delta_n_rot_max_z','dphi_rot_max_abs_z','alpha_R_applied_max_z'):
+                if key not in data.files or not np.all(np.isfinite(data[key])): bad.append(key)
+            for key in ('delta_n_rot_applied_max_z','dphi_rot_applied_max_abs_z'):
+                if key not in data.files or not np.allclose(data[key],0.0): bad.append(key)
     job = out_dir / f"submit_{case_id}.sh"; job.write_text(_job_script(remote_run_root, case_id), encoding="utf-8", newline="\n")
     (out_dir / "EXECUTION_GIT_SHA").write_text(EXECUTION_SHA + "\n", encoding="utf-8")
     passed = (not dirty) and remote_target_verified_empty and not missing and not bad and bool(np.all(np.isfinite(probe)))
