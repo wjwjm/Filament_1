@@ -1,0 +1,3 @@
+mask_fraction,negative_component_J_m3,positive_clipped_J_m3,positive_over_abs_signed,pulse,signed_time_integral_J_m3,unit_integral,unit_wR
+0.001,-187.60212817682353,15.734728387951188,0.09155155897674751,40fs,-171.86739978887235,J/m^3,W/m^3
+0.001,-568.4126472005886,90.45913893566568,0.18926346887598416,120fs,-477.9535082649229,J/m^3,W/m^3
