@@ -1,0 +1,7 @@
+fft_circular_wraparound_detected,fft_missing_dt_factor,iir_peak_offset_fs,integral_kernel_float32,integral_kernel_float64,output_unit,path,pulse,relative_error,relative_error_to_reference
+,,,0.99978107213974,0.9997811283119443,W/m^2,direct_reference,40fs,0.0,
+,,-2.5,,,W/m^2,iir_current,40fs,,0.02541263660301565
+True,True,,,,W/m^2_claimed,fft_current,40fs,,400000000000000.2
+,,,0.99978107213974,0.9997811283119443,W/m^2,direct_reference,120fs,0.0,
+,,0.0,,,W/m^2,iir_current,120fs,,0.012558237989960813
+True,True,,,,W/m^2_claimed,fft_current,120fs,,400000000000000.0
