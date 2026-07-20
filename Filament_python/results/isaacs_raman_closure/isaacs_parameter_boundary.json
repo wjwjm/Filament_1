@@ -1,0 +1,13 @@
+{
+  "schema": "khz_filament.phase8a.isaacs_parameter_boundary.v1",
+  "source": "Isaacs et al. Optics Express 30, 22306-22320 (2022), Eqs. (7)-(12)",
+  "parameters": {
+    "n2_air_m2_W": 7.8e-24,
+    "n_R_m2_W": 2.3e-23,
+    "omega_R_s_inv": 1.6e13,
+    "Gamma_R_s_inv": 1.3e13
+  },
+  "semantics": "independent electronic + rotational",
+  "unsupported": ["f_R scaling", "T_R/T2 Isaacs substitution", "double weighting"],
+  "n_R_over_n2_is_error": false
+}

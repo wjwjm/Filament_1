@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
+.venv/
 
 # Reproducible simulation products (not source files)
 *.npz
