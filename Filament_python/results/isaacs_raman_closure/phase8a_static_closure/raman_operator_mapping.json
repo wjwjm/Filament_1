@@ -1,0 +1,7 @@
+{
+  "tau_convention": "tau=t-z/v_g",
+  "fft_derivative_sign": "d_tau maps to +i Omega under exp(-i Omega tau)",
+  "source": "S_exact=(1+i/omega0*d_tau)(I_R A)",
+  "split": "A(I_R+i/omega0*d_tau I_R)",
+  "omitted": "i/omega0 I_R d_tau A"
+}
