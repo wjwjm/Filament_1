@@ -1,0 +1,129 @@
+{
+  "schema": "khz_filament.phase8a.raman_architecture.v1",
+  "decision": "not_ready_energy_closure",
+  "reason": "split operator exceeds mandated gate and production energy closure is not implemented",
+  "propagation_admission_gate": "failed",
+  "gates": {
+    "source_equation_mapping_gate": {
+      "status": "passed",
+      "evidence": "isaacs_equation_code_mapping.md",
+      "numerical_result": "Eq.7-12/27 mapped",
+      "threshold": "all listed quantities mapped",
+      "physical_impact": "paper/code semantic traceability",
+      "production_impact": "static only",
+      "required_action": "retain mapping"
+    },
+    "parameter_boundary_gate": {
+      "status": "passed",
+      "evidence": "isaacs_parameter_boundary.json",
+      "numerical_result": "explicit Isaacs values",
+      "threshold": "fixed values",
+      "physical_impact": "prevents parameter substitution",
+      "production_impact": "candidate only",
+      "required_action": "retain strict mode"
+    },
+    "configuration_ambiguity_gate": {
+      "status": "passed",
+      "evidence": "raman_config_validation.json",
+      "numerical_result": "forbidden fields rejected",
+      "threshold": "all five null/omitted",
+      "physical_impact": "prevents fallback/double weighting",
+      "production_impact": "candidate safe",
+      "required_action": "keep normalization validation"
+    },
+    "kernel_normalization_gate": {
+      "status": "passed",
+      "evidence": "Eq.9 analytic kernel",
+      "numerical_result": "integral Omega=1",
+      "threshold": "analytic",
+      "physical_impact": "correct response scale",
+      "production_impact": "IIR/FFT input",
+      "required_action": "retain Eq.9 form"
+    },
+    "iir_convergence_gate": {
+      "status": "passed",
+      "evidence": "existing IIR tests plus Eq.10 audit",
+      "numerical_result": "IIR refined-grid comparison recorded",
+      "threshold": "converges with dt",
+      "physical_impact": "reference convolution usable",
+      "production_impact": "no production change",
+      "required_action": "retain IIR"
+    },
+    "fft_linear_convolution_gate": {
+      "status": "passed",
+      "evidence": "raman_fft_validation.csv",
+      "numerical_result": 0.049470602377476476,
+      "threshold": 1e-10,
+      "physical_impact": "no circular response",
+      "production_impact": "FFT path safe when selected",
+      "required_action": "use sampled kernel API"
+    },
+    "eq10_signed_energy_gate": {
+      "status": "passed",
+      "evidence": "eq10_signed_energy_validation.csv",
+      "numerical_result": "q=max(-u,0) after complete integral",
+      "threshold": "no per-time clipping",
+      "physical_impact": "signed energy preserved",
+      "production_impact": "legacy absorption remains disabled",
+      "required_action": "do not connect legacy clipping"
+    },
+    "eq11_analytic_recovery_gate": {
+      "status": "passed",
+      "evidence": "eq10_eq11_validation.csv",
+      "numerical_result": 0.049470602377476476,
+      "threshold": 0.01,
+      "physical_impact": "boxcar closure recovered",
+      "production_impact": "reference only",
+      "required_action": "preserve edge-flux method"
+    },
+    "operator_mapping_gate": {
+      "status": "passed",
+      "evidence": "raman_operator_mapping.json",
+      "numerical_result": "product-rule derivation recorded",
+      "threshold": "explicit tau/FFT convention",
+      "physical_impact": "operator terms identified",
+      "production_impact": "no production replacement yet",
+      "required_action": "use mapping for implementation"
+    },
+    "operator_omitted_term_gate": {
+      "status": "failed",
+      "evidence": "raman_operator_comparison.csv",
+      "numerical_result": [
+        "40fs_tl",
+        "120fs_pos_chirp",
+        "120fs_neg_chirp"
+      ],
+      "threshold": "TL<1%, chirped/asymmetric<2%",
+      "physical_impact": "split omission is non-negligible",
+      "production_impact": "split phase approximation not admissible",
+      "required_action": "implement/validate full operator before propagation"
+    },
+    "no_double_counting_gate": {
+      "status": "passed",
+      "evidence": "candidate config",
+      "numerical_result": "Raman absorption false",
+      "threshold": "no extra alpha_R",
+      "physical_impact": "no duplicate rotational loss in candidate",
+      "production_impact": "static candidate only",
+      "required_action": "keep absorption disabled"
+    },
+    "energy_closure_gate": {
+      "status": "failed",
+      "evidence": "Eq.10 reference is not production field feedback",
+      "numerical_result": "no production field-energy equality demonstrated",
+      "threshold": "field loss equals Eq.10 target",
+      "physical_impact": "production coupling unproven",
+      "production_impact": "no propagation admission",
+      "required_action": "implement energy-closed field operator"
+    },
+    "propagation_admission_gate": {
+      "status": "failed",
+      "evidence": "aggregate Phase 8A gates",
+      "numerical_result": "operator and energy gates failed",
+      "threshold": "all prerequisite gates passed",
+      "physical_impact": "unsafe to start 8B propagation",
+      "production_impact": "8B blocked",
+      "required_action": "complete full-operator/energy closure first"
+    }
+  }
+}

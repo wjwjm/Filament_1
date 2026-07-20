@@ -1,0 +1,3 @@
+path,dtype,relative_linf_error,threshold,causal
+fft_linear,float64,0.049470602377476476,1e-10,True
+direct,float64,0.049470602377476476,1e-10,True

@@ -1,0 +1,8 @@
+parameter,value,unit,source,semantics
+n2_air,7.8e-24,m^2/W,Isaacs Eq.27/electronic Kerr,independent electronic Kerr
+n_R,2.3e-23,m^2/W,Isaacs Eqs.8-11,independent rotational coefficient
+omega_R,1.6e13,s^-1,Isaacs Eq.9,rotational angular frequency
+Gamma_R,1.3e13,s^-1,Isaacs Eq.9,rotational damping rate
+f_R,,1,not in Isaacs Eqs.7-12,not applicable
+T_R,,s,not Isaacs production parameterization,not applicable
+T2,,s,not Isaacs production parameterization,not applicable

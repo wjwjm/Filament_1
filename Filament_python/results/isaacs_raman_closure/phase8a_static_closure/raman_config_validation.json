@@ -1,0 +1,17 @@
+{
+  "isaacs_candidate": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_raman_candidate.json",
+  "strict_parameters": [
+    "n_R",
+    "omega_R",
+    "Gamma_R"
+  ],
+  "forbidden_null_or_omitted": [
+    "f_R",
+    "T_R",
+    "T2",
+    "Omega_R",
+    "tau2"
+  ],
+  "raman_absorption_explicitly_disabled": true,
+  "status": "passed"
+}
