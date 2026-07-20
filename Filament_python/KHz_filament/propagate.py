@@ -189,7 +189,7 @@ def propagate_one_pulse(
             print(f"[Raman] model=rot_sinexp uses explicit n_R={n_R:.3e} m^2/W for phase/absorption; f_R={fR:.3g} ignored in phase channel.")
         if (r_method == "fft"):
             h = make_raman_kernel(axes.t, raman_conf)
-            H_w = precompute_kernel_fft(h)
+            H_w = h
         else:
             H_w = None
 

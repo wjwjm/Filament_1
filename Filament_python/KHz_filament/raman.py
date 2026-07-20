@@ -83,9 +83,31 @@ def make_raman_kernel(t, cfg) -> xp.ndarray:
     return xp.zeros_like(t, dtype=xp.float64)
 
 
-def precompute_kernel_fft(h: xp.ndarray) -> xp.ndarray:
+def precompute_kernel_fft(h: xp.ndarray, n_fft: int | None = None) -> xp.ndarray:
     """频域核 H(Ω)（与 xp 后端一致的 FFT），沿时间轴变换。"""
-    return xp.fft.fft(h.astype(xp.float64), axis=0)
+    return xp.fft.fft(h.astype(xp.float64), n=n_fft, axis=0)
+
+
+def raman_convolve_intensity_fft_linear(I, h, *, dt, chunk_pixels=65536):
+    """Causal linear convolution ``(h * I) dt`` along the time axis."""
+    if dt is None:
+        raise ValueError("raman_convolve_intensity_fft_linear requires dt")
+    Nt, Ny, Nx = I.shape
+    h = xp.asarray(h, dtype=I.dtype)
+    Nh = int(h.shape[0])
+    if Nh < 1:
+        raise ValueError("raman causal kernel must contain at least one sample")
+    n_fft = Nt + Nh - 1
+    ctype = xp.complex64 if I.dtype == xp.float32 else xp.complex128
+    H = xp.fft.fft(h.astype(ctype, copy=False), n=n_fft)[:, None]
+    I2 = I.reshape(Nt, Ny * Nx)
+    out = xp.empty_like(I2, dtype=I.dtype)
+    chunk = int(max(1, min(chunk_pixels, Ny * Nx)))
+    for j in range(0, Ny * Nx, chunk):
+        values = I2[:, j:j + chunk].astype(ctype, copy=False)
+        conv = xp.fft.ifft(xp.fft.fft(values, n=n_fft, axis=0) * H, axis=0).real
+        out[:, j:j + chunk] = (conv[:Nt] * dt).astype(I.dtype, copy=False)
+    return out.reshape(Nt, Ny, Nx)
 
 
 # ------------------------- 强度卷积（I ⊗ h_R） -------------------------
@@ -124,6 +146,11 @@ def raman_convolve_intensity(I, H_w=None, *, method="iir", dt=None, T2=None, T_R
     Nt, Ny, Nx = I.shape
     dtype = I.dtype
     method = str(method).lower()
+
+    if method == "fft":
+        if H_w is None:
+            raise ValueError("raman_convolve_intensity(method='fft') requires sampled causal kernel h")
+        return raman_convolve_intensity_fft_linear(I, H_w, dt=dt, chunk_pixels=chunk_pixels)
 
     # ---------------- IIR：旋转拉曼（sin-exp）/ Debye 两种递推 ----------------
     if method == "iir":
