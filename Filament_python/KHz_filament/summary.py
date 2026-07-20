@@ -198,7 +198,11 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     print(f"Kerr(克尔效应)       : {onoff(kerr_on)}  n2={fmt(n2_used,' m^2/W')} | P_cr≈{fmt(Pcr,' W')}  # 自聚焦关键参数")
     print(f"Self-steep.(自陡峭)   : {onoff(use_shock)}  method={shock_method}  chunk_px={shock_chunk}  # 脉冲前沿陡化")
     print(f"Raman       : {'ON ' if raman_on else 'OFF'} f_R={fmt(fR)}  n_R={fmt(n_R, ' m^2/W')}  model={raman_model}  T2={fmt(T2, ' s')}  T_R={fmt(TR, ' s')}  method={raman_method}  chunk_px={raman_chunk}")
-    if raman_on and str(raman_model).lower() == "rot_sinexp":
+    if raman_on and str(raman_model).lower() == "isaacs_rot_sinexp":
+        print("  Isaacs     : explicit n_R/omega_R/Gamma_R; coefficient semantics = independent electronic + rotational")
+        if (omega_R is not None) and (Gamma_R is not None):
+            print(f"    Period   : {fmt(2.0 * _np.pi / float(omega_R), ' s')}  dephasing time={fmt(1.0 / float(Gamma_R) if float(Gamma_R) > 0 else _np.inf, ' s')}")
+    elif raman_on and str(raman_model).lower() == "rot_sinexp":
         print("  Note       : rot_sinexp uses explicit n_R for phase/absorption; f_R is ignored in phase channel.")
     print(f"  Absorption(吸收)   : {'ON ' if absorption_on else 'OFF'}  scheme={absorption_model}  # 拉曼吸收模型")
     if absorption_model == "closed_form":

@@ -131,6 +131,32 @@ def _normalize_nonlinear_switches(propagation: Dict[str, Any]) -> None:
             raise ValueError(f"propagation.{name} must be true, false, or omitted for legacy compatibility.")
 
 
+def _normalize_raman(raman: Dict[str, Any]) -> None:
+    """Validate the explicit Isaacs rotational-Raman parameterization.
+
+    Validation intentionally runs on the raw mapping before dataclass defaults
+    are applied.  The legacy ``rot_sinexp`` defaults are therefore untouched.
+    """
+    model = str(raman.get("model", "rot_sinexp") or "rot_sinexp").lower()
+    if model != "isaacs_rot_sinexp":
+        return
+    forbidden = ("f_R", "T_R", "T2", "Omega_R", "tau2")
+    if any(raman.get(name) is not None for name in forbidden):
+        raise ValueError(
+            "isaacs_rot_sinexp uses explicit n_R, omega_R and Gamma_R.\n"
+            "f_R/T_R/T2/Omega_R/tau2 must be omitted or null."
+        )
+    for name, lower, inclusive in (("n_R", 0.0, False), ("omega_R", 0.0, False), ("Gamma_R", 0.0, True)):
+        if name not in raman or raman[name] is None:
+            raise ValueError(f"raman.{name} is required for isaacs_rot_sinexp.")
+        value = float(_to_float(raman[name]))
+        valid = value >= lower if inclusive else value > lower
+        if not valid:
+            relation = ">=" if inclusive else ">"
+            raise ValueError(f"raman.{name} must be {relation} {lower:g} for isaacs_rot_sinexp.")
+        raman[name] = value
+
+
 def normalize_config(raw: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize raw config dict into a single canonical representation."""
     out = deepcopy(raw or {})
@@ -143,4 +169,5 @@ def normalize_config(raw: Dict[str, Any]) -> Dict[str, Any]:
     _normalize_beam(out["beam"], grid=out["grid"])
     _normalize_species(out["ionization"])
     _normalize_nonlinear_switches(out["propagation"])
+    _normalize_raman(out["raman"])
     return out

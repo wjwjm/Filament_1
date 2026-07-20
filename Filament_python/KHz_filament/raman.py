@@ -36,6 +36,18 @@ def make_raman_kernel(t, cfg) -> xp.ndarray:
     dt = float(t[1] - t[0])
     tt = xp.maximum(t, 0.0)  # 因果核
 
+    if model in ("isaacs_rot_sinexp",):
+        omega_R = _get(cfg, "omega_R", None)
+        Gamma_R = _get(cfg, "Gamma_R", None)
+        if omega_R is None or Gamma_R is None:
+            raise ValueError("isaacs_rot_sinexp requires explicit omega_R and Gamma_R")
+        omega_R = float(omega_R)
+        Gamma_R = float(Gamma_R)
+        if omega_R <= 0.0 or Gamma_R < 0.0:
+            raise ValueError("isaacs_rot_sinexp requires omega_R > 0 and Gamma_R >= 0")
+        pref = (omega_R * omega_R + Gamma_R * Gamma_R) / omega_R
+        return (pref * xp.exp(-Gamma_R * tt) * xp.sin(omega_R * tt) * _heaviside_like(t)).astype(xp.float64)
+
     if model in ("rot_sinexp", "rot-sinexp", "rot", "sinexp"):
         omega_R = _get(cfg, "omega_R", None)
         Gamma_R = _get(cfg, "Gamma_R", None)
