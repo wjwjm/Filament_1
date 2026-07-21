@@ -326,6 +326,118 @@ def isaacs_raman_signed_energy_density(E, *, Omega, dt, n0, n_R, omega_R, Gamma_
     return stage["u_R_signed"], stage["q_R_positive"]
 
 
+def stable_field_fluence_and_loss(before, after, *, dt, n0, chunk_t=32):
+    """Return exact fluence of ``before`` and its loss to ``after``.
+
+    Production fields are complex64.  Subtracting two independently reduced
+    float32 fluences loses the O(1e-8) per-step Raman exchange.  Convert small
+    time chunks to float64 and evaluate ``x**2-y**2=(x-y)(x+y)`` component by
+    component, so the diagnostic measures the energy change of the field that
+    was actually stored without allocating a full complex128 volume.
+    """
+    if before.shape != after.shape:
+        raise ValueError("before/after field shapes must match")
+    if before.ndim != 3:
+        raise ValueError("Raman field energy diagnostic expects (Nt, Ny, Nx)")
+    Nt = before.shape[0]
+    chunk_t = max(1, int(chunk_t))
+    before_sum = xp.zeros(before.shape[1:], dtype=xp.float64)
+    loss_sum = xp.zeros(before.shape[1:], dtype=xp.float64)
+    for start in range(0, Nt, chunk_t):
+        stop = min(start + chunk_t, Nt)
+        before_real = before[start:stop].real.astype(xp.float64, copy=False)
+        after_real = after[start:stop].real.astype(xp.float64, copy=False)
+        before_sum += xp.sum(before_real * before_real, axis=0, dtype=xp.float64)
+        loss_sum += xp.sum(
+            (before_real - after_real) * (before_real + after_real),
+            axis=0, dtype=xp.float64)
+        del before_real, after_real
+
+        before_imag = before[start:stop].imag.astype(xp.float64, copy=False)
+        after_imag = after[start:stop].imag.astype(xp.float64, copy=False)
+        before_sum += xp.sum(before_imag * before_imag, axis=0, dtype=xp.float64)
+        loss_sum += xp.sum(
+            (before_imag - after_imag) * (before_imag + after_imag),
+            axis=0, dtype=xp.float64)
+        del before_imag, after_imag
+    scale = 0.5 * float(eps0) * float(c0) * float(n0) * float(dt)
+    return before_sum * scale, loss_sum * scale
+
+
+def _project_complex64_heun_energy(
+    E, result, target_local, *, k1, k2, dz, dt, n0,
+    chunk_t=32, relative_tolerance=2.5e-4, max_iterations=8,
+):
+    """Remove complex64 storage-rounding energy error after a full Eq.27 step.
+
+    The projection is a numerical representation correction, not a physical
+    absorption channel: every trial is rebuilt from the same unprojected Heun
+    candidate and differs only by a global sub-ulp amplitude scale.
+    """
+    before_fluence, actual_local = stable_field_fluence_and_loss(
+        E, result, dt=dt, n0=n0, chunk_t=chunk_t)
+    target_sum = float(xp.sum(target_local, dtype=xp.float64))
+    before_sum = float(xp.sum(before_fluence, dtype=xp.float64))
+    actual_sum = float(xp.sum(actual_local, dtype=xp.float64))
+    floor = max(target_sum, before_sum * 1e-15, 1e-300)
+    initial_residual = abs(actual_sum - target_sum) / floor
+    scale = 1.0
+    best_scale = scale
+    best_residual = initial_residual
+    iterations = 0
+    if E.dtype != xp.complex64 or target_sum <= 0.0:
+        return result, before_fluence, actual_local, {
+            "applied": False, "iterations": 0, "scale": scale,
+            "initial_residual": initial_residual,
+        }
+
+    Nt = E.shape[0]
+    def recast(candidate_scale):
+        for start in range(0, Nt, int(chunk_t)):
+            stop = min(start + int(chunk_t), Nt)
+            candidate = E[start:stop].astype(xp.complex128, copy=True)
+            candidate += (0.5 * float(dz)) * k1[start:stop].astype(
+                xp.complex128, copy=False)
+            candidate += (0.5 * float(dz)) * k2[start:stop].astype(
+                xp.complex128, copy=False)
+            result[start:stop] = (candidate * candidate_scale).astype(
+                E.dtype, copy=False)
+            del candidate
+
+    while (
+        abs(actual_sum - target_sum) / floor > float(relative_tolerance)
+        and iterations < int(max_iterations)
+    ):
+        observed_after = before_sum - actual_sum
+        desired_after = before_sum - target_sum
+        if observed_after <= 0.0 or desired_after <= 0.0:
+            break
+        next_scale = scale * float(_np.sqrt(desired_after / observed_after))
+        if not _np.isfinite(next_scale) or next_scale == scale:
+            break
+        scale = next_scale
+        recast(scale)
+        iterations += 1
+        before_fluence, actual_local = stable_field_fluence_and_loss(
+            E, result, dt=dt, n0=n0, chunk_t=chunk_t)
+        actual_sum = float(xp.sum(actual_local, dtype=xp.float64))
+        residual = abs(actual_sum - target_sum) / floor
+        if residual < best_residual:
+            best_residual = residual
+            best_scale = scale
+    if best_scale != scale:
+        recast(best_scale)
+        before_fluence, actual_local = stable_field_fluence_and_loss(
+            E, result, dt=dt, n0=n0, chunk_t=chunk_t)
+        scale = best_scale
+    return result, before_fluence, actual_local, {
+        "applied": iterations > 0,
+        "iterations": iterations,
+        "scale": scale,
+        "initial_residual": initial_residual,
+    }
+
+
 def apply_isaacs_raman_operator_step(E, dz, *, Omega, dt, omega0, n0, n_R,
                                      omega_R, Gamma_R, integrator="heun",
                                      method="iir", chunk_pixels=65536,
@@ -339,9 +451,6 @@ def apply_isaacs_raman_operator_step(E, dz, *, Omega, dt, omega0, n0, n_R,
         chunk_pixels=chunk_pixels, iir_sampling=iir_sampling,
     )
     started = _time.perf_counter()
-    before_fluence = xp.sum(
-        0.5 * float(eps0) * float(c0) * float(n0) * xp.abs(E) ** 2,
-        axis=0) * float(dt)
     stage1 = stage1 or isaacs_raman_stage(E, **kwargs)
     k1, q1 = stage1["rhs"], stage1["q_R_positive"]
     if str(integrator).lower() == "euler":
@@ -359,17 +468,29 @@ def apply_isaacs_raman_operator_step(E, dz, *, Omega, dt, omega0, n0, n_R,
         target_heun = 0.5 * (target_stage1 + target_stage2)
     else:
         raise ValueError("Raman full-operator integrator must be 'euler' or 'heun'")
+    projection = {
+        "applied": False, "iterations": 0, "scale": 1.0,
+        "initial_residual": 0.0,
+    }
+    before_fluence = actual_local = None
+    if stage2 is not None and E.dtype == xp.complex64:
+        # This is part of the fp32 numerical update, not an optional
+        # diagnostic.  The returned field must therefore be identical whether
+        # or not the caller requests the audit payload.
+        result, before_fluence, actual_local, projection = (
+            _project_complex64_heun_energy(
+                E, result, target_heun, k1=k1, k2=stage2["rhs"],
+                dz=dz, dt=dt, n0=n0))
     if return_diagnostics:
-        after_fluence = xp.sum(
-            0.5 * float(eps0) * float(c0) * float(n0) * xp.abs(result) ** 2,
-            axis=0) * float(dt)
-        actual_local = before_fluence - after_fluence
+        if before_fluence is None or actual_local is None:
+            before_fluence, actual_local = stable_field_fluence_and_loss(
+                E, result, dt=dt, n0=n0)
         local_residual_map = xp.abs(actual_local - target_heun) / xp.maximum(
             target_heun, xp.maximum(before_fluence * 1e-15, 1e-300))
         area = float(transverse_cell_area)
-        target_global = float(xp.sum(target_heun) * area)
-        actual_global = float(xp.sum(actual_local) * area)
-        before_global = float(xp.sum(before_fluence) * area)
+        target_global = float(xp.sum(target_heun, dtype=xp.float64) * area)
+        actual_global = float(xp.sum(actual_local, dtype=xp.float64) * area)
+        before_global = float(xp.sum(before_fluence, dtype=xp.float64) * area)
         global_residual = abs(actual_global - target_global) / max(
             target_global, before_global * 1e-15, 1e-300)
         diagnostics = {
@@ -392,6 +513,12 @@ def apply_isaacs_raman_operator_step(E, dz, *, Omega, dt, omega0, n0, n_R,
             "operator_walltime_s": float(_time.perf_counter() - started),
             "finite": bool(xp.all(xp.isfinite(result))) and math_isfinite(global_residual),
             "clipping_count": 0,
+            "actual_loss_evaluation": "stable_component_difference_float64",
+            "energy_projection_applied": bool(projection["applied"]),
+            "energy_projection_iterations": int(projection["iterations"]),
+            "energy_projection_scale": float(projection["scale"]),
+            "energy_projection_initial_residual": float(
+                projection["initial_residual"]),
         }
         return result, diagnostics
     return result

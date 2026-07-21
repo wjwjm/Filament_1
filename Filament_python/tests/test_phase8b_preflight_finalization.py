@@ -55,3 +55,24 @@ def test_full_pytest_failure_blocks_full_job_submission():
     module = _module()
     gates, _ = module.build_gates(RESULTS, full_pytest_passed=False, full_pytest_summary="one failure")
     assert gates["full_job_submission_gate"]["status"] == "failed"
+
+
+def test_recorded_step_closure_p99_is_a_hard_submission_gate(tmp_path):
+    import json
+    import shutil
+
+    module = _module()
+    copied = tmp_path / "preflight"
+    shutil.copytree(RESULTS, copied)
+    smoke_path = copied / "phase8b_full_size_smoke_metrics.json"
+    smoke = json.loads(smoke_path.read_text(encoding="utf-8"))
+    smoke["on"]["raman_step_closure_p99"] = 0.01772617394104599
+    smoke_path.write_text(json.dumps(smoke, indent=2) + "\n", encoding="utf-8")
+    gates, _ = module.build_gates(
+        copied, full_pytest_passed=True, full_pytest_summary="synthetic test pass")
+    assert gates["raman_energy_accounting_gate"]["status"] == "failed"
+    assert gates["full_job_submission_gate"]["status"] == "failed"
+    result = gates["full_job_submission_gate"]["numerical_result"]
+    assert result["raman_step_closure_p99"] == 0.01772617394104599
+    assert result["raman_step_closure_p99_threshold"] == 1e-3
+    assert result["raman_step_closure_p99_below_contract"] is False

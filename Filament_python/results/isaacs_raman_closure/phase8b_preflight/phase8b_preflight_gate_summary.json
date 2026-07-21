@@ -100,17 +100,18 @@
         "closure_finite": true,
         "target_positive": true,
         "actual_positive": true,
-        "cumulative_closure_below_stop_limit": true,
-        "integrated_target_actual_difference_below_stop_limit": true,
+        "step_closure_p99_below_contract": true,
+        "cumulative_closure_below_contract": true,
+        "integrated_target_actual_difference_below_contract": true,
         "legacy_alpha_zero": true
       },
       "comparison_result": true
     },
-    "threshold": "finite accounting and cumulative target/actual mismatch <0.5%; legacy alpha_R=0",
+    "threshold": "per-step closure p99<1e-3; cumulative and integrated target/actual mismatch<5e-3; legacy alpha_R=0",
     "comparison_operator": "all",
     "physical_impact": "tracks Eq.10 target against actual Raman field energy exchange",
-    "production_impact": "blocks propagation on missing or duplicated Raman energy",
-    "required_action": "repair Raman field-energy accounting"
+    "production_impact": "blocks propagation on missing, noisy, or duplicated Raman energy",
+    "required_action": "repair Raman field-energy accounting and rerun the ON full-grid smoke"
   },
   "convolution_reuse_gate": {
     "status": "passed",
@@ -197,8 +198,8 @@
     "status": "passed",
     "evidence": "phase8b_runtime_estimate.json",
     "numerical_result": {
-      "estimated_fraction_of_time_limit": 0.5324405695622166,
-      "slowdown_vs_legacy": 2.047848344470064,
+      "estimated_fraction_of_time_limit": 0.5077962189291915,
+      "slowdown_vs_legacy": 1.9530623804968903,
       "comparison_result": true
     },
     "threshold": "time-limit fraction<0.8 and slowdown<=3.0",
@@ -249,14 +250,17 @@
         "runtime_gate": "passed",
         "expected_diagnostic_contract_gate": "passed"
       },
+      "raman_step_closure_p99": 0.00013349909517273764,
+      "raman_step_closure_p99_threshold": 0.001,
+      "raman_step_closure_p99_below_contract": true,
       "local_full_pytest_passed": true,
-      "local_full_pytest_summary": "156 passed in 33.88s",
+      "local_full_pytest_summary": "163 passed in 37.89s (local pytest, 2026-07-21)",
       "comparison_result": true
     },
-    "threshold": "all preflight gates passed and complete local pytest has zero failures",
+    "threshold": "all preflight gates passed, Raman per-step closure p99<1e-3, and complete local pytest has zero failures",
     "comparison_operator": "all",
     "physical_impact": "controls whether full 1.3 m propagation may be separately authorized",
-    "production_impact": "authorizes preparation of Phase 8B-R only after a new user approval",
-    "required_action": "resolve every failed or inconclusive gate; then request explicit Phase 8B-R approval"
+    "production_impact": "records numerical eligibility only; it does not itself authorize Slurm submission",
+    "required_action": "resolve every failed or inconclusive gate, then obtain explicit user approval for Phase 8B-R Task R2"
   }
 }

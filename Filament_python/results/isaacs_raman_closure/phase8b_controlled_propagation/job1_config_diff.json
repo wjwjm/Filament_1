@@ -1,6 +1,7 @@
 {
-  "baseline": "C:\\Filament_1\\Filament_python\\configs\\ionization_model_propagation\\120fs_talebpour_full_model.json",
-  "candidate": "C:\\Filament_1\\Filament_python\\configs\\isaacs_raman_closure\\120fs_talebpour_isaacs_full_operator_on.json",
+  "schema": "khz_filament.phase8b_r.job1_config_diff.v1",
+  "baseline": "configs/ionization_model_propagation/120fs_talebpour_full_model.json",
+  "job1_config": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
   "differences": [
     {
       "path": "propagation.use_raman_absorption",
@@ -102,5 +103,6 @@
     "raman.operator_mode"
   ],
   "unexpected_paths": [],
+  "missing_authorized_paths": [],
   "status": "passed"
 }

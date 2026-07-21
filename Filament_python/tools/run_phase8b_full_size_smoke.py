@@ -94,6 +94,12 @@ def main(argv=None):
         reserved = np.asarray(data["gpu_reserved_step_bytes"], dtype=np.int64)
         conv = np.asarray(data["raman_convolution_count_step"], dtype=np.int64)
         substeps = np.asarray(data["raman_operator_substep_count"], dtype=np.int64)
+        projection_iterations = np.asarray(
+            data["raman_energy_projection_iterations"], dtype=np.int64)
+        projection_scale = np.asarray(
+            data["raman_energy_projection_scale_deviation"], dtype=float)
+        projection_initial = np.asarray(
+            data["raman_energy_projection_initial_residual"], dtype=float)
         rhs = np.asarray(data["raman_rhs_l2_norm"], dtype=float)
         ir_raw = np.asarray(data["raman_IR_max_raw"], dtype=float)
         target = np.asarray(data["raman_target_loss_step_J"], dtype=float)
@@ -150,6 +156,10 @@ def main(argv=None):
         "convolution_count_per_z_step": float(np.mean(conv)),
         "convolution_count_per_operator_substep": float(np.sum(conv)/max(np.sum(substeps), 1)),
         "operator_substeps_per_z_step": float(np.mean(substeps)),
+        "energy_projection_iterations_max": int(np.max(projection_iterations)),
+        "energy_projection_iterations_mean": float(np.mean(projection_iterations)),
+        "energy_projection_scale_deviation_max": float(np.max(projection_scale)),
+        "energy_projection_initial_residual_p99": percentile(projection_initial, 99),
         "estimated_15000_step_walltime_s": estimated_full,
         "production_slurm_time_limit_s": args.production_slurm_limit_s,
         "estimated_fraction_of_time_limit": estimated_full / args.production_slurm_limit_s,
@@ -179,6 +189,8 @@ def main(argv=None):
         "target_loss_nonzero": metrics["raman_target_loss_total_J"] > 0.0,
         "applied_rhs_expected": metrics["raman_rhs_l2_norm_max"] > 0.0 if args.case == "on" else metrics["raman_rhs_l2_norm_max"] == 0.0,
         "actual_loss_expected": metrics["raman_actual_loss_total_J"] > 0.0 if args.case == "on" else metrics["raman_actual_loss_total_J"] == 0.0,
+        "step_closure_p99_below_contract": metrics["raman_step_closure_p99"] < 1e-3 if args.case == "on" else True,
+        "cumulative_closure_below_contract": metrics["raman_cumulative_closure_final"] < 5e-3 if args.case == "on" else True,
         "convolution_reuse": metrics["convolution_count_per_operator_substep"] == 2.0 if args.case == "on" else metrics["convolution_count_per_z_step"] == 1.0,
     }
     (args.out_dir / f"phase8b_full_size_smoke_{args.case}_metrics.json").write_text(

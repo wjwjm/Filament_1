@@ -132,14 +132,18 @@ def build_gates(results_dir: Path, *, full_pytest_passed: bool, full_pytest_summ
     }, evidence="phase8b_full_size_smoke_metrics.json; test_phase8b_raman_diagnostics.py", threshold="ON applies the operator; OFF preserves raw diagnostics without field feedback", physical_impact="makes raw response and applied complex feedback separately observable", production_impact="supports post-run ON/OFF audit", required_action="repair production diagnostic wiring before a full job")
     on_metrics = smoke["on"]
     raman_relative_difference = abs(float(on_metrics["raman_actual_loss_total_J"])-float(on_metrics["raman_target_loss_total_J"])) / max(abs(float(on_metrics["raman_target_loss_total_J"])), 1e-300)
+    step_closure_p99 = float(on_metrics["raman_step_closure_p99"])
+    step_closure_threshold = float(contract["raman_energy_contract"]["per_step_p99_lt"])
+    cumulative_closure_threshold = float(contract["raman_energy_contract"]["cumulative_final_lt"])
     gates["raman_energy_accounting_gate"] = _boolean_gate({
         "closure_finite": smoke.get("energy_closure_finite"),
         "target_positive": float(on_metrics["raman_target_loss_total_J"]) > 0.0,
         "actual_positive": float(on_metrics["raman_actual_loss_total_J"]) > 0.0,
-        "cumulative_closure_below_stop_limit": float(on_metrics["raman_cumulative_closure_final"]) < 5e-3,
-        "integrated_target_actual_difference_below_stop_limit": raman_relative_difference < 5e-3,
+        "step_closure_p99_below_contract": step_closure_p99 < step_closure_threshold,
+        "cumulative_closure_below_contract": float(on_metrics["raman_cumulative_closure_final"]) < cumulative_closure_threshold,
+        "integrated_target_actual_difference_below_contract": raman_relative_difference < cumulative_closure_threshold,
         "legacy_alpha_zero": float(on_metrics["legacy_alpha_R_max"]) == 0.0,
-    }, evidence="phase8b_full_size_smoke_metrics.json", threshold="finite accounting and cumulative target/actual mismatch <0.5%; legacy alpha_R=0", physical_impact="tracks Eq.10 target against actual Raman field energy exchange", production_impact="blocks propagation on missing or duplicated Raman energy", required_action="repair Raman field-energy accounting")
+    }, evidence="phase8b_full_size_smoke_metrics.json", threshold="per-step closure p99<1e-3; cumulative and integrated target/actual mismatch<5e-3; legacy alpha_R=0", physical_impact="tracks Eq.10 target against actual Raman field energy exchange", production_impact="blocks propagation on missing, noisy, or duplicated Raman energy", required_action="repair Raman field-energy accounting and rerun the ON full-grid smoke")
     gates["convolution_reuse_gate"] = _boolean_gate({
         "on_two_per_operator_substep": on_contract.get("two_convolutions_per_operator_substep"),
         "on_two_strang_substeps": on_contract.get("two_strang_substeps_per_z_step"),
@@ -181,16 +185,29 @@ def build_gates(results_dir: Path, *, full_pytest_passed: bool, full_pytest_summ
 
     required_names = [name for name in gates]
     required_statuses = {name: gates[name]["status"] for name in required_names}
-    admission = all(status == "passed" for status in required_statuses.values()) and bool(full_pytest_passed)
+    direct_step_closure_ok = step_closure_p99 < step_closure_threshold
+    admission = (
+        all(status == "passed" for status in required_statuses.values())
+        and bool(full_pytest_passed)
+        and direct_step_closure_ok
+    )
     gates["full_job_submission_gate"] = _gate(
         "passed" if admission else "failed",
         "aggregate Phase 8B-P gates and complete local pytest",
-        {"required_gates": required_statuses, "local_full_pytest_passed": bool(full_pytest_passed), "local_full_pytest_summary": full_pytest_summary, "comparison_result": admission},
-        "all preflight gates passed and complete local pytest has zero failures",
+        {
+            "required_gates": required_statuses,
+            "raman_step_closure_p99": step_closure_p99,
+            "raman_step_closure_p99_threshold": step_closure_threshold,
+            "raman_step_closure_p99_below_contract": direct_step_closure_ok,
+            "local_full_pytest_passed": bool(full_pytest_passed),
+            "local_full_pytest_summary": full_pytest_summary,
+            "comparison_result": admission,
+        },
+        "all preflight gates passed, Raman per-step closure p99<1e-3, and complete local pytest has zero failures",
         "all",
         "controls whether full 1.3 m propagation may be separately authorized",
-        "authorizes preparation of Phase 8B-R only after a new user approval",
-        "resolve every failed or inconclusive gate; then request explicit Phase 8B-R approval",
+        "records numerical eligibility only; it does not itself authorize Slurm submission",
+        "resolve every failed or inconclusive gate, then obtain explicit user approval for Phase 8B-R Task R2",
     )
     meta = {
         "selected_nonlinear_split": on["raman"]["nonlinear_split_order"],
@@ -199,7 +216,8 @@ def build_gates(results_dir: Path, *, full_pytest_passed: bool, full_pytest_summ
         "full_production_jobs_submitted": 0,
         "production_propagation_executed": False,
         "github_actions_ci_evidence": "unavailable",
-        "phase8b_r_executed": False,
+        "phase8b_r_task_r1_prepared": True,
+        "phase8b_r_task_r2_executed": False,
     }
     return gates, meta
 
@@ -213,10 +231,11 @@ def _report(gates: dict, meta: dict, results_dir: Path) -> str:
         "# Phase 8B-P controlled-propagation preflight report", "",
         "## Decision", "",
         f"- `full_job_submission_gate`: **{admission}**",
-        "- Phase 8B-R executed: **false**",
+        "- Phase 8B-R Task R1 prepared: **true**",
+        "- Phase 8B-R Task R2 executed: **false**",
         "- Full 1.3 m Slurm jobs submitted: **0**",
         "- GitHub Actions CI evidence: **unavailable**",
-        "- Required next action: merge this preflight, then obtain explicit user approval before preparing Job 1.", "",
+        "- Required next action: obtain explicit user approval for Task R2 before submitting full Job 1.", "",
         "## Full-grid smoke evidence", "",
         f"- Short smoke Job IDs: {', '.join(meta['short_smoke_job_ids'])} (both `COMPLETED 0:0`).",
         f"- GPU: {smoke['gpu_type']}; grid: 512x512x384; 20 z steps per case.",
@@ -225,7 +244,9 @@ def _report(gates: dict, meta: dict, results_dir: Path) -> str:
         f"- Requested 8 h fraction: {100*runtime['estimated_fraction_of_time_limit']:.3f}%; slowdown vs legacy: {runtime['full_operator_slowdown_vs_legacy']:.3f}x.",
         f"- ON convolution count: {smoke['on']['convolution_count_per_operator_substep']:.0f} per Heun application and {smoke['on']['convolution_count_per_z_step']:.0f} per Strang z step.",
         f"- OFF raw diagnostic convolution count: {smoke['off']['convolution_count_per_z_step']:.0f} per z step.",
-        f"- ON Raman cumulative closure residual: {smoke['on']['raman_cumulative_closure_final']:.6g}.", "",
+        f"- ON Raman per-step closure p99: {smoke['on']['raman_step_closure_p99']:.6g} (threshold <1e-3).",
+        f"- ON Raman cumulative closure residual: {smoke['on']['raman_cumulative_closure_final']:.6g} (threshold <5e-3).",
+        f"- Legacy Raman alpha maximum: {smoke['on']['legacy_alpha_R_max']:.6g}.", "",
         "## Combined nonlinear split", "",
         f"- Selected order: `{meta['selected_nonlinear_split']}`.",
         f"- Refined estimated order: {combined['refined_estimated_order']:.6f} (threshold >=1.5).",
@@ -247,6 +268,7 @@ def _changelog() -> str:
 - Task P4: added performance instrumentation and ran two strictly serial 20-step full-grid Slurm smokes; no full propagation was run.
 - Task P5: defined the machine-readable production diagnostic and energy contract plus the completed-run auditor.
 - Task P6: regenerated all preflight gates and reports and required the complete local pytest result for full-job submission admission.
+- Task R1 correction: made measured per-step closure p99 a direct admission condition, repaired fp32 field-energy accounting, reran the ON full-grid smoke, and prepared Job 1 inputs without submission.
 
 No production Raman parameters, non-Raman physics, PyCAP data, or Phase 5-8A.1 historical results were changed. No raw NPZ/MAT/LUT file was committed.
 """

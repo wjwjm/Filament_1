@@ -1,0 +1,56 @@
+{
+  "schema": "khz_filament.phase8b_r.job1_input_audit.v1",
+  "status": "passed",
+  "checks": {
+    "preflight_full_job_submission_gate_passed": true,
+    "job1_config_diff_passed": true,
+    "strict_full_model": true,
+    "eq27_convention": true,
+    "heun_integrator": true,
+    "strang_split": true,
+    "full_operator_enabled": true,
+    "legacy_phase_disabled": true,
+    "propagation_absorption_disabled": true,
+    "raman_absorption_disabled": true,
+    "smoke_completed": true,
+    "smoke_p99_below_contract": true,
+    "smoke_cumulative_below_contract": true,
+    "legacy_alpha_exactly_zero": true,
+    "fixed_raman_parameters": true,
+    "fixed_production_beam": true,
+    "no_raw_large_result_in_r1_audit": true
+  },
+  "metrics": {
+    "corrected_on_smoke_job_id": "179623",
+    "raman_step_closure_p99": 0.00013349909517273764,
+    "raman_step_closure_p99_threshold": 0.001,
+    "raman_cumulative_closure_final": 2.7029900593333878e-05,
+    "raman_cumulative_closure_threshold": 0.005,
+    "legacy_alpha_R_max": 0.0,
+    "energy_projection_initial_residual_p99": 0.004531638508196919,
+    "energy_projection_scale_deviation_max": 6.501243987599992e-11
+  },
+  "inputs": {
+    "baseline": {
+      "path": "configs/ionization_model_propagation/120fs_talebpour_full_model.json",
+      "sha256": "ffb1cb8753d1371992698c6bf5146c16b8cd38b6a4d76061162f0a6fcac3c549"
+    },
+    "job1_config": {
+      "path": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+      "sha256": "80ddfbba85460dc4dc1f2e3fe10a1e858d08755eec44324a44266e3026d64a8f"
+    },
+    "preflight_gate_summary": {
+      "path": "results/isaacs_raman_closure/phase8b_preflight/phase8b_preflight_gate_summary.json",
+      "sha256": "6d5203104a093da08a30bbe6ead9a8d64a23ff00be3c6ec420ee28ed04c55d46"
+    },
+    "diagnostic_contract": {
+      "path": "results/isaacs_raman_closure/phase8b_preflight/phase8b_expected_diagnostic_contract.json",
+      "sha256": "de5391c6626afa53d2a10d98ab23365b789b91c97bcae2beb514df49255484d9"
+    }
+  },
+  "authorization": {
+    "phase8b_r_task": "R1 only",
+    "full_job_submission_authorized": false,
+    "phase8b_r_task_r2_authorized": false
+  }
+}

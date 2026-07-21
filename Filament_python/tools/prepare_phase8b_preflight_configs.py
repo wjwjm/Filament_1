@@ -65,7 +65,7 @@ def make_full_operator_config(baseline, enabled):
     propagation["use_raman_absorption"] = False
     raman = config["raman"]
     for field in (
-        "f_R", "T_R", "T2", "absorption_model", "absorption",
+        "f_R", "T_R", "T2", "absorption_model",
         "abs_mask_frac", "max_alpha_dz",
     ):
         raman.pop(field, None)
@@ -76,6 +76,7 @@ def make_full_operator_config(baseline, enabled):
         "iir_sampling": "exact_piecewise_linear",
         "operator_integrator": "heun",
         "nonlinear_split_order": "strang",
+        "absorption": False,
     })
     return config
 

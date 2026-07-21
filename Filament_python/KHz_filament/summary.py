@@ -87,8 +87,12 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
         raman_model = str(getattr(raman, "model", "rot_sinexp"))
         raman_method = str(getattr(raman, "method", "iir")).lower()
         raman_chunk = int(getattr(raman, "chunk_pixels", 65536))
-        absorption_model = str(getattr(raman, "absorption_model", "poynting")).lower()
-        absorption_on = bool(getattr(raman, "absorption", True))
+        absorption_model_configured = str(
+            getattr(raman, "absorption_model", "poynting")
+        ).lower()
+        absorption_configured = bool(getattr(raman, "absorption", False))
+        absorption_on = bool(switches.use_raman_absorption)
+        absorption_model = absorption_model_configured if absorption_on else "off"
         omega_R = getattr(raman, "omega_R", None)
         Gamma_R = getattr(raman, "Gamma_R", None)
         tau_fwhm_cfg = getattr(raman, "tau_fwhm", None)
@@ -104,6 +108,8 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
         raman_method = "off"
         raman_chunk = 0
         absorption_model = "off"
+        absorption_model_configured = "off"
+        absorption_configured = False
         absorption_on = False
         omega_R = None
         Gamma_R = None
@@ -207,7 +213,12 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
             print(f"    Period   : {fmt(2.0 * _np.pi / float(omega_R), ' s')}  dephasing time={fmt(1.0 / float(Gamma_R) if float(Gamma_R) > 0 else _np.inf, ' s')}")
     elif raman_on and str(raman_model).lower() == "rot_sinexp":
         print("  Note       : rot_sinexp uses explicit n_R for phase/absorption; f_R is ignored in phase channel.")
-    print(f"  Absorption(吸收)   : {'ON ' if absorption_on else 'OFF'}  scheme={absorption_model}  # 拉曼吸收模型")
+    print(
+        f"  Absorption(吸收)   : {'ON ' if absorption_on else 'OFF'}  "
+        f"effective_scheme={absorption_model}  "
+        f"configured={('ON:' + absorption_model_configured) if absorption_configured else 'OFF'}  "
+        "# effective Raman absorption switch"
+    )
     if absorption_model == "closed_form":
         wR = fmt(omega_R, ' s^-1') if omega_R is not None else '(auto)'
         gR = fmt(Gamma_R, ' s^-1') if Gamma_R is not None else '(auto)'

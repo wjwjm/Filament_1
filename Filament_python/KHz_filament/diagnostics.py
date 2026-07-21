@@ -331,69 +331,7 @@ NONLINEAR_DIAGNOSTIC_METADATA.update({
         "meaning": "synchronized total propagation-step wall time",
         "source": "propagate.py performance instrumentation",
         "unit": "s",
-        "use": "full-job walltime estimate",
-    },
-    "gpu_allocated_step_bytes": {
-        "meaning": "CuPy memory-pool bytes actively allocated after each step",
-        "source": "cupy default memory pool",
-        "unit": "byte",
-        "use": "GPU memory gate",
-    },
-    "gpu_reserved_step_bytes": {
-        "meaning": "CuPy memory-pool bytes reserved after each step",
-        "source": "cupy default memory pool",
-        "unit": "byte",
-        "use": "GPU memory gate",
-    },
-})
-
-
-NONLINEAR_TRACE_KEYS = tuple(NONLINEAR_DIAGNOSTIC_METADATA)
-
-# Existing and Phase-1 histories that must all have one record per z_axis
-# entry.  Scalars, text configuration tags, and rho_onaxis_t_z (which has a
-# z-leading 2D shape) intentionally do not belong here.
-Z_HISTORY_TRACE_KEYS = (
-    "U_z",
-    "I_max_z",
-    "I_onaxis_max_z",
-    "I_center_t0_z",
-    "w_mom_z",
-    "rho_max_z",
-    "rho_onaxis_max_z",
-    "E_dep_z",
-    "fwhm_plasma_z",
-    "fwhm_fluence_z",
-    "I_onaxis_max_interp_list",
-    "E_dep_rot_z",
-    "alpha_R_max_z",
-    "alpha_R_mean_z",
-    "alpha_R_eff_z",
-    "alpha_R_closed_z",
-    "alpha_R_raw_max_z",
-    "alpha_R_applied_max_z",
-    "IR_max_z",
-    "IR_abs_max_z",
-    "delta_n_elec_max_z",
-    "delta_n_rot_max_z",
-    "delta_n_elec_peak_z",
-    "delta_n_rot_peak_z",
-    "delta_n_elec_applied_max_z",
-    "delta_n_rot_applied_max_z",
-    "alpha_ion_raw_max_z",
-    "alpha_ion_corr_max_z",
-    "alpha_ion_applied_max_z",
-    "alpha_ib_max_z",
-    "alpha_total_max_z",
-    "delta_n_plasma_min_z",
-    "delta_n_plasma_applied_min_z",
-    "dphi_kerr_max_abs_z",
-    "dphi_elec_max_abs_z",
-    "dphi_rot_max_abs_z",
-    "dphi_plasma_max_abs_z",
-    "dphi_elec_applied_max_abs_z",
-    "dphi_rot_applied_max_abs_z",
-    "dphi_plasma_raw_max_abs_z",
+        "use": "full-job walltiÛÆm¢Gß≤⁄Óù∆≠y”ma_raw_max_abs_z",
     "dphi_plasma_applied_max_abs_z",
     "E_dep_total_z",
     "E_dep_cumulative_z",
@@ -423,6 +361,9 @@ Z_HISTORY_TRACE_KEYS = (
     "total_walltime_step_s",
     "gpu_allocated_step_bytes",
     "gpu_reserved_step_bytes",
+    "raman_energy_projection_iterations",
+    "raman_energy_projection_scale_deviation",
+    "raman_energy_projection_initial_residual",
 )
 
 

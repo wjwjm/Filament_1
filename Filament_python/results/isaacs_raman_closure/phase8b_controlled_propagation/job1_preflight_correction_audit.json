@@ -1,0 +1,40 @@
+{
+  "schema": "khz_filament.phase8b_r.job1_preflight_correction_audit.v1",
+  "status": "passed",
+  "false_positive_identified": {
+    "original_on_smoke_job_id": "179288",
+    "original_raman_step_closure_p99": 0.01772617394104599,
+    "original_gate_omitted_p99": true
+  },
+  "investigation": {
+    "stable_difference_smoke_job_id": "179619",
+    "stable_difference_raman_step_closure_p99": 0.004451706493273376,
+    "corrected_smoke_job_id": "179623",
+    "corrected_raman_step_closure_p99": 0.00013349909517273764,
+    "corrected_raman_cumulative_closure_final": 2.7029900593333878e-05,
+    "legacy_alpha_R_max": 0.0,
+    "projection_scale_deviation_max": 6.501243987599992e-11
+  },
+  "gate_correction": {
+    "raman_energy_accounting_gate_requires_p99": true,
+    "full_job_submission_gate_transitively_requires_p99": true,
+    "p99_threshold": 0.001,
+    "cumulative_threshold": 0.005
+  },
+  "configuration_summary_correction": {
+    "raman.absorption": false,
+    "propagation.use_raman_absorption": false,
+    "effective_absorption": "off",
+    "legacy_alpha_R_max": 0.0
+  },
+  "execution_scope": {
+    "short_smoke_jobs_used_as_evidence": [
+      "179288",
+      "179619",
+      "179623"
+    ],
+    "new_full_slurm_jobs_submitted": 0,
+    "production_propagation_executed": false,
+    "phase8b_r_task_r2_executed": false
+  }
+}

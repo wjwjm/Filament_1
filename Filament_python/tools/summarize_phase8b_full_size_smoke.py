@@ -30,6 +30,8 @@ def summarize(on: dict, off: dict, on_audit: dict, off_audit: dict, *, scheduler
         "applied_rhs_nonzero": float(on.get("raman_rhs_l2_norm_max", 0.0)) > 0.0,
         "target_loss_nonzero": float(on.get("raman_target_loss_total_J", 0.0)) > 0.0,
         "actual_loss_nonzero": float(on.get("raman_actual_loss_total_J", 0.0)) > 0.0,
+        "step_closure_p99_below_contract": float(on.get("raman_step_closure_p99", math.inf)) < 1e-3,
+        "cumulative_closure_below_contract": float(on.get("raman_cumulative_closure_final", math.inf)) < 5e-3,
         "legacy_alpha_zero": float(on.get("legacy_alpha_R_max", math.inf)) == 0.0,
         "two_convolutions_per_operator_substep": float(on.get("convolution_count_per_operator_substep", math.nan)) == 2.0,
         "two_strang_substeps_per_z_step": float(on.get("operator_substeps_per_z_step", math.nan)) == 2.0,

@@ -48,6 +48,8 @@ def test_smoke_tool_records_on_off_physical_contract_gates():
         "energy_closure_finite",
         "target_loss_nonzero",
         "actual_loss_expected",
+        "step_closure_p99_below_contract",
+        "cumulative_closure_below_contract",
         "applied_rhs_expected",
         "convolution_reuse",
     ):

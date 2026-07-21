@@ -1,6 +1,6 @@
 {
-  "source_config": "/data/run01/scvi806/user_Wangjimin/phase8b_r1_job1_audit_v2_20260721T150200/source/Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
-  "smoke_config": "/data/run01/scvi806/user_Wangjimin/phase8b_r1_job1_audit_v2_20260721T150200/cases/on/phase8b_full_size_smoke_on.json",
+  "source_config": "/data/run01/scvi806/user_Wangjimin/phase8b_r1_job1_audit_20260721T144656/source/Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+  "smoke_config": "/data/run01/scvi806/user_Wangjimin/phase8b_r1_job1_audit_20260721T144656/cases/on/phase8b_full_size_smoke_on.json",
   "authorized_smoke_overrides": {
     "propagation.z_max": 0.002,
     "propagation.auto_substep": false,

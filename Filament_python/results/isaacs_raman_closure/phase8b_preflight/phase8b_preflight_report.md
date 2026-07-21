@@ -3,21 +3,24 @@
 ## Decision
 
 - `full_job_submission_gate`: **passed**
-- Phase 8B-R executed: **false**
+- Phase 8B-R Task R1 prepared: **true**
+- Phase 8B-R Task R2 executed: **false**
 - Full 1.3 m Slurm jobs submitted: **0**
 - GitHub Actions CI evidence: **unavailable**
-- Required next action: merge this preflight, then obtain explicit user approval before preparing Job 1.
+- Required next action: obtain explicit user approval for Task R2 before submitting full Job 1.
 
 ## Full-grid smoke evidence
 
-- Short smoke Job IDs: 179288, 179311 (both `COMPLETED 0:0`).
+- Short smoke Job IDs: 179623, 179311 (both `COMPLETED 0:0`).
 - GPU: NVIDIA GeForce RTX 5090; grid: 512x512x384; 20 z steps per case.
 - Peak reserved GPU memory: 83.783% (threshold <85%).
-- Mean ON step time: 1.022286 s; projected 15000-step runtime: 4.260 h.
-- Requested 8 h fraction: 53.244%; slowdown vs legacy: 2.048x.
+- Mean ON step time: 0.974969 s; projected 15000-step runtime: 4.062 h.
+- Requested 8 h fraction: 50.780%; slowdown vs legacy: 1.953x.
 - ON convolution count: 2 per Heun application and 4 per Strang z step.
 - OFF raw diagnostic convolution count: 1 per z step.
-- ON Raman cumulative closure residual: 0.000360067.
+- ON Raman per-step closure p99: 0.000133499 (threshold <1e-3).
+- ON Raman cumulative closure residual: 2.70299e-05 (threshold <5e-3).
+- Legacy Raman alpha maximum: 0.
 
 ## Combined nonlinear split
 

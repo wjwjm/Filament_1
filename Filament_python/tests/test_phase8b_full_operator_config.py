@@ -31,6 +31,7 @@ def _strict(enabled=True):
             "operator_convention": "isaacs_eq27",
             "iir_sampling": "exact_piecewise_linear",
             "operator_integrator": "heun",
+            "absorption": False,
         },
     }
 
@@ -89,3 +90,5 @@ def test_phase8b_configs_are_baseline_locked_and_single_factor(tmp_path):
     off = normalize_config(json.loads((config_dir / "120fs_talebpour_isaacs_full_operator_feedback_off.json").read_text()))
     assert on["propagation"]["use_raman_full_operator"] is True
     assert off["propagation"]["use_raman_full_operator"] is False
+    assert on["raman"]["absorption"] is False
+    assert off["raman"]["absorption"] is False

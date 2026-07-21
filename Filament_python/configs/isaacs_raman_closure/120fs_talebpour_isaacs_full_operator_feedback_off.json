@@ -130,6 +130,7 @@
     "method": "iir",
     "chunk_pixels": 65536,
     "diagnose": true,
+    "absorption": false,
     "omega_R": 16000000000000.0,
     "Gamma_R": 13000000000000.0,
     "n_R": 2.3e-23,

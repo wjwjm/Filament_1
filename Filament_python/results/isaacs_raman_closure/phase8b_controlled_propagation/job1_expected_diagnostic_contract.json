@@ -1,15 +1,12 @@
 {
-  "schema": "khz_filament.phase8b.expected_diagnostic_contract.v1",
-  "phase": "Phase 8B corrected Isaacs Raman controlled propagation",
-  "source_configs": {
-    "full_operator_on": {
-      "path": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
-      "sha256": "80ddfbba85460dc4dc1f2e3fe10a1e858d08755eec44324a44266e3026d64a8f"
-    },
-    "full_operator_feedback_off": {
-      "path": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_feedback_off.json",
-      "sha256": "a531d3bad0ab7b4919d98d2312c752ce3934182b568221b7efbacbeb52a27d7f"
-    }
+  "schema": "khz_filament.phase8b_r.job1_expected_diagnostic_contract.v1",
+  "source_contract": {
+    "path": "results/isaacs_raman_closure/phase8b_preflight/phase8b_expected_diagnostic_contract.json",
+    "sha256": "de5391c6626afa53d2a10d98ab23365b789b91c97bcae2beb514df49255484d9"
+  },
+  "source_config": {
+    "path": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+    "sha256": "80ddfbba85460dc4dc1f2e3fe10a1e858d08755eec44324a44266e3026d64a8f"
   },
   "fixed_coordinates": {
     "z_final_m": 1.3,
@@ -163,16 +160,6 @@
     "raman_convolutions_per_strang_z_step": 4,
     "delta_n_rot_applied_semantics": "not_applicable_full_complex_operator"
   },
-  "job2_full_operator_feedback_off": {
-    "raman_operator_feedback_enabled": false,
-    "raman_operator_applied_all_steps": false,
-    "raman_IR_max_raw_max_gt": 0.0,
-    "raman_target_loss_cumulative_final_gt_J": 0.0,
-    "raman_rhs_l2_norm_max_abs_le": 0.0,
-    "raman_actual_loss_cumulative_final_abs_le_J": 1e-15,
-    "raman_operator_substeps_per_z_step": 0,
-    "raw_diagnostic_convolutions_per_z_step": 1
-  },
   "raman_energy_contract": {
     "per_step_formula": "abs(E_R_actual-E_R_target) / max(E_R_target, U_before*1e-15)",
     "per_step_p99_lt": 0.001,
@@ -188,10 +175,12 @@
       1.05
     ]
   },
-  "submission_policy": {
+  "execution_policy": {
     "job1_must_pass_before_job2_submission": true,
     "full_jobs_must_be_serial": true,
     "maximum_full_jobs": 2,
-    "phase8b_r_requires_separate_user_approval": true
+    "phase8b_r_requires_separate_user_approval": true,
+    "full_job_submission_authorized_now": false,
+    "phase8b_r_task_r2_user_approval_required": true
   }
 }
