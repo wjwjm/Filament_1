@@ -9,7 +9,11 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from KHz_filament.config_normalize import normalize_config
 from KHz_filament.constants import c0, eps0
-from KHz_filament.raman import apply_isaacs_raman_operator_step, isaacs_raman_field_rhs
+from KHz_filament.raman import (
+    apply_isaacs_raman_operator_step,
+    isaacs_raman_field_rhs,
+    raman_convolve_intensity,
+)
 
 
 def _strict(mode="full_isaacs_eq27"):
@@ -47,3 +51,48 @@ def test_full_operator_rhs_and_heun_are_finite_and_recompute_stage():
     heun = np.asarray(apply_isaacs_raman_operator_step(field, 2e-5, integrator="heun", **args))
     assert np.isfinite(rhs).all() and np.isfinite(heun).all()
     assert not np.array_equal(euler, heun)
+
+
+def test_full_product_derivative_includes_ir_times_field_derivative():
+    nt, dt = 2048, 0.5e-15
+    t = (np.arange(nt) - nt // 2) * dt
+    omega = 2 * np.pi * np.fft.fftfreq(nt, dt)
+    intensity = 5e17 * np.exp(-4 * np.log(2) * (t / 120e-15) ** 2)
+    field = (
+        np.sqrt(2 * intensity / (eps0 * c0 * 1.00027))
+        * np.exp(1j * 2.5e27 * t * t)
+    ).astype(complex)[:, None, None]
+    response = np.asarray(
+        raman_convolve_intensity(
+            intensity[:, None, None],
+            method="iir",
+            dt=dt,
+            omega_R=1.6e13,
+            Gamma_R=1.3e13,
+            iir_sampling="exact_piecewise_linear",
+        )
+    )
+    product = response * field
+    d_product = np.fft.ifft(
+        (1j * omega)[:, None, None] * np.fft.fft(product, axis=0), axis=0
+    )
+    d_field = np.fft.ifft(
+        (1j * omega)[:, None, None] * np.fft.fft(field, axis=0), axis=0
+    )
+    prefactor = (2 * np.pi / 800e-9) * 2.3e-23
+    explicit = 1j * prefactor * product - (prefactor / (2*np.pi*c0/800e-9)) * d_product
+    rhs = np.asarray(
+        isaacs_raman_field_rhs(
+            field,
+            Omega=omega,
+            dt=dt,
+            omega0=2*np.pi*c0/800e-9,
+            n0=1.00027,
+            n_R=2.3e-23,
+            omega_R=1.6e13,
+            Gamma_R=1.3e13,
+        )
+    )
+    omitted_ir_dfield = explicit + (prefactor / (2*np.pi*c0/800e-9)) * response * d_field
+    assert np.linalg.norm(rhs - explicit) / np.linalg.norm(explicit) < 1e-12
+    assert np.linalg.norm(rhs - omitted_ir_dfield) / np.linalg.norm(rhs) > 1e-3

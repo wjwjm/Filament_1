@@ -9,7 +9,12 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-from finalize_isaacs_raman_closure import MetricSchemaError, read_metric, threshold_gate
+from finalize_isaacs_raman_closure import (
+    MetricSchemaError,
+    build_numeric_gates,
+    read_metric,
+    threshold_gate,
+)
 
 
 def test_threshold_gate_fails_large_error():
@@ -36,3 +41,22 @@ def test_incorrect_column_name_is_rejected(tmp_path):
         writer.writeheader(); writer.writerow({"actual_error": 0.0})
     with pytest.raises(MetricSchemaError, match="missing required columns"):
         read_metric(path, "wrong_error")
+
+
+def test_fft_metric_is_not_reused_as_eq10_eq11_metric(tmp_path):
+    with (tmp_path / "raman_fft_direct_comparison.csv").open(
+        "w", newline="", encoding="utf-8"
+    ) as handle:
+        writer = csv.DictWriter(handle, fieldnames=["dtype", "relative_linf_error"])
+        writer.writeheader()
+        writer.writerow({"dtype": "float64", "relative_linf_error": 0.049})
+    with (tmp_path / "eq10_eq11_validation.csv").open(
+        "w", newline="", encoding="utf-8"
+    ) as handle:
+        writer = csv.DictWriter(handle, fieldnames=["direct_vs_eq11_error"])
+        writer.writeheader()
+        writer.writerow({"direct_vs_eq11_error": 0.005})
+
+    gates = build_numeric_gates(tmp_path)
+    assert gates["fft_linear_convolution_gate"]["status"] == "failed"
+    assert gates["eq11_analytic_recovery_gate"]["status"] == "passed"

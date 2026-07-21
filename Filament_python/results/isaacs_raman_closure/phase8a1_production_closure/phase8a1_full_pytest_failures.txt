@@ -1,0 +1,156 @@
+﻿.............................................................F..F....... [ 57%]
+......................................................                   [100%]
+================================== FAILURES ===================================
+____________ test_archived_fig5b_digitization_regression_is_locked ____________
+
+    def test_archived_fig5b_digitization_regression_is_locked() -> None:
+        result = ROOT / "results" / "density_translation_width" / "density_translation_width_20260715_002"
+>       metadata = json.loads((result / "paper_digitization_metadata.json").read_text(encoding="utf-8"))
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Filament_python\tests\test_paper_curve_digitization.py:41: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\wangj\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = WindowsPath('C:/Filament_1/Filament_python/results/density_translation_width/density_translation_width_20260715_002/paper_digitization_metadata.json')
+mode = 'r', buffering = -1, encoding = 'utf-8', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Filament_1\\Filament_python\\results\\density_translation_width\\density_translation_width_20260715_002\\paper_digitization_metadata.json'
+
+C:\Users\wangj\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\pathlib.py:1013: FileNotFoundError
+_____________ test_corrected_comparison_writes_required_artifacts _____________
+
+tmp_path = WindowsPath('C:/Users/wangj/AppData/Local/Temp/pytest-of-wangj/pytest-15/test_corrected_comparison_writ0')
+
+    def test_corrected_comparison_writes_required_artifacts(tmp_path):
+     r=ROOT/"results";out=tmp_path/"out"
+     cmd=[sys.executable,str(ROOT/"tools"/"compare_raman_phase_causality.py"),"--full",str(r/"ionization_model_propagation"/"talebpour_120fs_20260717T114321Z"/"baseline_axial_diagnostics.csv"),"--full-raman",str(r/"raman_phase_causality"/"existing_feedback_inputs_20260718T120000Z"/"talebpour_120fs_raman_extras.csv"),"--raman-off",str(r/"raman_phase_causality"/"raman_phase_off_120fs_20260718T201000Z"/"raman_phase_off_axial_diagnostics.csv"),"--raman-off-raman",str(r/"raman_phase_causality"/"raman_phase_off_120fs_20260718T201000Z"/"raman_phase_off_raman_extras.csv"),"--pycap",str(r/"density_translation_width"/"density_translation_width_20260715_002"/"paper_pycap_120fs.csv"),"--full-summary",str(r/"ionization_model_propagation"/"talebpour_120fs_20260717T114321Z"/"diagnostic_summary.json"),"--raman-off-summary",str(r/"raman_phase_causality"/"raman_phase_off_120fs_20260718T201000Z"/"diagnostic_summary.json"),"--full-config",str(ROOT/"configs"/"ionization_model_propagation"/"120fs_talebpour_full_model.json"),"--raman-off-config",str(ROOT/"configs"/"raman_phase_causality"/"120fs_talebpour_full_model_raman_phase_off.json"),"--out-dir",str(out)]
+>    subprocess.run(cmd,check=True,capture_output=True,text=True)
+
+Filament_python\tests\test_phase6_output_completeness.py:7: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+input = None, capture_output = True, timeout = None, check = True
+popenargs = (['C:\\Filament_1\\.venv\\Scripts\\python.exe', 'C:\\Filament_1\\Filament_python\\tools\\compare_raman_phase_causality...n\\results\\raman_phase_causality\\existing_feedback_inputs_20260718T120000Z\\talebpour_120fs_raman_extras.csv', ...],)
+kwargs = {'text': True, 'stdout': -1, 'stderr': -1}
+
+    def run(*popenargs,
+            input=None, capture_output=False, timeout=None, check=False, **kwargs):
+        """Run command with arguments and return a CompletedProcess instance.
+    
+        The returned instance will have attributes args, returncode, stdout and
+        stderr. By default, stdout and stderr are not captured, and those attributes
+        will be None. Pass stdout=PIPE and/or stderr=PIPE in order to capture them,
+        or pass capture_output=True to capture both.
+    
+        If check is True and the exit code was non-zero, it raises a
+        CalledProcessError. The CalledProcessError object will have the return code
+        in the returncode attribute, and output & stderr attributes if those streams
+        were captured.
+    
+        If timeout (seconds) is given and the process takes too long,
+         a TimeoutExpired exception will be raised.
+    
+        There is an optional argument "input", allowing you to
+        pass bytes or a string to the subprocess's stdin.  If you use this argument
+        you may not also use the Popen constructor's "stdin" argument, as
+        it will be used internally.
+    
+        By default, all communication is in bytes, and therefore any "input" should
+        be bytes, and the stdout and stderr will be bytes. If in text mode, any
+        "input" should be a string, and stdout and stderr will be strings decoded
+        according to locale encoding, or by "encoding" if set. Text mode is
+        triggered by setting any of text, encoding, errors or universal_newlines.
+    
+        The other arguments are the same as for the Popen constructor.
+        """
+        if input is not None:
+            if kwargs.get('stdin') is not None:
+                raise ValueError('stdin and input arguments may not both be used.')
+            kwargs['stdin'] = PIPE
+    
+        if capture_output:
+            if kwargs.get('stdout') is not None or kwargs.get('stderr') is not None:
+                raise ValueError('stdout and stderr arguments may not be used '
+                                 'with capture_output.')
+            kwargs['stdout'] = PIPE
+            kwargs['stderr'] = PIPE
+    
+        with Popen(*popenargs, **kwargs) as process:
+            try:
+                stdout, stderr = process.communicate(input, timeout=timeout)
+            except TimeoutExpired as exc:
+                process.kill()
+                if _mswindows:
+                    # Windows accumulates the output in a single blocking
+                    # read() call run on child threads, with the timeout
+                    # being done in a join() on those threads.  communicate()
+                    # _after_ kill() is required to collect that and add it
+                    # to the exception.
+                    exc.stdout, exc.stderr = process.communicate()
+                else:
+                    # POSIX _communicate already populated the output so
+                    # far into the TimeoutExpired exception.
+                    process.wait()
+                raise
+            except:  # Including KeyboardInterrupt, communicate handled that.
+                process.kill()
+                # We don't call process.wait() as .__exit__ does that for us.
+                raise
+            retcode = process.poll()
+            if check and retcode:
+>               raise CalledProcessError(retcode, process.args,
+                                         output=stdout, stderr=stderr)
+E               subprocess.CalledProcessError: Command '['C:\\Filament_1\\.venv\\Scripts\\python.exe', 'C:\\Filament_1\\Filament_python\\tools\\compare_raman_phase_causality.py', '--full', 'C:\\Filament_1\\Filament_python\\results\\ionization_model_propagation\\talebpour_120fs_20260717T114321Z\\baseline_axial_diagnostics.csv', '--full-raman', 'C:\\Filament_1\\Filament_python\\results\\raman_phase_causality\\existing_feedback_inputs_20260718T120000Z\\talebpour_120fs_raman_extras.csv', '--raman-off', 'C:\\Filament_1\\Filament_python\\results\\raman_phase_causality\\raman_phase_off_120fs_20260718T201000Z\\raman_phase_off_axial_diagnostics.csv', '--raman-off-raman', 'C:\\Filament_1\\Filament_python\\results\\raman_phase_causality\\raman_phase_off_120fs_20260718T201000Z\\raman_phase_off_raman_extras.csv', '--pycap', 'C:\\Filament_1\\Filament_python\\results\\density_translation_width\\density_translation_width_20260715_002\\paper_pycap_120fs.csv', '--full-summary', 'C:\\Filament_1\\Filament_python\\results\\ionization_model_propagation\\talebpour_120fs_20260717T114321Z\\diagnostic_summary.json', '--raman-off-summary', 'C:\\Filament_1\\Filament_python\\results\\raman_phase_causality\\raman_phase_off_120fs_20260718T201000Z\\diagnostic_summary.json', '--full-config', 'C:\\Filament_1\\Filament_python\\configs\\ionization_model_propagation\\120fs_talebpour_full_model.json', '--raman-off-config', 'C:\\Filament_1\\Filament_python\\configs\\raman_phase_causality\\120fs_talebpour_full_model_raman_phase_off.json', '--out-dir', 'C:\\Users\\wangj\\AppData\\Local\\Temp\\pytest-of-wangj\\pytest-15\\test_corrected_comparison_writ0\\out']' returned non-zero exit status 1.
+
+C:\Users\wangj\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\subprocess.py:571: CalledProcessError
+=========================== short test summary info ===========================
+FAILED Filament_python/tests/test_paper_curve_digitization.py::test_archived_fig5b_digitization_regression_is_locked
+FAILED Filament_python/tests/test_phase6_output_completeness.py::test_corrected_comparison_writes_required_artifacts
+2 failed, 124 passed in 57.28s
+
+--- Phase 8A.1 failure investigation and resolution (July 21, 2026) ---
+
+Failure tests:
+- test_archived_fig5b_digitization_regression_is_locked
+- test_corrected_comparison_writes_required_artifacts
+
+Exact missing path root:
+C:\Filament_1\Filament_python\results\density_translation_width\density_translation_width_20260715_002
+
+Additional fixture roots required by the second test:
+- Filament_python/results/ionization_model_propagation/talebpour_120fs_20260717T114321Z
+- Filament_python/results/raman_phase_causality/existing_feedback_inputs_20260718T120000Z
+- Filament_python/results/raman_phase_causality/raman_phase_off_120fs_20260718T201000Z
+
+Audit findings:
+- All required files exist as tracked paths in freshly fetched origin/main.
+- The local worktree was run from the correct repository root.
+- The files are not excluded by .gitignore.
+- No case mismatch was present.
+- The files are committed historical fixtures, not uncommitted generated artifacts.
+- Local non-cone sparse-checkout rules included only Filament_python/results/isaacs_raman_closure and therefore omitted the fixtures.
+
+Resolution:
+The local sparse-checkout specification was extended only for the four tracked fixture roots above. No historical result was regenerated or modified.
+
+Focused verification:
+5 passed in 1.10s
+
+Final full-suite verification after adding Phase 8A.1 regressions and making the
+historical Phase 8A artifact test read-only:
+131 passed in 55.52s
+
