@@ -1,0 +1,102 @@
+{
+  "schema": "khz_filament.phase8b_r.job1_signed_energy_budget.v1",
+  "sign_convention": {
+    "field_loss_positive": "U_start - U_end > 0 means optical field energy lost in the accepted step",
+    "accounted_energy_positive": "positive deposited energy is transferred from the field to matter",
+    "signed_residual": "field_loss - total_accounted; positive means an unaccounted field-energy loss",
+    "all_histories": "step-end aligned; step channels correspond to the accepted step ending at z_m",
+    "cumulative_denominator": "initial field energy U0 reconstructed as U_z[0] - U_step_change_z[0]",
+    "step_denominator": "max(abs(field_loss_step), abs(total_accounted_step), U0*1e-15)"
+  },
+  "units": {
+    "energy_channels": "J",
+    "z_m": "m",
+    "relative_closure": "1"
+  },
+  "initial_field_energy_J": 0.0021715129259973764,
+  "ib_channel": "zero because alpha_ib_max_z is exactly zero",
+  "legacy_alpha_channel": "zero because alpha_R_applied_max_z is exactly zero",
+  "boundary_filter_numerical_channel": "not independently recorded; reported only as the signed unaccounted residual",
+  "final": {
+    "field_loss_J": 0.00013682316057384014,
+    "total_accounted_J": 0.00010603867121972144,
+    "raman_target_J": 3.9630871469853446e-05,
+    "raman_actual_J": 3.9630784158362076e-05,
+    "signed_residual_J": 3.0784489354118705e-05,
+    "relative_closure": 0.014176516743495496
+  },
+  "near_focus": {
+    "max_relative_closure": 0.012044126022869913,
+    "z_at_max_m": 1.0499500036239624
+  },
+  "post_focus_from_near_focus_max": {
+    "relative_closure_change": 0.002132390720625583,
+    "percentage_point_change": 0.21323907206255832,
+    "field_loss_increment_J": 1.337612047791481e-05,
+    "accounted_increment_J": 8.745606464799494e-06,
+    "raman_actual_increment_J": 8.00330235506408e-06
+  },
+  "first_relative_closure_above_1_percent": {
+    "z_m": 0.9285500049591064,
+    "relative_closure": 0.010000815411699277
+  },
+  "step_residual_statistics": {
+    "median_abs_relative": 0.5702628853556875,
+    "p95_abs_relative": 0.9392240781133825,
+    "p99_abs_relative": 0.9495477432554419,
+    "max_abs_relative": 0.9575905616466815,
+    "z_at_max_m": 0.027699999511241913,
+    "signed_residual_J_at_max": 2.898433548725876e-09
+  },
+  "stored_channel_consistency": {
+    "max_total_step_mismatch_J": 7.105427357601002e-15,
+    "max_total_cumulative_mismatch_J": 3.64652550505478e-12
+  },
+  "segments": [
+    {
+      "segment": "pre_focus",
+      "z_start_m": 9.999999747378752e-05,
+      "z_end_m": 0.8499000072479248,
+      "records": 8499,
+      "field_loss_increment_J": 6.954045966267586e-05,
+      "ionization_plus_ib_increment_J": 3.463174360911318e-05,
+      "raman_actual_increment_J": 1.619077388112511e-05,
+      "raman_target_increment_J": 1.6190754271311336e-05,
+      "total_accounted_increment_J": 5.082251750562761e-05,
+      "unaccounted_boundary_filter_or_numerical_increment_J": 1.871794215704825e-05,
+      "closure_abs_start": 1.0164329484886254e-06,
+      "closure_abs_end": 0.008619770482246596,
+      "closure_abs_max": 0.008619770482246596
+    },
+    {
+      "segment": "near_focus",
+      "z_start_m": 0.8500000238418579,
+      "z_end_m": 1.0499500036239624,
+      "records": 4000,
+      "field_loss_increment_J": 5.3906580433249474e-05,
+      "ionization_plus_ib_increment_J": 3.1033835168204314e-05,
+      "raman_actual_increment_J": 1.543670891146487e-05,
+      "raman_target_increment_J": 1.5436762542675453e-05,
+      "total_accounted_increment_J": 4.647054403028594e-05,
+      "unaccounted_boundary_filter_or_numerical_increment_J": 7.436036402963531e-06,
+      "closure_abs_start": 0.008620593064315021,
+      "closure_abs_end": 0.012044126022869913,
+      "closure_abs_max": 0.012044126022869913
+    },
+    {
+      "segment": "post_focus",
+      "z_start_m": 1.0500500202178955,
+      "z_end_m": 1.2999999523162842,
+      "records": 2501,
+      "field_loss_increment_J": 1.337612047791481e-05,
+      "ionization_plus_ib_increment_J": 7.423089586084536e-07,
+      "raman_actual_increment_J": 8.003300503878208e-06,
+      "raman_target_increment_J": 8.003355449037741e-06,
+      "total_accounted_increment_J": 8.745609469062998e-06,
+      "unaccounted_boundary_filter_or_numerical_increment_J": 4.630511008851812e-06,
+      "closure_abs_start": 0.012044926825779704,
+      "closure_abs_end": 0.014176516743495496,
+      "closure_abs_max": 0.014176516743495496
+    }
+  ]
+}
