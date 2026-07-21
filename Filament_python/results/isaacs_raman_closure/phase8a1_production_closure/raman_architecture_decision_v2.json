@@ -1,0 +1,18 @@
+{
+  "selected_architecture": "ready_full_operator",
+  "legacy_production_split_admissible": false,
+  "failed_split_cases": [
+    "40fs_tl",
+    "120fs_positive_chirp",
+    "120fs_negative_chirp"
+  ],
+  "full_operator_reference_status": "passed",
+  "energy_closure_status": {
+    "local": "passed",
+    "global": "passed",
+    "dz": "passed"
+  },
+  "cross_cutting_electronic_kerr_operator_issue": "recorded_only_not_modified",
+  "phase8b_executed": false,
+  "new_slurm_jobs_submitted": 0
+}

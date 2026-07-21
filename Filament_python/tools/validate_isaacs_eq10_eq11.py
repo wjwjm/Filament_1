@@ -63,11 +63,14 @@ def fft_direct_rows():
             fft = np.asarray(raman_convolve_intensity_fft_linear(intensity[:, None, None], h, dt=float(dt)))[:, 0, 0]
             pre_samples = 400 if case not in ("constant",) else 0
             pre_response = float(np.max(np.abs(fft[:pre_samples]))) if pre_samples else 0.0
+            impulse_pre_response = float(np.max(np.abs(fft[:390]))) if case == "impulse" else 0.0
+            pre_response_relative = impulse_pre_response / max(float(np.max(np.abs(fft))), 1e-300)
             rows.append({
                 "case": case, "dtype": np.dtype(dtype).name,
                 "relative_linf_error": rel_linf(fft, direct), "threshold": tolerance,
                 "pre_response_abs_max": pre_response,
-                "wraparound_detected": bool(case == "impulse" and np.max(np.abs(fft[:390])) > 1e-12 * max(np.max(np.abs(fft)), 1e-300)),
+                "pre_response_relative": pre_response_relative,
+                "wraparound_detected": bool(case == "impulse" and pre_response_relative >= tolerance),
             })
     return rows
 

@@ -152,5 +152,5 @@ Focused verification:
 
 Final full-suite verification after adding Phase 8A.1 regressions and making the
 historical Phase 8A artifact test read-only:
-131 passed in 55.52s
+132 passed in 59.09s
 

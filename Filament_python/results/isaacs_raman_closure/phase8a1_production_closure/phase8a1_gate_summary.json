@@ -1,0 +1,373 @@
+{
+  "source_equation_mapping_gate": {
+    "status": "passed",
+    "evidence": "../phase8a_static_closure/isaacs_equation_code_mapping.md",
+    "numerical_result": {
+      "checks": {
+        "artifact_present": true,
+        "eq7_to_eq12": true,
+        "eq27": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "Eqs. (7)-(12) and (27) explicitly mapped",
+    "comparison_operator": "all",
+    "physical_impact": "paper/code semantic traceability",
+    "production_impact": "defines the permitted rotational model boundary",
+    "required_action": "restore the equation mapping if failed"
+  },
+  "parameter_boundary_gate": {
+    "status": "passed",
+    "evidence": "../phase8a_static_closure/isaacs_parameter_boundary.json",
+    "numerical_result": {
+      "checks": {
+        "artifact_valid": true,
+        "n2_fixed": true,
+        "n_R_fixed": true,
+        "omega_R_fixed": true,
+        "Gamma_R_fixed": true,
+        "independent_coefficients": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "all locked Isaacs values and semantics exact",
+    "comparison_operator": "all",
+    "physical_impact": "prevents Raman parameter substitution or double weighting",
+    "production_impact": "locks the opt-in candidate coefficients",
+    "required_action": "restore the locked Phase 8A parameter boundary"
+  },
+  "configuration_ambiguity_gate": {
+    "status": "passed",
+    "evidence": "configs\\isaacs_raman_closure\\120fs_talebpour_isaacs_raman_candidate.json",
+    "numerical_result": {
+      "checks": {
+        "config_valid": true,
+        "strict_model": true,
+        "forbidden_omitted_or_null": true,
+        "absorption_disabled": true,
+        "strict_convention": true,
+        "full_operator_opt_in": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "strict Isaacs fields unambiguous and legacy absorption disabled",
+    "comparison_operator": "all",
+    "physical_impact": "prevents legacy fallback and energy double counting",
+    "production_impact": "candidate remains explicit opt-in",
+    "required_action": "repair strict candidate configuration"
+  },
+  "gate_generator_integrity_gate": {
+    "status": "passed",
+    "evidence": "gate_computation_correction.md and test_isaacs_gate_computation.py",
+    "numerical_result": {
+      "checks": {
+        "0.049_gt_1e-10_fails": true,
+        "0.005_lt_0.01_passes": true,
+        "nan_is_inconclusive": true,
+        "missing_file_is_inconclusive": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "all threshold/schema invariants true",
+    "comparison_operator": "all",
+    "physical_impact": "prevents false physical admission",
+    "production_impact": "all Phase 8A.1 gate states",
+    "required_action": "fix gate computation before using any admission result"
+  },
+  "time_derivative_sign_gate": {
+    "status": "passed",
+    "evidence": "time_derivative_convention.json; time_derivative_validation.csv",
+    "numerical_result": {
+      "checks": {
+        "json_valid": true,
+        "csv_valid": true,
+        "fft_sign": true,
+        "eq27_multiplier": true,
+        "positive_and_negative": true,
+        "analytic_fft_error": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "F[d_tau f]=+i Omega F[f], both frequency signs, error<1e-10",
+    "comparison_operator": "all",
+    "physical_impact": "fixes the Eq.27 shock/product-derivative sign",
+    "production_impact": "strict Isaacs operator convention",
+    "required_action": "repair derivative convention if failed"
+  },
+  "tdiff_fft_consistency_gate": {
+    "status": "passed",
+    "evidence": "time_derivative_convention.json; time_derivative_validation.csv",
+    "numerical_result": {
+      "checks": {
+        "mutually_consistent": true,
+        "tdiff_refined_error": true,
+        "operator_difference": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "tdiff analytic error<1e-4 and tdiff/FFT operator error<1e-4",
+    "comparison_operator": "all",
+    "physical_impact": "ensures equivalent strict derivative implementations",
+    "production_impact": "CPU/GPU-compatible operator paths",
+    "required_action": "repair the inconsistent derivative path"
+  },
+  "kernel_normalization_gate": {
+    "status": "passed",
+    "evidence": "Isaacs Eq. (9) analytic sin-exp integral",
+    "numerical_result": {
+      "value": 0.0,
+      "comparison_result": true
+    },
+    "threshold": 1e-15,
+    "comparison_operator": "le",
+    "physical_impact": "preserves unit-area delayed response",
+    "production_impact": "IIR, direct, and FFT Raman convolution scale",
+    "required_action": "repair the Eq.9 kernel normalization"
+  },
+  "fft_linear_convolution_gate": {
+    "status": "passed",
+    "evidence": "raman_fft_direct_comparison.csv; test_raman_fft_linear.py",
+    "numerical_result": {
+      "checks": {
+        "artifact_valid": true,
+        "float64": true,
+        "float32": true,
+        "no_wraparound": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "float64<1e-10; float32<1e-5; no wrap-around/pre-response",
+    "comparison_operator": "all",
+    "physical_impact": "linear causal convolution without circular contamination",
+    "production_impact": "strict FFT Raman path",
+    "required_action": "repair FFT convolution if failed"
+  },
+  "iir_convergence_gate": {
+    "status": "passed",
+    "evidence": "raman_iir_direct_convergence.csv",
+    "numerical_result": {
+      "checks": {
+        "artifact_valid": true,
+        "40fs_and_120fs_present": true,
+        "refined_error": true,
+        "peak_shift": true,
+        "monotonic_refinement": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "40/120 fs refined IIR/direct<1%, shift<=1 sample, decreasing with dt",
+    "comparison_operator": "all",
+    "physical_impact": "validates sampled oscillator response",
+    "production_impact": "strict full operator IIR response",
+    "required_action": "repair IIR sampling before propagation"
+  },
+  "eq10_signed_energy_gate": {
+    "status": "passed",
+    "evidence": "../phase8a_static_closure/eq10_signed_energy_validation.csv; raman.py",
+    "numerical_result": {
+      "checks": {
+        "artifact_valid": true,
+        "post_integral_sign": true,
+        "finite": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "q_R=max(-u_R,0) only after complete signed integral; residual<1e-12",
+    "comparison_operator": "all",
+    "physical_impact": "preserves signed rotational energy exchange",
+    "production_impact": "independent Eq.10 diagnostic",
+    "required_action": "remove any per-time clipping and regenerate evidence"
+  },
+  "eq11_analytic_recovery_gate": {
+    "status": "passed",
+    "evidence": "eq10_eq11_validation_v2.csv; eq10_eq11_convergence_v2.csv",
+    "numerical_result": {
+      "value": 0.003136771077875831,
+      "comparison_result": true,
+      "refined_dt_fs": 0.15625,
+      "boxcar_edge_method": "analytic_distributional_flux"
+    },
+    "threshold": 0.01,
+    "comparison_operator": "lt",
+    "physical_impact": "recovers the analytic boxcar Eq.11 attenuation",
+    "production_impact": "validates the signed Eq.10 energy diagnostic",
+    "required_action": "refine or repair Eq.10/Eq.11 integration"
+  },
+  "operator_prefactor_gate": {
+    "status": "passed",
+    "evidence": "isaacs_operator_prefactor_derivation.md; isaacs_operator_prefactor.json",
+    "numerical_result": {
+      "checks": {
+        "artifact_valid": true,
+        "n0_cancellation_recorded": true,
+        "field_mapping_recorded": true,
+        "intensity_mapping_recorded": true,
+        "selected_matches_reference": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "complete normalization mapping and selected/full prefactor error<1e-12",
+    "comparison_operator": "all",
+    "physical_impact": "sets the absolute Eq.27 rotational coupling strength",
+    "production_impact": "full_isaacs_eq27 field RHS",
+    "required_action": "resolve the paper-to-code prefactor mapping"
+  },
+  "production_split_comparison_gate": {
+    "status": "failed",
+    "evidence": "production_split_vs_full_operator.csv; production_operator_waveform_metrics.csv",
+    "numerical_result": {
+      "checks": {
+        "artifact_valid": true,
+        "40fs_tl": false,
+        "120fs_tl": true,
+        "120fs_positive_chirp": false,
+        "120fs_negative_chirp": false,
+        "120fs_tail": true,
+        "120fs_double": true
+      },
+      "comparison_result": false
+    },
+    "threshold": "TL source/update<1%; chirped/asymmetric<2%; observables<0.5%",
+    "comparison_operator": "all",
+    "physical_impact": "tests omitted product-derivative terms in the legacy split",
+    "production_impact": "determines whether split_energy_closed is admissible",
+    "required_action": "use full_isaacs_eq27 when failed"
+  },
+  "full_operator_reference_gate": {
+    "status": "passed",
+    "evidence": "independent raman_isaacs_reference.py comparison; test_isaacs_full_operator.py",
+    "numerical_result": {
+      "checks": {
+        "comparison_completed": true,
+        "finite": true,
+        "rhs_error": true,
+        "heun_step_error": true
+      },
+      "comparison_result": true,
+      "metrics": {
+        "max_rhs_relative_error": 4.743516664105255e-10,
+        "max_heun_step_relative_error": 2.430969602114687e-13,
+        "finite": true
+      }
+    },
+    "threshold": "FFT/direct RHS<1e-8 and Heun step<1e-10",
+    "comparison_operator": "all",
+    "physical_impact": "verifies the complete complex Eq.27 product operator",
+    "production_impact": "full_isaacs_eq27 candidate",
+    "required_action": "repair the full operator/reference mismatch"
+  },
+  "no_double_counting_gate": {
+    "status": "passed",
+    "evidence": "raman_global_energy_closure.csv; test_isaacs_full_operator.py",
+    "numerical_result": {
+      "checks": {
+        "strict_config_rejects_absorption": true,
+        "negative_control_detects_extra_loss": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "full operator has no legacy alpha_R; negative control loses extra energy",
+    "comparison_operator": "all",
+    "physical_impact": "prevents duplicate rotational energy transfer",
+    "production_impact": "strict full operator configuration",
+    "required_action": "disable/reject legacy Raman attenuation"
+  },
+  "local_energy_closure_gate": {
+    "status": "passed",
+    "evidence": "raman_local_energy_closure.csv",
+    "numerical_result": {
+      "value": 6.90179552489504e-08,
+      "comparison_result": true,
+      "finite_nonnegative_fields": true
+    },
+    "threshold": 1e-06,
+    "comparison_operator": "lt",
+    "physical_impact": "closes pixel-resolved Eq.10 energy exchange",
+    "production_impact": "nonuniform transverse Raman field",
+    "required_action": "repair local field-energy exchange"
+  },
+  "global_energy_closure_gate": {
+    "status": "passed",
+    "evidence": "raman_global_energy_closure.csv",
+    "numerical_result": {
+      "value": 1.8434472750831355e-08,
+      "comparison_result": true
+    },
+    "threshold": 1e-06,
+    "comparison_operator": "lt",
+    "physical_impact": "closes integrated Eq.10 energy exchange",
+    "production_impact": "Raman-only propagation energy accounting",
+    "required_action": "repair global field-energy exchange"
+  },
+  "dz_convergence_gate": {
+    "status": "passed",
+    "evidence": "raman_dz_convergence.csv; raman_energy_closure.png",
+    "numerical_result": {
+      "checks": {
+        "artifact_valid": true,
+        "order": true,
+        "closure_monotonic": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "estimated order>=1.5 and closure residual decreases under dz halving",
+    "comparison_operator": "all",
+    "physical_impact": "verifies controlled one-step convergence",
+    "production_impact": "candidate step-size refinement behavior",
+    "required_action": "repair or refine the full operator integrator"
+  },
+  "full_pytest_gate": {
+    "status": "passed",
+    "evidence": "phase8a1_full_pytest_failures.txt",
+    "numerical_result": {
+      "checks": {
+        "evidence_present": true,
+        "final_run_passed": true,
+        "historical_failures_resolved": true
+      },
+      "comparison_result": true,
+      "final_run": {
+        "passed": 132,
+        "seconds": 59.09
+      }
+    },
+    "threshold": "complete local pytest has zero failures",
+    "comparison_operator": "all",
+    "physical_impact": "guards all implemented physical and numerical contracts",
+    "production_impact": "blocks propagation when any local regression fails",
+    "required_action": "resolve every full-suite failure"
+  },
+  "propagation_admission_gate": {
+    "status": "passed",
+    "evidence": "aggregate Phase 8A.1 gates and selected architecture",
+    "numerical_result": {
+      "required_gates": {
+        "gate_generator_integrity_gate": "passed",
+        "source_equation_mapping_gate": "passed",
+        "parameter_boundary_gate": "passed",
+        "configuration_ambiguity_gate": "passed",
+        "time_derivative_sign_gate": "passed",
+        "tdiff_fft_consistency_gate": "passed",
+        "kernel_normalization_gate": "passed",
+        "fft_linear_convolution_gate": "passed",
+        "iir_convergence_gate": "passed",
+        "eq10_signed_energy_gate": "passed",
+        "eq11_analytic_recovery_gate": "passed",
+        "operator_prefactor_gate": "passed",
+        "no_double_counting_gate": "passed",
+        "local_energy_closure_gate": "passed",
+        "global_energy_closure_gate": "passed",
+        "dz_convergence_gate": "passed",
+        "full_pytest_gate": "passed"
+      },
+      "architecture_gate": "full_operator_reference_gate",
+      "selected_architecture": "ready_full_operator",
+      "comparison_result": true
+    },
+    "threshold": "all mandatory gates plus selected architecture gate passed",
+    "comparison_operator": "all",
+    "physical_impact": "controls whether a separately authorized Phase 8B may begin",
+    "production_impact": "audit conclusion only; no propagation is executed here",
+    "required_action": "request separate Phase 8B authorization"
+  }
+}

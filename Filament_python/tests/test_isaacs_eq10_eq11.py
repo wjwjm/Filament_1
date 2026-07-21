@@ -14,6 +14,10 @@ def test_corrected_fft_eq11_and_iir_evidence_are_separate(tmp_path):
     fft = list(csv.DictReader((out / "raman_fft_direct_comparison.csv").open()))
     assert max(float(row["relative_linf_error"]) for row in fft if row["dtype"] == "float64") < 1e-10
     assert max(float(row["relative_linf_error"]) for row in fft if row["dtype"] == "float32") < 1e-5
+    assert all(row["wraparound_detected"] == "False" for row in fft)
+    for row in fft:
+        if row["case"] == "impulse":
+            assert float(row["pre_response_relative"]) < float(row["threshold"])
     validation = list(csv.DictReader((out / "eq10_eq11_validation_v2.csv").open()))
     required = {"direct_vs_eq11_error", "fft_vs_eq11_error", "iir_vs_eq11_error", "iir_vs_direct_error"}
     assert required.issubset(validation[0]) and "relative_error" not in validation[0]
