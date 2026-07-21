@@ -27,6 +27,7 @@ def test_contract_derives_nominal_15000_records_and_fixed_coordinates():
     contract = build.build_contract(on, off)
     assert contract["record_axis"]["nominal_record_count"] == 15000
     assert contract["fixed_coordinates"]["z_final_m"] == 1.3
+    assert contract["fixed_coordinates"]["archive_z_final_ulp_budget"] == 2
     assert contract["fixed_coordinates"]["vacuum_focus_m"] == 0.95
     assert contract["job1_full_operator_on"]["raman_convolutions_per_strang_z_step"] == 4
     assert contract["job2_full_operator_feedback_off"]["raw_diagnostic_convolutions_per_z_step"] == 1
@@ -78,3 +79,46 @@ def test_auditor_rejects_duplicate_z_axis(tmp_path):
     assert not checks["z_strictly_increasing"]
     assert not checks["positive_dz"]
     assert result["status"] == "failed"
+
+
+def test_coordinate_audit_accepts_float32_endpoint_quantization():
+    audit_tool = _load_tool("audit_phase8b_diagnostics.py")
+    contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+    dz = np.array([0.65, 0.65], dtype=np.float32)
+    z = np.array([0.65, 1.2999999523162842], dtype=np.float32)
+    checks = {item["name"]: item for item in audit_tool.coordinate_audit(z, dz, contract)}
+    assert checks["execution_distance_reaches_target"]["passed"]
+    assert checks["archive_axis_reconstruction_ulp"]["passed"]
+    assert checks["archive_z_final_ulp"]["passed"]
+    assert checks["archive_z_final_ulp"]["actual"]["error_ulp"] <= 2
+
+
+def test_coordinate_audit_rejects_missing_accepted_step():
+    audit_tool = _load_tool("audit_phase8b_diagnostics.py")
+    contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+    # The count and distance both fail: one 100 um accepted step is absent.
+    dz = np.full(14999, np.float32(1.0e-4))
+    z = np.cumsum(dz, dtype=np.float32)
+    checks = {item["name"]: item["passed"] for item in audit_tool.coordinate_audit(z, dz, contract)}
+    assert not checks["execution_record_count"]
+    assert not checks["execution_distance_reaches_target"]
+
+
+def test_coordinate_audit_rejects_nonmonotonic_and_duplicate_archive_axis():
+    audit_tool = _load_tool("audit_phase8b_diagnostics.py")
+    contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+    dz = np.array([0.4, 0.4, 0.5], dtype=np.float32)
+    z = np.array([0.4, 0.4, 1.3], dtype=np.float32)
+    checks = {item["name"]: item["passed"] for item in audit_tool.coordinate_audit(z, dz, contract)}
+    assert not checks["z_strictly_increasing"]
+    assert checks["positive_dz"]
+
+
+def test_coordinate_audit_rejects_endpoint_beyond_ulp_budget():
+    audit_tool = _load_tool("audit_phase8b_diagnostics.py")
+    contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+    dz = np.array([0.65, 0.65], dtype=np.float32)
+    too_far = np.float32(1.3) + np.float32(8.0) * np.spacing(np.float32(1.3))
+    z = np.array([0.65, too_far], dtype=np.float32)
+    checks = {item["name"]: item["passed"] for item in audit_tool.coordinate_audit(z, dz, contract)}
+    assert not checks["archive_z_final_ulp"]

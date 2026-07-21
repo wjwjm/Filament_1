@@ -66,7 +66,8 @@ def build_contract(on_path: Path, off_path: Path) -> dict:
         },
         "fixed_coordinates": {
             "z_final_m": 1.3,
-            "z_final_absolute_tolerance_m": 1e-12,
+            "archive_z_final_ulp_budget": 2,
+            "archive_z_axis_reconstruction_ulp_budget": 2,
             "vacuum_focus_m": 0.95,
             "x_focus_cm_formula": "100 * (z_m - 0.95)",
             "coordinate_zero_redefinition_allowed": False,
@@ -80,10 +81,11 @@ def build_contract(on_path: Path, off_path: Path) -> dict:
                 "focus_dz_m": float(propagation["dz_focus"]),
                 "adaptive_substep_enabled": bool(propagation["auto_substep"]),
             },
-            "actual_record_count_rule": "len(z_axis) == len(dz_used_z); z_axis == cumsum(dz_used_z); sum(dz_used_z) == 1.300 m",
+            "actual_record_count_rule": "len(z_axis) == len(dz_used_z); accepted positive dz_used_z values reach 1.300 m in float64 within their accumulated half-ULP quantization bound; float32 z_axis is checked separately against a 2-ULP representation budget",
             "strictly_increasing": True,
             "duplicates_allowed": False,
             "adaptive_rule": "actual count may exceed 15000 only when positive accepted dz_used_z values reconstruct the strict z_axis",
+            "execution_distance_quantization_bound": "sum(0.5 * abs(spacing(dz_used_z))) in the stored floating dtype, with a 2e-12 m minimum",
         },
         "required_fields": {
             "z_axis": "m",

@@ -18,6 +18,95 @@ def _check(name, passed, actual, expected) -> dict:
     return {"name": name, "passed": bool(passed), "actual": actual, "expected": expected}
 
 
+def _archive_ulp(value, dtype) -> np.ndarray:
+    """Return positive local ULP sizes for a floating-point archive dtype."""
+    archive_dtype = np.dtype(dtype)
+    if not np.issubdtype(archive_dtype, np.floating):
+        archive_dtype = np.dtype(np.float64)
+    values = np.asarray(value, dtype=archive_dtype)
+    return np.abs(np.spacing(values)).astype(np.float64)
+
+
+def coordinate_audit(z, dz, contract: dict) -> list[dict]:
+    """Separate accepted-step integrity from archive representation precision.
+
+    The propagation archive may be float32 even though all audit reductions use
+    float64.  The accepted-step sum therefore has a provable quantization bound
+    based on the stored increments, while the archived coordinate axis is tested
+    in its own dtype using an explicit ULP budget.
+    """
+    z_raw = np.asarray(z)
+    dz_raw = np.asarray(dz)
+    z64 = np.asarray(z_raw, dtype=np.float64)
+    dz64 = np.asarray(dz_raw, dtype=np.float64)
+    n = int(z64.size)
+    record_axis = contract["record_axis"]
+    target = float(contract["fixed_coordinates"]["z_final_m"])
+    nominal = int(record_axis["nominal_record_count"])
+    adaptive = bool(record_axis["nominal_derivation"]["adaptive_substep_enabled"])
+
+    checks = []
+    expected_count = f"=={nominal}" if not adaptive else f">={nominal} (adaptive accepted-step history)"
+    count_ok = n == nominal if not adaptive else n >= nominal
+    checks.append(_check("execution_record_count", count_ok, n, expected_count))
+    checks.append(_check("z_strictly_increasing", n == 1 or np.all(np.diff(z64) > 0.0), bool(n == 1 or np.all(np.diff(z64) > 0.0)), True))
+    checks.append(_check("positive_dz", np.all(dz64 > 0.0), float(np.min(dz64)) if dz64.size else math.nan, ">0"))
+
+    execution_distance = math.fsum(dz64.tolist())
+    # Each stored increment has at most half a ULP rounding error relative to
+    # its accepted high-precision value.  This bound remains strict enough to
+    # reject a missing 50/100 um step while accepting the only precision that
+    # is available for legacy float32 archives.
+    execution_bound = max(2e-12, float(np.sum(0.5 * _archive_ulp(dz_raw, dz_raw.dtype))))
+    execution_error = abs(execution_distance - target)
+    checks.append(_check(
+        "execution_distance_reaches_target",
+        execution_error <= execution_bound,
+        {
+            "sum_dz_float64_m": execution_distance,
+            "target_m": target,
+            "absolute_error_m": execution_error,
+            "quantization_bound_m": execution_bound,
+        },
+        "absolute_error_m <= accumulated half-ULP dz quantization bound",
+    ))
+
+    cumulative = np.cumsum(dz64, dtype=np.float64)
+    axis_ulp = _archive_ulp(z_raw, z_raw.dtype)
+    axis_error = np.abs(z64 - cumulative)
+    axis_ulp_error = axis_error / np.maximum(axis_ulp, np.finfo(np.float64).tiny)
+    axis_budget = int(contract["fixed_coordinates"]["archive_z_axis_reconstruction_ulp_budget"])
+    checks.append(_check(
+        "archive_axis_reconstruction_ulp",
+        bool(np.all(axis_ulp_error <= axis_budget)),
+        {
+            "max_absolute_error_m": float(np.max(axis_error)) if n else math.nan,
+            "max_error_ulp": float(np.max(axis_ulp_error)) if n else math.nan,
+            "archive_dtype": str(z_raw.dtype),
+        },
+        f"<= {axis_budget} ULP at every archived z_axis sample",
+    ))
+
+    final_ulp = float(_archive_ulp(np.asarray(target), z_raw.dtype))
+    final_error = abs(float(z64[-1]) - target) if n else math.inf
+    final_error_ulp = final_error / max(final_ulp, np.finfo(np.float64).tiny)
+    final_budget = int(contract["fixed_coordinates"]["archive_z_final_ulp_budget"])
+    checks.append(_check(
+        "archive_z_final_ulp",
+        final_error_ulp <= final_budget,
+        {
+            "z_final_archived_m": float(z64[-1]) if n else math.nan,
+            "target_m": target,
+            "absolute_error_m": final_error,
+            "ulp_m": final_ulp,
+            "error_ulp": final_error_ulp,
+            "archive_dtype": str(z_raw.dtype),
+        },
+        f"<= {final_budget} ULP at z_final in archive dtype",
+    ))
+    return checks
+
+
 def audit(data, contract: dict, job: str) -> dict:
     checks = []
     required = contract["required_fields"]
@@ -27,16 +116,11 @@ def audit(data, contract: dict, job: str) -> dict:
     if missing:
         return {"job": job, "status": "failed", "checks": checks}
 
-    z = np.asarray(data["z_axis"], dtype=float)
-    dz = np.asarray(data["dz_used_z"], dtype=float)
+    z = np.asarray(data["z_axis"])
+    dz = np.asarray(data["dz_used_z"])
     n = z.size
     checks.append(_check("nonempty", n > 0, n, ">0"))
-    checks.append(_check("z_strictly_increasing", n == 1 or np.all(np.diff(z) > 0.0), bool(n == 1 or np.all(np.diff(z) > 0.0)), True))
-    checks.append(_check("positive_dz", np.all(dz > 0.0), float(np.min(dz)) if dz.size else math.nan, ">0"))
-    checks.append(_check("z_reconstructed_by_dz", np.allclose(z, np.cumsum(dz), rtol=0.0, atol=2e-12), float(np.max(np.abs(z-np.cumsum(dz)))) if n else math.nan, "<=2e-12 m"))
-    z_final = float(contract["fixed_coordinates"]["z_final_m"])
-    z_tol = float(contract["fixed_coordinates"]["z_final_absolute_tolerance_m"])
-    checks.append(_check("z_final", abs(float(z[-1])-z_final) <= z_tol, float(z[-1]), z_final))
+    checks.extend(coordinate_audit(z, dz, contract))
     aligned_bad = [key for key in required["aligned_z_histories"] if np.asarray(data[key]).shape[:1] != (n,)]
     checks.append(_check("aligned_z_histories", not aligned_bad, aligned_bad, "all first dimensions equal len(z_axis)"))
     rho_tz = np.asarray(data["rho_onaxis_t_z"])
@@ -97,7 +181,8 @@ def audit(data, contract: dict, job: str) -> dict:
     total_residual = np.abs((U0-U)-total_dep) / max(abs(U0), 1e-30)
     final_total = float(total_residual[-1])
     focus_lo, focus_hi = contract["total_energy_contract"]["near_focus_window_m"]
-    focus_mask = (z >= focus_lo) & (z <= focus_hi)
+    z64 = np.asarray(z, dtype=float)
+    focus_mask = (z64 >= focus_lo) & (z64 <= focus_hi)
     near_focus = float(np.max(total_residual[focus_mask])) if np.any(focus_mask) else math.inf
     checks.append(_check("total_energy_final", final_total < contract["total_energy_contract"]["final_lt"], final_total, contract["total_energy_contract"]["final_lt"]))
     checks.append(_check("total_energy_near_focus", near_focus < contract["total_energy_contract"]["near_focus_max_lt"], near_focus, contract["total_energy_contract"]["near_focus_max_lt"]))
