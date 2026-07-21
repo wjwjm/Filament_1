@@ -203,6 +203,7 @@ def run_demo(
     raman: RamanConfig = RamanConfig(),
     out_path: str = "khzfil_out.npz",
     dtype: str = "fp32",
+    return_results: bool = False,
 ):
     dmap = {"fp32": xp.complex64, "fp64": xp.complex128}
     ctype = dmap.get(str(dtype).lower(), xp.complex64)
@@ -361,6 +362,13 @@ def run_demo(
             f"[diagnostic-check] PASS: {report['validation']['z_records']} z records; "
             f"report={report_path}"
         )
+    if return_results:
+        return {
+            "E_final": to_cpu(E),
+            "I_final": to_cpu(I_out),
+            "diagnostics": {key: to_cpu(value) for key, value in (last_diag or {}).items()},
+            "axes": {"x": to_cpu(axes.x), "y": to_cpu(axes.y), "t": to_cpu(axes.t)},
+        }
 
 
 def run_from_file(cfg_path: str, out_path: str = "khzfil_out.npz", dtype: str = "fp32"):

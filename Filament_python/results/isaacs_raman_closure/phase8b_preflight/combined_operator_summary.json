@@ -1,0 +1,39 @@
+{
+  "grid": {
+    "Nt": 384,
+    "Nx": 16,
+    "Ny": 16
+  },
+  "pulse": "120 fs, 17 GW focus-local approximation",
+  "species": [
+    "N2 Talebpour",
+    "O2 Talebpour"
+  ],
+  "production_dz_m": 0.0001,
+  "minimum_estimated_order": 1.083635613030017,
+  "refined_estimated_order": 1.581025251697618,
+  "production_vs_dz2": {
+    "comparison": "strang_vs_dz2",
+    "field_l2_difference": 5.98557431243231e-07,
+    "pulse_energy_relative_difference": 4.696492842596067e-09,
+    "I_max_relative_difference": 1.0649336462388708e-07,
+    "rho_max_relative_difference": 0.0003442850978270176,
+    "raman_loss_relative_difference": 4.5124415515174123e-07,
+    "ionization_loss_relative_difference": 0.0001121417007299453,
+    "temporal_centroid_difference_fs": -1.0490373266115645e-06,
+    "spectral_centroid_difference_rad_s": -18288642.219985962,
+    "spectral_width_relative_difference": 4.0080983583993566e-10
+  },
+  "after_other_vs_strang": {
+    "comparison": "after_other_vs_strang",
+    "field_l2_difference": 7.38793349203875e-07,
+    "pulse_energy_relative_difference": 4.881069579400003e-09,
+    "I_max_relative_difference": 8.922862117444082e-08,
+    "rho_max_relative_difference": 0.00012340264873131446,
+    "raman_loss_relative_difference": 3.248817644720113e-05,
+    "ionization_loss_relative_difference": 0.00011593175298911751,
+    "temporal_centroid_difference_fs": -1.5348208440215757e-06,
+    "spectral_centroid_difference_rad_s": -22367261.63900757,
+    "spectral_width_relative_difference": 1.3489169006110774e-09
+  }
+}

@@ -309,6 +309,12 @@ NONLINEAR_DIAGNOSTIC_METADATA.update({
         "unit": "s",
         "use": "runtime projection",
     },
+    "raman_operator_substep_count": {
+        "meaning": "number of isolated full Raman operator applications in one propagation step",
+        "source": "propagate.py nonlinear split order",
+        "unit": "count",
+        "use": "interpret total convolution count for Strang splitting",
+    },
 })
 
 
@@ -381,6 +387,7 @@ Z_HISTORY_TRACE_KEYS = (
     "raman_cumulative_closure_residual",
     "raman_convolution_count_step",
     "raman_operator_walltime_step_s",
+    "raman_operator_substep_count",
 )
 
 

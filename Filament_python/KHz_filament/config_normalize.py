@@ -156,6 +156,10 @@ def _normalize_raman(raman: Dict[str, Any]) -> None:
     if integrator not in ("euler", "heun"):
         raise ValueError("raman.operator_integrator must be 'euler' or 'heun'.")
     raman["operator_integrator"] = integrator
+    split_order = str(raman.get("nonlinear_split_order", "after_other") or "after_other").lower()
+    if split_order not in ("after_other", "before_other", "strang"):
+        raise ValueError("raman.nonlinear_split_order must be 'after_other', 'before_other', or 'strang'.")
+    raman["nonlinear_split_order"] = split_order
     if model != "isaacs_rot_sinexp":
         return
     forbidden = ("f_R", "T_R", "T2", "Omega_R", "tau2")

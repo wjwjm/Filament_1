@@ -264,11 +264,14 @@ def isaacs_raman_stage(E, *, Omega, dt, omega0, n0, n_R, omega_R, Gamma_R,
             chunk_pixels=chunk_pixels, iir_sampling=iir_sampling)
     product = response.astype(rdtype, copy=False) * E
     ctype = E.dtype
-    multiplier = (1j * xp.asarray(Omega, dtype=rdtype)).astype(ctype, copy=False)
-    derivative = xp.fft.ifft(
+    # Evaluate (1/omega0)*d_tau as one dimensionless spectral multiplier.
+    # Forming Omega*FFT(I_R*A) first can overflow complex64 even though the
+    # final Eq. (27) prefactor makes the physical RHS finite.
+    multiplier = (1j * xp.asarray(Omega, dtype=rdtype) / float(omega0)).astype(ctype, copy=False)
+    normalized_derivative = xp.fft.ifft(
         multiplier[:, None, None] * xp.fft.fft(product, axis=0), axis=0)
     prefactor = (float(omega0) / float(c0)) * float(n_R)
-    rhs = (1j * prefactor * product - (prefactor / float(omega0)) * derivative).astype(ctype, copy=False)
+    rhs = (1j * prefactor * product - prefactor * normalized_derivative).astype(ctype, copy=False)
     result = {
         "rhs": rhs,
         "rhs_l2_norm": float(xp.linalg.norm(rhs)),
@@ -278,11 +281,20 @@ def isaacs_raman_stage(E, *, Omega, dt, omega0, n0, n_R, omega_R, Gamma_R,
     if return_response:
         result["I_R"] = response.astype(rdtype, copy=False)
     if return_energy:
-        intensity_derivative = xp.fft.ifft(
-            (1j * xp.asarray(Omega, dtype=rdtype))[:, None, None]
-            * xp.fft.fft(intensity, axis=0), axis=0).real
-        u_signed = (float(n_R) / float(c0)) * xp.sum(
-            response * intensity_derivative, axis=0) * float(dt)
+        intensity_scale = float(xp.max(xp.abs(intensity)))
+        if intensity_scale > 0.0:
+            # Normalize before multiplying I_R*dI.  The unscaled float32
+            # intermediate is O(I^2/dt) and can overflow even though the
+            # integrated Eq. (10) energy is finite.
+            derivative_increment_norm = xp.fft.ifft(
+                (1j * xp.asarray(Omega, dtype=rdtype) * float(dt))[:, None, None]
+                * xp.fft.fft(intensity, axis=0), axis=0).real / intensity_scale
+            response_norm = response / intensity_scale
+            energy_scale = (float(n_R) / float(c0)) * intensity_scale * intensity_scale
+            u_signed = energy_scale * xp.sum(
+                response_norm * derivative_increment_norm, axis=0)
+        else:
+            u_signed = xp.zeros(intensity.shape[1:], dtype=rdtype)
         result["u_R_signed"] = u_signed.astype(rdtype, copy=False)
         result["q_R_positive"] = xp.maximum(-u_signed, 0.0).astype(rdtype, copy=False)
     result["walltime_s"] = float(_time.perf_counter() - started)

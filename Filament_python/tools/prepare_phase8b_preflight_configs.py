@@ -20,6 +20,7 @@ AUTHORIZED_BASELINE_DIFFS = {
     "raman.operator_convention",
     "raman.iir_sampling",
     "raman.operator_integrator",
+    "raman.nonlinear_split_order",
     "raman.f_R",
     "raman.T_R",
     "raman.T2",
@@ -74,6 +75,7 @@ def make_full_operator_config(baseline, enabled):
         "operator_convention": "isaacs_eq27",
         "iir_sampling": "exact_piecewise_linear",
         "operator_integrator": "heun",
+        "nonlinear_split_order": "strang",
     })
     return config
 

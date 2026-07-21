@@ -63,6 +63,11 @@
       "after": "isaacs_rot_sinexp"
     },
     {
+      "path": "raman.nonlinear_split_order",
+      "before": "__missing__",
+      "after": "strang"
+    },
+    {
       "path": "raman.operator_convention",
       "before": "__missing__",
       "after": "isaacs_eq27"
@@ -91,6 +96,7 @@
     "raman.iir_sampling",
     "raman.max_alpha_dz",
     "raman.model",
+    "raman.nonlinear_split_order",
     "raman.operator_convention",
     "raman.operator_integrator",
     "raman.operator_mode"
