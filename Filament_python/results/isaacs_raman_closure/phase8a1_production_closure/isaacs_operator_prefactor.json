@@ -1,0 +1,12 @@
+{
+  "paper_prefactor": "i*(omega0^2/c^2)*(n0*n_R/k0_paper)",
+  "paper_k0_definition": "n0*omega0/c",
+  "code_prefactor": 1.8069035080736008e-16,
+  "full_reference_prefactor": 1.8064157758141313e-16,
+  "relative_difference": 0.00026999999999987066,
+  "selected_candidate_prefactor": 1.8064157758141313e-16,
+  "reason": "n0 cancels after substituting p_rot into Eq.7/Eq.27",
+  "field_envelope_mapping": "paper A and code E are complex electric-field envelopes",
+  "intensity_mapping": "I=0.5*eps0*c*n0*|E|^2",
+  "cross_cutting_electronic_kerr_operator_issue": true
+}
