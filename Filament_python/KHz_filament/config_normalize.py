@@ -138,6 +138,10 @@ def _normalize_raman(raman: Dict[str, Any]) -> None:
     are applied.  The legacy ``rot_sinexp`` defaults are therefore untouched.
     """
     model = str(raman.get("model", "rot_sinexp") or "rot_sinexp").lower()
+    convention = str(raman.get("operator_convention", "legacy") or "legacy").lower()
+    if convention not in ("legacy", "isaacs_eq27"):
+        raise ValueError("raman.operator_convention must be 'legacy' or 'isaacs_eq27'.")
+    raman["operator_convention"] = convention
     if model != "isaacs_rot_sinexp":
         return
     forbidden = ("f_R", "T_R", "T2", "Omega_R", "tau2")

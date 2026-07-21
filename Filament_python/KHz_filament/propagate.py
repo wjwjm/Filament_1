@@ -332,7 +332,8 @@ def propagate_one_pulse(
         if switches.use_self_steepening:
             delta_n_kerr = shock_intensity(
                 delta_n_kerr, axes.Omega, omega0, dt=dt,
-                method=str(getattr(p, "self_steepening_method", "tdiff")).lower()
+                method=str(getattr(p, "self_steepening_method", "tdiff")).lower(),
+                operator_convention=getattr(raman_conf, "operator_convention", "legacy"),
             )
 
         # —— 电离/IB 吸收（分开记账）——

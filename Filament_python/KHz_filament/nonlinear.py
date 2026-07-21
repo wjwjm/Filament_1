@@ -85,14 +85,22 @@ def apply_nonlinear(E, phase, alpha, dz,*, dn_gas=None, k0=None):
 #     Ishock = xp.real(xp.fft.ifft(Rw, axis=0))
 #     return xp.nan_to_num(Ishock, nan=0.0, posinf=0.0, neginf=0.0)
 
-def operator_correct_scalar(Q, Omega, omega0, *, dt=None, method="auto", chunk_pixels=None):
+def operator_correct_scalar(Q, Omega, omega0, *, dt=None, method="auto", chunk_pixels=None,
+                            operator_convention="legacy"):
     """
-    通用包络算子修正（实标量场）：
-      Q_eff = Q - (1/ω0) ∂Q/∂t   <=>   F{Q_eff} = (1 + iΩ/ω0) F{Q}
-    与 shock_intensity 保持同一符号与 FFT 约定。
+    通用包络算子修正（实标量场）。
+
+    ``legacy`` preserves the historical implementation exactly: tdiff uses
+    Q-dQ/dt/omega0 while FFT uses 1+i*Omega/omega0. ``isaacs_eq27`` makes the
+    scalar split convention internally consistent with Q-dQ/dt/omega0 and
+    multiplier 1-i*Omega/omega0. The full complex Eq. (27) operator is a
+    separate Raman field operator.
     """
     Nt, Ny, Nx = Q.shape
     dtype = Q.dtype
+    convention = str(operator_convention).lower()
+    if convention not in ("legacy", "isaacs_eq27"):
+        raise ValueError("operator_convention must be 'legacy' or 'isaacs_eq27'")
 
     if method in ("tdiff", "auto"):
         if dt is None and method == "tdiff":
@@ -107,7 +115,8 @@ def operator_correct_scalar(Q, Omega, omega0, *, dt=None, method="auto", chunk_p
 
     Q2 = Q.reshape(Nt, Ny * Nx)
     out = xp.empty_like(Q2, dtype=dtype)
-    mult = (1.0 + 1j * (Omega.astype(dtype) / float(omega0)))[:, None]
+    sign = 1.0 if convention == "legacy" else -1.0
+    mult = (1.0 + sign * 1j * (Omega.astype(dtype) / float(omega0)))[:, None]
 
     for j in range(0, Ny * Nx, chunk_pixels):
         sl = Q2[:, j:j + chunk_pixels].astype(xp.complex64 if dtype == xp.float32 else xp.complex128, copy=False)
@@ -119,7 +128,8 @@ def operator_correct_scalar(Q, Omega, omega0, *, dt=None, method="auto", chunk_p
     return out.reshape(Nt, Ny, Nx)
 
 
-def shock_intensity(I, Omega, omega0, *, dt=None, method="auto", chunk_pixels=None):
+def shock_intensity(I, Omega, omega0, *, dt=None, method="auto", chunk_pixels=None,
+                    operator_convention="legacy"):
     """
     自陡峭强度修正：I_shock = I - (1/ω0) ∂I/∂t  （等价于频域乘子 1 + iΩ/ω0）
     参数：
@@ -136,4 +146,7 @@ def shock_intensity(I, Omega, omega0, *, dt=None, method="auto", chunk_pixels=No
     method="fft"：频域法，但分块处理，避免一次性分配数百 MB。
     method="auto"：若提供了 dt，直接走 tdiff；否则走 fft（保留兼容性）。
     """
-    return operator_correct_scalar(I, Omega, omega0, dt=dt, method=method, chunk_pixels=chunk_pixels)
+    return operator_correct_scalar(
+        I, Omega, omega0, dt=dt, method=method, chunk_pixels=chunk_pixels,
+        operator_convention=operator_convention,
+    )

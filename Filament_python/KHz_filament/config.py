@@ -155,6 +155,7 @@ class RamanConfig:
     # —— 单指数核：e^{-t/τ2} / τ2 * u(t)，常用于光纤振动拉曼的“占位式”
     tau2: float = 32e-15      # 仅当 model="exp" 使用
     diagnose: bool = False
+    operator_convention: str = "legacy"
     absorption_model: str = "closed_form"
     absorption: bool = True
     omega_R: float =7.5e11

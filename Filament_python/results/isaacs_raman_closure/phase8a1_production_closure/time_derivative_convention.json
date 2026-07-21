@@ -1,0 +1,15 @@
+{
+  "fft_forward_convention": "F(Omega)=sum_n f(t_n) exp(-i Omega t_n)",
+  "F[d_tau f]": "+i Omega F[f]",
+  "Omega_array_ordering": "2*pi*fftfreq(Nt, dt), unshifted FFT order",
+  "fft_ifft_normalization": "fft unnormalized; ifft includes 1/N",
+  "tau_axis_direction": "increasing sample index means increasing tau",
+  "retarded_time_definition": "tau=t-z/v_g",
+  "Eq.27_operator_frequency_multiplier": "1-Omega/omega0 for (1+i/omega0*d_tau)",
+  "legacy_operator_correct_scalar_tdiff_multiplier": "1-i*Omega/omega0",
+  "legacy_operator_correct_scalar_fft_multiplier": "1+i*Omega/omega0",
+  "isaacs_eq27_scalar_split_multiplier": "1-i*Omega/omega0",
+  "tdiff_fft_mutually_consistent": true,
+  "legacy_behavior_changed": false,
+  "strict_isaacs_convention": "isaacs_eq27"
+}
