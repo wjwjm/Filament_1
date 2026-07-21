@@ -14,7 +14,7 @@ from .linear_full import step_linear_full_factorized, step_linear_full_3d
 from .air_dispersion import n_of_omega
 from .constants import c0
 from .config import resolve_nonlinear_switches
-from .raman import apply_isaacs_raman_operator_step, make_raman_kernel, precompute_kernel_fft, raman_convolve_intensity, resolve_raman_rot_params
+from .raman import apply_isaacs_raman_operator_step, isaacs_raman_stage, make_raman_kernel, precompute_kernel_fft, raman_convolve_intensity, resolve_raman_rot_params
 from .diagnostics import (
     intensity,
     pulse_energy,
@@ -212,6 +212,7 @@ def propagate_one_pulse(
         R0_fixed = float(getattr(raman_conf, "R0_fixed_m", 2.0e-4))
     else:
         H_w, fR, r_method, r_chunk = None, 0.0, "iir", 65536
+    full_isaacs_mode = bool(use_raman and r_operator_mode == "full_isaacs_eq27")
 
     # ---------- 电离速率 ----------
 
@@ -268,7 +269,15 @@ def propagate_one_pulse(
     rho_N2_at_rho_total_max_z_list, rho_O2_at_rho_total_max_z_list = [], []
     rho_O2_fraction_at_rho_total_max_z_list = []
     dz_used_z_list, adaptive_rejection_count_z_list, safety_mode_trigger_count_z_list = [], [], []
+    raman_operator_applied_z_list, raman_rhs_l2_norm_z_list = [], []
+    raman_IR_max_raw_z_list, raman_target_loss_step_z_list = [], []
+    raman_actual_loss_step_z_list, raman_closure_residual_step_z_list = [], []
+    raman_target_loss_cumulative_z_list, raman_actual_loss_cumulative_z_list = [], []
+    raman_cumulative_closure_residual_z_list = []
+    raman_convolution_count_step_z_list, raman_operator_walltime_step_z_list = [], []
     E_dep_cumulative = 0.0
+    raman_target_loss_cumulative = 0.0
+    raman_actual_loss_cumulative = 0.0
     U_previous = U0_baseline
     # The current loop has no reject/retry branch; retain live counters so a
     # future controller is observable without inferring state from z_axis.
@@ -278,6 +287,7 @@ def propagate_one_pulse(
     z = 0.0
     # Qacc 累积到面密度 J/m^2（把体功率密度在 t,z 两方向积分）
     Qacc = xp.zeros((Ny, Nx), dtype=rdtype)
+    Qacc_raman = xp.zeros((Ny, Nx), dtype=rdtype)
     t0 = time.perf_counter()
 
     while z < z_max - 1e-16:
@@ -313,7 +323,10 @@ def propagate_one_pulse(
         I = inten_ion(E, n0, I_cap=getattr(ion_conf, "I_cap", 1e19))
 
         # 延迟 Kerr：显式双系数 Δn = n2_elec*I + n_R*(Omega*I)
-        if use_raman:
+        full_isaacs_on = bool(full_isaacs_mode and switches.use_raman_full_operator)
+        raman_stage_pre = None
+        raman_step_diag = None
+        if use_raman and not full_isaacs_mode:
             IR = raman_convolve_intensity(
                 I, H_w if r_method == "fft" else None,
                 method=r_method, dt=dt,
@@ -329,7 +342,6 @@ def propagate_one_pulse(
         delta_n_elec = n2_elec * I
         delta_n_rot = n_R * IR if (IR is not None) else xp.zeros_like(I, dtype=rdtype)
         delta_n_elec_applied = delta_n_elec if switches.use_electronic_kerr else xp.zeros_like(I, dtype=rdtype)
-        full_isaacs_on = bool(switches.use_raman_full_operator and r_operator_mode == "full_isaacs_eq27")
         delta_n_rot_applied = delta_n_rot if switches.use_raman_phase else xp.zeros_like(I, dtype=rdtype)
         delta_n_kerr = delta_n_elec_applied + delta_n_rot_applied
 
@@ -506,14 +518,49 @@ def propagate_one_pulse(
         phase  = dphi_k + dphi_p
 
         E = apply_nonlinear(E, phase, alpha_total, dz_try, dn_gas=dn_gas, k0=k0)
-        if use_raman and full_isaacs_on:
-            E = apply_isaacs_raman_operator_step(
-                E, dz_try, Omega=axes.Omega, dt=dt, omega0=omega0, n0=n0,
+        if full_isaacs_mode:
+            stage_kwargs = dict(
+                Omega=axes.Omega, dt=dt, omega0=omega0, n0=n0,
                 n_R=n_R, omega_R=omega_R, Gamma_R=Gamma_R,
-                integrator=getattr(raman_conf, "operator_integrator", "heun"),
                 method=r_method, chunk_pixels=r_chunk,
                 iir_sampling=getattr(raman_conf, "iir_sampling", "exact_piecewise_linear"),
             )
+            raman_stage_pre = isaacs_raman_stage(E, **stage_kwargs)
+            IR = raman_stage_pre["I_R"]
+            delta_n_rot = n_R * IR
+            raw_target_local = float(dz_try) * raman_stage_pre["q_R_positive"]
+            raw_target_global = float(xp.sum(raw_target_local) * axes.dx * axes.dy)
+            if full_isaacs_on:
+                E, raman_step_diag = apply_isaacs_raman_operator_step(
+                    E, dz_try, integrator=getattr(raman_conf, "operator_integrator", "heun"),
+                    return_diagnostics=True, stage1=raman_stage_pre,
+                    transverse_cell_area=axes.dx * axes.dy, **stage_kwargs,
+                )
+                raman_step_diag["operator_walltime_s"] += raman_stage_pre["walltime_s"]
+                E_dep_rot_step = float(raman_step_diag["actual_global_energy_loss_J"])
+                Qacc_raman += xp.maximum(
+                    xp.asarray(raman_step_diag["actual_local_fluence_loss"], dtype=Qacc_raman.dtype), 0.0)
+            else:
+                raman_step_diag = {
+                    "target_local_fluence_loss_stage1": raw_target_local,
+                    "target_local_fluence_loss_stage2": xp.zeros_like(raw_target_local),
+                    "target_local_fluence_loss_heun": raw_target_local,
+                    "target_local_fluence_loss": raw_target_local,
+                    "target_global_energy_loss_J": raw_target_global,
+                    "actual_local_fluence_loss": xp.zeros_like(raw_target_local),
+                    "actual_global_energy_loss_J": 0.0,
+                    "local_closure_residual": 0.0,
+                    "global_closure_residual": 0.0,
+                    "rhs_l2_norm_stage1": 0.0,
+                    "rhs_l2_norm_stage2": 0.0,
+                    "IR_max_stage1": raman_stage_pre["IR_max"],
+                    "IR_max_stage2": 0.0,
+                    "convolution_count": 1,
+                    "operator_walltime_s": raman_stage_pre["walltime_s"],
+                    "finite": bool(xp.all(xp.isfinite(IR))),
+                }
+            raman_target_loss_cumulative += float(raman_step_diag["target_global_energy_loss_J"])
+            raman_actual_loss_cumulative += float(raman_step_diag["actual_global_energy_loss_J"])
 
         # —— 热沉积：分量分别记账 ——
         # 电离 + IB：Qslice (J/m^3)；电离源优先使用逐组分 Σ_j U_j * ∂ρ_j/∂t
@@ -621,7 +668,10 @@ def propagate_one_pulse(
             alpha_ib_max_z_list.append(float(xp.max(alpha_ib)))
             alpha_total_max_z_list.append(float(xp.max(alpha_total)))
             # 拉曼沉积
-            if use_raman and raman_absorption_compute:
+            if full_isaacs_mode:
+                E_dep_rot = float(E_dep_rot_step)
+                alphaR_raw = 0.0
+            elif use_raman and raman_absorption_compute:
                 E_dep_rot = E_dep_rot_step
                 alphaR_raw = float(alpha_R_eff)
             else:
@@ -639,6 +689,33 @@ def propagate_one_pulse(
             alpha_R_applied_max_z_list.append(alphaR_applied)
             IR_max_z_list.append(float(xp.max(IR)) if IR is not None else 0.0)
             IR_abs_max_z_list.append(float(xp.max(xp.abs(IR))) if IR is not None else 0.0)
+            if raman_step_diag is None:
+                raman_step_diag = {
+                    "target_global_energy_loss_J": 0.0,
+                    "actual_global_energy_loss_J": 0.0,
+                    "global_closure_residual": 0.0,
+                    "rhs_l2_norm_stage1": 0.0,
+                    "rhs_l2_norm_stage2": 0.0,
+                    "IR_max_stage1": float(xp.max(xp.abs(IR))) if IR is not None else 0.0,
+                    "convolution_count": 0,
+                    "operator_walltime_s": 0.0,
+                }
+            cumulative_closure = 0.0 if not full_isaacs_on else abs(
+                raman_actual_loss_cumulative - raman_target_loss_cumulative
+            ) / max(raman_target_loss_cumulative, U0_baseline * 1e-15, 1e-300)
+            raman_operator_applied_z_list.append(bool(full_isaacs_on))
+            raman_rhs_l2_norm_z_list.append(max(
+                float(raman_step_diag["rhs_l2_norm_stage1"]),
+                float(raman_step_diag["rhs_l2_norm_stage2"])))
+            raman_IR_max_raw_z_list.append(float(raman_step_diag["IR_max_stage1"]))
+            raman_target_loss_step_z_list.append(float(raman_step_diag["target_global_energy_loss_J"]))
+            raman_actual_loss_step_z_list.append(float(raman_step_diag["actual_global_energy_loss_J"]))
+            raman_closure_residual_step_z_list.append(float(raman_step_diag["global_closure_residual"]))
+            raman_target_loss_cumulative_z_list.append(float(raman_target_loss_cumulative))
+            raman_actual_loss_cumulative_z_list.append(float(raman_actual_loss_cumulative))
+            raman_cumulative_closure_residual_z_list.append(float(cumulative_closure))
+            raman_convolution_count_step_z_list.append(int(raman_step_diag["convolution_count"]))
+            raman_operator_walltime_step_z_list.append(float(raman_step_diag["operator_walltime_s"]))
             delta_n_plasma_min_z_list.append(float(xp.min(dphi_p_raw)) / (float(k0) * dz_try))
             delta_n_elec_applied_max_z_list.append(float(xp.max(delta_n_elec_applied)))
             delta_n_rot_applied_max_z_list.append(float(xp.max(delta_n_rot_applied)))
@@ -738,6 +815,26 @@ def propagate_one_pulse(
         "I_onaxis_max_interp_list": _np.asarray(I_onaxis_max_interp_list, dtype=rdtype_np),
         "raman_absorption_on":      bool(use_raman and raman_absorb_on),
         "raman_absorption_calculated": bool(use_raman and raman_absorption_compute),
+        "raman_operator_mode": _np.asarray(r_operator_mode),
+        "raman_operator_feedback_enabled": bool(switches.use_raman_full_operator),
+        "raman_operator_applied": _np.asarray(raman_operator_applied_z_list, dtype=_np.bool_),
+        "raman_rhs_l2_norm": _np.asarray(raman_rhs_l2_norm_z_list, dtype=rdtype_np),
+        "raman_IR_max_raw": _np.asarray(raman_IR_max_raw_z_list, dtype=rdtype_np),
+        "raman_target_loss_step_J": _np.asarray(raman_target_loss_step_z_list, dtype=rdtype_np),
+        "raman_actual_loss_step_J": _np.asarray(raman_actual_loss_step_z_list, dtype=rdtype_np),
+        "raman_closure_residual_step": _np.asarray(raman_closure_residual_step_z_list, dtype=rdtype_np),
+        "raman_target_loss_cumulative_J": _np.asarray(raman_target_loss_cumulative_z_list, dtype=rdtype_np),
+        "raman_actual_loss_cumulative_J": _np.asarray(raman_actual_loss_cumulative_z_list, dtype=rdtype_np),
+        "raman_cumulative_closure_residual": _np.asarray(raman_cumulative_closure_residual_z_list, dtype=rdtype_np),
+        "raman_convolution_count_step": _np.asarray(raman_convolution_count_step_z_list, dtype=_np.int64),
+        "raman_operator_walltime_step_s": _np.asarray(raman_operator_walltime_step_z_list, dtype=rdtype_np),
+        "delta_n_rot_applied_semantics": _np.asarray(
+            "not_applicable_full_complex_operator" if full_isaacs_mode else "split_delayed_index_applied"
+        ),
+        "raman_closure_residual_semantics": _np.asarray(
+            "field_vs_eq10" if full_isaacs_on else "not_applicable_feedback_off_or_legacy"
+        ),
+        "Qacc_raman": to_cpu(Qacc_raman).astype(rdtype_np, copy=False),
         "ionization_loss_on": bool(switches.use_ionization_loss),
         "ionization_solver_on": bool(switches.use_ionization_solver),
         "E_dep_rot_z": _np.asarray(E_dep_rot_z_list, dtype=rdtype_np),

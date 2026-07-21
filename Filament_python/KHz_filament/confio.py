@@ -59,5 +59,11 @@ def load_all(path: str) -> Tuple[GridConfig, BeamConfig, PropagationConfig, Ioni
     ion  = _update_dataclass(IonizationConfig, raw.get("ionization", {}))
     heat = _update_dataclass(HeatConfig,       raw.get("heat", {}))
     run  = _update_dataclass(RunConfig,        raw.get("run", {}))
-    raman = _update_dataclass(RamanConfig, raw.get("raman", {}))
+    raman_src = dict(raw.get("raman", {}))
+    if str(raman_src.get("model", "rot_sinexp")).lower() == "isaacs_rot_sinexp":
+        # Preserve strict omission through dataclass construction instead of
+        # silently restoring legacy Raman defaults.
+        for field in ("f_R", "T_R", "T2", "Omega_R", "tau2"):
+            raman_src.setdefault(field, None)
+    raman = _update_dataclass(RamanConfig, raman_src)
     return grid, beam, prop, ion, heat, run, raman

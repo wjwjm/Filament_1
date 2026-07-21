@@ -242,6 +242,75 @@ NONLINEAR_DIAGNOSTIC_METADATA = {
     },
 }
 
+NONLINEAR_DIAGNOSTIC_METADATA.update({
+    "raman_operator_applied": {
+        "meaning": "whether the complete Isaacs Raman field operator was applied at each z step",
+        "source": "propagate.py: explicit use_raman_full_operator gate",
+        "unit": "bool",
+        "use": "distinguish raw Raman diagnostics from field feedback",
+    },
+    "raman_rhs_l2_norm": {
+        "meaning": "maximum stage L2 norm of the applied full Raman RHS",
+        "source": "raman.isaacs_raman_stage",
+        "unit": "field/m",
+        "use": "verify nonzero full-operator feedback",
+    },
+    "raman_IR_max_raw": {
+        "meaning": "raw maximum delayed Raman intensity response",
+        "source": "raman.isaacs_raman_stage",
+        "unit": "W/m^2",
+        "use": "retain Raman response in ON and feedback-OFF controls",
+    },
+    "raman_target_loss_step_J": {
+        "meaning": "Eq. (10) target rotational energy loss for the current step",
+        "source": "raman.isaacs_raman_stage / Heun quadrature",
+        "unit": "J",
+        "use": "per-step Raman energy closure",
+    },
+    "raman_actual_loss_step_J": {
+        "meaning": "actual field-energy loss caused by the full Raman operator",
+        "source": "field fluence before/after the isolated Raman update",
+        "unit": "J",
+        "use": "per-step Raman energy accounting",
+    },
+    "raman_closure_residual_step": {
+        "meaning": "relative Eq. (10) target-versus-actual Raman loss residual",
+        "source": "raman.apply_isaacs_raman_operator_step",
+        "unit": "1",
+        "use": "Raman energy-closure gate",
+    },
+    "raman_target_loss_cumulative_J": {
+        "meaning": "cumulative Eq. (10) target rotational loss",
+        "source": "propagate.py cumulative sum",
+        "unit": "J",
+        "use": "global Raman energy audit",
+    },
+    "raman_actual_loss_cumulative_J": {
+        "meaning": "cumulative actual Raman field-energy loss",
+        "source": "propagate.py cumulative sum",
+        "unit": "J",
+        "use": "global Raman energy audit",
+    },
+    "raman_cumulative_closure_residual": {
+        "meaning": "relative cumulative target-versus-actual Raman loss residual",
+        "source": "propagate.py cumulative energy accounting",
+        "unit": "1",
+        "use": "full-job Raman closure contract",
+    },
+    "raman_convolution_count_step": {
+        "meaning": "number of Raman convolutions evaluated for the current full step",
+        "source": "raman stage diagnostics",
+        "unit": "count",
+        "use": "verify Heun convolution reuse",
+    },
+    "raman_operator_walltime_step_s": {
+        "meaning": "wall time spent in full Raman stage/update calculations",
+        "source": "raman stage timer",
+        "unit": "s",
+        "use": "runtime projection",
+    },
+})
+
 
 NONLINEAR_TRACE_KEYS = tuple(NONLINEAR_DIAGNOSTIC_METADATA)
 
@@ -301,6 +370,17 @@ Z_HISTORY_TRACE_KEYS = (
     "dz_used_z",
     "adaptive_rejection_count_z",
     "safety_mode_trigger_count_z",
+    "raman_operator_applied",
+    "raman_rhs_l2_norm",
+    "raman_IR_max_raw",
+    "raman_target_loss_step_J",
+    "raman_actual_loss_step_J",
+    "raman_closure_residual_step",
+    "raman_target_loss_cumulative_J",
+    "raman_actual_loss_cumulative_J",
+    "raman_cumulative_closure_residual",
+    "raman_convolution_count_step",
+    "raman_operator_walltime_step_s",
 )
 
 

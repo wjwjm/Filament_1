@@ -77,10 +77,13 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
 
     raman_on = bool(getattr(raman, "enabled", False)) if (raman is not None) else False
     if raman_on:
-        fR = float(getattr(raman, "f_R", 0.15))
+        fR_value = getattr(raman, "f_R", None)
+        fR = float(fR_value) if fR_value is not None else None
         n_R = float(getattr(raman, "n_R", 2.3e-23))
-        T2 = float(getattr(raman, "T2", 8e-11))
-        TR = float(getattr(raman, "T_R", 8e-12))
+        T2_value = getattr(raman, "T2", None)
+        TR_value = getattr(raman, "T_R", None)
+        T2 = float(T2_value) if T2_value is not None else None
+        TR = float(TR_value) if TR_value is not None else None
         raman_model = str(getattr(raman, "model", "rot_sinexp"))
         raman_method = str(getattr(raman, "method", "iir")).lower()
         raman_chunk = int(getattr(raman, "chunk_pixels", 65536))
