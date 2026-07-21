@@ -1,20 +1,28 @@
 {
   "schema": "khz_filament.phase8b_r.job1_execution_manifest.v1",
-  "generated_utc": "2026-07-21T08:03:24.463983+00:00",
+  "generated_utc": "2026-07-21T09:02:32.528063+00:00",
   "case": "120fs_talebpour_isaacs_full_operator_on",
-  "prepared_from_head_sha": "6197100546c58231576ad8be85735601af17a3fe",
-  "prepared_on_branch": "codex/phase8b-controlled-propagation",
-  "future_execution_git_sha": null,
-  "future_execution_git_sha_rule": "must equal the merged Phase 8B-R Task R1 main SHA at a separately authorized R2",
+  "prepared_from_head_sha": "aad67a100fba612789dba2e41e39fadf04219d63",
+  "prepared_on_branch": "main",
+  "future_execution_git_sha": "aad67a100fba612789dba2e41e39fadf04219d63",
+  "future_execution_git_sha_rule": "locked source SHA used for the separately authorized Phase 8B-R Task R2 Job 1",
   "config": {
     "path": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
-    "sha256": "80ddfbba85460dc4dc1f2e3fe10a1e858d08755eec44324a44266e3026d64a8f"
+    "sha256": "942adca964f50b689fa5985c9af46f294da7948646b246c39ca0d50238a1b02a"
   },
   "input_audit_status": "passed",
-  "full_job_submitted": false,
-  "production_propagation_executed": false,
-  "slurm_job_id": null,
-  "submission_order": null,
-  "authorization_scope": "configuration preparation, input audit, and admission correction only",
-  "next_authority_required": "explicit user approval for Phase 8B-R Task R2"
+  "full_job_submitted": true,
+  "production_propagation_executed": true,
+  "slurm_job_id": "179706",
+  "submission_order": "Job 1 only; no Job 2 submitted",
+  "authorization_scope": "Phase 8B-R Task R2 Job 1 execution and audit only",
+  "execution_result": {
+    "slurm_state": "COMPLETED",
+    "slurm_exit_code": "0:0",
+    "completed_local_time": "2026-07-21T21:25:41+08:00",
+    "final_z_m": 1.2999999523162842,
+    "record_count": 15000,
+    "diagnostic_audit_status": "failed"
+  },
+  "next_authority_required": "resolve the failed Job 1 audit contract; no feedback-OFF Job 2 is authorized"
 }

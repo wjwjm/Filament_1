@@ -1,0 +1,61 @@
+{
+  "schema": "khz_filament.phase8b_r.job1_pre_submission_audit.v1",
+  "generated_utc": "2026-07-21T09:01:47+00:00",
+  "status": "passed",
+  "authorization": {
+    "phase8b_r_task_r2_authorized": true,
+    "job1_full_submission_authorized": true,
+    "job2_authorized": false
+  },
+  "execution": {
+    "case": "120fs_talebpour_isaacs_full_operator_on",
+    "git_sha": "aad67a100fba612789dba2e41e39fadf04219d63",
+    "git_tree_sha": "65a353096713dd5cd9bb75b2917738fbe0020b6a",
+    "remote_run_root": "/data/run01/scvi806/user_Wangjimin/phase8b_r2_job1_20260721T090147Z",
+    "source_archive": "source_aad67a1.tar.gz",
+    "source_archive_sha256": "2ee6aa4117bc8be5d670f7cbd0064cef1e570f571bea1904c2c416a84c07613c",
+    "source_archive_bytes": 23957944,
+    "uncompressed_source_tar_sha256": "0edd2baae47e5ebd107cb82f9eb7aab478ac1b1cc52da9bc3ee0c2bf8ca4577d",
+    "job_script_sha256": "6d46859da30b2ca880e0ce30ccbbac885fed4d5974c47e8f60d6cb92a2c6013c"
+  },
+  "configuration": {
+    "path": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+    "sha256": "942adca964f50b689fa5985c9af46f294da7948646b246c39ca0d50238a1b02a",
+    "operator_mode": "full_isaacs_eq27",
+    "operator_integrator": "heun",
+    "nonlinear_split_order": "strang",
+    "use_raman_full_operator": true,
+    "use_raman_phase": false,
+    "use_raman_absorption": false,
+    "raman_absorption": false
+  },
+  "resources": {
+    "account": "scvi806",
+    "partition": "gpu",
+    "gpu_count": 1,
+    "cpu_threads": 8,
+    "time_limit": "08:00:00",
+    "minimum_gpu_memory_bytes": 33668988928,
+    "backend": "cupy",
+    "numpy_fallback_allowed": false
+  },
+  "preflight_contract": {
+    "raman_step_closure_p99_lt": 0.001,
+    "raman_cumulative_closure_lt": 0.005,
+    "total_energy_final_lt": 0.01,
+    "total_energy_near_focus_lt": 0.02,
+    "legacy_alpha_exactly_zero": true,
+    "strang_operator_substeps_per_step": 2,
+    "strang_convolutions_per_step": 4,
+    "full_pytest": "163 passed"
+  },
+  "submission": {
+    "submitted": true,
+    "slurm_job_id": "179706",
+    "job2_prepared": false,
+    "job2_submitted": false,
+    "job1_slurm_state": "COMPLETED",
+    "job1_slurm_exit_code": "0:0",
+    "post_run_contract_status": "failed"
+  }
+}

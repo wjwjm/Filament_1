@@ -1,0 +1,16 @@
+{
+  "stage_id": "phase8b_r",
+  "stage_name": "full_isaacs_operator_job1",
+  "run_id": "phase8b_r2_job1_20260721T090147Z",
+  "case_id": "job1_full_operator_on",
+  "case_label": "120fs_talebpour_isaacs_full_operator_on",
+  "pulse_width_fs": 120.0,
+  "profile_type": "full_isaacs_eq27",
+  "slurm_job_id": "179706",
+  "config_path": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+  "output_npz": "/data/run01/scvi806/user_Wangjimin/phase8b_r2_job1_20260721T090147Z/outputs/job1_full_operator_on.npz",
+  "output_mat": "matlab保存数据/job1_full_operator_on.mat",
+  "figure_dir": "figures",
+  "status": "completed",
+  "exit_code": 0
+}

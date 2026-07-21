@@ -2,11 +2,11 @@
   "schema": "khz_filament.phase8b_r.job1_expected_diagnostic_contract.v1",
   "source_contract": {
     "path": "results/isaacs_raman_closure/phase8b_preflight/phase8b_expected_diagnostic_contract.json",
-    "sha256": "de5391c6626afa53d2a10d98ab23365b789b91c97bcae2beb514df49255484d9"
+    "sha256": "4120fcf4bc5bf6b89d7ebb9784749e60629201ff047de3a1be900fe9d567cfd6"
   },
   "source_config": {
     "path": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
-    "sha256": "80ddfbba85460dc4dc1f2e3fe10a1e858d08755eec44324a44266e3026d64a8f"
+    "sha256": "942adca964f50b689fa5985c9af46f294da7948646b246c39ca0d50238a1b02a"
   },
   "fixed_coordinates": {
     "z_final_m": 1.3,
