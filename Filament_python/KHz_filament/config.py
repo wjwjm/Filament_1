@@ -157,6 +157,8 @@ class RamanConfig:
     diagnose: bool = False
     operator_convention: str = "legacy"
     iir_sampling: str = "legacy_right_hold"
+    operator_mode: str = "legacy_split"
+    operator_integrator: str = "heun"
     absorption_model: str = "closed_form"
     absorption: bool = True
     omega_R: float =7.5e11

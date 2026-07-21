@@ -43,6 +43,8 @@
     "diagnose": true,
     "operator_convention": "isaacs_eq27",
     "iir_sampling": "exact_piecewise_linear",
+    "operator_mode": "full_isaacs_eq27",
+    "operator_integrator": "heun",
     "absorption": false
   }
 }

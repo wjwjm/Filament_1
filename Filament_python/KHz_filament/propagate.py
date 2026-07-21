@@ -14,7 +14,7 @@ from .linear_full import step_linear_full_factorized, step_linear_full_3d
 from .air_dispersion import n_of_omega
 from .constants import c0
 from .config import resolve_nonlinear_switches
-from .raman import make_raman_kernel, precompute_kernel_fft, raman_convolve_intensity, resolve_raman_rot_params
+from .raman import apply_isaacs_raman_operator_step, make_raman_kernel, precompute_kernel_fft, raman_convolve_intensity, resolve_raman_rot_params
 from .diagnostics import (
     intensity,
     pulse_energy,
@@ -177,6 +177,7 @@ def propagate_one_pulse(
     n_R = 0.0
     n2_elec = float(n2)
     fR_ignored_rot_sinexp = False
+    r_operator_mode = "legacy_split"
 
     if use_raman:
         fR = float(getattr(raman_conf, "f_R", 0.15))
@@ -184,6 +185,7 @@ def propagate_one_pulse(
         r_chunk = int(getattr(raman_conf, "chunk_pixels", 65536))
         r_model = str(getattr(raman_conf, "model", "rot_sinexp")).lower()
         n_R = float(getattr(raman_conf, "n_R", 2.3e-23))
+        r_operator_mode = str(getattr(raman_conf, "operator_mode", "legacy_split")).lower()
         fR_ignored_rot_sinexp = (r_model == "rot_sinexp")
         if fR_ignored_rot_sinexp:
             print(f"[Raman] model=rot_sinexp uses explicit n_R={n_R:.3e} m^2/W for phase/absorption; f_R={fR:.3g} ignored in phase channel.")
@@ -327,7 +329,8 @@ def propagate_one_pulse(
         delta_n_elec = n2_elec * I
         delta_n_rot = n_R * IR if (IR is not None) else xp.zeros_like(I, dtype=rdtype)
         delta_n_elec_applied = delta_n_elec if switches.use_electronic_kerr else xp.zeros_like(I, dtype=rdtype)
-        delta_n_rot_applied = delta_n_rot if switches.use_raman_phase else xp.zeros_like(I, dtype=rdtype)
+        full_isaacs_on = bool(switches.use_raman_phase and r_operator_mode == "full_isaacs_eq27")
+        delta_n_rot_applied = delta_n_rot if (switches.use_raman_phase and not full_isaacs_on) else xp.zeros_like(I, dtype=rdtype)
         delta_n_kerr = delta_n_elec_applied + delta_n_rot_applied
 
         if switches.use_self_steepening:
@@ -503,6 +506,14 @@ def propagate_one_pulse(
         phase  = dphi_k + dphi_p
 
         E = apply_nonlinear(E, phase, alpha_total, dz_try, dn_gas=dn_gas, k0=k0)
+        if use_raman and full_isaacs_on:
+            E = apply_isaacs_raman_operator_step(
+                E, dz_try, Omega=axes.Omega, dt=dt, omega0=omega0, n0=n0,
+                n_R=n_R, omega_R=omega_R, Gamma_R=Gamma_R,
+                integrator=getattr(raman_conf, "operator_integrator", "heun"),
+                method=r_method, chunk_pixels=r_chunk,
+                iir_sampling=getattr(raman_conf, "iir_sampling", "exact_piecewise_linear"),
+            )
 
         # —— 热沉积：分量分别记账 ——
         # 电离 + IB：Qslice (J/m^3)；电离源优先使用逐组分 Σ_j U_j * ∂ρ_j/∂t

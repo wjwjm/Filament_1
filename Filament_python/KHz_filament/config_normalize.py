@@ -147,6 +147,15 @@ def _normalize_raman(raman: Dict[str, Any]) -> None:
     if sampling not in allowed_sampling:
         raise ValueError(f"raman.iir_sampling must be one of {allowed_sampling}.")
     raman["iir_sampling"] = sampling
+    operator_mode = str(raman.get("operator_mode", "legacy_split") or "legacy_split").lower()
+    allowed_modes = ("legacy_split", "split_energy_closed", "full_isaacs_eq27")
+    if operator_mode not in allowed_modes:
+        raise ValueError(f"raman.operator_mode must be one of {allowed_modes}.")
+    raman["operator_mode"] = operator_mode
+    integrator = str(raman.get("operator_integrator", "heun") or "heun").lower()
+    if integrator not in ("euler", "heun"):
+        raise ValueError("raman.operator_integrator must be 'euler' or 'heun'.")
+    raman["operator_integrator"] = integrator
     if model != "isaacs_rot_sinexp":
         return
     forbidden = ("f_R", "T_R", "T2", "Omega_R", "tau2")
@@ -166,6 +175,16 @@ def _normalize_raman(raman: Dict[str, Any]) -> None:
         raman[name] = value
 
 
+def _validate_raman_operator_coupling(raman: Dict[str, Any], propagation: Dict[str, Any]) -> None:
+    mode = str(raman.get("operator_mode", "legacy_split") or "legacy_split").lower()
+    legacy_absorption = bool(raman.get("absorption", False)) or bool(propagation.get("use_raman_absorption", False))
+    absorption_model = str(raman.get("absorption_model", "") or "").lower()
+    if mode == "full_isaacs_eq27" and legacy_absorption:
+        raise ValueError("full_isaacs_eq27 includes Raman energy exchange and rejects legacy Raman absorption.")
+    if mode == "split_energy_closed" and (legacy_absorption or absorption_model == "conv_deriv"):
+        raise ValueError("split_energy_closed rejects legacy conv_deriv/absorption feedback.")
+
+
 def normalize_config(raw: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize raw config dict into a single canonical representation."""
     out = deepcopy(raw or {})
@@ -179,4 +198,5 @@ def normalize_config(raw: Dict[str, Any]) -> Dict[str, Any]:
     _normalize_species(out["ionization"])
     _normalize_nonlinear_switches(out["propagation"])
     _normalize_raman(out["raman"])
+    _validate_raman_operator_coupling(out["raman"], out["propagation"])
     return out
