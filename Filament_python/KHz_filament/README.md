@@ -26,7 +26,7 @@ cli.py -> confio.py / config_normalize.py -> runner.py -> propagate.py -> diagno
 - `diagnostics.py` 中的输出字段被 MATLAB 后处理依赖。新增或重命名字段时，必须同步检查 `summary.py`、`Filament_python/matlab/` 和说明文档。
 - 当保存 `rho_onaxis_t_z` 时，`runner.py` 同时保存 `t_axis`（秒），供 Python/Matlab 的 z–t 密度图使用；保留历史字段 `t` 以兼容既有读取脚本。
 - Phase 1 非线性可观测性：每个 `z_axis` 记录都会保存电子 Kerr、旋转 Raman、Raman 卷积、等离子体相位/折射率、离化/IB/Raman 吸收和能量收支的历史数组。运行会额外生成 `<out stem>.diagnostic_report.json`（例如 `khzfil_out.npz` 对应 `khzfil_out.diagnostic_report.json`）；其中包含字段物理意义、数据来源、单位、建议用途与自动一致性检查结果。旧字段不改名，旧 NPZ 读取脚本无需调整。
-- Phase 2 独立反馈开关：`propagation.use_electronic_kerr`、`use_raman_phase`、`use_plasma_phase`、`use_ionization_loss`、`use_raman_absorption` 与既有 `use_self_steepening` 可单独门控传播反馈；原始量继续输出，配对的 `*_applied_*` 字段明确记录真正进入传播算子的贡献。旧配置省略新字段时严格沿用既有 Raman 语义。
+- 独立反馈开关：`propagation.use_electronic_kerr`、`use_raman_phase`、`use_raman_full_operator`、`use_plasma_phase`、`use_ionization_loss`、`use_raman_absorption` 与既有 `use_self_steepening` 可单独门控传播反馈。`use_raman_full_operator` 仅显式启用完整 Isaacs Eq. (27) 算子，默认关闭；旧配置省略该字段时严格沿用既有 split Raman 语义。
 
 ## 焦区窗口坐标
 

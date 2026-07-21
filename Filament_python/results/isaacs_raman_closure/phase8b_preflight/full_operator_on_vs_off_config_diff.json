@@ -1,0 +1,16 @@
+{
+  "on": "C:\\Filament_1\\Filament_python\\configs\\isaacs_raman_closure\\120fs_talebpour_isaacs_full_operator_on.json",
+  "off": "C:\\Filament_1\\Filament_python\\configs\\isaacs_raman_closure\\120fs_talebpour_isaacs_full_operator_feedback_off.json",
+  "differences": [
+    {
+      "path": "propagation.use_raman_full_operator",
+      "before": true,
+      "after": false
+    }
+  ],
+  "authorized_paths": [
+    "propagation.use_raman_full_operator"
+  ],
+  "unexpected_paths": [],
+  "status": "passed"
+}

@@ -329,8 +329,8 @@ def propagate_one_pulse(
         delta_n_elec = n2_elec * I
         delta_n_rot = n_R * IR if (IR is not None) else xp.zeros_like(I, dtype=rdtype)
         delta_n_elec_applied = delta_n_elec if switches.use_electronic_kerr else xp.zeros_like(I, dtype=rdtype)
-        full_isaacs_on = bool(switches.use_raman_phase and r_operator_mode == "full_isaacs_eq27")
-        delta_n_rot_applied = delta_n_rot if (switches.use_raman_phase and not full_isaacs_on) else xp.zeros_like(I, dtype=rdtype)
+        full_isaacs_on = bool(switches.use_raman_full_operator and r_operator_mode == "full_isaacs_eq27")
+        delta_n_rot_applied = delta_n_rot if switches.use_raman_phase else xp.zeros_like(I, dtype=rdtype)
         delta_n_kerr = delta_n_elec_applied + delta_n_rot_applied
 
         if switches.use_self_steepening:
@@ -778,6 +778,7 @@ def propagate_one_pulse(
         "ionization_operator_method": ion_op_method,
         "nonlinear_use_electronic_kerr": bool(switches.use_electronic_kerr),
         "nonlinear_use_raman_phase": bool(switches.use_raman_phase),
+        "nonlinear_use_raman_full_operator": bool(switches.use_raman_full_operator),
         "nonlinear_use_plasma_phase": bool(switches.use_plasma_phase),
         "nonlinear_use_ionization_loss": bool(switches.use_ionization_loss),
         "nonlinear_use_raman_absorption": bool(switches.use_raman_absorption),

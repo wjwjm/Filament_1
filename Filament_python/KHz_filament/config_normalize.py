@@ -179,8 +179,14 @@ def _validate_raman_operator_coupling(raman: Dict[str, Any], propagation: Dict[s
     mode = str(raman.get("operator_mode", "legacy_split") or "legacy_split").lower()
     legacy_absorption = bool(raman.get("absorption", False)) or bool(propagation.get("use_raman_absorption", False))
     absorption_model = str(raman.get("absorption_model", "") or "").lower()
+    use_split_phase = bool(propagation.get("use_raman_phase", False))
+    use_full_operator = bool(propagation.get("use_raman_full_operator", False))
     if mode == "full_isaacs_eq27" and legacy_absorption:
         raise ValueError("full_isaacs_eq27 includes Raman energy exchange and rejects legacy Raman absorption.")
+    if mode == "full_isaacs_eq27" and use_split_phase:
+        raise ValueError("full_isaacs_eq27 rejects propagation.use_raman_phase=true; use use_raman_full_operator.")
+    if mode != "full_isaacs_eq27" and use_full_operator:
+        raise ValueError("propagation.use_raman_full_operator=true requires raman.operator_mode=full_isaacs_eq27.")
     if mode == "split_energy_closed" and (legacy_absorption or absorption_model == "conv_deriv"):
         raise ValueError("split_energy_closed rejects legacy conv_deriv/absorption feedback.")
 

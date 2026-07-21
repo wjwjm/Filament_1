@@ -225,6 +225,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
         "  - nonlinear switches: "
         f"electronic_kerr={onoff(switches.use_electronic_kerr)} "
         f"raman_phase={onoff(switches.use_raman_phase)} "
+        f"raman_full_operator={onoff(switches.use_raman_full_operator)} "
         f"plasma_phase={onoff(switches.use_plasma_phase)} "
         f"ionization_loss={onoff(switches.use_ionization_loss)}"
     )

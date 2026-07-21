@@ -39,6 +39,7 @@ class PropagationConfig:
     # runtime so old configuration files retain their exact behavior.
     use_electronic_kerr: Optional[bool] = None
     use_raman_phase: Optional[bool] = None
+    use_raman_full_operator: Optional[bool] = None
     use_plasma_phase: Optional[bool] = None
     use_ionization_loss: Optional[bool] = None
     use_raman_absorption: Optional[bool] = None
@@ -175,6 +176,7 @@ class EffectiveNonlinearSwitches:
 
     use_electronic_kerr: bool
     use_raman_phase: bool
+    use_raman_full_operator: bool
     use_plasma_phase: bool
     use_ionization_loss: bool
     use_raman_absorption: bool
@@ -201,9 +203,12 @@ def resolve_nonlinear_switches(prop: PropagationConfig, raman: RamanConfig | Non
         return bool(legacy) if value is None else bool(value)
 
     use_raman_phase = _resolve("use_raman_phase", raman_enabled)
+    # The complete Eq. (27) operator is always explicit opt-in.  It must not
+    # inherit the legacy raman.enabled behavior used by the split phase path.
+    use_raman_full_operator = bool(getattr(prop, "use_raman_full_operator", False))
     use_raman_absorption = _resolve("use_raman_absorption", legacy_raman_absorption)
     explicit_raman_absorption = getattr(prop, "use_raman_absorption", None)
-    compute_raman = bool(raman_enabled or use_raman_phase or use_raman_absorption)
+    compute_raman = bool(raman_enabled or use_raman_phase or use_raman_full_operator or use_raman_absorption)
     # A newly explicit Raman-absorption switch requests the raw absorption
     # diagnostic even when the feedback switch is OFF.  With no new switch,
     # preserve the old raman.absorption performance behavior.
@@ -214,6 +219,7 @@ def resolve_nonlinear_switches(prop: PropagationConfig, raman: RamanConfig | Non
     return EffectiveNonlinearSwitches(
         use_electronic_kerr=_resolve("use_electronic_kerr", True),
         use_raman_phase=use_raman_phase,
+        use_raman_full_operator=use_raman_full_operator,
         use_plasma_phase=_resolve("use_plasma_phase", True),
         use_ionization_loss=_resolve("use_ionization_loss", True),
         use_raman_absorption=use_raman_absorption,

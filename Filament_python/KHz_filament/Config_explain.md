@@ -67,6 +67,7 @@
 
 - **use_electronic_kerr (bool | null)**：是否将已计算的 `n2*I` 加入传播相位；关闭后仍保存原始电子 Kerr 诊断。
 - **use_raman_phase (bool | null)**：是否将已计算的 `n_R I_R` 加入传播相位；关闭后仍保留 Raman convolution 与原始 Raman 诊断。
+- **use_raman_full_operator (bool | null)**：仅用于显式启用 `full_isaacs_eq27` 复场算子；默认/省略为关闭，且不能与 `use_raman_phase=true` 或 legacy Raman absorption 同时使用。
 - **use_plasma_phase (bool | null)**：是否将由电子密度得到的 plasma phase 加入传播相位；关闭后仍求解并保存 `rho` 与原始 plasma phase。
 - **use_ionization_loss (bool | null)**：是否将已计算的 `alpha_ion` 加入 `alpha_total`；关闭后仍保存原始电离率、电子密度和潜在沉积。
 - **use_raman_absorption (bool | null)**：是否将 Raman absorption 加入 `alpha_total`；可与 Raman phase 独立设置。

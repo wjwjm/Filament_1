@@ -1,0 +1,100 @@
+{
+  "baseline": "C:\\Filament_1\\Filament_python\\configs\\ionization_model_propagation\\120fs_talebpour_full_model.json",
+  "candidate": "C:\\Filament_1\\Filament_python\\configs\\isaacs_raman_closure\\120fs_talebpour_isaacs_full_operator_on.json",
+  "differences": [
+    {
+      "path": "propagation.use_raman_absorption",
+      "before": true,
+      "after": false
+    },
+    {
+      "path": "propagation.use_raman_full_operator",
+      "before": "__missing__",
+      "after": true
+    },
+    {
+      "path": "propagation.use_raman_phase",
+      "before": true,
+      "after": false
+    },
+    {
+      "path": "raman.T2",
+      "before": 8e-11,
+      "after": "__missing__"
+    },
+    {
+      "path": "raman.T_R",
+      "before": 8.4e-12,
+      "after": "__missing__"
+    },
+    {
+      "path": "raman.abs_mask_frac",
+      "before": 0.001,
+      "after": "__missing__"
+    },
+    {
+      "path": "raman.absorption",
+      "before": true,
+      "after": "__missing__"
+    },
+    {
+      "path": "raman.absorption_model",
+      "before": "conv_deriv",
+      "after": "__missing__"
+    },
+    {
+      "path": "raman.f_R",
+      "before": 0.15,
+      "after": "__missing__"
+    },
+    {
+      "path": "raman.iir_sampling",
+      "before": "__missing__",
+      "after": "exact_piecewise_linear"
+    },
+    {
+      "path": "raman.max_alpha_dz",
+      "before": 0.002,
+      "after": "__missing__"
+    },
+    {
+      "path": "raman.model",
+      "before": "rot_sinexp",
+      "after": "isaacs_rot_sinexp"
+    },
+    {
+      "path": "raman.operator_convention",
+      "before": "__missing__",
+      "after": "isaacs_eq27"
+    },
+    {
+      "path": "raman.operator_integrator",
+      "before": "__missing__",
+      "after": "heun"
+    },
+    {
+      "path": "raman.operator_mode",
+      "before": "__missing__",
+      "after": "full_isaacs_eq27"
+    }
+  ],
+  "authorized_paths": [
+    "propagation.use_raman_absorption",
+    "propagation.use_raman_full_operator",
+    "propagation.use_raman_phase",
+    "raman.T2",
+    "raman.T_R",
+    "raman.abs_mask_frac",
+    "raman.absorption",
+    "raman.absorption_model",
+    "raman.f_R",
+    "raman.iir_sampling",
+    "raman.max_alpha_dz",
+    "raman.model",
+    "raman.operator_convention",
+    "raman.operator_integrator",
+    "raman.operator_mode"
+  ],
+  "unexpected_paths": [],
+  "status": "passed"
+}
