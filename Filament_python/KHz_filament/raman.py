@@ -273,10 +273,34 @@ def isaacs_raman_field_rhs(E, *, Omega, dt, omega0, n0, n_R, omega_R, Gamma_R,
     return (1j * prefactor * product - (prefactor / float(omega0)) * derivative).astype(ctype, copy=False)
 
 
+def isaacs_raman_signed_energy_density(E, *, Omega, dt, n0, n_R, omega_R, Gamma_R,
+                                       method="iir", chunk_pixels=65536,
+                                       iir_sampling="exact_piecewise_linear"):
+    """Return local signed Eq. (10) exchange ``u_R`` and deposition ``q_R``."""
+    rdtype = xp.float32 if E.dtype == xp.complex64 else xp.float64
+    intensity = (0.5 * float(eps0) * float(c0) * float(n0) * xp.abs(E) ** 2).astype(rdtype, copy=False)
+    if method == "fft":
+        tau = xp.arange(E.shape[0], dtype=xp.float64) * float(dt)
+        kernel = make_raman_kernel(tau, {
+            "model": "isaacs_rot_sinexp", "omega_R": omega_R, "Gamma_R": Gamma_R,
+        })
+        response = raman_convolve_intensity(intensity, kernel, method="fft", dt=dt, chunk_pixels=chunk_pixels)
+    else:
+        response = raman_convolve_intensity(
+            intensity, method="iir", dt=dt, omega_R=omega_R, Gamma_R=Gamma_R,
+            chunk_pixels=chunk_pixels, iir_sampling=iir_sampling)
+    derivative = xp.fft.ifft(
+        (1j * xp.asarray(Omega, dtype=rdtype))[:, None, None] * xp.fft.fft(intensity, axis=0), axis=0).real
+    u_signed = (float(n_R) / float(c0)) * xp.sum(response * derivative, axis=0) * float(dt)
+    q_positive = xp.maximum(-u_signed, 0.0)
+    return u_signed.astype(rdtype, copy=False), q_positive.astype(rdtype, copy=False)
+
+
 def apply_isaacs_raman_operator_step(E, dz, *, Omega, dt, omega0, n0, n_R,
                                      omega_R, Gamma_R, integrator="heun",
                                      method="iir", chunk_pixels=65536,
-                                     iir_sampling="exact_piecewise_linear"):
+                                     iir_sampling="exact_piecewise_linear",
+                                     return_diagnostics=False):
     """Opt-in full Isaacs Raman step; Heun recomputes I and I_R at stage two."""
     kwargs = dict(
         Omega=Omega, dt=dt, omega0=omega0, n0=n0, n_R=n_R,
@@ -284,10 +308,26 @@ def apply_isaacs_raman_operator_step(E, dz, *, Omega, dt, omega0, n0, n_R,
         chunk_pixels=chunk_pixels, iir_sampling=iir_sampling,
     )
     k1 = isaacs_raman_field_rhs(E, **kwargs)
+    _, q1 = isaacs_raman_signed_energy_density(
+        E, Omega=Omega, dt=dt, n0=n0, n_R=n_R, omega_R=omega_R,
+        Gamma_R=Gamma_R, method=method, chunk_pixels=chunk_pixels,
+        iir_sampling=iir_sampling)
     if str(integrator).lower() == "euler":
-        return (E + float(dz) * k1).astype(E.dtype, copy=False)
+        result = (E + float(dz) * k1).astype(E.dtype, copy=False)
+        if return_diagnostics:
+            return result, {"target_local_fluence_loss": float(dz) * q1,
+                            "clipping_count": 0}
+        return result
     if str(integrator).lower() != "heun":
         raise ValueError("Raman full-operator integrator must be 'euler' or 'heun'")
     predictor = (E + float(dz) * k1).astype(E.dtype, copy=False)
     k2 = isaacs_raman_field_rhs(predictor, **kwargs)
-    return (E + 0.5 * float(dz) * (k1 + k2)).astype(E.dtype, copy=False)
+    _, q2 = isaacs_raman_signed_energy_density(
+        predictor, Omega=Omega, dt=dt, n0=n0, n_R=n_R, omega_R=omega_R,
+        Gamma_R=Gamma_R, method=method, chunk_pixels=chunk_pixels,
+        iir_sampling=iir_sampling)
+    result = (E + 0.5 * float(dz) * (k1 + k2)).astype(E.dtype, copy=False)
+    if return_diagnostics:
+        return result, {"target_local_fluence_loss": 0.5 * float(dz) * (q1 + q2),
+                        "clipping_count": 0}
+    return result
