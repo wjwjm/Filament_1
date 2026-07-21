@@ -1,0 +1,59 @@
+{
+  "schema": "khz_filament.phase8b_r.job1_energy_reconstruction_consistency.v1",
+  "archive_field_reintegration": {
+    "available": false,
+    "full_history_keys": [],
+    "reason": "archive has no full E/I history indexed by z,x,y,t; I_out_center_t is centerline-only",
+    "status": "inconclusive_missing_full_field_history"
+  },
+  "runtime_energy_diagnostics": {
+    "initial_energy_J": 0.0021715129259973764,
+    "max_U_step_change_mismatch_J": 0.0,
+    "max_E_loss_from_input_mismatch_J": 0.0,
+    "max_U_rel_change_mismatch": 3.7091098942232392e-09,
+    "max_E_dep_cumulative_mismatch_J": 3.672534498733171e-12,
+    "reconstructed_final_total_closure": 0.014176516743495496,
+    "audit_final_total_closure": 0.014176516743495496,
+    "audit_reconstruction_difference": 0.0
+  },
+  "integration_and_grid": {
+    "runtime_field_energy_formula": "sum(I) * dt * dx * dy (Cartesian rectangular quadrature)",
+    "cylindrical_jacobian": "not applicable: archive stores Cartesian x and y axes",
+    "time_axis": {
+      "samples": 384,
+      "min_spacing": 2.499999999999939e-15,
+      "max_spacing": 2.50000000000004e-15,
+      "uniform": true
+    },
+    "x_axis": {
+      "samples": 512,
+      "min_spacing": 1.562499999999958e-05,
+      "max_spacing": 1.5625000000000014e-05,
+      "uniform": true
+    },
+    "y_axis": {
+      "samples": 512,
+      "min_spacing": 1.562499999999958e-05,
+      "max_spacing": 1.5625000000000014e-05,
+      "uniform": true
+    },
+    "fft_normalization_archive_evidence": "not stored; cannot be independently verified without archived field history",
+    "unit_conversion_archive_evidence": "U_z is already J; source runtime formula documented above"
+  },
+  "alignment": {
+    "all_histories_records": 15000,
+    "z_step_end_alignment": "U_z, E_dep_total_z, E_dep_cumulative_z, and dz_used_z are recorded after the accepted step ending at z_axis",
+    "initial_reference": "U0 = U_z[0] - U_step_change_z[0]",
+    "last_step": {
+      "z_final_m": 1.2999999523162842,
+      "dz_last_m": 4.999999873689376e-05,
+      "last_step_deposition_matches_cumulative_increment_J": -1.1408651801048109e-12,
+      "last_step_field_change_matches_U_step_J": 0.0
+    }
+  },
+  "conclusion": {
+    "runtime_diagnostics_self_consistent": true,
+    "archive_can_independently_reintegrate_field_energy": false,
+    "total_energy_closure_from_runtime_histories": 0.014176516743495496
+  }
+}
