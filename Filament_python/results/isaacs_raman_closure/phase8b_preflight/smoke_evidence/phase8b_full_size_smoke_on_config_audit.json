@@ -1,0 +1,18 @@
+{
+  "source_config": "/data/run01/scvi806/user_Wangjimin/phase8b_preflight_smoke_20260721T041145Z/source/Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+  "smoke_config": "/data/run01/scvi806/user_Wangjimin/phase8b_preflight_smoke_20260721T041145Z/cases/on/phase8b_full_size_smoke_on.json",
+  "authorized_smoke_overrides": {
+    "propagation.z_max": 0.002,
+    "propagation.auto_substep": false,
+    "propagation.focus_window_step": false,
+    "propagation.limit_focus_window": false,
+    "propagation.progress_every_z": 1,
+    "propagation.energy_probe_every": 1,
+    "propagation.diag_extra": false,
+    "propagation.measure_performance": true
+  },
+  "grid_unchanged": true,
+  "raman_unchanged": true,
+  "ionization_unchanged": true,
+  "beam_unchanged": true
+}

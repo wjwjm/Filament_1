@@ -1,0 +1,114 @@
+[config] Loaded: /data/run01/scvi806/user_Wangjimin/phase8b_preflight_smoke_20260721T041145Z/cases/on/phase8b_full_size_smoke_on.json
+
+=== Simulation Summary ===========================================
+Backend(后端)        : cupy [NVIDIA GeForce RTX 5090] | dtype=fp32  # 计算设备与精度
+Grid(网格)           : Nx=512, Ny=512, Nt=384 | Lx=8.000e-03 m, Ly=8.000e-03 m, Twin=9.600e-13 s  # 时空采样规模
+Steps(z步进)         : z_max=2.000e-03 m, dz=1.000e-04 m | AutoSubstep=OFF (dz_min=2.500e-05 m, grow×1.5)  # 传播步长控制
+Safety(稳定性)       : mode=ON | precheck_kerr=OFF max_iter=0  # 数值安全设置
+FocusWin(焦区加密)   : OFF  # 关闭焦区细步长
+Thresholds(阈值)      : lin_phase≤0.8, alpha·dz≤0.2, kerr_phase≤0.3, Imax_growth≤50%  # 自适应/回退判据
+Linear(线性传播)      : model=bk_nee | factorize=OFF | chunk_t=8  # 线性算子设置
+Lens(透镜)           : thin-lens (center ω) | f=0.950 m | lens_chunk_t=0  # 聚焦模型
+Beam(入射光束)       : λ0=8.000e-07 m n0=1.00027 w0=1.979e-03 m τ_FWHM=1.200e-13 s  # 初始脉冲参数
+Profile(横向轮廓)    : flat_top_cosine | radius=1.979e-03 m
+  Edge start         : 0.900 R
+  Input P0/I0/Aeff   : 1.700e+10 W / 1.530e+15 W/m^2 / 1.111e-05 m^2
+  Moment/r50/r90     : 1.883e-03 m / 1.330e-03 m / 1.784e-03 m
+  Boundary I fraction: 0
+Energy(能量)         : config=0 J | actual(after norm)=2.172e-03 J | E0_peak=0 V/m  # 目标与归一化
+P0_peak(峰值功率)    : 1.700e+10 W  # 与 energy_J 二选一
+Repetition(重频)      : f_rep=1.000e+03 Hz | pulses=1  # 脉冲序列
+Kerr(克尔效应)       : ON   n2=7.800e-24 m^2/W | P_cr≈1.214e+10 W  # 自聚焦关键参数
+Self-steep.(自陡峭)   : ON   method=tdiff  chunk_px=65536  # 脉冲前沿陡化
+Raman       : ON  f_R=None  n_R=2.300e-23 m^2/W  model=isaacs_rot_sinexp  T2=None  T_R=None  method=iir  chunk_px=65536
+  Isaacs     : explicit n_R/omega_R/Gamma_R; coefficient semantics = independent electronic + rotational
+    Period   : 3.927e-13 s  dephasing time=7.692e-14 s
+  Absorption(吸收)   : ON   scheme=closed_form  # 拉曼吸收模型
+    Params  : ω_R=1.600e+13 s^-1  Γ_R=1.300e+13 s^-1  τ_FWHM=1.200e-13 s  n_rot_frac=0.99  R0_mode=mom (second-moment radius)
+    Effective: T_R(eq)=3.927e-13 s  T2(eq)=7.692e-14 s  # 由 ω_R/Γ_R 反算
+FinalEffective(最终生效参数):
+  - ionization.time_mode=full  integrator=rk4
+  - propagation.auto_substep=False  dz=1.000e-04 m  dz_focus=5.000e-05 m
+  - beam.energy_J=null  P0_peak=1.700e+10 W  norm_source=P0_peak
+  - nonlinear switches: electronic_kerr=ON  raman_phase=OFF raman_full_operator=ON  plasma_phase=ON  ionization_loss=ON 
+  - nonlinear switches: raman_absorption=OFF self_steepening=ON  ionization_solver=ON  raman_convolution=ON 
+Ionization(电离)      : SPECIES(2)  caps: W≤1.000e+19 s^-1, I≤1.000e+19 W/m^2  expects=—  # 电离输入域
+  Species(组分)      :
+    - N2     rate=PPT_TALEBPOUR_I_LUT fraction=0.800, expects=—
+    - O2     rate=PPT_TALEBPOUR_I_LUT fraction=0.200, expects=—
+  TimeMode(时间近似) : FULL  integrator=RK4  # 全时域积分
+  Drude ν_ei(碰撞频) : 0 s^-1
+  Drude/IB(等离子体) : β_rec=0 m^3/s  σ_ib=0 m^2  # 复合与吸收
+EnergyGuard(能量守护): ON  every=50 skip-first=5× | blowup×50  # 异常能量监测
+Diagnostics(诊断输出): extra=OFF  # 扩展诊断开关
+===================================================================
+
+[waist] measured w_in=1.883e-03 m  -> z_R=1.392e+01 m  -> z_focus_pred≈0.9456 m (thin-lens)
+[focus-step] focus_center_m(local)=0.95, focus_halfwidth_m=1.0000e-01, dz_base=1.0000e-04, dz_focus=5.0000e-05
+[U] z=0.000 m  U= 2.172e-03 J  Δrel=0.00%
+[U] z=0.000 m  U= 2.172e-03 J  Δrel=-0.00%
+[z=0.000 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.000/0.002 m (  5.00%)  elapsed    5.9s  ETA  112.8s
+[U] z=0.000 m  U= 2.172e-03 J  Δrel=-0.00%
+[z=0.000 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.000/0.002 m ( 10.00%)  elapsed    6.8s  ETA   61.4s
+[U] z=0.000 m  U= 2.172e-03 J  Δrel=-0.00%
+[z=0.000 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.000/0.002 m ( 15.00%)  elapsed    7.7s  ETA   43.6s
+[U] z=0.000 m  U= 2.172e-03 J  Δrel=-0.00%
+[z=0.000 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.000/0.002 m ( 20.00%)  elapsed    8.6s  ETA   34.4s
+[U] z=0.001 m  U= 2.172e-03 J  Δrel=-0.00%
+[z=0.000 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.001/0.002 m ( 25.00%)  elapsed    9.5s  ETA   28.4s
+[U] z=0.001 m  U= 2.171e-03 J  Δrel=-0.00%
+[z=0.001 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.001/0.002 m ( 30.00%)  elapsed   10.4s  ETA   24.2s
+[U] z=0.001 m  U= 2.171e-03 J  Δrel=-0.00%
+[z=0.001 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.001/0.002 m ( 35.00%)  elapsed   11.2s  ETA   20.9s
+[U] z=0.001 m  U= 2.171e-03 J  Δrel=-0.00%
+[z=0.001 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.001/0.002 m ( 40.00%)  elapsed   12.1s  ETA   18.2s
+[U] z=0.001 m  U= 2.171e-03 J  Δrel=-0.00%
+[z=0.001 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.001/0.002 m ( 45.00%)  elapsed   13.0s  ETA   15.9s
+[U] z=0.001 m  U= 2.171e-03 J  Δrel=-0.00%
+[z=0.001 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.001/0.002 m ( 50.00%)  elapsed   13.9s  ETA   13.9s
+[U] z=0.001 m  U= 2.171e-03 J  Δrel=-0.00%
+[z=0.001 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.001/0.002 m ( 55.00%)  elapsed   14.8s  ETA   12.1s
+[U] z=0.001 m  U= 2.171e-03 J  Δrel=-0.00%
+[z=0.001 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.001/0.002 m ( 60.00%)  elapsed   15.7s  ETA   10.4s
+[U] z=0.001 m  U= 2.171e-03 J  Δrel=-0.00%
+[z=0.001 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.001/0.002 m ( 65.00%)  elapsed   16.5s  ETA    8.9s
+[U] z=0.001 m  U= 2.171e-03 J  Δrel=-0.00%
+[z=0.001 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.001/0.002 m ( 70.00%)  elapsed   17.4s  ETA    7.5s
+[U] z=0.002 m  U= 2.171e-03 J  Δrel=-0.00%
+[z=0.001 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.002/0.002 m ( 75.00%)  elapsed   18.3s  ETA    6.1s
+[U] z=0.002 m  U= 2.171e-03 J  Δrel=-0.00%
+[z=0.002 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.002/0.002 m ( 80.00%)  elapsed   19.2s  ETA    4.8s
+[U] z=0.002 m  U= 2.171e-03 J  Δrel=-0.00%
+[z=0.002 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.002/0.002 m ( 85.00%)  elapsed   20.1s  ETA    3.5s
+[U] z=0.002 m  U= 2.171e-03 J  Δrel=-0.00%
+[z=0.002 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.002/0.002 m ( 90.00%)  elapsed   21.0s  ETA    2.3s
+[U] z=0.002 m  U= 2.171e-03 J  Δrel=-0.00%
+[z=0.002 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.002/0.002 m ( 95.00%)  elapsed   21.9s  ETA    1.2s
+[U] z=0.002 m  U= 2.171e-03 J  Δrel=-0.00%
+[z=0.002 m] PPT_i cap-hit = 0.000% (cap=1.00e+19)
+[z] 0.002/0.002 m (100.00%)  elapsed   22.7s  ETA    0.0s
+Pulse 1/1: Δn_gas min/max = 0.000e+00/0.000e+00  (elapsed 46.3s)
+[total]  46.3s
+Peak intensity out: 1.541e+15 W/m^2; Pulse energy ~ 2.171e-03 J
+[focus] estimated z_of_focus ≈ 0.0020 m (min second-moment radius)
+Saved diagnostics to /data/run01/scvi806/user_Wangjimin/phase8b_preflight_smoke_20260721T041145Z/cases/on/phase8b_full_size_smoke_on.npz
+[diagnostic-check] PASS: 20 z records; report=/data/run01/scvi806/user_Wangjimin/phase8b_preflight_smoke_20260721T041145Z/cases/on/phase8b_full_size_smoke_on.diagnostic_report.json

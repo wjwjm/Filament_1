@@ -31,6 +31,7 @@ def _run(tmp_path, enabled, split_order="after_other"):
             use_raman_phase=False, use_raman_full_operator=enabled,
             use_raman_absorption=False, use_plasma_phase=False,
             use_ionization_loss=False, use_ionization_solver=False,
+            measure_performance=True,
         ),
         ion=IonizationConfig(species=[]),
         heat=HeatConfig(),
@@ -63,6 +64,9 @@ def test_full_operator_on_wires_energy_and_reuses_two_convolutions(tmp_path):
     np.testing.assert_allclose(data["E_dep_rot_z"], data["raman_actual_loss_step_J"])
     assert np.all(data["alpha_R_applied_max_z"] == 0.0)
     assert data["delta_n_rot_applied_semantics"].item() == "not_applicable_full_complex_operator"
+    assert np.all(data["total_walltime_step_s"] > 0.0)
+    assert np.all(data["linear_walltime_step_s"] >= 0.0)
+    assert np.all(data["ionization_walltime_step_s"] >= 0.0)
 
 
 def test_full_operator_feedback_off_keeps_raw_diagnostics_without_field_loss(tmp_path):

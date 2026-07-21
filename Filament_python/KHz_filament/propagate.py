@@ -94,6 +94,11 @@ def _combine_raman_operator_diagnostics(parts, *, reference_energy):
     }
 
 
+def _performance_sync(enabled):
+    if enabled and getattr(xp, "__name__", "numpy") == "cupy":
+        xp.cuda.Stream.null.synchronize()
+
+
 # --- 轻量 CPU 侧 FWHM 计算：对 2D map 做圆平均，再找 0.5×峰值的半径 ---
 def _fwhm_circular_cpu(map2d_cpu, x_cpu, y_cpu, floor_rel=1e-12, nbins=256):
     import numpy as np
@@ -166,6 +171,7 @@ def propagate_one_pulse(
     # ---------- 近焦缩步 ----------
     p = prop_conf
     switches = resolve_nonlinear_switches(p, raman_conf, ion_conf)
+    measure_performance = bool(getattr(p, "measure_performance", False))
     dz_base = float(dz)
     use_focus_win = bool(getattr(p, "focus_window_step", False))
     z_center = getattr(p, "focus_center_m", None) or getattr(p, "z_focus_hint", None)
@@ -321,6 +327,9 @@ def propagate_one_pulse(
     raman_cumulative_closure_residual_z_list = []
     raman_convolution_count_step_z_list, raman_operator_walltime_step_z_list = [], []
     raman_operator_substep_count_z_list = []
+    linear_walltime_step_z_list, ionization_walltime_step_z_list = [], []
+    total_walltime_step_z_list = []
+    gpu_allocated_step_bytes_list, gpu_reserved_step_bytes_list = [], []
     E_dep_cumulative = 0.0
     raman_target_loss_cumulative = 0.0
     raman_actual_loss_cumulative = 0.0
@@ -354,12 +363,18 @@ def propagate_one_pulse(
         return updated, diagnostics
 
     while z < z_max - 1e-16:
+        _performance_sync(measure_performance)
+        step_started = time.perf_counter()
+        linear_walltime_step = 0.0
         dz_remain = z_max - z
         if use_focus_win and (z_center is not None) and (z_half > 0.0):
             z_mid = z + 0.5 * dz_base
             dz_try = min(dz_focus if abs(z_mid - float(z_center)) <= z_half else dz_base, dz_remain)
         else:
             dz_try = min(dz_base, dz_remain)
+
+        _performance_sync(measure_performance)
+        linear_started = time.perf_counter()
 
         # 线性半步
         if use_uppe:
@@ -383,6 +398,10 @@ def propagate_one_pulse(
             E = step_linear(E, prop_xh)
 
         # 非线性整步
+        _performance_sync(measure_performance)
+        if measure_performance:
+            linear_walltime_step += time.perf_counter() - linear_started
+
         full_isaacs_on = bool(full_isaacs_mode and switches.use_raman_full_operator)
         raman_diag_parts = []
         if full_isaacs_on and r_nonlinear_split_order in ("before_other", "strang"):
@@ -424,6 +443,8 @@ def propagate_one_pulse(
             )
 
         # —— 电离/IB 吸收（分开记账）——
+        _performance_sync(measure_performance)
+        ionization_started = time.perf_counter()
         if ion_off:
             rho = xp.zeros_like(I, dtype=rdtype)
             Wt  = xp.zeros_like(I, dtype=rdtype)
@@ -476,6 +497,10 @@ def propagate_one_pulse(
         alpha_ion = ion_source_prop / (I + I_floor)
         alpha_ion = xp.nan_to_num(alpha_ion, nan=0.0, posinf=0.0, neginf=0.0)
         xp.maximum(alpha_ion, 0.0, out=alpha_ion)
+        _performance_sync(measure_performance)
+        ionization_walltime_step = (
+            time.perf_counter() - ionization_started if measure_performance else 0.0
+        )
 
         # —— 拉曼吸收 —— 两种模型二选一
 
@@ -644,6 +669,9 @@ def propagate_one_pulse(
         if use_raman and raman_absorb_on and (absorption_model == "poynting") and (Q_rot_vol is not None):
             Qacc += xp.asarray(Q_rot_vol, dtype=Qacc.dtype) * dz_try
 
+        _performance_sync(measure_performance)
+        linear_started = time.perf_counter()
+
         # 第二个线性半步
         if use_uppe:
             if use_factor:
@@ -666,6 +694,18 @@ def propagate_one_pulse(
             E = step_linear(E, prop_xh)
 
         # --- 每步诊断 ---
+        _performance_sync(measure_performance)
+        if measure_performance:
+            linear_walltime_step += time.perf_counter() - linear_started
+            total_walltime_step = time.perf_counter() - step_started
+        else:
+            total_walltime_step = 0.0
+        gpu_allocated_step = gpu_reserved_step = 0
+        if measure_performance and getattr(xp, "__name__", "numpy") == "cupy":
+            pool = xp.get_default_memory_pool()
+            gpu_allocated_step = int(pool.used_bytes())
+            gpu_reserved_step = int(pool.total_bytes())
+
         save_count += 1
         if (save_count % save_every) == 0 or (z + dz_try >= z_max - 1e-16):
             z_now = float(z + dz_try)
@@ -791,6 +831,11 @@ def propagate_one_pulse(
             raman_convolution_count_step_z_list.append(int(raman_step_diag["convolution_count"]))
             raman_operator_substep_count_z_list.append(int(raman_step_diag.get("operator_substep_count", 0)))
             raman_operator_walltime_step_z_list.append(float(raman_step_diag["operator_walltime_s"]))
+            linear_walltime_step_z_list.append(float(linear_walltime_step))
+            ionization_walltime_step_z_list.append(float(ionization_walltime_step))
+            total_walltime_step_z_list.append(float(total_walltime_step))
+            gpu_allocated_step_bytes_list.append(int(gpu_allocated_step))
+            gpu_reserved_step_bytes_list.append(int(gpu_reserved_step))
             delta_n_plasma_min_z_list.append(float(xp.min(dphi_p_raw)) / (float(k0) * dz_try))
             delta_n_elec_applied_max_z_list.append(float(xp.max(delta_n_elec_applied)))
             delta_n_rot_applied_max_z_list.append(float(xp.max(delta_n_rot_applied)))
@@ -904,6 +949,12 @@ def propagate_one_pulse(
         "raman_convolution_count_step": _np.asarray(raman_convolution_count_step_z_list, dtype=_np.int64),
         "raman_operator_substep_count": _np.asarray(raman_operator_substep_count_z_list, dtype=_np.int64),
         "raman_operator_walltime_step_s": _np.asarray(raman_operator_walltime_step_z_list, dtype=rdtype_np),
+        "linear_walltime_step_s": _np.asarray(linear_walltime_step_z_list, dtype=rdtype_np),
+        "ionization_walltime_step_s": _np.asarray(ionization_walltime_step_z_list, dtype=rdtype_np),
+        "total_walltime_step_s": _np.asarray(total_walltime_step_z_list, dtype=rdtype_np),
+        "gpu_allocated_step_bytes": _np.asarray(gpu_allocated_step_bytes_list, dtype=_np.int64),
+        "gpu_reserved_step_bytes": _np.asarray(gpu_reserved_step_bytes_list, dtype=_np.int64),
+        "performance_measurement_enabled": bool(measure_performance),
         "delta_n_rot_applied_semantics": _np.asarray(
             "not_applicable_full_complex_operator" if full_isaacs_mode else "split_delayed_index_applied"
         ),

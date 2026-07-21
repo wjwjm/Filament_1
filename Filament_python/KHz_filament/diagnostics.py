@@ -315,6 +315,36 @@ NONLINEAR_DIAGNOSTIC_METADATA.update({
         "unit": "count",
         "use": "interpret total convolution count for Strang splitting",
     },
+    "linear_walltime_step_s": {
+        "meaning": "synchronized wall time of both linear half steps",
+        "source": "propagate.py performance instrumentation",
+        "unit": "s",
+        "use": "full-size runtime projection",
+    },
+    "ionization_walltime_step_s": {
+        "meaning": "synchronized ionization/plasma source calculation wall time",
+        "source": "propagate.py performance instrumentation",
+        "unit": "s",
+        "use": "full-size runtime projection",
+    },
+    "total_walltime_step_s": {
+        "meaning": "synchronized total propagation-step wall time",
+        "source": "propagate.py performance instrumentation",
+        "unit": "s",
+        "use": "full-job walltime estimate",
+    },
+    "gpu_allocated_step_bytes": {
+        "meaning": "CuPy memory-pool bytes actively allocated after each step",
+        "source": "cupy default memory pool",
+        "unit": "byte",
+        "use": "GPU memory gate",
+    },
+    "gpu_reserved_step_bytes": {
+        "meaning": "CuPy memory-pool bytes reserved after each step",
+        "source": "cupy default memory pool",
+        "unit": "byte",
+        "use": "GPU memory gate",
+    },
 })
 
 
@@ -388,6 +418,11 @@ Z_HISTORY_TRACE_KEYS = (
     "raman_convolution_count_step",
     "raman_operator_walltime_step_s",
     "raman_operator_substep_count",
+    "linear_walltime_step_s",
+    "ionization_walltime_step_s",
+    "total_walltime_step_s",
+    "gpu_allocated_step_bytes",
+    "gpu_reserved_step_bytes",
 )
 
 
