@@ -1,0 +1,460 @@
+{
+  "schema": "khz_filament.nonlinear_diagnostics.v1",
+  "npz_path": "/data/run01/scvi806/user_Wangjimin/phase8b_r2_replacement_job1_retry_20260721T165000Z/outputs/job1_full_operator_on_energy_audit.npz",
+  "validation": {
+    "passed": true,
+    "z_records": 15000,
+    "checked_traces": [
+      "U_z",
+      "I_max_z",
+      "I_onaxis_max_z",
+      "I_center_t0_z",
+      "w_mom_z",
+      "rho_max_z",
+      "rho_onaxis_max_z",
+      "E_dep_z",
+      "fwhm_plasma_z",
+      "fwhm_fluence_z",
+      "I_onaxis_max_interp_list",
+      "E_dep_rot_z",
+      "alpha_R_max_z",
+      "alpha_R_mean_z",
+      "alpha_R_eff_z",
+      "alpha_R_closed_z",
+      "alpha_R_raw_max_z",
+      "alpha_R_applied_max_z",
+      "IR_max_z",
+      "IR_abs_max_z",
+      "delta_n_elec_max_z",
+      "delta_n_rot_max_z",
+      "delta_n_elec_peak_z",
+      "delta_n_rot_peak_z",
+      "delta_n_elec_applied_max_z",
+      "delta_n_rot_applied_max_z",
+      "alpha_ion_raw_max_z",
+      "alpha_ion_corr_max_z",
+      "alpha_ion_applied_max_z",
+      "alpha_ib_max_z",
+      "alpha_total_max_z",
+      "delta_n_plasma_min_z",
+      "delta_n_plasma_applied_min_z",
+      "dphi_kerr_max_abs_z",
+      "dphi_elec_max_abs_z",
+      "dphi_rot_max_abs_z",
+      "dphi_plasma_max_abs_z",
+      "dphi_elec_applied_max_abs_z",
+      "dphi_rot_applied_max_abs_z",
+      "dphi_plasma_raw_max_abs_z",
+      "dphi_plasma_applied_max_abs_z",
+      "E_dep_total_z",
+      "E_dep_cumulative_z",
+      "U_rel_change_z",
+      "U_step_change_z",
+      "E_loss_from_input_z",
+      "rho_N2_max_z",
+      "rho_O2_max_z",
+      "rho_O2_fraction_at_rho_total_max_z",
+      "dz_used_z",
+      "adaptive_rejection_count_z",
+      "safety_mode_trigger_count_z",
+      "raman_operator_applied",
+      "raman_rhs_l2_norm",
+      "raman_IR_max_raw",
+      "raman_target_loss_step_J",
+      "raman_actual_loss_step_J",
+      "raman_closure_residual_step",
+      "raman_target_loss_cumulative_J",
+      "raman_actual_loss_cumulative_J",
+      "raman_cumulative_closure_residual",
+      "raman_convolution_count_step",
+      "raman_operator_walltime_step_s",
+      "raman_operator_substep_count",
+      "linear_walltime_step_s",
+      "ionization_walltime_step_s",
+      "total_walltime_step_s",
+      "gpu_allocated_step_bytes",
+      "gpu_reserved_step_bytes",
+      "raman_energy_projection_iterations",
+      "raman_energy_projection_scale_deviation",
+      "raman_energy_projection_initial_residual"
+    ],
+    "all_zero_traces": [
+      "alpha_R_max_z",
+      "alpha_R_mean_z",
+      "alpha_R_eff_z",
+      "alpha_R_closed_z",
+      "alpha_R_raw_max_z",
+      "alpha_R_applied_max_z",
+      "delta_n_rot_applied_max_z",
+      "alpha_ib_max_z",
+      "dphi_rot_applied_max_abs_z",
+      "adaptive_rejection_count_z",
+      "safety_mode_trigger_count_z",
+      "linear_walltime_step_s",
+      "ionization_walltime_step_s",
+      "total_walltime_step_s",
+      "gpu_allocated_step_bytes",
+      "gpu_reserved_step_bytes"
+    ]
+  },
+  "effective_nonlinear_switches": {
+    "use_electronic_kerr": true,
+    "use_raman_phase": false,
+    "use_raman_full_operator": true,
+    "use_plasma_phase": true,
+    "use_ionization_loss": true,
+    "use_raman_absorption": false,
+    "use_self_steepening": true,
+    "use_ionization_solver": true
+  },
+  "variables": {
+    "delta_n_elec_max_z": {
+      "meaning": "maximum instantaneous electronic-Kerr refractive-index increment",
+      "source": "propagate.py: delta_n_elec = n2_elec * I",
+      "unit": "1",
+      "use": "electronic Kerr strength and self-focusing onset"
+    },
+    "delta_n_rot_max_z": {
+      "meaning": "maximum rotational-Raman refractive-index increment",
+      "source": "propagate.py: delta_n_rot = n_R * (Raman convolution of I)",
+      "unit": "1",
+      "use": "delayed Kerr contribution and Raman ablation studies"
+    },
+    "IR_max_z": {
+      "meaning": "maximum Raman-convolved intensity response",
+      "source": "propagate.py: raman_convolve_intensity(I, ...)",
+      "unit": "W/m^2",
+      "use": "verify Raman convolution magnitude along propagation"
+    },
+    "IR_abs_max_z": {
+      "meaning": "maximum absolute Raman-convolved intensity response",
+      "source": "propagate.py: abs(raman_convolve_intensity(I, ...))",
+      "unit": "W/m^2",
+      "use": "detect signed Raman response even when its positive maximum is small"
+    },
+    "delta_n_plasma_min_z": {
+      "meaning": "most negative plasma refractive-index increment",
+      "source": "propagate.py: plasma_phase(rho, ...) divided by k0*dz",
+      "unit": "1",
+      "use": "plasma defocusing strength"
+    },
+    "dphi_kerr_max_abs_z": {
+      "meaning": "maximum absolute applied total Kerr phase per nonlinear step",
+      "source": "propagate.py: dphi_k after optional self-steepening correction",
+      "unit": "rad",
+      "use": "nonlinear phase budget and step-size diagnosis"
+    },
+    "dphi_elec_max_abs_z": {
+      "meaning": "maximum absolute electronic-Kerr phase estimate before optional self-steepening correction",
+      "source": "propagate.py: k0 * delta_n_elec * dz",
+      "unit": "rad",
+      "use": "separate electronic Kerr from rotational Raman in a phase budget"
+    },
+    "dphi_rot_max_abs_z": {
+      "meaning": "maximum absolute rotational-Raman phase estimate before optional self-steepening correction",
+      "source": "propagate.py: k0 * delta_n_rot * dz",
+      "unit": "rad",
+      "use": "separate delayed Raman Kerr from electronic Kerr in a phase budget"
+    },
+    "dphi_plasma_max_abs_z": {
+      "meaning": "maximum absolute applied plasma phase per nonlinear step",
+      "source": "propagate.py: plasma_phase(rho, ...)",
+      "unit": "rad",
+      "use": "plasma defocusing phase budget"
+    },
+    "delta_n_elec_applied_max_z": {
+      "meaning": "maximum electronic-Kerr refractive-index increment admitted to the propagation phase",
+      "source": "propagate.py: delta_n_elec gated by use_electronic_kerr",
+      "unit": "1",
+      "use": "verify electronic-Kerr switch isolation"
+    },
+    "delta_n_rot_applied_max_z": {
+      "meaning": "maximum rotational-Raman refractive-index increment admitted to the propagation phase",
+      "source": "propagate.py: delta_n_rot gated by use_raman_phase",
+      "unit": "1",
+      "use": "verify Raman-phase switch isolation"
+    },
+    "delta_n_plasma_applied_min_z": {
+      "meaning": "most negative plasma refractive-index increment admitted to the propagation phase",
+      "source": "propagate.py: plasma phase gated by use_plasma_phase",
+      "unit": "1",
+      "use": "verify plasma-phase switch isolation"
+    },
+    "dphi_elec_applied_max_abs_z": {
+      "meaning": "maximum electronic-Kerr phase estimate admitted before optional self-steepening",
+      "source": "propagate.py: applied delta_n_elec",
+      "unit": "rad",
+      "use": "separate raw and applied electronic Kerr"
+    },
+    "dphi_rot_applied_max_abs_z": {
+      "meaning": "maximum rotational-Raman phase estimate admitted before optional self-steepening",
+      "source": "propagate.py: applied delta_n_rot",
+      "unit": "rad",
+      "use": "separate raw and applied rotational Raman"
+    },
+    "dphi_plasma_raw_max_abs_z": {
+      "meaning": "maximum plasma phase calculated from rho before switch gating",
+      "source": "propagate.py: plasma_phase(rho, ...)",
+      "unit": "rad",
+      "use": "verify rho-derived plasma diagnostics when feedback is OFF"
+    },
+    "dphi_plasma_applied_max_abs_z": {
+      "meaning": "maximum plasma phase admitted to propagation",
+      "source": "propagate.py: raw plasma phase gated by use_plasma_phase",
+      "unit": "rad",
+      "use": "verify plasma-phase switch isolation"
+    },
+    "alpha_ion_corr_max_z": {
+      "meaning": "maximum ionization-loss coefficient used in propagation",
+      "source": "propagate.py: alpha_ion after optional operator correction",
+      "unit": "m^-1",
+      "use": "ionization absorption and operator-correction comparisons"
+    },
+    "alpha_ion_raw_max_z": {
+      "meaning": "maximum ionization-loss coefficient before optional operator correction",
+      "source": "propagate.py: ion_source_raw / (I + I_floor)",
+      "unit": "m^-1",
+      "use": "quantify the effect of the ionization operator correction"
+    },
+    "alpha_ib_max_z": {
+      "meaning": "maximum inverse-Bremsstrahlung absorption coefficient",
+      "source": "propagate.py: ib_alpha(rho, sigma_ib)",
+      "unit": "m^-1",
+      "use": "separate plasma collisional loss from ionization loss"
+    },
+    "alpha_R_eff_z": {
+      "meaning": "effective Raman absorption coefficient used in propagation",
+      "source": "propagate.py: Raman absorption model",
+      "unit": "m^-1",
+      "use": "Raman-absorption ablation and loss budget"
+    },
+    "alpha_R_closed_z": {
+      "meaning": "effective Raman coefficient from the closed-form absorption branch; zero for other Raman models",
+      "source": "propagate.py: closed_form / alpha_local Raman absorption branch",
+      "unit": "m^-1",
+      "use": "distinguish the closed-form Raman-loss branch from convolution-derivative loss"
+    },
+    "alpha_total_max_z": {
+      "meaning": "maximum total absorption coefficient applied to the field",
+      "source": "propagate.py: alpha_ib + alpha_ion + alpha_R_eff",
+      "unit": "m^-1",
+      "use": "total nonlinear attenuation budget and step-size diagnosis"
+    },
+    "alpha_ion_applied_max_z": {
+      "meaning": "maximum ionization-loss coefficient admitted to total field attenuation",
+      "source": "propagate.py: alpha_ion gated by use_ionization_loss",
+      "unit": "m^-1",
+      "use": "separate potential ionization loss from propagated loss"
+    },
+    "alpha_R_raw_max_z": {
+      "meaning": "maximum Raman absorption coefficient calculated before switch gating",
+      "source": "propagate.py: selected Raman absorption model",
+      "unit": "m^-1",
+      "use": "retain Raman-loss diagnostics when propagation feedback is OFF"
+    },
+    "alpha_R_applied_max_z": {
+      "meaning": "maximum Raman absorption coefficient admitted to total field attenuation",
+      "source": "propagate.py: alpha_R_raw gated by use_raman_absorption",
+      "unit": "m^-1",
+      "use": "verify Raman-absorption switch isolation"
+    },
+    "E_dep_z": {
+      "meaning": "ionization plus inverse-Bremsstrahlung energy deposited in each recorded z step",
+      "source": "propagate.py: heat_Q_per_z",
+      "unit": "J",
+      "use": "ionization/plasma heat-deposition history"
+    },
+    "E_dep_rot_z": {
+      "meaning": "rotational-Raman energy deposited in each recorded z step",
+      "source": "propagate.py: Raman absorption model",
+      "unit": "J",
+      "use": "Raman energy-transfer history"
+    },
+    "E_dep_total_z": {
+      "meaning": "sum of ionization/IB and Raman deposited energy for each recorded z step",
+      "source": "propagate.py: E_dep_z + E_dep_rot_z",
+      "unit": "J",
+      "use": "total nonlinear deposition budget"
+    },
+    "E_dep_cumulative_z": {
+      "meaning": "cumulative nonlinear deposited energy",
+      "source": "propagate.py: cumulative sum of E_dep_total_z",
+      "unit": "J",
+      "use": "compare cumulative material deposition along z"
+    },
+    "U_rel_change_z": {
+      "meaning": "pulse-energy change relative to the input propagation plane",
+      "source": "propagate.py: (U_z - U0)/U0",
+      "unit": "1",
+      "use": "energy-conservation and loss monitoring"
+    },
+    "U_step_change_z": {
+      "meaning": "pulse-energy change over each recorded propagation interval",
+      "source": "propagate.py: U_z difference from previous record (first uses U0)",
+      "unit": "J",
+      "use": "localize sudden energy-loss or numerical-instability events"
+    },
+    "E_loss_from_input_z": {
+      "meaning": "observed pulse-energy loss relative to the input propagation plane",
+      "source": "propagate.py: U0 - U_z",
+      "unit": "J",
+      "use": "compare field-energy loss against deposited-energy diagnostics"
+    },
+    "rho_N2_max_z": {
+      "meaning": "maximum N2 electron density over time and transverse coordinates",
+      "source": "propagate.py: existing per-species rho_list returned by evolve_rho_time",
+      "unit": "m^-3",
+      "use": "separate N2 contribution from total plasma density"
+    },
+    "rho_O2_max_z": {
+      "meaning": "maximum O2 electron density over time and transverse coordinates",
+      "source": "propagate.py: existing per-species rho_list returned by evolve_rho_time",
+      "unit": "m^-3",
+      "use": "separate O2 contribution from total plasma density"
+    },
+    "rho_O2_fraction_at_rho_total_max_z": {
+      "meaning": "O2 density fraction at the spatiotemporal maximum of total electron density",
+      "source": "propagate.py: rho_O2 / rho_total at argmax(rho_total)",
+      "unit": "1",
+      "use": "identify species controlling the local total-density maximum"
+    },
+    "dz_used_z": {
+      "meaning": "actual accepted propagation step used to reach each recorded z sample",
+      "source": "propagate.py: live dz_try in the propagation loop",
+      "unit": "m",
+      "use": "distinguish physical changes from actual propagation-step changes"
+    },
+    "adaptive_rejection_count_z": {
+      "meaning": "cumulative count of actual propagation-step rejections at each recorded z sample",
+      "source": "propagate.py: live rejection counter",
+      "unit": "count",
+      "use": "verify whether rejection/retry logic affected a comparison"
+    },
+    "safety_mode_trigger_count_z": {
+      "meaning": "cumulative count of actual safety-mode triggers at each recorded z sample",
+      "source": "propagate.py: live safety-mode trigger counter",
+      "unit": "count",
+      "use": "verify whether safety-mode control altered a comparison"
+    },
+    "raman_operator_applied": {
+      "meaning": "whether the complete Isaacs Raman field operator was applied at each z step",
+      "source": "propagate.py: explicit use_raman_full_operator gate",
+      "unit": "bool",
+      "use": "distinguish raw Raman diagnostics from field feedback"
+    },
+    "raman_rhs_l2_norm": {
+      "meaning": "maximum stage L2 norm of the applied full Raman RHS",
+      "source": "raman.isaacs_raman_stage",
+      "unit": "field/m",
+      "use": "verify nonzero full-operator feedback"
+    },
+    "raman_IR_max_raw": {
+      "meaning": "raw maximum delayed Raman intensity response",
+      "source": "raman.isaacs_raman_stage",
+      "unit": "W/m^2",
+      "use": "retain Raman response in ON and feedback-OFF controls"
+    },
+    "raman_target_loss_step_J": {
+      "meaning": "Eq. (10) target rotational energy loss for the current step",
+      "source": "raman.isaacs_raman_stage / Heun quadrature",
+      "unit": "J",
+      "use": "per-step Raman energy closure"
+    },
+    "raman_actual_loss_step_J": {
+      "meaning": "actual field-energy loss caused by the full Raman operator",
+      "source": "field fluence before/after the isolated Raman update",
+      "unit": "J",
+      "use": "per-step Raman energy accounting"
+    },
+    "raman_closure_residual_step": {
+      "meaning": "relative Eq. (10) target-versus-actual Raman loss residual",
+      "source": "raman.apply_isaacs_raman_operator_step",
+      "unit": "1",
+      "use": "Raman energy-closure gate"
+    },
+    "raman_target_loss_cumulative_J": {
+      "meaning": "cumulative Eq. (10) target rotational loss",
+      "source": "propagate.py cumulative sum",
+      "unit": "J",
+      "use": "global Raman energy audit"
+    },
+    "raman_actual_loss_cumulative_J": {
+      "meaning": "cumulative actual Raman field-energy loss",
+      "source": "propagate.py cumulative sum",
+      "unit": "J",
+      "use": "global Raman energy audit"
+    },
+    "raman_cumulative_closure_residual": {
+      "meaning": "relative cumulative target-versus-actual Raman loss residual",
+      "source": "propagate.py cumulative energy accounting",
+      "unit": "1",
+      "use": "full-job Raman closure contract"
+    },
+    "raman_convolution_count_step": {
+      "meaning": "number of Raman convolutions evaluated for the current full step",
+      "source": "raman stage diagnostics",
+      "unit": "count",
+      "use": "verify Heun convolution reuse"
+    },
+    "raman_operator_walltime_step_s": {
+      "meaning": "wall time spent in full Raman stage/update calculations",
+      "source": "raman stage timer",
+      "unit": "s",
+      "use": "runtime projection"
+    },
+    "raman_operator_substep_count": {
+      "meaning": "number of isolated full Raman operator applications in one propagation step",
+      "source": "propagate.py nonlinear split order",
+      "unit": "count",
+      "use": "interpret total convolution count for Strang splitting"
+    },
+    "linear_walltime_step_s": {
+      "meaning": "synchronized wall time of both linear half steps",
+      "source": "propagate.py performance instrumentation",
+      "unit": "s",
+      "use": "full-size runtime projection"
+    },
+    "ionization_walltime_step_s": {
+      "meaning": "synchronized ionization/plasma source calculation wall time",
+      "source": "propagate.py performance instrumentation",
+      "unit": "s",
+      "use": "full-size runtime projection"
+    },
+    "total_walltime_step_s": {
+      "meaning": "synchronized total propagation-step wall time",
+      "source": "propagate.py performance instrumentation",
+      "unit": "s",
+      "use": "full-job walltime estimate"
+    },
+    "gpu_allocated_step_bytes": {
+      "meaning": "CuPy memory-pool bytes actively allocated after each step",
+      "source": "cupy default memory pool",
+      "unit": "byte",
+      "use": "GPU memory gate"
+    },
+    "gpu_reserved_step_bytes": {
+      "meaning": "CuPy memory-pool bytes reserved after each step",
+      "source": "cupy default memory pool",
+      "unit": "byte",
+      "use": "GPU memory gate"
+    },
+    "raman_energy_projection_iterations": {
+      "meaning": "complex64 energy-projection iterations used by the full Eq.27 step",
+      "source": "raman._project_complex64_heun_energy",
+      "unit": "count",
+      "use": "audit storage-rounding closure correction"
+    },
+    "raman_energy_projection_scale_deviation": {
+      "meaning": "maximum absolute deviation of the projection scale from unity",
+      "source": "raman._project_complex64_heun_energy",
+      "unit": "1",
+      "use": "bound the numerical correction applied to the field"
+    },
+    "raman_energy_projection_initial_residual": {
+      "meaning": "stored-field closure residual before the quantization projection",
+      "source": "raman._project_complex64_heun_energy",
+      "unit": "1",
+      "use": "separate Eq.27 closure from complex64 storage error"
+    }
+  }
+}

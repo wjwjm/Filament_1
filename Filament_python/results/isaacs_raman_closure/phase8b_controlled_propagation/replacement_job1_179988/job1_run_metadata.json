@@ -1,0 +1,16 @@
+{
+  "stage_id": "phase8b_r2_replacement_job1_retry",
+  "stage_name": "full_isaacs_eq27_heun_strang_energy_audit",
+  "run_id": "phase8b_r2_replacement_job1_retry_20260721T165000Z",
+  "case_id": "120fs_talebpour_isaacs_full_operator_on_energy_audit",
+  "case_label": "full_operator_on_energy_audit",
+  "pulse_width_fs": 120.0,
+  "profile_type": "flat_top_cosine",
+  "slurm_job_id": "179988",
+  "config_path": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on_energy_audit.json",
+  "output_npz": "/data/run01/scvi806/user_Wangjimin/phase8b_r2_replacement_job1_retry_20260721T165000Z/outputs/job1_full_operator_on_energy_audit.npz",
+  "output_mat": "matlab保存数据/job1_full_operator_on_energy_audit.mat",
+  "figure_dir": "figures",
+  "status": "completed",
+  "exit_code": 0
+}

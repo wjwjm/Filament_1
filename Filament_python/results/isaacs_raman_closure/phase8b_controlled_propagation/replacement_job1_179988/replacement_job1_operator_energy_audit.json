@@ -1,0 +1,63 @@
+{
+  "schema": "khz_filament.phase8b_r.replacement_job1_operator_energy_audit.v1",
+  "status": "passed",
+  "record_count": 15000,
+  "checkpoint_keys": [
+    "energy_step_start_J",
+    "energy_after_linear_half1_J",
+    "energy_after_raman_pre_J",
+    "energy_after_nonraman_J",
+    "energy_after_raman_post_J",
+    "energy_after_linear_half2_J"
+  ],
+  "all_checkpoints_finite": true,
+  "all_checkpoints_aligned": true,
+  "last_checkpoint_equals_U_z": true,
+  "telescope_max_abs_J": 0.0,
+  "step_energy_deltas": {
+    "linear_half1_J": {
+      "sum_J": -1.5507685020565987e-05,
+      "min_J": -1.862645149230957e-09,
+      "max_J": -4.656612873077393e-10,
+      "max_abs_J": 1.862645149230957e-09
+    },
+    "raman_pre_J": {
+      "sum_J": -1.9846484065055847e-05,
+      "min_J": -9.778887033462524e-09,
+      "max_J": 4.656612873077393e-10,
+      "max_abs_J": 9.778887033462524e-09
+    },
+    "nonraman_J": {
+      "sum_J": -6.621703505516052e-05,
+      "min_J": -7.241033017635345e-08,
+      "max_J": 6.984919309616089e-10,
+      "max_abs_J": 7.241033017635345e-08
+    },
+    "raman_post_J": {
+      "sum_J": -1.981714740395546e-05,
+      "min_J": -9.778887033462524e-09,
+      "max_J": 4.656612873077393e-10,
+      "max_abs_J": 9.778887033462524e-09
+    },
+    "linear_half2_J": {
+      "sum_J": -1.5434809029102325e-05,
+      "min_J": -1.862645149230957e-09,
+      "max_J": -4.656612873077393e-10,
+      "max_abs_J": 1.862645149230957e-09
+    }
+  },
+  "net_step_change": {
+    "sum_J": -0.00013682316057384014,
+    "min_J": -9.313225746154785e-08,
+    "max_J": -1.862645149230957e-09,
+    "max_abs_J": 9.313225746154785e-08
+  },
+  "raman_pair_sum": {
+    "sum_J": -3.966363146901131e-05,
+    "min_J": -1.932494342327118e-08,
+    "max_J": 4.656612873077393e-10,
+    "max_abs_J": 1.932494342327118e-08
+  },
+  "field_energy_initial_J": 0.0021715129259973764,
+  "field_energy_final_J": 0.0020346897654235363
+}

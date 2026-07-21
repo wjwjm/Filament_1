@@ -1,0 +1,29 @@
+﻿{
+    "schema":  "khz_filament.phase8b_r.replacement_job1_source_lock.v1",
+    "generated_utc":  "2026-07-21T16:50:00+00:00",
+    "execution_sha":  "e321223b6ee2c79407192ff4be3087fd83ec5ef8",
+    "git_rev_parse_head":  "e321223b6ee2c79407192ff4be3087fd83ec5ef8",
+    "git_rev_parse_verify_head_commit":  "e321223b6ee2c79407192ff4be3087fd83ec5ef8",
+    "base_git_sha":  {
+                         "content":  "e321223b6ee2c79407192ff4be3087fd83ec5ef8\n",
+                         "byte_count":  41,
+                         "hex_bytes":  "65 33 32 31 32 32 33 62 36 65 65 32 63 37 39 34 30 37 31 39 32 66 66 34 62 65 33 30 38 37 66 64 38 33 65 63 35 65 66 38 0a",
+                         "matches_exact_regex":  true,
+                         "has_only_terminal_lf":  true,
+                         "contains_literal_n":  false,
+                         "contains_literal_backslash_n":  false,
+                         "contains_cr":  false,
+                         "has_leading_or_trailing_whitespace":  false,
+                         "all_three_values_identical":  true
+                     },
+    "configuration":  {
+                          "path":  "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on_energy_audit.json",
+                          "sha256":  "2a6f3e37d161fb8f431885facbbd8cfc25d8a1d7b82970f73288a1bf8c19bcab",
+                          "sole_formal_job1_difference":  "propagation.diag_operator_energy=true"
+                      },
+    "source_archive":  {
+                           "name":  "source_e321223.tar.gz",
+                           "sha256":  "c9f44b27397eef062fd1f0f451828848b28f7348e0a2a47ae5b85c5e4d632fe3",
+                           "bytes":  26500356
+                       }
+}

@@ -1,0 +1,62 @@
+{
+  "schema": "khz_filament.phase8b_r.replacement_job1_execution_audit.v1",
+  "execution_git_sha": "e321223b6ee2c79407192ff4be3087fd83ec5ef8",
+  "slurm": {
+    "job_id": "179988",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed_s": 16406.27,
+    "final_z_m": 1.3,
+    "record_count": 15000,
+    "backend": "cupy",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "gpu_total_memory_bytes": 33668988928
+  },
+  "configuration": {
+    "operator_mode": "full_isaacs_eq27",
+    "operator_integrator": "heun",
+    "nonlinear_split_order": "strang",
+    "diag_operator_energy": true,
+    "legacy_raman_absorption": false,
+    "legacy_alpha_R_max": 0.0
+  },
+  "contract": {
+    "no_nan_inf": true,
+    "coordinate_audit_float32_aware": "passed",
+    "raman_step_closure_p99": 0.0001990885304985568,
+    "raman_step_closure_threshold": 0.001,
+    "raman_cumulative_closure": 2.245331188532873e-06,
+    "raman_cumulative_closure_threshold": 0.005,
+    "raman_substeps_per_step": 2,
+    "raman_convolutions_per_step": 4,
+    "near_focus_total_energy_closure": 0.012044126022869913,
+    "near_focus_total_energy_threshold": 0.02,
+    "final_total_energy_closure": 0.014176516743495496,
+    "final_total_energy_threshold": 0.01,
+    "final_total_energy_passed": false
+  },
+  "operator_energy_checkpoints": {
+    "enabled": true,
+    "finite": true,
+    "aligned": true,
+    "last_checkpoint_equals_U_z": true,
+    "telescope_max_abs_J": 0.0,
+    "linear_half_steps_combined_loss_J": -3.094249404966831e-05,
+    "raman_pre_post_combined_loss_J": -3.966363146901131e-05,
+    "nonraman_loss_J": -6.621703505516052e-05,
+    "net_field_loss_J": -0.00013682316057384014
+  },
+  "root_cause_evidence": {
+    "classification": "production_numerical_dissipation",
+    "interpretation": "The unaccounted final loss is 3.0784489354118705e-05 J. The two linear half-step checkpoint losses sum to 3.094249404966831e-05 J, which accounts for the closure discrepancy to checkpoint/storage precision. Raman closure passes independently and is not the main contribution.",
+    "independent_field_reintegration": "inconclusive_missing_full_field_history",
+    "runtime_energy_histories_self_consistent": true
+  },
+  "decision": {
+    "job1_contract_status": "failed_total_energy_closure",
+    "phase8b_r_stopped": true,
+    "job2_prepared": false,
+    "job2_submitted": false,
+    "required_next_action": "Correct or explicitly account for the linear-half-step energy loss, validate it with a short smoke test, and obtain new authorization before any further full propagation."
+  }
+}
