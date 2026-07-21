@@ -133,7 +133,8 @@ def resolve_raman_rot_params(*, T2=None, T_R=None, omega_R=None, Gamma_R=None):
 
 
 def raman_convolve_intensity(I, H_w=None, *, method="iir", dt=None, T2=None, T_R=None,
-                             omega_R=None, Gamma_R=None, chunk_pixels=65536):
+                             omega_R=None, Gamma_R=None, chunk_pixels=65536,
+                             iir_sampling="legacy_right_hold"):
     """
     计算 IR = (h_R * I)(t)，仅沿 t 轴卷积；I/IR 形状 [Nt,Ny,Nx]。
     - method="iir": 省显存时域递推。
@@ -176,6 +177,29 @@ def raman_convolve_intensity(I, H_w=None, *, method="iir", dt=None, T2=None, T_R
             k = 1.0 / denom                                        # real scalar (xp array)
 
             S = xp.zeros((Ny * Nx,), dtype=ctype)
+            sampling = str(iir_sampling).lower()
+            if sampling != "legacy_right_hold":
+                IR[0] = xp.asarray(0.0, dtype=dtype)
+                if sampling == "left_hold":
+                    for n in range(1, Nt):
+                        S = r * S + c * I2[n - 1]
+                        IR[n] = xp.imag(k * S).astype(dtype, copy=False)
+                elif sampling == "trapezoidal":
+                    for n in range(1, Nt):
+                        S = r * S + c * 0.5 * (I2[n - 1] + I2[n])
+                        IR[n] = xp.imag(k * S).astype(dtype, copy=False)
+                elif sampling == "exact_piecewise_linear":
+                    c1 = c - (1.0 - r * (1.0 + a * dt)) / (a * a * dt)
+                    c0 = c - c1
+                    for n in range(1, Nt):
+                        S = r * S + c0 * I2[n - 1] + c1 * I2[n]
+                        IR[n] = xp.imag(k * S).astype(dtype, copy=False)
+                else:
+                    raise ValueError(
+                        "iir_sampling must be legacy_right_hold, left_hold, trapezoidal, "
+                        "or exact_piecewise_linear"
+                    )
+                return IR.reshape(Nt, Ny, Nx)
             for n in range(Nt):
                 S = r * S + c * I2[n]
                 # k 是实标量；(k*S) 与 S 同 dtype → 取虚部后再 cast 回 dtype

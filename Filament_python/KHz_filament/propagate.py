@@ -319,7 +319,8 @@ def propagate_one_pulse(
                 T_R=getattr(raman_conf, "T_R", None),
                 omega_R=getattr(raman_conf, "omega_R", None),
                 Gamma_R=getattr(raman_conf, "Gamma_R", None),
-                chunk_pixels=r_chunk
+                chunk_pixels=r_chunk,
+                iir_sampling=getattr(raman_conf, "iir_sampling", "legacy_right_hold"),
             )
         else:
             IR = None
@@ -423,7 +424,8 @@ def propagate_one_pulse(
                     T_R=getattr(raman_conf, "T_R", None),
                     omega_R=getattr(raman_conf, "omega_R", None),
                     Gamma_R=getattr(raman_conf, "Gamma_R", None),
-                    chunk_pixels=r_chunk
+                    chunk_pixels=r_chunk,
+                    iir_sampling=getattr(raman_conf, "iir_sampling", "legacy_right_hold"),
                 )
                 # ∂I/∂τ（中心差分）
                 dIdt = xp.empty_like(I)

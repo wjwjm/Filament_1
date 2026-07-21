@@ -156,6 +156,7 @@ class RamanConfig:
     tau2: float = 32e-15      # 仅当 model="exp" 使用
     diagnose: bool = False
     operator_convention: str = "legacy"
+    iir_sampling: str = "legacy_right_hold"
     absorption_model: str = "closed_form"
     absorption: bool = True
     omega_R: float =7.5e11

@@ -142,6 +142,11 @@ def _normalize_raman(raman: Dict[str, Any]) -> None:
     if convention not in ("legacy", "isaacs_eq27"):
         raise ValueError("raman.operator_convention must be 'legacy' or 'isaacs_eq27'.")
     raman["operator_convention"] = convention
+    sampling = str(raman.get("iir_sampling", "legacy_right_hold") or "legacy_right_hold").lower()
+    allowed_sampling = ("legacy_right_hold", "left_hold", "trapezoidal", "exact_piecewise_linear")
+    if sampling not in allowed_sampling:
+        raise ValueError(f"raman.iir_sampling must be one of {allowed_sampling}.")
+    raman["iir_sampling"] = sampling
     if model != "isaacs_rot_sinexp":
         return
     forbidden = ("f_R", "T_R", "T2", "Omega_R", "tau2")

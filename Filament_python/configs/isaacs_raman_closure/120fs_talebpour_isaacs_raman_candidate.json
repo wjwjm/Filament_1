@@ -42,6 +42,7 @@
     "chunk_pixels": 65536,
     "diagnose": true,
     "operator_convention": "isaacs_eq27",
+    "iir_sampling": "exact_piecewise_linear",
     "absorption": false
   }
 }
