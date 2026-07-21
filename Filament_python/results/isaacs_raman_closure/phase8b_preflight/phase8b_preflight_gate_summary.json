@@ -1,0 +1,262 @@
+{
+  "baseline_config_lock_gate": {
+    "status": "passed",
+    "evidence": "baseline_to_full_operator_config_diff.json",
+    "numerical_result": {
+      "checks": {
+        "diff_status_passed": true,
+        "unexpected_paths_empty": true,
+        "authorized_paths_exact": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "only authorized Raman paths differ from Phase 6 production baseline",
+    "comparison_operator": "all",
+    "physical_impact": "locks all non-Raman production physics",
+    "production_impact": "prevents accidental grid, ionization, beam, or safety changes",
+    "required_action": "restore the Phase 6 baseline and regenerate the config diff"
+  },
+  "on_off_single_factor_gate": {
+    "status": "passed",
+    "evidence": "full_operator_on_vs_off_config_diff.json",
+    "numerical_result": {
+      "checks": {
+        "diff_status_passed": true,
+        "only_full_operator_switch": true,
+        "on_true_off_false": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "exactly one physical difference: propagation.use_raman_full_operator",
+    "comparison_operator": "all",
+    "physical_impact": "isolates full-operator causality",
+    "production_impact": "makes Job 2 a valid single-factor control",
+    "required_action": "remove every additional ON/OFF config difference"
+  },
+  "explicit_operator_switch_gate": {
+    "status": "passed",
+    "evidence": "two formal Phase 8B configs; test_phase8b_full_operator_switch.py",
+    "numerical_result": {
+      "checks": {
+        "on_full_mode": true,
+        "off_full_mode": true,
+        "legacy_phase_false": true,
+        "on_switch_true": true,
+        "off_switch_false": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "full mode uses the explicit full-operator feedback switch",
+    "comparison_operator": "all",
+    "physical_impact": "distinguishes complex Eq.27 feedback from legacy Raman phase",
+    "production_impact": "prevents misleading phase-only causality labels",
+    "required_action": "repair full-mode switch semantics"
+  },
+  "legacy_absorption_rejection_gate": {
+    "status": "passed",
+    "evidence": "config_normalize.py; test_phase8b_full_operator_switch.py",
+    "numerical_result": {
+      "checks": {
+        "formal_configs_absorption_off": true,
+        "full_plus_phase_rejected": true,
+        "full_plus_propagation_absorption_rejected": true,
+        "full_plus_raman_absorption_rejected": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "all legacy phase/absorption combinations rejected in full mode",
+    "comparison_operator": "all",
+    "physical_impact": "prevents Raman energy double counting",
+    "production_impact": "legacy alpha_R and conv_deriv remain disabled",
+    "required_action": "restore strict full-mode validation"
+  },
+  "full_operator_diagnostic_wiring_gate": {
+    "status": "passed",
+    "evidence": "phase8b_full_size_smoke_metrics.json; test_phase8b_raman_diagnostics.py",
+    "numerical_result": {
+      "checks": {
+        "on_completed": true,
+        "on_raw_IR": true,
+        "on_rhs_applied": true,
+        "on_actual_loss": true,
+        "off_completed": true,
+        "off_raw_IR": true,
+        "off_rhs_zero": true,
+        "off_actual_loss_zero": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "ON applies the operator; OFF preserves raw diagnostics without field feedback",
+    "comparison_operator": "all",
+    "physical_impact": "makes raw response and applied complex feedback separately observable",
+    "production_impact": "supports post-run ON/OFF audit",
+    "required_action": "repair production diagnostic wiring before a full job"
+  },
+  "raman_energy_accounting_gate": {
+    "status": "passed",
+    "evidence": "phase8b_full_size_smoke_metrics.json",
+    "numerical_result": {
+      "checks": {
+        "closure_finite": true,
+        "target_positive": true,
+        "actual_positive": true,
+        "cumulative_closure_below_stop_limit": true,
+        "integrated_target_actual_difference_below_stop_limit": true,
+        "legacy_alpha_zero": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "finite accounting and cumulative target/actual mismatch <0.5%; legacy alpha_R=0",
+    "comparison_operator": "all",
+    "physical_impact": "tracks Eq.10 target against actual Raman field energy exchange",
+    "production_impact": "blocks propagation on missing or duplicated Raman energy",
+    "required_action": "repair Raman field-energy accounting"
+  },
+  "convolution_reuse_gate": {
+    "status": "passed",
+    "evidence": "phase8b_full_size_smoke_metrics.json",
+    "numerical_result": {
+      "checks": {
+        "on_two_per_operator_substep": true,
+        "on_two_strang_substeps": true,
+        "off_one_raw_diagnostic_convolution": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "2 convolutions per Heun operator application; no duplicate Eq.10 convolution",
+    "comparison_operator": "all",
+    "physical_impact": "preserves stage-consistent I_R and Eq.10 diagnostics",
+    "production_impact": "controls full-job runtime and duplicate work",
+    "required_action": "reuse each stage response for RHS and energy diagnostics"
+  },
+  "combined_split_convergence_gate": {
+    "status": "passed",
+    "evidence": "combined_operator_dz_convergence.csv; combined_operator_summary.json",
+    "numerical_result": {
+      "value": 1.581025251697618,
+      "comparison_result": true
+    },
+    "threshold": 1.5,
+    "comparison_operator": "ge",
+    "physical_impact": "verifies convergence of Raman/non-Raman Strang composition",
+    "production_impact": "selects the admissible combined nonlinear ordering",
+    "required_action": "repair or refine the combined nonlinear split"
+  },
+  "combined_split_production_step_gate": {
+    "status": "passed",
+    "evidence": "combined_operator_observable_comparison.csv; combined_operator_summary.json",
+    "numerical_result": {
+      "checks": {
+        "field_l2_lt_0.1pct": true,
+        "I_max_lt_0.2pct": true,
+        "rho_max_lt_0.5pct": true,
+        "raman_loss_lt_0.5pct": true,
+        "formal_config_uses_strang": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "production dz vs two dz/2 references within field/I/rho/Raman limits",
+    "comparison_operator": "all",
+    "physical_impact": "bounds operator-order bias at production dz",
+    "production_impact": "locks nonlinear_split_order=strang",
+    "required_action": "reduce dz or repair the combined split"
+  },
+  "full_size_smoke_gate": {
+    "status": "passed",
+    "evidence": "phase8b_full_size_smoke_metrics.json; smoke_evidence/",
+    "numerical_result": {
+      "checks": {
+        "recorded_gate": true,
+        "on_state_completed": true,
+        "off_state_completed": true,
+        "on_off_finite": true,
+        "no_full_production_jobs": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "serial 20-step ON/OFF full-grid smokes complete without NaN/Inf",
+    "comparison_operator": "all",
+    "physical_impact": "tests the real full grid and production call chain",
+    "production_impact": "blocks full submission on OOM or numerical failure",
+    "required_action": "resolve the full-grid smoke failure"
+  },
+  "memory_gate": {
+    "status": "passed",
+    "evidence": "phase8b_full_size_smoke_metrics.json",
+    "numerical_result": {
+      "value": 0.8378279878948434,
+      "comparison_result": true
+    },
+    "threshold": 0.85,
+    "comparison_operator": "lt",
+    "physical_impact": "keeps GPU allocation below the safety ceiling",
+    "production_impact": "reduces full-job OOM risk",
+    "required_action": "optimize memory reuse without reducing the production grid"
+  },
+  "runtime_gate": {
+    "status": "passed",
+    "evidence": "phase8b_runtime_estimate.json",
+    "numerical_result": {
+      "estimated_fraction_of_time_limit": 0.5324405695622166,
+      "slowdown_vs_legacy": 2.047848344470064,
+      "comparison_result": true
+    },
+    "threshold": "time-limit fraction<0.8 and slowdown<=3.0",
+    "comparison_operator": "all",
+    "physical_impact": "ensures the full run fits its allocation",
+    "production_impact": "prevents submitting a job likely to time out",
+    "required_action": "optimize convolution reuse or request a justified time limit"
+  },
+  "expected_diagnostic_contract_gate": {
+    "status": "passed",
+    "evidence": "phase8b_expected_diagnostic_contract.json; test_phase8b_diagnostic_contract.py",
+    "numerical_result": {
+      "checks": {
+        "schema": true,
+        "nominal_records": true,
+        "strict_z": true,
+        "z_final": true,
+        "focus_fixed": true,
+        "raman_p99": true,
+        "raman_cumulative": true,
+        "total_energy_final": true,
+        "total_energy_focus": true
+      },
+      "comparison_result": true
+    },
+    "threshold": "all required production diagnostics, units, coordinates, and energy thresholds recorded",
+    "comparison_operator": "all",
+    "physical_impact": "defines acceptance of completed full propagation",
+    "production_impact": "drives Job 1/Job 2 post-run audits",
+    "required_action": "repair and regenerate the diagnostic contract"
+  },
+  "full_job_submission_gate": {
+    "status": "passed",
+    "evidence": "aggregate Phase 8B-P gates and complete local pytest",
+    "numerical_result": {
+      "required_gates": {
+        "baseline_config_lock_gate": "passed",
+        "on_off_single_factor_gate": "passed",
+        "explicit_operator_switch_gate": "passed",
+        "legacy_absorption_rejection_gate": "passed",
+        "full_operator_diagnostic_wiring_gate": "passed",
+        "raman_energy_accounting_gate": "passed",
+        "convolution_reuse_gate": "passed",
+        "combined_split_convergence_gate": "passed",
+        "combined_split_production_step_gate": "passed",
+        "full_size_smoke_gate": "passed",
+        "memory_gate": "passed",
+        "runtime_gate": "passed",
+        "expected_diagnostic_contract_gate": "passed"
+      },
+      "local_full_pytest_passed": true,
+      "local_full_pytest_summary": "156 passed in 33.88s",
+      "comparison_result": true
+    },
+    "threshold": "all preflight gates passed and complete local pytest has zero failures",
+    "comparison_operator": "all",
+    "physical_impact": "controls whether full 1.3 m propagation may be separately authorized",
+    "production_impact": "authorizes preparation of Phase 8B-R only after a new user approval",
+    "required_action": "resolve every failed or inconclusive gate; then request explicit Phase 8B-R approval"
+  }
+}
