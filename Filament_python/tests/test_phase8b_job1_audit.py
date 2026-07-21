@@ -64,3 +64,32 @@ def test_job1_audit_fails_if_recorded_p99_regresses(tmp_path):
     audit = artifacts["job1_input_audit.json"]
     assert audit["status"] == "failed"
     assert audit["checks"]["smoke_p99_below_contract"] is False
+
+
+def test_replacement_energy_audit_allows_only_explicit_observability_opt_in(tmp_path):
+    module = _module()
+    config = (
+        ROOT / "configs" / "isaacs_raman_closure"
+        / "120fs_talebpour_isaacs_full_operator_on_energy_audit.json"
+    )
+    rejected = module.build_artifacts(
+        baseline_path=module.BASELINE,
+        config_path=config,
+        preflight_dir=PREFLIGHT,
+        out_dir=tmp_path / "rejected",
+        generated_utc="2026-07-21T00:00:00+00:00",
+    )
+    assert rejected["job1_config_diff.json"]["status"] == "failed"
+
+    artifacts = module.build_artifacts(
+        baseline_path=module.BASELINE,
+        config_path=config,
+        preflight_dir=PREFLIGHT,
+        out_dir=tmp_path / "accepted",
+        generated_utc="2026-07-21T00:00:00+00:00",
+        allow_diagnostic_observability=True,
+    )
+    diff = artifacts["job1_config_diff.json"]
+    assert diff["status"] == "passed"
+    assert diff["supplemental_authorized_paths"] == ["propagation.diag_operator_energy"]
+    assert artifacts["job1_input_audit.json"]["status"] == "passed"

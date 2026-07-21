@@ -1,0 +1,17 @@
+{
+  "schema": "khz_filament.phase8b_r.replacement_job1_config_delta.v1",
+  "formal_on_config": "Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+  "formal_on_sha256": "942adca964f50b689fa5985c9af46f294da7948646b246c39ca0d50238a1b02a",
+  "replacement_config": "Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on_energy_audit.json",
+  "replacement_sha256": "2a6f3e37d161fb8f431885facbbd8cfc25d8a1d7b82970f73288a1bf8c19bcab",
+  "differences": [
+    {
+      "path": "propagation.diag_operator_energy",
+      "formal_on": "__missing__",
+      "replacement": true
+    }
+  ],
+  "only_authorized_observability_difference": true,
+  "physics_changed": false,
+  "purpose": "Record accepted-step operator-energy checkpoints needed to identify signed total-energy channels."
+}

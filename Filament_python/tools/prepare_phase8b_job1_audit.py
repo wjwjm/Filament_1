@@ -56,6 +56,7 @@ def _git(*args: str) -> str:
 def build_artifacts(
     *, baseline_path: Path, config_path: Path, preflight_dir: Path,
     out_dir: Path, generated_utc: str | None = None,
+    allow_diagnostic_observability: bool = False,
 ) -> dict[str, dict]:
     baseline = _load(baseline_path)
     job1 = _load(config_path)
@@ -65,7 +66,12 @@ def build_artifacts(
     contract = _load(preflight_dir / "phase8b_expected_diagnostic_contract.json")
     differences = diff_records(baseline, job1)
     difference_paths = {row["path"] for row in differences}
-    unexpected = sorted(difference_paths - AUTHORIZED_BASELINE_DIFFS)
+    supplemental_authorized = (
+        {"propagation.diag_operator_energy"}
+        if allow_diagnostic_observability else set()
+    )
+    authorized_paths = AUTHORIZED_BASELINE_DIFFS | supplemental_authorized
+    unexpected = sorted(difference_paths - authorized_paths)
     missing_authorized = sorted(AUTHORIZED_BASELINE_DIFFS - difference_paths)
 
     config_diff = {
@@ -73,7 +79,8 @@ def build_artifacts(
         "baseline": _repo_path(baseline_path),
         "job1_config": _repo_path(config_path),
         "differences": differences,
-        "authorized_paths": sorted(AUTHORIZED_BASELINE_DIFFS),
+        "authorized_paths": sorted(authorized_paths),
+        "supplemental_authorized_paths": sorted(supplemental_authorized),
         "unexpected_paths": unexpected,
         "missing_authorized_paths": missing_authorized,
         "status": "passed" if not unexpected and not missing_authorized else "failed",
@@ -117,6 +124,10 @@ def build_artifacts(
             and float(normalized["beam"]["w0"]) == 1.979e-3
             and float(normalized["beam"]["tau_fwhm"]) == 120e-15
             and float(normalized["propagation"]["z_max"]) == 1.3
+        ),
+        "diagnostic_observability_opt_in": (
+            not allow_diagnostic_observability
+            or normalized["propagation"].get("diag_operator_energy") is True
         ),
         "no_raw_large_result_in_r1_audit": not any(out_dir.rglob("*.npz")),
     }
@@ -276,6 +287,14 @@ def main(argv=None) -> None:
     parser.add_argument("--preflight-dir", type=Path, default=PREFLIGHT)
     parser.add_argument("--out-dir", type=Path, default=OUT_DIR)
     parser.add_argument("--generated-utc")
+    parser.add_argument(
+        "--allow-diagnostic-observability",
+        action="store_true",
+        help=(
+            "Allow only propagation.diag_operator_energy as an additional "
+            "non-physical observability difference from the locked baseline."
+        ),
+    )
     args = parser.parse_args(argv)
     artifacts = build_artifacts(
         baseline_path=args.baseline,
@@ -283,6 +302,7 @@ def main(argv=None) -> None:
         preflight_dir=args.preflight_dir,
         out_dir=args.out_dir,
         generated_utc=args.generated_utc,
+        allow_diagnostic_observability=args.allow_diagnostic_observability,
     )
     for name, payload in artifacts.items():
         _write(args.out_dir / name, payload)
