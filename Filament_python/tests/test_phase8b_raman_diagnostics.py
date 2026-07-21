@@ -5,7 +5,7 @@ import numpy as np
 
 def _run(
     tmp_path, enabled, split_order="after_other", dtype="fp64", *,
-    energy_J=1e-8, dz=1e-5,
+    energy_J=1e-8, dz=1e-5, diag_operator_energy=False,
 ):
     from KHz_filament.config import (
         BeamConfig,
@@ -34,7 +34,7 @@ def _run(
             use_raman_phase=False, use_raman_full_operator=enabled,
             use_raman_absorption=False, use_plasma_phase=False,
             use_ionization_loss=False, use_ionization_solver=False,
-            measure_performance=True,
+            measure_performance=True, diag_operator_energy=diag_operator_energy,
         ),
         ion=IonizationConfig(species=[]),
         heat=HeatConfig(),
@@ -90,6 +90,32 @@ def test_strang_uses_two_live_raman_substeps_and_four_total_convolutions(tmp_pat
     assert np.all(data["raman_convolution_count_step"] == 4)
     assert np.max(data["raman_rhs_l2_norm"]) > 0.0
     assert np.max(data["raman_closure_residual_step"]) < 1e-3
+
+
+def test_opt_in_operator_energy_diagnostics_resolve_every_strang_suboperator(tmp_path):
+    data = _run(tmp_path, True, "strang", diag_operator_energy=True)
+    keys = (
+        "energy_step_start_J", "energy_after_linear_half1_J",
+        "energy_after_raman_pre_J", "energy_after_nonraman_J",
+        "energy_after_raman_post_J", "energy_after_linear_half2_J",
+    )
+    assert data["operator_energy_diagnostics_enabled"].item()
+    for key in keys:
+        assert data[key].dtype == np.float64
+        assert data[key].shape == data["U_z"].shape
+        assert np.all(np.isfinite(data[key]))
+    np.testing.assert_allclose(data["energy_after_linear_half2_J"], data["U_z"])
+    split_sum = (
+        (data["energy_after_linear_half1_J"] - data["energy_step_start_J"])
+        + (data["energy_after_raman_pre_J"] - data["energy_after_linear_half1_J"])
+        + (data["energy_after_nonraman_J"] - data["energy_after_raman_pre_J"])
+        + (data["energy_after_raman_post_J"] - data["energy_after_nonraman_J"])
+        + (data["energy_after_linear_half2_J"] - data["energy_after_raman_post_J"])
+    )
+    np.testing.assert_allclose(split_sum, data["energy_after_linear_half2_J"] - data["energy_step_start_J"])
+    u0 = float(data["U_z"][0] - data["U_step_change_z"][0])
+    total_closure = abs((u0 - float(data["U_z"][-1])) - float(data["E_dep_cumulative_z"][-1])) / u0
+    assert total_closure < 0.01
 
 
 def test_float32_strang_reports_stable_energy_difference_boundary(tmp_path):

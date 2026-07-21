@@ -1,0 +1,41 @@
+{
+  "schema": "khz_filament.phase8b_r.minimal_observability_fix.v1",
+  "change": {
+    "field": "propagation.diag_operator_energy",
+    "default": false,
+    "semantics": "when opt-in and record_every_z=1, store float64 field energy before/after each linear half-step, Raman pre/post substep, and non-Raman update",
+    "physics_changed": false,
+    "raman_parameters_changed": false,
+    "job2_prepared": false,
+    "job2_submitted": false
+  },
+  "local_smoke": {
+    "backend": "numpy",
+    "full_job_submitted": false,
+    "operator_mode": "full_isaacs_eq27",
+    "integrator": "heun",
+    "split_order": "strang",
+    "operator_energy_telescope_max_abs_J": 0.0,
+    "total_energy_closure": 4.504480257793818e-17,
+    "total_energy_threshold": 0.01,
+    "raman_step_closure_p99": 2.3358172561609283e-06,
+    "raman_cumulative_closure": 2.3358172561609283e-06,
+    "legacy_alpha_R_max": 0.0,
+    "raman_operator_substeps": 2,
+    "raman_convolutions": 4
+  },
+  "job179706_status": {
+    "coordinate_audit": "passed after R3.1",
+    "raman_energy_contract": "passed",
+    "total_energy_closure": 0.014176516743495496,
+    "total_energy_threshold": 0.01,
+    "total_energy_contract_passed": false,
+    "can_be_repaired_by_postprocessing_only": false
+  },
+  "authorization_required_for_full_rerun": {
+    "required": true,
+    "scope": "one replacement full Job 1 only, with the existing full-operator ON physics and propagation.diag_operator_energy=true",
+    "prohibited_without_separate_approval": ["Job 2 preparation", "Job 2 submission", "Job 2 execution", "parameter changes", "Raman scan"],
+    "reason": "The existing archive lacks the operator-level energy histories needed to locate the remaining 1.4177% residual."
+  }
+}

@@ -204,6 +204,12 @@ def propagate_one_pulse(
 
     save_every = max(1, int(record_every_z))
     save_count = 0
+    diag_operator_energy = bool(getattr(p, "diag_operator_energy", False))
+    if diag_operator_energy and save_every != 1:
+        raise ValueError("diag_operator_energy requires record_every_z=1 for step-aligned accounting")
+
+    def _operator_energy(field):
+        return float(pulse_energy(intensity(field, n0), dt, axes.dx, axes.dy))
 
 
     # ---------- 线性分支 ----------
@@ -347,6 +353,9 @@ def propagate_one_pulse(
     linear_walltime_step_z_list, ionization_walltime_step_z_list = [], []
     total_walltime_step_z_list = []
     gpu_allocated_step_bytes_list, gpu_reserved_step_bytes_list = [], []
+    energy_step_start_z_list, energy_after_linear_half1_z_list = [], []
+    energy_after_raman_pre_z_list, energy_after_nonraman_z_list = [], []
+    energy_after_raman_post_z_list, energy_after_linear_half2_z_list = [], []
     E_dep_cumulative = 0.0
     raman_target_loss_cumulative = 0.0
     raman_actual_loss_cumulative = 0.0
@@ -390,6 +399,8 @@ def propagate_one_pulse(
         else:
             dz_try = min(dz_base, dz_remain)
 
+        operator_energy_start = _operator_energy(E) if diag_operator_energy else _np.nan
+
         _performance_sync(measure_performance)
         linear_started = time.perf_counter()
 
@@ -419,12 +430,16 @@ def propagate_one_pulse(
         if measure_performance:
             linear_walltime_step += time.perf_counter() - linear_started
 
+        operator_energy_after_linear_half1 = _operator_energy(E) if diag_operator_energy else _np.nan
+
         full_isaacs_on = bool(full_isaacs_mode and switches.use_raman_full_operator)
         raman_diag_parts = []
         if full_isaacs_on and r_nonlinear_split_order in ("before_other", "strang"):
             raman_length = dz_try if r_nonlinear_split_order == "before_other" else 0.5 * dz_try
             E, pre_raman_diag = _full_raman_substep(E, raman_length)
             raman_diag_parts.append(pre_raman_diag)
+
+        operator_energy_after_raman_pre = _operator_energy(E) if diag_operator_energy else _np.nan
 
         # A strict Strang pre-step changes E before every non-Raman quantity is
         # evaluated, so I, rho, ionization, plasma, and electronic Kerr are live.
@@ -631,6 +646,7 @@ def propagate_one_pulse(
         phase  = dphi_k + dphi_p
 
         E = apply_nonlinear(E, phase, alpha_total, dz_try, dn_gas=dn_gas, k0=k0)
+        operator_energy_after_nonraman = _operator_energy(E) if diag_operator_energy else _np.nan
         if full_isaacs_mode:
             if full_isaacs_on:
                 if r_nonlinear_split_order in ("after_other", "strang"):
@@ -680,6 +696,8 @@ def propagate_one_pulse(
 
         # —— 热沉积：分量分别记账 ——
         # 电离 + IB：Qslice (J/m^3)；电离源优先使用逐组分 Σ_j U_j * ∂ρ_j/∂t
+        operator_energy_after_raman_post = _operator_energy(E) if diag_operator_energy else _np.nan
+
         Qslice = heat_Q_per_z(I, alpha_ib, dt, ion_source=ion_source_raw, Wt=Wt, rho=rho, Ui=Ui, N0=N0)
         Qacc += xp.asarray(Qslice, dtype=Qacc.dtype) * dz_try
         # Poynting 模式：如需把拉曼也积入慢时间面密度（J/m^2），可把体能量密度乘 dz_try 累起来
@@ -722,6 +740,8 @@ def propagate_one_pulse(
             pool = xp.get_default_memory_pool()
             gpu_allocated_step = int(pool.used_bytes())
             gpu_reserved_step = int(pool.total_bytes())
+
+        operator_energy_after_linear_half2 = _operator_energy(E) if diag_operator_energy else _np.nan
 
         save_count += 1
         if (save_count % save_every) == 0 or (z + dz_try >= z_max - 1e-16):
@@ -793,6 +813,12 @@ def propagate_one_pulse(
             U_step_change_z_list.append(U_now - U_previous)
             E_loss_from_input_z_list.append(U0_baseline - U_now)
             U_previous = U_now
+            energy_step_start_z_list.append(operator_energy_start)
+            energy_after_linear_half1_z_list.append(operator_energy_after_linear_half1)
+            energy_after_raman_pre_z_list.append(operator_energy_after_raman_pre)
+            energy_after_nonraman_z_list.append(operator_energy_after_nonraman)
+            energy_after_raman_post_z_list.append(operator_energy_after_raman_post)
+            energy_after_linear_half2_z_list.append(operator_energy_after_linear_half2)
             alpha_ion_raw_max_z_list.append(float(xp.max(xp.maximum(alpha_ion_raw, 0.0))))
             alpha_ion_corr_max_z_list.append(float(xp.max(alpha_ion)))
             alpha_ion_applied_max_z_list.append(float(xp.max(alpha_ion_applied)))
@@ -984,6 +1010,13 @@ def propagate_one_pulse(
         "gpu_allocated_step_bytes": _np.asarray(gpu_allocated_step_bytes_list, dtype=_np.int64),
         "gpu_reserved_step_bytes": _np.asarray(gpu_reserved_step_bytes_list, dtype=_np.int64),
         "performance_measurement_enabled": bool(measure_performance),
+        "operator_energy_diagnostics_enabled": bool(diag_operator_energy),
+        "energy_step_start_J": _np.asarray(energy_step_start_z_list, dtype=_np.float64),
+        "energy_after_linear_half1_J": _np.asarray(energy_after_linear_half1_z_list, dtype=_np.float64),
+        "energy_after_raman_pre_J": _np.asarray(energy_after_raman_pre_z_list, dtype=_np.float64),
+        "energy_after_nonraman_J": _np.asarray(energy_after_nonraman_z_list, dtype=_np.float64),
+        "energy_after_raman_post_J": _np.asarray(energy_after_raman_post_z_list, dtype=_np.float64),
+        "energy_after_linear_half2_J": _np.asarray(energy_after_linear_half2_z_list, dtype=_np.float64),
         "delta_n_rot_applied_semantics": _np.asarray(
             "not_applicable_full_complex_operator" if full_isaacs_mode else "split_delayed_index_applied"
         ),

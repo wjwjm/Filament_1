@@ -1,0 +1,30 @@
+{
+  "schema": "khz_filament.phase8b_r.operator_energy_smoke.v1",
+  "execution": {
+    "backend": "numpy",
+    "full_job_submitted": false,
+    "job2_prepared": false,
+    "job2_submitted": false
+  },
+  "configuration": {
+    "operator_mode": "full_isaacs_eq27",
+    "split_order": "strang",
+    "integrator": "heun"
+  },
+  "checks": {
+    "operator_energy_diagnostics_enabled": true,
+    "operator_energy_histories_finite": true,
+    "operator_energy_telescope_max_abs_J": 0.0,
+    "total_energy_closure": 4.504480257793818e-17,
+    "total_energy_closure_threshold": 0.01,
+    "raman_step_closure_p99": 2.3358172561609283e-06,
+    "raman_cumulative_closure": 2.3358172561609283e-06,
+    "legacy_alpha_R_max": 0.0,
+    "raman_substeps": [
+      2
+    ],
+    "raman_convolutions": [
+      4
+    ]
+  }
+}
