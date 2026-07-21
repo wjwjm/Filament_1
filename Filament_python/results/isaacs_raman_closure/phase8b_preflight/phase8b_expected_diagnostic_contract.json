@@ -1,0 +1,194 @@
+{
+  "schema": "khz_filament.phase8b.expected_diagnostic_contract.v1",
+  "phase": "Phase 8B corrected Isaacs Raman controlled propagation",
+  "source_configs": {
+    "full_operator_on": {
+      "path": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+      "sha256": "0de93312ceebeb52376675334040d5405ec67d705dcf5715a4dd21028a2e97d0"
+    },
+    "full_operator_feedback_off": {
+      "path": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_feedback_off.json",
+      "sha256": "f6d6b995da01df282d79ed970a8e3562ad21a017dd66fcf2a9ef001c6bb46842"
+    }
+  },
+  "fixed_coordinates": {
+    "z_final_m": 1.3,
+    "z_final_absolute_tolerance_m": 1e-12,
+    "vacuum_focus_m": 0.95,
+    "x_focus_cm_formula": "100 * (z_m - 0.95)",
+    "coordinate_zero_redefinition_allowed": false
+  },
+  "record_axis": {
+    "nominal_record_count": 15000,
+    "nominal_derivation": {
+      "base_dz_m": 0.0001,
+      "focus_center_m": 0.95,
+      "focus_halfwidth_m": 0.1,
+      "focus_dz_m": 5e-05,
+      "adaptive_substep_enabled": true
+    },
+    "actual_record_count_rule": "len(z_axis) == len(dz_used_z); z_axis == cumsum(dz_used_z); sum(dz_used_z) == 1.300 m",
+    "strictly_increasing": true,
+    "duplicates_allowed": false,
+    "adaptive_rule": "actual count may exceed 15000 only when positive accepted dz_used_z values reconstruct the strict z_axis"
+  },
+  "required_fields": {
+    "z_axis": "m",
+    "aligned_z_histories": [
+      "U_z",
+      "I_max_z",
+      "I_onaxis_max_z",
+      "I_center_t0_z",
+      "w_mom_z",
+      "rho_max_z",
+      "rho_onaxis_max_z",
+      "E_dep_z",
+      "fwhm_plasma_z",
+      "fwhm_fluence_z",
+      "I_onaxis_max_interp_list",
+      "E_dep_rot_z",
+      "alpha_R_max_z",
+      "alpha_R_mean_z",
+      "alpha_R_eff_z",
+      "alpha_R_closed_z",
+      "alpha_R_raw_max_z",
+      "alpha_R_applied_max_z",
+      "IR_max_z",
+      "IR_abs_max_z",
+      "delta_n_elec_max_z",
+      "delta_n_rot_max_z",
+      "delta_n_elec_peak_z",
+      "delta_n_rot_peak_z",
+      "delta_n_elec_applied_max_z",
+      "delta_n_rot_applied_max_z",
+      "alpha_ion_raw_max_z",
+      "alpha_ion_corr_max_z",
+      "alpha_ion_applied_max_z",
+      "alpha_ib_max_z",
+      "alpha_total_max_z",
+      "delta_n_plasma_min_z",
+      "delta_n_plasma_applied_min_z",
+      "dphi_kerr_max_abs_z",
+      "dphi_elec_max_abs_z",
+      "dphi_rot_max_abs_z",
+      "dphi_plasma_max_abs_z",
+      "dphi_elec_applied_max_abs_z",
+      "dphi_rot_applied_max_abs_z",
+      "dphi_plasma_raw_max_abs_z",
+      "dphi_plasma_applied_max_abs_z",
+      "E_dep_total_z",
+      "E_dep_cumulative_z",
+      "U_rel_change_z",
+      "U_step_change_z",
+      "E_loss_from_input_z",
+      "rho_N2_max_z",
+      "rho_O2_max_z",
+      "rho_O2_fraction_at_rho_total_max_z",
+      "dz_used_z",
+      "adaptive_rejection_count_z",
+      "safety_mode_trigger_count_z",
+      "raman_operator_applied",
+      "raman_rhs_l2_norm",
+      "raman_IR_max_raw",
+      "raman_target_loss_step_J",
+      "raman_actual_loss_step_J",
+      "raman_closure_residual_step",
+      "raman_target_loss_cumulative_J",
+      "raman_actual_loss_cumulative_J",
+      "raman_cumulative_closure_residual",
+      "raman_convolution_count_step",
+      "raman_operator_walltime_step_s",
+      "raman_operator_substep_count",
+      "linear_walltime_step_s",
+      "ionization_walltime_step_s",
+      "total_walltime_step_s",
+      "gpu_allocated_step_bytes",
+      "gpu_reserved_step_bytes"
+    ],
+    "z_leading_arrays": {
+      "rho_onaxis_t_z": [
+        "z_record",
+        "time_sample"
+      ]
+    },
+    "scalar_or_text": [
+      "raman_operator_mode",
+      "raman_operator_feedback_enabled",
+      "raman_absorption_on",
+      "delta_n_rot_applied_semantics",
+      "raman_closure_residual_semantics",
+      "n2_elec_used",
+      "n_R_used"
+    ],
+    "required_species_histories": [
+      "rho_N2_max_z",
+      "rho_O2_max_z"
+    ]
+  },
+  "units": {
+    "z_axis": "m",
+    "dz_used_z": "m",
+    "U_z": "J",
+    "I_max_z": "W m^-2",
+    "rho_max_z": "m^-3",
+    "raman_target_loss_step_J": "J",
+    "raman_actual_loss_step_J": "J",
+    "raman_target_loss_cumulative_J": "J",
+    "raman_actual_loss_cumulative_J": "J",
+    "E_dep_z": "J per accepted z step",
+    "E_dep_rot_z": "J per accepted z step",
+    "E_dep_cumulative_z": "J"
+  },
+  "common_invariants": {
+    "all_required_arrays_present": true,
+    "all_numeric_arrays_finite": true,
+    "all_z_histories_aligned": true,
+    "N2_and_O2_present": true,
+    "legacy_raman_alpha_exactly_zero": true,
+    "legacy_conv_deriv_executed": false,
+    "raman_operator_mode": "full_isaacs_eq27"
+  },
+  "job1_full_operator_on": {
+    "raman_operator_feedback_enabled": true,
+    "raman_operator_applied_all_steps": true,
+    "raman_IR_max_raw_max_gt": 0.0,
+    "raman_rhs_l2_norm_max_gt": 0.0,
+    "raman_target_loss_cumulative_final_gt_J": 0.0,
+    "raman_actual_loss_cumulative_final_gt_J": 0.0,
+    "raman_operator_substeps_per_z_step": 2,
+    "raman_convolutions_per_operator_substep": 2,
+    "raman_convolutions_per_strang_z_step": 4,
+    "delta_n_rot_applied_semantics": "not_applicable_full_complex_operator"
+  },
+  "job2_full_operator_feedback_off": {
+    "raman_operator_feedback_enabled": false,
+    "raman_operator_applied_all_steps": false,
+    "raman_IR_max_raw_max_gt": 0.0,
+    "raman_target_loss_cumulative_final_gt_J": 0.0,
+    "raman_rhs_l2_norm_max_abs_le": 0.0,
+    "raman_actual_loss_cumulative_final_abs_le_J": 1e-15,
+    "raman_operator_substeps_per_z_step": 0,
+    "raw_diagnostic_convolutions_per_z_step": 1
+  },
+  "raman_energy_contract": {
+    "per_step_formula": "abs(E_R_actual-E_R_target) / max(E_R_target, U_before*1e-15)",
+    "per_step_p99_lt": 0.001,
+    "cumulative_final_lt": 0.005
+  },
+  "total_energy_contract": {
+    "formula": "abs((U0-U_z) - (E_ion+E_IB+E_R)_cumulative) / U0",
+    "implementation_fields": "abs((U0-U_z)-E_dep_cumulative_z)/U0, with U0 reconstructed from U_z and U_step_change_z",
+    "final_lt": 0.01,
+    "near_focus_max_lt": 0.02,
+    "near_focus_window_m": [
+      0.85,
+      1.05
+    ]
+  },
+  "submission_policy": {
+    "job1_must_pass_before_job2_submission": true,
+    "full_jobs_must_be_serial": true,
+    "maximum_full_jobs": 2,
+    "phase8b_r_requires_separate_user_approval": true
+  }
+}
