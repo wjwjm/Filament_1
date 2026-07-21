@@ -1,0 +1,50 @@
+{
+  "schema": "khz_filament.phase8b_r.job1_energy_root_cause.v1",
+  "classification": "inconclusive_insufficient_diagnostics",
+  "decision_basis": {
+    "coordinate_audit": "passed after dtype-aware execution and archive checks; it does not explain the energy residual",
+    "runtime_history_reconstruction": "reconstructed final closure equals the runtime/audit value exactly",
+    "archive_field_reintegration": "unavailable because the archive has no full E/I history indexed by z,t,x,y",
+    "operator_level_energy_histories": "unavailable for individual linear half-steps, non-Raman nonlinear update, and each Raman Strang half-step"
+  },
+  "observed_budget": {
+    "initial_field_energy_J": 0.0021715129259973764,
+    "final_field_loss_J": 0.00013682316057384014,
+    "final_accounted_deposition_J": 0.00010603867121972144,
+    "final_signed_unaccounted_residual_J": 3.0784489354118705e-05,
+    "final_relative_closure": 0.014176516743495496,
+    "near_focus_max_relative_closure": 0.012044126022869913,
+    "near_focus_max_z_m": 1.0499500036239624,
+    "post_focus_relative_closure_change": 0.002132390720625583,
+    "post_focus_percentage_point_change": 0.21323907206255832,
+    "post_focus_signed_unaccounted_increment_J": 4.630511008851812e-06
+  },
+  "raman_assessment": {
+    "per_step_closure_p99": 0.0001990885304985568,
+    "per_step_threshold": 0.001,
+    "cumulative_closure": 2.245331188532873e-06,
+    "cumulative_threshold": 0.005,
+    "actual_cumulative_loss_J": 3.9630784158362076e-05,
+    "target_cumulative_loss_J": 3.9630871469853446e-05,
+    "target_actual_difference_J": -8.731149137035942e-11,
+    "is_primary_unaccounted_contributor": false,
+    "reason": "Raman actual and Eq.(10) target agree far below contract while the total signed residual remains positive."
+  },
+  "post_focus_assessment": {
+    "field_loss_increment_J": 1.337612047791481e-05,
+    "accounted_increment_J": 8.745606464799494e-06,
+    "raman_actual_increment_J": 8.00330235506408e-06,
+    "ionization_plus_ib_increment_J": 7.423089586084536e-07,
+    "unaccounted_increment_J": 4.630511008851812e-06,
+    "interpretation": "The 0.2133 percentage-point increase is the post-focus signed unaccounted increment. Raman is the largest accounted post-focus channel, not a demonstrated source of the residual."
+  },
+  "conclusions": {
+    "is_final_1_4177_percent_real_in_runtime_budget": true,
+    "can_job_179706_be_cleared_by_reaudit_only": false,
+    "production_code_change_required": true,
+    "full_job1_rerun_required_after_minimal_observability_fix": true,
+    "job2_prepared": false,
+    "job2_submitted": false,
+    "required_next_action": "Add per-operator energy diagnostics, validate them in a short smoke, then obtain separate authorization for a corrected full Job 1 rerun."
+  }
+}
