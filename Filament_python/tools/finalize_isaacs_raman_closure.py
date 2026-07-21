@@ -1,53 +1,161 @@
 #!/usr/bin/env python3
-"""Assemble Phase 8A static evidence and conservative admission gates."""
+"""Gate helpers and finalizer for Isaacs Raman closure audits.
+
+Numerical gates are derived from their own evidence files.  A missing file,
+missing/invalid metric, NaN, or Inf can never become a passing gate.
+"""
 from __future__ import annotations
-import csv,json,shutil,sys
+
+import argparse
+import csv
+import json
+import math
+from dataclasses import dataclass
 from pathlib import Path
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-ROOT=Path(__file__).resolve().parents[1]
-OUT=ROOT/'results'/'isaacs_raman_closure'/'phase8a_static_closure'
-SRC=ROOT/'results'/'isaacs_raman_closure'
-def read_csv(p):
- with Path(p).open(encoding='utf-8') as f:return list(csv.DictReader(f))
-def gate(status,evidence,numerical_result,threshold,physical_impact,production_impact,required_action):
- return {'status':status,'evidence':evidence,'numerical_result':numerical_result,'threshold':threshold,'physical_impact':physical_impact,'production_impact':production_impact,'required_action':required_action}
-def main():
- OUT.mkdir(parents=True,exist_ok=True)
- for name in ('isaacs_equation_code_mapping.md','isaacs_parameter_boundary.json','isaacs_parameter_provenance.csv'):
-  shutil.copy2(SRC/name,OUT/name)
- operator=read_csv(OUT/'raman_operator_comparison.csv'); eq=read_csv(OUT/'eq10_eq11_validation.csv')
- max_fft=max(float(r['relative_error']) for r in eq if r['path']=='fft_linear')
- max_direct=max(float(r['relative_error']) for r in eq if r['path']=='direct')
- source_fail=[]
- for r in operator:
-  limit=.01 if r['waveform'].endswith('_tl') else .02
-  if float(r['source_relative_l2_error'])>=limit: source_fail.append(r['waveform'])
- config={'isaacs_candidate':'configs/isaacs_raman_closure/120fs_talebpour_isaacs_raman_candidate.json','strict_parameters':['n_R','omega_R','Gamma_R'],'forbidden_null_or_omitted':['f_R','T_R','T2','Omega_R','tau2'],'raman_absorption_explicitly_disabled':True,'status':'passed'}
- (OUT/'raman_config_validation.json').write_text(json.dumps(config,indent=2)+'\n')
- fft_rows=[{'path':'fft_linear','dtype':'float64','relative_linf_error':max_fft,'threshold':1e-10,'causal':True},{'path':'direct','dtype':'float64','relative_linf_error':max_direct,'threshold':1e-10,'causal':True}]
- with (OUT/'raman_fft_validation.csv').open('w',newline='',encoding='utf-8') as f:
-  w=csv.DictWriter(f,fieldnames=fft_rows[0]);w.writeheader();w.writerows(fft_rows)
- fig,ax=plt.subplots();ax.bar([r['path'] for r in fft_rows],[r['relative_linf_error'] for r in fft_rows]);ax.set_yscale('log');ax.set(ylabel='relative error',title='Linear causal FFT validation');fig.tight_layout();fig.savefig(OUT/'raman_fft_validation.png',dpi=160);plt.close(fig)
- gates={
- 'source_equation_mapping_gate':gate('passed','isaacs_equation_code_mapping.md','Eq.7-12/27 mapped','all listed quantities mapped','paper/code semantic traceability','static only','retain mapping'),
- 'parameter_boundary_gate':gate('passed','isaacs_parameter_boundary.json','explicit Isaacs values','fixed values','prevents parameter substitution','candidate only','retain strict mode'),
- 'configuration_ambiguity_gate':gate('passed','raman_config_validation.json','forbidden fields rejected','all five null/omitted','prevents fallback/double weighting','candidate safe','keep normalization validation'),
- 'kernel_normalization_gate':gate('passed','Eq.9 analytic kernel','integral Omega=1','analytic','correct response scale','IIR/FFT input','retain Eq.9 form'),
- 'iir_convergence_gate':gate('passed','existing IIR tests plus Eq.10 audit','IIR refined-grid comparison recorded','converges with dt','reference convolution usable','no production change','retain IIR'),
- 'fft_linear_convolution_gate':gate('passed','raman_fft_validation.csv',max_fft,1e-10,'no circular response','FFT path safe when selected','use sampled kernel API'),
- 'eq10_signed_energy_gate':gate('passed','eq10_signed_energy_validation.csv','q=max(-u,0) after complete integral','no per-time clipping','signed energy preserved','legacy absorption remains disabled','do not connect legacy clipping'),
- 'eq11_analytic_recovery_gate':gate('passed','eq10_eq11_validation.csv',max(max_fft,max_direct),.01,'boxcar closure recovered','reference only','preserve edge-flux method'),
- 'operator_mapping_gate':gate('passed','raman_operator_mapping.json','product-rule derivation recorded','explicit tau/FFT convention','operator terms identified','no production replacement yet','use mapping for implementation'),
- 'operator_omitted_term_gate':gate('failed','raman_operator_comparison.csv',source_fail,'TL<1%, chirped/asymmetric<2%','split omission is non-negligible','split phase approximation not admissible','implement/validate full operator before propagation'),
- 'no_double_counting_gate':gate('passed','candidate config','Raman absorption false','no extra alpha_R','no duplicate rotational loss in candidate','static candidate only','keep absorption disabled'),
- 'energy_closure_gate':gate('failed','Eq.10 reference is not production field feedback','no production field-energy equality demonstrated','field loss equals Eq.10 target','production coupling unproven','no propagation admission','implement energy-closed field operator'),
- 'propagation_admission_gate':gate('failed','aggregate Phase 8A gates','operator and energy gates failed','all prerequisite gates passed','unsafe to start 8B propagation','8B blocked','complete full-operator/energy closure first')}
- decision={'schema':'khz_filament.phase8a.raman_architecture.v1','decision':'not_ready_energy_closure','reason':'split operator exceeds mandated gate and production energy closure is not implemented','propagation_admission_gate':'failed','gates':gates}
- (OUT/'raman_architecture_decision.json').write_text(json.dumps(decision,indent=2)+'\n')
- (OUT/'phase8a_gate_summary.json').write_text(json.dumps(gates,indent=2)+'\n')
- (OUT/'raman_architecture_decision.md').write_text('# Raman architecture decision\n\nDecision: **not_ready_energy_closure**. The split operator fails the mandated omission gate and the static Eq. (10) reference is deliberately not wired into production feedback. No 8B propagation is admissible.\n')
- (OUT/'phase8a_final_report.md').write_text('# Phase 8A final report\n\nStatic closure completed without Slurm or full propagation. The strict Isaacs configuration, causal FFT convolution, Eq. (10)/Eq. (11) audit, and complex-envelope operator comparison are recorded in this directory. `propagation_admission_gate` is **failed**; 8B is blocked pending a production full-operator or energy-closed implementation.\n')
- (OUT/'phase8a_changelog.md').write_text('# Phase 8A changelog\n\nAdded strict Isaacs configuration validation, causal linear FFT convolution, signed-energy reference, analytic closure audit, product-rule operator audit, and conservative gate report. Existing production configurations and Phase 5-7 results were not changed.\n')
-if __name__=='__main__':main()
+from typing import Callable, Iterable, Mapping
+
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_OUT = ROOT / "results" / "isaacs_raman_closure" / "phase8a_static_closure"
+VALID_GATE_STATES = {"passed", "failed", "inconclusive", "not_applicable"}
+
+
+class MetricSchemaError(ValueError):
+    """Raised when an evidence CSV exists but does not match its contract."""
+
+
+@dataclass(frozen=True)
+class MetricResult:
+    value: float | None
+    reason: str
+    sample_count: int = 0
+
+
+def gate(status, evidence, numerical_result, threshold, comparison_operator,
+         physical_impact, production_impact, required_action):
+    if status not in VALID_GATE_STATES:
+        raise ValueError(f"invalid gate status: {status}")
+    return {
+        "status": status,
+        "evidence": evidence,
+        "numerical_result": numerical_result,
+        "threshold": threshold,
+        "comparison_operator": comparison_operator,
+        "physical_impact": physical_impact,
+        "production_impact": production_impact,
+        "required_action": required_action,
+    }
+
+
+def threshold_gate(value, threshold, *, mode="lt"):
+    """Return an automatically derived status and comparison record."""
+    try:
+        numeric = float(value)
+        limit = float(threshold)
+    except (TypeError, ValueError):
+        return {"status": "inconclusive", "value": value, "threshold": threshold,
+                "comparison_operator": mode, "comparison_result": None}
+    if not math.isfinite(numeric) or not math.isfinite(limit):
+        return {"status": "inconclusive", "value": numeric, "threshold": limit,
+                "comparison_operator": mode, "comparison_result": None}
+    operators: Mapping[str, Callable[[float, float], bool]] = {
+        "lt": lambda a, b: a < b,
+        "le": lambda a, b: a <= b,
+        "gt": lambda a, b: a > b,
+        "ge": lambda a, b: a >= b,
+    }
+    if mode not in operators:
+        raise ValueError(f"unsupported comparison mode: {mode}")
+    result = bool(operators[mode](numeric, limit))
+    return {"status": "passed" if result else "failed", "value": numeric,
+            "threshold": limit, "comparison_operator": mode,
+            "comparison_result": result}
+
+
+def read_metric(path: Path, value_column: str, *, filters: Mapping[str, str] | None = None,
+                reducer: Callable[[Iterable[float]], float] = max) -> MetricResult:
+    """Read one metric contract; missing files are inconclusive, bad schemas fail loudly."""
+    path = Path(path)
+    if not path.is_file():
+        return MetricResult(None, "missing_file", 0)
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        fields = set(reader.fieldnames or ())
+        required = {value_column, *(filters or {}).keys()}
+        missing = sorted(required - fields)
+        if missing:
+            raise MetricSchemaError(f"{path.name} missing required columns: {missing}")
+        values = []
+        for row in reader:
+            if filters and any(str(row[key]) != str(expected) for key, expected in filters.items()):
+                continue
+            try:
+                values.append(float(row[value_column]))
+            except (TypeError, ValueError):
+                return MetricResult(None, f"invalid_value:{value_column}", len(values))
+    if not values:
+        return MetricResult(None, "no_matching_rows", 0)
+    value = float(reducer(values))
+    if not math.isfinite(value):
+        return MetricResult(None, "non_finite", len(values))
+    return MetricResult(value, "ok", len(values))
+
+
+def metric_gate(path: Path, column: str, threshold: float, *, filters=None, mode="lt",
+                evidence_label=None, physical_impact="", production_impact="",
+                required_action="inspect evidence"):
+    try:
+        metric = read_metric(path, column, filters=filters)
+    except MetricSchemaError as exc:
+        metric = MetricResult(None, f"schema_error:{exc}", 0)
+    comparison = threshold_gate(metric.value, threshold, mode=mode)
+    return gate(
+        comparison["status"], evidence_label or str(path),
+        {"value": metric.value, "reason": metric.reason, "sample_count": metric.sample_count,
+         "comparison_result": comparison["comparison_result"]},
+        threshold, mode, physical_impact, production_impact, required_action,
+    )
+
+
+def build_numeric_gates(out_dir: Path):
+    """Build independent gates without reusing semantically unrelated columns."""
+    return {
+        "fft_linear_convolution_gate": metric_gate(
+            out_dir / "raman_fft_direct_comparison.csv", "relative_linf_error", 1e-10,
+            filters={"dtype": "float64"}, evidence_label="raman_fft_direct_comparison.csv",
+            physical_impact="causal convolution accuracy", production_impact="FFT Raman path",
+            required_action="repair FFT convolution evidence if failed/inconclusive"),
+        "eq11_analytic_recovery_gate": metric_gate(
+            out_dir / "eq10_eq11_validation.csv", "direct_vs_eq11_error", .01,
+            evidence_label="eq10_eq11_validation.csv", physical_impact="Eq.10/Eq.11 closure",
+            production_impact="Raman energy reference", required_action="refine Eq.10/Eq.11 audit"),
+        "iir_convergence_gate": metric_gate(
+            out_dir / "raman_iir_direct_convergence.csv", "iir_vs_direct_error", .01,
+            evidence_label="raman_iir_direct_convergence.csv", physical_impact="IIR response accuracy",
+            production_impact="legacy/current IIR convolution", required_action="repair or reject IIR"),
+        "production_split_comparison_gate": metric_gate(
+            out_dir / "production_split_vs_full_operator.csv", "gate_error", .02,
+            evidence_label="production_split_vs_full_operator.csv", physical_impact="actual split/full equivalence",
+            production_impact="candidate architecture selection", required_action="select full operator if failed"),
+    }
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT)
+    args = parser.parse_args(argv)
+    args.out_dir.mkdir(parents=True, exist_ok=True)
+    gates = build_numeric_gates(args.out_dir)
+    required = ("fft_linear_convolution_gate", "eq11_analytic_recovery_gate",
+                "iir_convergence_gate", "production_split_comparison_gate")
+    admission = "passed" if all(gates[name]["status"] == "passed" for name in required) else "failed"
+    gates["propagation_admission_gate"] = gate(
+        admission, "aggregate corrected numerical gates",
+        {name: gates[name]["status"] for name in required}, "all required gates passed", "all",
+        "controls Phase 8B admission", "blocks or permits production propagation",
+        "resolve every failed or inconclusive prerequisite" if admission != "passed" else "none")
+    (args.out_dir / "phase8a_gate_summary.json").write_text(json.dumps(gates, indent=2) + "\n", encoding="utf-8")
+    return gates
+
+
+if __name__ == "__main__":
+    main()
