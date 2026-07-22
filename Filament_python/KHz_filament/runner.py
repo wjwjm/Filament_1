@@ -62,6 +62,7 @@ def _linear_advance(E, dz, *, axes, kperp2, k0, prop, beam):
             dz=dz,
             beta2=float(getattr(prop, "nee_beta2", 0.0)),
             denom_floor=float(getattr(prop, "nee_denom_floor", 1e-4)),
+            precision_strategy=getattr(prop, "linear_precision_strategy", "baseline_complex64"),
         )
 
     prop_x = lin_propagator(kperp2, k0, dz, ctype=E.dtype)

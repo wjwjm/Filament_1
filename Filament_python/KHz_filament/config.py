@@ -53,6 +53,9 @@ class PropagationConfig:
     # Brabec–Krausz NEE 线性项参数（linear_model="bk_nee" 时使用）
     nee_beta2: float = 0.2e-28         # s^2/m, GVD 系数 k''
     nee_denom_floor: float = 1e-4  # 防止 1+Omega/omega0 在 -omega0 邻域奇异
+    # R5 opt-in BK-NEE numerical precision strategy.  The baseline preserves
+    # historical complex64 FFT behavior unless a candidate is explicitly set.
+    linear_precision_strategy: str = "baseline_complex64"
     # === 进度输出 ===
     progress_every_z: int = 100    # 每多少个 z 步打印一次（0=不打印）
     show_eta: bool = True          # 打印 ETA 估计

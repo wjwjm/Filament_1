@@ -439,6 +439,7 @@ def propagate_one_pulse(
                 omega0=omega0, dz=dz_try / 2,
                 beta2=float(getattr(p, "nee_beta2", 0.0)),
                 denom_floor=float(getattr(p, "nee_denom_floor", 1e-4)),
+                precision_strategy=getattr(p, "linear_precision_strategy", "baseline_complex64"),
                 return_energy_diagnostics=diag_linear_halfstep_energy,
                 energy_scale=linear_energy_scale if diag_linear_halfstep_energy else None,
             )
@@ -744,6 +745,7 @@ def propagate_one_pulse(
                 omega0=omega0, dz=dz_try / 2,
                 beta2=float(getattr(p, "nee_beta2", 0.0)),
                 denom_floor=float(getattr(p, "nee_denom_floor", 1e-4)),
+                precision_strategy=getattr(p, "linear_precision_strategy", "baseline_complex64"),
                 return_energy_diagnostics=diag_linear_halfstep_energy,
                 energy_scale=linear_energy_scale if diag_linear_halfstep_energy else None,
             )

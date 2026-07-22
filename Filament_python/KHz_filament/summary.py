@@ -63,6 +63,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     g_lim = float(getattr(prop, "imax_growth_limit", 0.5))
 
     linear_model = str(getattr(prop, "linear_model", "uppe")).lower()
+    linear_precision_strategy = str(getattr(prop, "linear_precision_strategy", "baseline_complex64"))
     factorize = bool(getattr(prop, "full_linear_factorize", False))
     chunk_t = int(getattr(prop, "linear_chunk_t", 8))
     lens_chunk_t = int(getattr(prop, "lens_chunk_t", 0))
@@ -176,7 +177,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     else:
         print("FocusWin(焦区加密)   : OFF  # 关闭焦区细步长")
     print(f"Thresholds(阈值)      : lin_phase≤{th_lin}, alpha·dz≤{th_abs}, kerr_phase≤{th_kerr}, Imax_growth≤{g_lim*100:.0f}%  # 自适应/回退判据")
-    print(f"Linear(线性传播)      : model={linear_model} | factorize={onoff(factorize)} | chunk_t={chunk_t}  # 线性算子设置")
+    print(f"Linear(线性传播)      : model={linear_model} | precision={linear_precision_strategy} | factorize={onoff(factorize)} | chunk_t={chunk_t}  # 线性算子设置")
     print(f"Lens(透镜)           : {lens_mode} | f={fL_s} | lens_chunk_t={lens_chunk_t}  # 聚焦模型")
     print(f"Beam(入射光束)       : λ0={fmt(lam0,' m')} n0={fmt(n0)} w0={fmt(w0,' m')} τ_FWHM={fmt(tau,' s')}  # 初始脉冲参数")
     if input_profile:

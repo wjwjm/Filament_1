@@ -131,6 +131,14 @@ def _normalize_nonlinear_switches(propagation: Dict[str, Any]) -> None:
             raise ValueError(f"propagation.{name} must be true, false, or omitted for legacy compatibility.")
 
 
+def _normalize_linear_precision(propagation: Dict[str, Any]) -> None:
+    strategy = str(propagation.get("linear_precision_strategy", "baseline_complex64") or "baseline_complex64").lower()
+    allowed = ("baseline_complex64", "orthonormal_fft", "mixed_precision", "unitary_projection")
+    if strategy not in allowed:
+        raise ValueError(f"propagation.linear_precision_strategy must be one of {allowed}.")
+    propagation["linear_precision_strategy"] = strategy
+
+
 def _normalize_raman(raman: Dict[str, Any]) -> None:
     """Validate the explicit Isaacs rotational-Raman parameterization.
 
@@ -207,6 +215,7 @@ def normalize_config(raw: Dict[str, Any]) -> Dict[str, Any]:
     _normalize_beam(out["beam"], grid=out["grid"])
     _normalize_species(out["ionization"])
     _normalize_nonlinear_switches(out["propagation"])
+    _normalize_linear_precision(out["propagation"])
     _normalize_raman(out["raman"])
     _validate_raman_operator_coupling(out["raman"], out["propagation"])
     return out
