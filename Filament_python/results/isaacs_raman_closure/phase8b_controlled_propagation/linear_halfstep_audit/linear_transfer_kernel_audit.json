@@ -1,0 +1,96 @@
+{
+  "schema": "khz_filament.phase8b_r.linear_transfer_kernel_audit.v1",
+  "config": "C:/Filament_1/Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on_energy_audit.json",
+  "selected_production_branch": "bk_nee -> step_linear_bk_nee_factorized",
+  "grid": {
+    "Nt": 384,
+    "Ny": 512,
+    "Nx": 512,
+    "total_3d_bins": 100663296
+  },
+  "parameters": {
+    "k0_m_inverse": 7856102.209015655,
+    "omega0_rad_s": 2354564459136066.5,
+    "dz_eff_m": 5e-05,
+    "nee_beta2": 0.0,
+    "nee_denom_floor": 0.0001
+  },
+  "pure_phase_design": true,
+  "explicit_linear_loss_operations": [],
+  "actual_complex64": {
+    "dtype": "complex64",
+    "total_bins": 100663296,
+    "min_abs_H": 0.9999998807907104,
+    "max_abs_H": 1.0000001192092896,
+    "max_abs_abs_H_minus_1": 1.1920928955078125e-07,
+    "zero_bins": 0,
+    "zero_fraction": 0.0,
+    "below_unity": {
+      "1e-07": {
+        "count": 728955,
+        "fraction": 0.0072415173053741455
+      },
+      "1e-06": {
+        "count": 0,
+        "fraction": 0.0
+      },
+      "1e-05": {
+        "count": 0,
+        "fraction": 0.0
+      }
+    },
+    "above_unity": {
+      "1e-07": {
+        "count": 7602413,
+        "fraction": 0.07552318771680196
+      },
+      "1e-06": {
+        "count": 0,
+        "fraction": 0.0
+      },
+      "1e-05": {
+        "count": 0,
+        "fraction": 0.0
+      }
+    }
+  },
+  "float64_reference": {
+    "dtype": "complex128",
+    "total_bins": 100663296,
+    "min_abs_H": 0.9999999999999998,
+    "max_abs_H": 1.0000000000000002,
+    "max_abs_abs_H_minus_1": 2.220446049250313e-16,
+    "zero_bins": 0,
+    "zero_fraction": 0.0,
+    "below_unity": {
+      "1e-07": {
+        "count": 0,
+        "fraction": 0.0
+      },
+      "1e-06": {
+        "count": 0,
+        "fraction": 0.0
+      },
+      "1e-05": {
+        "count": 0,
+        "fraction": 0.0
+      }
+    },
+    "above_unity": {
+      "1e-07": {
+        "count": 0,
+        "fraction": 0.0
+      },
+      "1e-06": {
+        "count": 0,
+        "fraction": 0.0
+      },
+      "1e-05": {
+        "count": 0,
+        "fraction": 0.0
+      }
+    }
+  },
+  "checkpoint_energy_fraction_in_attenuated_bins": "unavailable: Job 179988 saved no complex field checkpoints",
+  "predicted_loss_from_kernel": "not inferable without field spectra; pure-phase design predicts zero exact-arithmetic loss"
+}

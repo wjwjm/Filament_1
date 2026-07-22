@@ -1,0 +1,38 @@
+{
+  "schema": "khz_filament.phase8b_r.linear_propagation_domain_audit.v1",
+  "production_grid": {
+    "field_shape": [384, 512, 512],
+    "field_layout": "[time, y, x]",
+    "dx_m": 1.5625e-05,
+    "dy_m": 1.5625e-05,
+    "dt_s": 2.5e-15,
+    "coordinate_system": "Cartesian",
+    "cylindrical_jacobian": false
+  },
+  "linear_bk_nee_domain": {
+    "input_field": "[Nt, Ny, Nx] physical array",
+    "time_fft": "same shape; no padding",
+    "spatial_fft_per_time_frequency": "same shape; no padding",
+    "transfer": "same shape; pure phase complex64 multiplier",
+    "inverse_spatial_fft": "same shape",
+    "inverse_time_fft": "same shape",
+    "crop": "none",
+    "guard_cell_removal": "none",
+    "mask_or_filter": "none",
+    "resampling": "none"
+  },
+  "runtime_energy_diagnostic": {
+    "function": "diagnostics.pulse_energy(diagnostics.intensity(E, n0), dt, dx, dy)",
+    "formula": "sum(I) * dt * dx * dy",
+    "integration_domain": "entire [Nt, Ny, Nx] propagated array",
+    "float64_operator_checkpoint_storage": true
+  },
+  "archive_and_offline_domains": {
+    "stored_full_field_history": false,
+    "stored_field_checkpoints": false,
+    "stored_final_centerline_only": "I_out_center_t [Nt]",
+    "stored_energy_histories": "U_z and energy checkpoint scalars [Nz]",
+    "offline_reconstruction_domain": "scalar runtime histories only; cannot independently reintegrate field energy"
+  },
+  "conclusion": "No padding/crop or domain mismatch is present in the selected BK-NEE linear propagation implementation. The archive cannot prove field-domain equivalence at every z because it does not store E(z,t,y,x)."
+}
