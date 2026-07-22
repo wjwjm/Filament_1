@@ -1,0 +1,10 @@
+{
+  "schema": "khz_filament.phase8b_r.r5_0_remote_synchronization_addendum.v1",
+  "r4_completion_time_push_status": "failed_after_allowed_normal_push_and_retry",
+  "r4_historical_failure_reason": "GitHub HTTPS connection reset",
+  "later_synchronization_status": "succeeded",
+  "remote_main_after_synchronization": "47aee9fd3eed8a0edb391cfa9307e2f6d0ed1bdc",
+  "verified_by": "git ls-remote origin refs/heads/main",
+  "job2_prepared": false,
+  "job2_submitted": false
+}
