@@ -1,0 +1,11 @@
+{
+  "schema": "khz_filament.phase8b_r.linear_checkpoint_replay.v1",
+  "status": "inconclusive_missing_field_checkpoints",
+  "archive": "tmp\\r4_linear_halfstep\\job1_179988.npz",
+  "field_checkpoint_keys": [],
+  "field_replay_performed": false,
+  "field_replay_forbidden_without_saved_field": true,
+  "checkpoint_count": 6,
+  "halfstep_rows": 12,
+  "observed_energy_only": true
+}
