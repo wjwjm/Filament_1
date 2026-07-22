@@ -1,0 +1,106 @@
+{
+  "schema": "khz_filament.phase8c.effect_pair_definitions.v1",
+  "current_production_result_id": "current_120fs_talebpour_legacy_raman_on",
+  "pycap_result_id": "pycap_120fs_digitized",
+  "effects": [
+    {
+      "effect_id": "coordinate_definition_freeze",
+      "baseline_result_id": "early_120fs_ppt_or_talebpour_missing",
+      "comparison_result_id": "current_120fs_talebpour_legacy_raman_on",
+      "changed_factor": "coordinate_definition",
+      "all_other_known_differences": "historical coordinate provenance is incomplete; no curve shift is applied in this ledger",
+      "causal_pair_quality": "historical_noncomparable",
+      "interpretation": "The focus origin is now fixed at z=0.95 m; the historical magnitude of any prior coordinate-definition effect cannot be reconstructed from a missing curve.",
+      "confidence": "not_interpretable",
+      "limitations": "No complete earlier curve with an independently documented coordinate convention."
+    },
+    {
+      "effect_id": "ft90_transverse_profile_correction",
+      "baseline_result_id": "early_120fs_ppt_or_talebpour_missing",
+      "comparison_result_id": "current_120fs_talebpour_legacy_raman_on",
+      "changed_factor": "transverse_profile",
+      "all_other_known_differences": "historical input curve and normalization provenance are incomplete",
+      "causal_pair_quality": "historical_noncomparable",
+      "interpretation": "FT90 is fixed for production, but no locally archived strict before/after 120 fs curve exists.",
+      "confidence": "not_interpretable",
+      "limitations": "Do not assign a centimeter contribution without a strict archived pair."
+    },
+    {
+      "effect_id": "discrete_peak_power_normalization",
+      "baseline_result_id": "early_120fs_ppt_or_talebpour_missing",
+      "comparison_result_id": "current_120fs_talebpour_legacy_raman_on",
+      "changed_factor": "power_normalization",
+      "all_other_known_differences": "historical input curve missing",
+      "causal_pair_quality": "historical_noncomparable",
+      "interpretation": "The 17 GW peak-power normalization is fixed; no strict archived pair quantifies its independent onset shift.",
+      "confidence": "not_interpretable",
+      "limitations": "No curve-level before/after archive."
+    },
+    {
+      "effect_id": "legacy_raman_phase_on_vs_off",
+      "baseline_result_id": "phase6_legacy_raman_phase_off",
+      "comparison_result_id": "current_120fs_talebpour_legacy_raman_on",
+      "changed_factor": "legacy_raman_phase",
+      "all_other_known_differences": "None: archived Phase 6 config difference is propagation.use_raman_phase only; Raman absorption remains enabled.",
+      "causal_pair_quality": "strict_single_delta",
+      "interpretation": "Centimeter-level effect of enabling the legacy split Raman phase; this is not evidence for full Eq.27 feedback.",
+      "confidence": "high",
+      "limitations": "Applies only to the legacy split operator and its coupled nonlinear trajectory."
+    },
+    {
+      "effect_id": "full_eq27_feedback_vs_legacy_split",
+      "baseline_result_id": "current_120fs_talebpour_legacy_raman_on",
+      "comparison_result_id": "phase8b_full_eq27_job_179988",
+      "changed_factor": "full_eq27_raman_feedback",
+      "all_other_known_differences": "operator formulation, legacy absorption branch, audit diagnostics, and numerical path differ; full Eq.27 Job 179988 also failed energy admission",
+      "causal_pair_quality": "multiple_delta_confounded",
+      "interpretation": "No full Eq.27 curve-level causal onset contribution is available from historical evidence.",
+      "confidence": "not_interpretable",
+      "limitations": "Missing local rho curve and invalid-for-physics energy admission."
+    },
+    {
+      "effect_id": "talebpour_vs_early_ionization_model",
+      "baseline_result_id": "early_120fs_ppt_or_talebpour_missing",
+      "comparison_result_id": "current_120fs_talebpour_legacy_raman_on",
+      "changed_factor": "ionization_model",
+      "all_other_known_differences": "historical curve/config provenance incomplete",
+      "causal_pair_quality": "historical_noncomparable",
+      "interpretation": "No strict 120 fs Talebpour-versus-earlier-ionization pair is locally available.",
+      "confidence": "not_interpretable",
+      "limitations": "Do not infer from scalar report summaries."
+    },
+    {
+      "effect_id": "linear_complex64_vs_mixed_precision",
+      "baseline_result_id": "r5_complex64_screen_job_180055",
+      "comparison_result_id": "r5_mixed_precision_screen_job_180057",
+      "changed_factor": "linear_precision",
+      "all_other_known_differences": "pure-linear 20-step numerical screen; all nonlinear physics disabled",
+      "causal_pair_quality": "strict_single_delta",
+      "interpretation": "Mixed precision repairs linear numerical dissipation but has no archived 120 fs onset curve and therefore no physical onset attribution.",
+      "confidence": "not_interpretable",
+      "limitations": "Numerical audit only; not a propagation-physics pair."
+    },
+    {
+      "effect_id": "electronic_kerr_ablation",
+      "baseline_result_id": "early_120fs_ppt_or_talebpour_missing",
+      "comparison_result_id": "current_120fs_talebpour_legacy_raman_on",
+      "changed_factor": "electronic_kerr",
+      "all_other_known_differences": "no historical electronic-Kerr OFF production curve found",
+      "causal_pair_quality": "historical_noncomparable",
+      "interpretation": "Electronic Kerr is physically plausible but currently unquantified by a strict pair.",
+      "confidence": "not_interpretable",
+      "limitations": "Requires a future authorized causal ablation."
+    },
+    {
+      "effect_id": "plasma_and_ionization_feedback_ablation",
+      "baseline_result_id": "early_120fs_ppt_or_talebpour_missing",
+      "comparison_result_id": "current_120fs_talebpour_legacy_raman_on",
+      "changed_factor": "plasma_phase",
+      "all_other_known_differences": "no historical plasma-phase or ionization-loss strict ablation curve found",
+      "causal_pair_quality": "historical_noncomparable",
+      "interpretation": "Plasma phase and ionization loss cannot yet be separated from the coupled baseline trajectory.",
+      "confidence": "not_interpretable",
+      "limitations": "Requires future staged causal pairs."
+    }
+  ]
+}
