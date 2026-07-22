@@ -1,0 +1,42 @@
+{
+  "schema": "khz_filament.phase8b_r.task_r5.final_summary.v1",
+  "classification": "bk_nee_fix_failed_performance_gate",
+  "selected_numerical_strategy": "mixed_precision",
+  "production_default_changed": false,
+  "accepted_numerical_gates": {
+    "operator_reference": true,
+    "full_grid_20_step_pure_linear": true,
+    "full_grid_200_step_pure_linear": true,
+    "full_physics_20_step": true,
+    "raman_closure_preserved": true
+  },
+  "rejected_strategies": {
+    "baseline_complex64": "20-step cumulative linear residual 2.071920612813116e-05 exceeds 1e-05",
+    "orthonormal_fft": "20-step cumulative linear residual 2.838644324776365e-05 exceeds 1e-05",
+    "unitary_projection": "passes scalar energy gates but has larger reference error and relies on a corrective projection"
+  },
+  "mixed_precision": {
+    "operator_reference_max_200_step_relative_l2": 5.13032054488933e-07,
+    "pure_linear_20_step_cumulative_residual": 1.1363974328931737e-08,
+    "pure_linear_200_step_cumulative_residual": 1.1022911642708644e-08,
+    "pure_linear_15000_step_extrapolated_drift": 8.267183732031483e-07,
+    "full_physics_20_step_linear_cumulative_residual": 1.0128055819623053e-08,
+    "full_physics_20_step_raman_step_closure_p99": 0.0001501908991485834,
+    "full_physics_20_step_raman_cumulative_closure": 2.831530582625419e-05
+  },
+  "performance": {
+    "pure_linear_200_step_runtime_s": 193.0,
+    "pure_linear_15000_step_estimate_h": 4.020833333333333,
+    "full_physics_20_step_runtime_s": 58.1,
+    "full_physics_15000_step_linear_extrapolation_h": 12.104166666666668,
+    "required_estimate_lt_h": 6.4,
+    "gate_passed": false,
+    "peak_reserved_gpu_memory": "not captured: R5 smoke did not enable performance-memory diagnostics; no OOM occurred"
+  },
+  "full_job1_authorized": false,
+  "full_job1_submitted_by_r5": false,
+  "job2_prepared": false,
+  "job2_submitted": false,
+  "tests": {"full_pytest": "181 passed", "github_actions_ci": "unavailable; no workflow present"},
+  "required_next_action": "Optimize or accurately profile the full-physics mixed-precision step to satisfy the <6.4 h runtime gate and capture peak reserved GPU memory; then rerun only the required short smoke gates before requesting new full Job 1 authorization."
+}
