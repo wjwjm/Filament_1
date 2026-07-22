@@ -18,7 +18,7 @@ from KHz_filament.device import xp  # noqa: E402
 from KHz_filament.runner import run_demo  # noqa: E402
 
 
-def analyze(data: dict[str, np.ndarray], *, mode: str) -> dict:
+def analyze(data: dict[str, np.ndarray], *, mode: str, precision_strategy: str = "baseline_complex64") -> dict:
     u0 = float(data["linear_halfstep_1_energy_before_J"][0])
     rows = []
     cumulative_residual = 0.0
@@ -47,6 +47,7 @@ def analyze(data: dict[str, np.ndarray], *, mode: str) -> dict:
     result = {
         "schema": "khz_filament.phase8b_r.r4_linear_halfstep_smoke.v1",
         "mode": mode,
+        "linear_precision_strategy": precision_strategy,
         "backend": xp.__name__,
         "steps": int(np.asarray(data["z_axis"]).size),
         "linear_halfsteps": rows,
@@ -59,13 +60,21 @@ def analyze(data: dict[str, np.ndarray], *, mode: str) -> dict:
             "passed": bool(np.percentile(p99_values, 99) < 1e-6 and cumulative_relative < 1e-5),
         },
     }
+    scale_deviations = []
+    for half in (1, 2):
+        key = f"linear_halfstep_{half}_unitary_projection_scale_deviation"
+        if key in data:
+            scale_deviations.extend(np.asarray(data[key], dtype=np.float64).tolist())
+    if scale_deviations:
+        result["unitary_projection_scale_deviation_p99"] = float(np.percentile(scale_deviations, 99))
+        result["unitary_projection_scale_deviation_max"] = float(np.max(scale_deviations))
     if mode == "full_physics":
         result["raman_step_closure_p99"] = float(np.percentile(data["raman_closure_residual_step"], 99))
         result["raman_cumulative_closure"] = float(data["raman_cumulative_closure_residual"][-1])
     return result
 
 
-def run(*, config: Path, output_npz: Path, report: Path, steps: int, mode: str, dtype: str) -> dict:
+def run(*, config: Path, output_npz: Path, report: Path, steps: int, mode: str, dtype: str, precision_strategy: str) -> dict:
     if xp.__name__ != "cupy":
         raise RuntimeError("R4 full-size smoke requires the CuPy backend; NumPy fallback is forbidden")
     grid, beam, prop, ion, heat, run_cfg, raman = load_all(str(config))
@@ -74,6 +83,7 @@ def run(*, config: Path, output_npz: Path, report: Path, steps: int, mode: str, 
         focus_window_step=False, limit_focus_window=False,
         progress_every_z=0, energy_probe_every=0, diag_extra=False,
         diag_operator_energy=True, diag_linear_halfstep_energy=True,
+        linear_precision_strategy=precision_strategy,
     )
     if mode == "pure_linear":
         prop = replace(
@@ -89,7 +99,8 @@ def run(*, config: Path, output_npz: Path, report: Path, steps: int, mode: str, 
              run=replace(run_cfg, Npulses=1), raman=raman,
              out_path=str(output_npz), dtype=dtype)
     with np.load(output_npz, allow_pickle=False) as source:
-        result = analyze({key: source[key].copy() for key in source.files}, mode=mode)
+        result = analyze({key: source[key].copy() for key in source.files}, mode=mode,
+                         precision_strategy=precision_strategy)
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     return result
@@ -103,9 +114,11 @@ def main(argv=None) -> None:
     parser.add_argument("--steps", type=int, default=20)
     parser.add_argument("--mode", choices=("pure_linear", "full_physics"), required=True)
     parser.add_argument("--dtype", choices=("fp32", "fp64"), default="fp32")
+    parser.add_argument("--precision-strategy", choices=("baseline_complex64", "orthonormal_fft", "mixed_precision", "unitary_projection"), required=True)
     args = parser.parse_args(argv)
     print(json.dumps(run(config=args.config, output_npz=args.output_npz, report=args.report,
-                         steps=args.steps, mode=args.mode, dtype=args.dtype), indent=2))
+                         steps=args.steps, mode=args.mode, dtype=args.dtype,
+                         precision_strategy=args.precision_strategy), indent=2))
 
 
 if __name__ == "__main__":
