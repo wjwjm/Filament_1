@@ -1,0 +1,33 @@
+{
+  "schema": "khz_filament.phase8b_r.r5_operator_reference.v1",
+  "assessment": {
+    "baseline_complex64": {
+      "max_one_halfstep_relative_l2": 1.1449546634081463e-07,
+      "max_200_step_relative_l2": 1.6217219575139477e-05,
+      "one_halfstep_gate_lt": 1e-06,
+      "two_hundred_step_gate_lt": 0.0001,
+      "passed": true
+    },
+    "orthonormal_fft": {
+      "max_one_halfstep_relative_l2": 1.8426429893972422e-07,
+      "max_200_step_relative_l2": 3.882055023804727e-05,
+      "one_halfstep_gate_lt": 1e-06,
+      "two_hundred_step_gate_lt": 0.0001,
+      "passed": true
+    },
+    "mixed_precision": {
+      "max_one_halfstep_relative_l2": 2.496334958532782e-08,
+      "max_200_step_relative_l2": 5.13032054488933e-07,
+      "one_halfstep_gate_lt": 1e-06,
+      "two_hundred_step_gate_lt": 0.0001,
+      "passed": true
+    },
+    "unitary_projection": {
+      "max_one_halfstep_relative_l2": 1.1449546634081463e-07,
+      "max_200_step_relative_l2": 1.586857305297415e-05,
+      "one_halfstep_gate_lt": 1e-06,
+      "two_hundred_step_gate_lt": 0.0001,
+      "passed": true
+    }
+  }
+}
