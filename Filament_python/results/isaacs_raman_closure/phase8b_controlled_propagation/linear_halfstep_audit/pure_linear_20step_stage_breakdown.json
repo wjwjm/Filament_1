@@ -1,0 +1,24 @@
+{
+  "schema": "khz_filament.phase8b_r.r4_linear_halfstep_stage_breakdown.v1",
+  "reduction": "float64; energy after every executed BK-NEE stage",
+  "interpretation": "The BK-NEE transfer is intended to be a pure phase. Negative values are field-energy changes; no explicit boundary, filter, crop, or evanescent-loss channel exists on this path.",
+  "sum_over_20_steps_J": {
+    "halfstep_1": {
+      "after_forward_time_fft": -5.276427912648263e-09,
+      "after_spatial_transfer": -6.913631671497111e-09,
+      "after_inverse_spatial_fft": -6.099268498246935e-09,
+      "after_inverse_time_fft": -4.189612770860024e-09,
+      "total": -2.2478940853252333e-08
+    },
+    "halfstep_2": {
+      "after_forward_time_fft": -5.352189737847096e-09,
+      "after_spatial_transfer": -6.865161096287348e-09,
+      "after_inverse_spatial_fft": -6.078893452412387e-09,
+      "after_inverse_time_fft": -4.216835246002165e-09,
+      "total": -2.2513079532548996e-08
+    }
+  },
+  "first_measurable_loss_operation": "forward time FFT",
+  "first_operation_is_intended_energy_removal": false,
+  "primary_cause": "complex64 FFT/multiply roundoff accumulated by repeated BK-NEE half steps"
+}

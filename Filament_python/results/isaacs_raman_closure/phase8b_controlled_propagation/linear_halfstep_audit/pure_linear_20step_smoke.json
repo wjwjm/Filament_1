@@ -1,0 +1,38 @@
+{
+  "schema": "khz_filament.phase8b_r.r4_linear_halfstep_smoke.v1",
+  "provenance": {
+    "slurm_job_id": "180046",
+    "remote_path": "/data/run01/scvi806/user_Wangjimin/phase8b_r4_linear_smoke_20260722T011500Z",
+    "source_commit": "35f42cb9a756019ba1216b29eb96e4c0d7de00c0",
+    "backend": "cupy",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "steps": 20,
+    "physical_models": "all nonlinear physics disabled"
+  },
+  "linear_halfsteps": [
+    {
+      "halfstep": 1,
+      "field_delta_sum_J": -2.2478940853252333e-08,
+      "explicit_loss_sum_J": 0.0,
+      "unaccounted_residual_sum_J": -2.2478940853252333e-08,
+      "relative_residual_p99": 5.253382554310886e-07
+    },
+    {
+      "halfstep": 2,
+      "field_delta_sum_J": -2.2513079532548996e-08,
+      "explicit_loss_sum_J": 0.0,
+      "unaccounted_residual_sum_J": -2.2513079532548996e-08,
+      "relative_residual_p99": 5.231135994607641e-07
+    }
+  ],
+  "linear_per_halfstep_residual_p99": 5.249573123657346e-07,
+  "linear_cumulative_unaccounted_residual_J": -4.499202038580133e-08,
+  "linear_cumulative_unaccounted_relative": 2.071920612813116e-05,
+  "pure_lossless_contract": {
+    "per_halfstep_p99_lt": 1e-06,
+    "cumulative_lt": 1e-05,
+    "per_halfstep_p99_passed": true,
+    "cumulative_passed": false,
+    "passed": false
+  }
+}

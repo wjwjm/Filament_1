@@ -1,0 +1,41 @@
+{
+  "schema": "khz_filament.phase8b_r.task_r4.final_summary.v1",
+  "status": "job1_rerun_required",
+  "root_cause_classification": "linear_operator_numerical_dissipation",
+  "job_179988": {
+    "reusable_for_passing_reaudit": false,
+    "final_total_energy_closure": 0.014176516743495496,
+    "total_energy_contract_lt": 0.01,
+    "linear_halfstep_combined_field_delta_J": -3.094249404966831e-05,
+    "raman_step_closure_p99": "passed from replacement Job 1 audit",
+    "raman_cumulative_closure": "passed from replacement Job 1 audit",
+    "legacy_alpha_R": 0.0
+  },
+  "controlled_smoke": {
+    "job_id": "180046",
+    "backend": "cupy",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "steps": 20,
+    "mode": "pure_linear",
+    "linear_halfstep_p99_relative_residual": 5.249573123657346e-07,
+    "linear_halfstep_p99_contract_lt": 1e-06,
+    "linear_cumulative_unaccounted_relative": 2.071920612813116e-05,
+    "linear_cumulative_contract_lt": 1e-05,
+    "contract_passed": false,
+    "full_physics_smoke_run": false,
+    "not_run_reason": "R4 stop condition: pure-linear cumulative residual exceeded the locked contract"
+  },
+  "first_measurable_loss_operation": "forward time FFT",
+  "linear_loss_semantics": "unintended complex64 numerical dissipation; not physical absorption and not eligible for post-hoc physical-loss accounting",
+  "job2_prepared": false,
+  "job2_submitted": false,
+  "full_job1_submitted_by_r4": false,
+  "push": {
+    "attempted": true,
+    "attempts": 2,
+    "status": "failed_after_allowed_normal_push_and_retry",
+    "message": "GitHub HTTPS connection reset",
+    "retry_in_this_phase": false
+  },
+  "next_authorization_required": "approve a minimal BK-NEE precision/dissipation fix followed by new operator tests and controlled short smokes; do not run a full Job 1 or any Job 2 until those gates pass"
+}
