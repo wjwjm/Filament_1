@@ -1,0 +1,30 @@
+{
+  "schema": "khz_filament.phase8b_r.r4_0_evidence_sync.v1",
+  "local_main_before_r4": "e724cd66e02047147ace57cd91f4abce514769c4",
+  "remote_origin_main_before_r4": "e321223b6ee2c79407192ff4be3087fd83ec5ef8",
+  "audit_commit_scope": {
+    "base": "e321223b6ee2c79407192ff4be3087fd83ec5ef8",
+    "tip": "e724cd66e02047147ace57cd91f4abce514769c4",
+    "contains_only": [
+      "replacement Job 1 lightweight execution evidence",
+      "replacement Job 1 audit reports and diagnostic results"
+    ],
+    "contains_job2_artifacts": false,
+    "contains_raw_npz_mat_lut": false
+  },
+  "offline_bundle": {
+    "filename": "phase8b_r_job1_audit_e724cd66.bundle",
+    "size_bytes": 9394,
+    "sha256": "4e0d989a6910dcd33e7945c2c29f72975a40069f0f2f38edafea24ac08e5ca62",
+    "creation_refspec": "main ^origin/main",
+    "verification": "git bundle verify passed",
+    "committed_to_git": false
+  },
+  "network_sync": {
+    "prior_push_attempts": 2,
+    "prior_failure": "GitHub HTTPS connection reset / connection timeout",
+    "r4_push_plan": "after this preservation record is committed, make at most one normal push and one explicit retry; continue offline diagnostics if both fail"
+  },
+  "job2_prepared": false,
+  "job2_submitted": false
+}
