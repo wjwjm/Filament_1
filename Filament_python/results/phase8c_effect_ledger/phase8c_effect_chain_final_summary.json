@@ -1,0 +1,49 @@
+{
+  "schema": "khz_filament.phase8c.effect_chain_final_summary.v1",
+  "classification": "insufficient_historical_causal_pairs",
+  "frozen_main_sha": "e11d13f103c484953c0f733aa9b410bff385b2b5",
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95)",
+  "current_vs_pycap": {
+    "recommended_threshold_m3": 1e22,
+    "current_crossing_cm": -16.411900580443586,
+    "pycap_crossing_cm": -14.027210012757275,
+    "delta_current_minus_pycap_cm": -2.3846905676863113,
+    "lower_thresholds_left_censored_in_pycap": [1e19, 1e20, 1e21]
+  },
+  "legacy_raman_phase_strict_pair": {
+    "comparison": "legacy Raman phase ON minus OFF",
+    "delta_crossing_cm": {
+      "1e19": 0.05439354382421158,
+      "1e20": -0.4179538260688318,
+      "1e21": -1.2531329334541716,
+      "1e22": -2.39826490963935
+    },
+    "fraction_of_total_pycap_offset_at_1e22": 1.0056922865117082,
+    "scope_limit": "legacy split Raman phase only; not full Eq.27 feedback"
+  },
+  "numerical_status": {
+    "job_179988_physics_use_status": "invalid_for_physics",
+    "root_cause": "linear_operator_numerical_dissipation",
+    "mixed_precision_short_smoke_numerical_gate": "passed",
+    "mixed_precision_performance_gate": "failed",
+    "mixed_precision_full_physics_20_step_runtime_s": 58.1,
+    "mixed_precision_full_job_linear_extrapolation_h": 12.104166666666668,
+    "required_runtime_lt_h": 6.4,
+    "peak_reserved_gpu_memory": "not captured"
+  },
+  "next_recommended_causal_test": "Test A — full Eq.27 Raman feedback ON/OFF",
+  "new_propagation_jobs_submitted": 0,
+  "new_full_job1_submitted": false,
+  "job2_prepared": false,
+  "job2_submitted": false,
+  "r6_resumed": false,
+  "effect_chain_ledger_completed": true,
+  "new_authorization_required": true,
+  "validation": {
+    "compileall": "passed",
+    "targeted_effect_ledger_pytest": "7 passed",
+    "full_pytest": "188 passed (two file groups: 80 + 108)",
+    "new_gpu_smoke_or_propagation_run": false
+  },
+  "github_actions_ci": "unavailable; no workflow present"
+}
