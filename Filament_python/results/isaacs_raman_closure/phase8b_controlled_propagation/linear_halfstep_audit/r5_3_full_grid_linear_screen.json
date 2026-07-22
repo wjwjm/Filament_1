@@ -1,0 +1,17 @@
+{
+  "schema": "khz_filament.phase8b_r.r5_3_full_grid_linear_screen.v1",
+  "grid": [384, 512, 512],
+  "backend": "cupy",
+  "gpu": "NVIDIA GeForce RTX 5090",
+  "steps": 20,
+  "source_commit": "163048fadcad3911f4c72cc61b9049fa852a54ab",
+  "candidates": {
+    "baseline_complex64": {"job_id": "180055", "p99": 5.249573123657346e-07, "cumulative": 2.071920612813116e-05, "passed": false},
+    "orthonormal_fft": {"job_id": "180056", "p99": 7.157680101918826e-07, "cumulative": 2.838644324776365e-05, "passed": false},
+    "mixed_precision": {"job_id": "180057", "p99": 7.534698896507239e-09, "cumulative": 1.1363974328931737e-08, "passed": true},
+    "unitary_projection": {"job_id": "180058", "p99": 4.0061916339740486e-08, "cumulative": 1.389169190669937e-06, "projection_scale_p99": 2.5822851417389715e-07, "projection_scale_max": 2.5852244833757254e-07, "passed": true}
+  },
+  "contracts": {"per_halfstep_p99_lt": 1e-06, "cumulative_lt": 1e-05},
+  "selected_for_long_smoke": "mixed_precision",
+  "selection_reason": "It has the smallest complex128-reference error and the lowest full-grid cumulative drift without a corrective projection."
+}
