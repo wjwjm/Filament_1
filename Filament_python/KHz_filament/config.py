@@ -73,6 +73,9 @@ class PropagationConfig:
     # Opt-in bookkeeping only: store field energies around each split
     # sub-operator. Disabled by default to preserve production cost/outputs.
     diag_operator_energy: bool = False
+    # Opt-in BK-NEE linear-half-step energy audit.  It records float64
+    # reductions around FFT, transfer, and inverse FFT without altering E.
+    diag_linear_halfstep_energy: bool = False
 
 
     focus_window_step: bool= True
