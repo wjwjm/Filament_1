@@ -332,9 +332,19 @@ def plot_artifacts(output_dir: Path, curves: dict[str, tuple[np.ndarray, np.ndar
     fig, axis = plt.subplots(figsize=(9, 5.2))
     for result_id in plot_ids:
         x, rho = curves[result_id]
-        axis.plot(x, rho, label=labels[result_id], linewidth=1.4)
-    axis.set(xlabel=r"$x_{focus}$ (cm)", ylabel=r"$\rho_{max}$ (m$^{-3}$)", yscale="log", title="Available 120 fs density curves (unshifted)")
-    axis.grid(True, which="both", alpha=0.25)
+        style = {"linewidth": 1.6}
+        if result_id == inventory.get("pycap_result_id"):
+            style["color"] = "#333333"
+        axis.plot(x, rho / 1e22, label=labels[result_id], **style)
+    axis.set(
+        xlabel="Distance from vacuum focus (cm)",
+        ylabel=r"Peak electron density [$10^{16}\ \mathrm{cm}^{-3}$]",
+        xlim=(-20, 20),
+        ylim=(-0.25, 6.75),
+        yticks=(0, 2, 4, 6),
+        title="120 fs peak electron density (unshifted)",
+    )
+    axis.grid(True, alpha=0.25)
     axis.legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(output_dir / "figure1_curves_vs_pycap.png", dpi=180)
