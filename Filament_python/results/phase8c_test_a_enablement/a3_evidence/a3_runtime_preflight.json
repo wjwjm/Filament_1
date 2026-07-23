@@ -1,0 +1,14 @@
+{
+  "schema": "phase8c.a3.runtime_preflight.v1",
+  "expected_sha": "4fdedbc4d7a7fb1970d026a56ca27ec297d5ec0c",
+  "actual_sha": "4fdedbc4d7a7fb1970d026a56ca27ec297d5ec0c",
+  "sha_match": true,
+  "git_status_clean": true,
+  "staging_directory": "/data/run01/scvi806/user_Wangjimin/phase8c_a3_staging/Filament_1_4fdedbc4d7a7_attempt3_sparse",
+  "slurm_job_id": "180573",
+  "slurm_partition": "gpu",
+  "slurm_cpus_per_task": 8,
+  "requested_memory": "scheduler_default_126G_per_gpu",
+  "time_limit": "01:00:00",
+  "created_utc": "2026-07-23T04:12:22.429834+00:00"
+}

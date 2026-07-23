@@ -1,0 +1,18 @@
+{
+  "source_config": "/data/run01/scvi806/user_Wangjimin/phase8c_a3_runs/a3_4fdedbc4d7a7_attempt3/a3_profile_off_config.json",
+  "smoke_config": "/data/run01/scvi806/user_Wangjimin/phase8c_a3_runs/a3_4fdedbc4d7a7_attempt3/profile_off/phase8b_full_size_smoke_on.json",
+  "authorized_smoke_overrides": {
+    "propagation.z_max": 0.002,
+    "propagation.auto_substep": false,
+    "propagation.focus_window_step": false,
+    "propagation.limit_focus_window": false,
+    "propagation.progress_every_z": 1,
+    "propagation.energy_probe_every": 1,
+    "propagation.diag_extra": false,
+    "propagation.measure_performance": true
+  },
+  "grid_unchanged": true,
+  "raman_unchanged": true,
+  "ionization_unchanged": true,
+  "beam_unchanged": true
+}
