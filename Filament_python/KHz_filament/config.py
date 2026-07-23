@@ -79,6 +79,8 @@ class PropagationConfig:
     # Opt-in BK-NEE linear-half-step energy audit.  It records float64
     # reductions around FFT, transfer, and inverse FFT without altering E.
     diag_linear_halfstep_energy: bool = False
+    # Opt-in synchronised BK-NEE stage timing and GPU-memory profiling.
+    diag_bk_nee_profile: bool = False
 
 
     focus_window_step: bool= True

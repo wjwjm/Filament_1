@@ -206,6 +206,7 @@ def propagate_one_pulse(
     save_count = 0
     diag_operator_energy = bool(getattr(p, "diag_operator_energy", False))
     diag_linear_halfstep_energy = bool(getattr(p, "diag_linear_halfstep_energy", False))
+    diag_bk_nee_profile = bool(getattr(p, "diag_bk_nee_profile", False))
     if diag_operator_energy and save_every != 1:
         raise ValueError("diag_operator_energy requires record_every_z=1 for step-aligned accounting")
     if diag_linear_halfstep_energy and save_every != 1:
@@ -233,6 +234,8 @@ def propagate_one_pulse(
         use_factor = bool(getattr(p, "full_linear_factorize", False))
     if diag_linear_halfstep_energy and not use_bk_nee:
         raise ValueError("diag_linear_halfstep_energy currently audits the production bk_nee path only")
+    if diag_bk_nee_profile and not use_bk_nee:
+        raise ValueError("diag_bk_nee_profile currently profiles the production bk_nee path only")
     linear_energy_scale = 0.5 * float(eps0) * float(c0) * float(n0) * float(dt) * float(axes.dx) * float(axes.dy)
 
     def _finalize_linear_halfstep_diagnostic(item):
@@ -378,6 +381,7 @@ def propagate_one_pulse(
     energy_after_raman_pre_z_list, energy_after_nonraman_z_list = [], []
     energy_after_raman_post_z_list, energy_after_linear_half2_z_list = [], []
     linear_halfstep_1_z_list, linear_halfstep_2_z_list = [], []
+    linear_profile_halfstep_1_z_list, linear_profile_halfstep_2_z_list = [], []
     E_dep_cumulative = 0.0
     raman_target_loss_cumulative = 0.0
     raman_actual_loss_cumulative = 0.0
@@ -426,6 +430,7 @@ def propagate_one_pulse(
         _performance_sync(measure_performance)
         linear_started = time.perf_counter()
         linear_halfstep_1_diag = linear_halfstep_2_diag = None
+        linear_profile_halfstep_1_diag = linear_profile_halfstep_2_diag = None
 
         # 线性半步
         if use_uppe:
@@ -442,9 +447,14 @@ def propagate_one_pulse(
                 precision_strategy=getattr(p, "linear_precision_strategy", "baseline_complex64"),
                 return_energy_diagnostics=diag_linear_halfstep_energy,
                 energy_scale=linear_energy_scale if diag_linear_halfstep_energy else None,
+                return_profile_diagnostics=diag_bk_nee_profile,
             )
-            if diag_linear_halfstep_energy:
+            if diag_linear_halfstep_energy and diag_bk_nee_profile:
+                E, linear_halfstep_1_diag, linear_profile_halfstep_1_diag = linear_result
+            elif diag_linear_halfstep_energy:
                 E, linear_halfstep_1_diag = linear_result
+            elif diag_bk_nee_profile:
+                E, linear_profile_halfstep_1_diag = linear_result
             else:
                 E = linear_result
         else:
@@ -748,9 +758,14 @@ def propagate_one_pulse(
                 precision_strategy=getattr(p, "linear_precision_strategy", "baseline_complex64"),
                 return_energy_diagnostics=diag_linear_halfstep_energy,
                 energy_scale=linear_energy_scale if diag_linear_halfstep_energy else None,
+                return_profile_diagnostics=diag_bk_nee_profile,
             )
-            if diag_linear_halfstep_energy:
+            if diag_linear_halfstep_energy and diag_bk_nee_profile:
+                E, linear_halfstep_2_diag, linear_profile_halfstep_2_diag = linear_result
+            elif diag_linear_halfstep_energy:
                 E, linear_halfstep_2_diag = linear_result
+            elif diag_bk_nee_profile:
+                E, linear_profile_halfstep_2_diag = linear_result
             else:
                 E = linear_result
         else:
@@ -851,6 +866,9 @@ def propagate_one_pulse(
             if diag_linear_halfstep_energy:
                 linear_halfstep_1_z_list.append(_finalize_linear_halfstep_diagnostic(linear_halfstep_1_diag))
                 linear_halfstep_2_z_list.append(_finalize_linear_halfstep_diagnostic(linear_halfstep_2_diag))
+            if diag_bk_nee_profile:
+                linear_profile_halfstep_1_z_list.append(linear_profile_halfstep_1_diag)
+                linear_profile_halfstep_2_z_list.append(linear_profile_halfstep_2_diag)
             alpha_ion_raw_max_z_list.append(float(xp.max(xp.maximum(alpha_ion_raw, 0.0))))
             alpha_ion_corr_max_z_list.append(float(xp.max(alpha_ion)))
             alpha_ion_applied_max_z_list.append(float(xp.max(alpha_ion_applied)))
@@ -1117,6 +1135,12 @@ def propagate_one_pulse(
                 diag[f"linear_halfstep_{half_index}_{key}"] = _np.asarray(
                     [record[key] for record in records], dtype=_np.float64
                 )
+    if diag_bk_nee_profile:
+        diag["bk_nee_profile_enabled"] = _np.bool_(True)
+        for half_index, records in ((1, linear_profile_halfstep_1_z_list), (2, linear_profile_halfstep_2_z_list)):
+            diag[f"bk_nee_profile_halfstep_{half_index}_json"] = _np.asarray(
+                [json.dumps(record, sort_keys=True) for record in records]
+            )
     if record_onaxis_rho_time and (rho_onaxis_time_list is not None and len(rho_onaxis_time_list) > 0):
         diag["rho_onaxis_t_z"] = _np.stack(rho_onaxis_time_list, axis=0).astype(rdtype_np, copy=False)
 
