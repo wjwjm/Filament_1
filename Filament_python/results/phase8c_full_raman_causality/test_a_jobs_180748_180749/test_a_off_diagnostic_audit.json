@@ -1,0 +1,13 @@
+{
+  "schema": "phase8c.full_eq27_raman.test_a.diagnostic_audit.v1",
+  "case": "off",
+  "status": "passed",
+  "checks": {
+    "core_diagnostics_present_and_finite": true,
+    "legacy_alpha_zero": true,
+    "raw_raman_response_nonzero": true,
+    "feedback_state": true,
+    "operator_application_state": true,
+    "rhs_state": true
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "schema": "phase8c.full_eq27_raman.test_a.job_metadata.v1",
+  "case_id": "off",
+  "slurm_job_id": "180749",
+  "expected_sha": "f0a7b5d5ac103546bd693378e8f8efb4f07c6c27",
+  "actual_sha": "f0a7b5d5ac103546bd693378e8f8efb4f07c6c27",
+  "sha_match": true,
+  "git_status_clean": true,
+  "config_path": "/data/run01/scvi806/user_Wangjimin/phase8c_b_staging/Filament_1_c4edd8d399f2_proxy/Filament_python/results/phase8c_full_raman_causality/test_a_off_config.json",
+  "config_sha256": "1c1415941d4497a6caaf6a37ee8559bbd8b8b20a9eeee6377a8dbbc7d28f41ef",
+  "gpu_model": "NVIDIA GeForce RTX 5090",
+  "gpu_total_memory_bytes": 33668988928,
+  "cpu_threads": 8,
+  "staging_directory": "/data/run01/scvi806/user_Wangjimin/phase8c_b_staging/Filament_1_c4edd8d399f2_proxy"
+}

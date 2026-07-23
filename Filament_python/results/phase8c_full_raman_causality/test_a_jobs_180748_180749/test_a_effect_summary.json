@@ -1,0 +1,67 @@
+{
+  "schema": "phase8c.full_eq27_raman.test_a.effect_summary.v1",
+  "coordinate": "x_focus_cm = 100 * (z_m - 0.95), no shifting/smoothing/renormalization",
+  "classification": "full_eq27_raman_major_contributor",
+  "crossings": [
+    {
+      "threshold_m3": 1e+19,
+      "x_crossing_on_cm": -19.189088055716677,
+      "x_crossing_off_cm": -19.279867883413537,
+      "delta_x_on_minus_off_cm": 0.09077982769685988
+    },
+    {
+      "threshold_m3": 1e+20,
+      "x_crossing_on_cm": -18.31755931265531,
+      "x_crossing_off_cm": -17.949336387169144,
+      "delta_x_on_minus_off_cm": -0.3682229254861653
+    },
+    {
+      "threshold_m3": 1e+21,
+      "x_crossing_on_cm": -17.27831012451902,
+      "x_crossing_off_cm": -16.098708892316292,
+      "delta_x_on_minus_off_cm": -1.179601232202728
+    },
+    {
+      "threshold_m3": 1e+22,
+      "x_crossing_on_cm": -16.379983478570285,
+      "x_crossing_off_cm": -14.088275024134195,
+      "delta_x_on_minus_off_cm": -2.2917084544360904
+    }
+  ],
+  "shape": {
+    "on": {
+      "peak_rho_m3": 6.386969863459744e+22,
+      "peak_x_focus_cm": -14.349998235702511,
+      "peak_plateau_center_cm": -14.354999065399166,
+      "fwhm_cm": 11.980909525141094,
+      "rise_10_90_cm": 1.50986423742944,
+      "fall_90_10_cm": 13.374418651692604,
+      "rho_peak_plus_5cm_m3": 4.72606354910424e+22,
+      "rho_peak_plus_10cm_m3": 3.493062213886689e+22,
+      "post_peak_tail_integral_m3_cm": 6.0139304411920366e+23,
+      "post_peak_plus_5cm_tail_integral_m3_cm": 3.3386370220143376e+23,
+      "post_peak_plus_10cm_tail_integral_m3_cm": 1.196317582735205e+23
+    },
+    "off": {
+      "peak_rho_m3": 2.5239478355676197e+22,
+      "peak_x_focus_cm": -10.36999940872192,
+      "peak_plateau_center_cm": -10.35999774932861,
+      "fwhm_cm": 12.903199542941586,
+      "rise_10_90_cm": 3.280567134555005,
+      "fall_90_10_cm": 15.084778395534228,
+      "rho_peak_plus_5cm_m3": 1.953904656049037e+22,
+      "rho_peak_plus_10cm_m3": 1.189067799869112e+22,
+      "post_peak_tail_integral_m3_cm": 2.5244757147649163e+23,
+      "post_peak_plus_5cm_tail_integral_m3_cm": 1.3801364451147352e+23,
+      "post_peak_plus_10cm_tail_integral_m3_cm": 5.989383850474411e+22
+    }
+  },
+  "effect_chain": {
+    "raman_feedback": "on: applied RHS nonzero; off: raw response retained with RHS zero",
+    "intensity_field": "I_max_z",
+    "electronic_kerr": "dphi_elec_applied_max_abs_z",
+    "ionization_proxy": "alpha_ion_applied_max_z",
+    "density": "rho_max_z",
+    "plasma": "dphi_plasma_applied_max_abs_z"
+  }
+}
