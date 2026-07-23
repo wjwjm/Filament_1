@@ -33,6 +33,7 @@ def test_full_eq27_submission_script_has_provenance_and_resource_guards():
     for token in (
         "#SBATCH --time=15:00:00", "#SBATCH --nodelist=g0609",
         "EXPECTED_GIT_SHA", "EXPECTED_CONFIG_SHA256", "EXPECTED_GPU_MODEL",
-        "git status --porcelain", "CUPY_CACHE_DIR", "run_from_file",
+        "git status --porcelain", "git\", \"-C\", os.environ[\"REPO_DIR\"]",
+        "CUPY_CACHE_DIR", "run_from_file",
     ):
         assert token in script

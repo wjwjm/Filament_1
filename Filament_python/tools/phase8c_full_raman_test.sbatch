@@ -67,7 +67,9 @@ payload = {
   "schema": "phase8c.full_eq27_raman.test_a.job_metadata.v1",
   "case_id": os.environ["CASE_ID"], "slurm_job_id": os.environ.get("SLURM_JOB_ID", ""),
   "expected_sha": os.environ["EXPECTED_GIT_SHA"],
-  "actual_sha": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+  "actual_sha": subprocess.check_output(
+      ["git", "-C", os.environ["REPO_DIR"], "rev-parse", "HEAD"], text=True
+  ).strip(),
   "sha_match": True, "git_status_clean": True,
   "config_path": os.environ["CONFIG_PATH"], "config_sha256": os.environ["EXPECTED_CONFIG_SHA256"],
   "gpu_model": name, "gpu_total_memory_bytes": int(props["totalGlobalMem"]),
