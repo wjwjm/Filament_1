@@ -120,6 +120,10 @@ def step_linear_bk_nee_factorized(
     input_cast_norm2 = _norm2(work_input) if return_energy_diagnostics else None
     fft_kwargs = {"norm": "ortho"} if strategy == "orthonormal_fft" else {}
     Ew = profiler.run("temporal_fft", lambda: xp.fft.fft(work_input, axis=0, **fft_kwargs))  # [Nt, Ny, Nx]
+    # ``Ew`` owns the complete transformed field.  Keeping the complex128
+    # cast alive until the inverse temporal FFT needlessly costs one full
+    # volume (1.61 GB for the Phase 8C production grid) at the peak.
+    del work_input
     forward_norm2 = _norm2(Ew) if return_energy_diagnostics else None
 
     rel = Omega / float(omega0)
@@ -147,6 +151,10 @@ def step_linear_bk_nee_factorized(
         Ew[i] = profiler.run("inverse_spatial_fft2", lambda: xp.fft.ifft2(S, axes=(-2, -1), **fft_kwargs))
 
     inverse_spatial_norm2 = _norm2(Ew) if return_energy_diagnostics else None
+    # The last slice's work buffers are no longer required once copied back
+    # into ``Ew``.  Release their Python references before the full-volume
+    # complex128 inverse temporal transform is allocated.
+    del S, prop2d
     internal_out = profiler.run("inverse_temporal_fft", lambda: xp.fft.ifft(Ew, axis=0, **fft_kwargs))
     internal_norm2 = _norm2(internal_out) if return_energy_diagnostics else None
     candidate_out = profiler.run("cast_output_to_complex64", lambda: internal_out.astype(output_ctype, copy=False))

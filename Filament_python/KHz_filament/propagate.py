@@ -108,6 +108,49 @@ def _combine_raman_operator_diagnostics(parts, *, reference_energy):
     }
 
 
+def _compact_full_raman_diagnostics(diagnostics, *, n_R, k0, dz, y0, x0):
+    """Keep the scalar/2-D Eq. (27) audit and release 3-D response payloads.
+
+    A full Raman Strang step returns response volumes for both Heun stages of
+    both substeps.  They are useful while forming the per-step accounting, but
+    no subsequent propagation operator consumes them.  Keeping those arrays
+    alive until the following mixed-precision BK-NEE halfstep can leave too
+    little room for its complex128 inverse temporal FFT on a 32 GiB GPU.
+
+    This function evaluates the legacy output scalars from the final raw
+    response, then returns a diagnostics dictionary that deliberately contains
+    only scalar values.  It does not change the Eq. (27) field update, its
+    Strang/Heun order, or its convolution count.
+    """
+    response = diagnostics.get("I_R_stage1")
+    if response is None:
+        raw_max = raw_abs_max = raw_peak_max = 0.0
+    else:
+        raw_max = float(xp.max(response))
+        raw_abs_max = float(xp.max(xp.abs(response)))
+        raw_peak_max = float(xp.max(response[:, y0, x0]))
+
+    rotational = {
+        "IR_max": raw_max,
+        "IR_abs_max": raw_abs_max,
+        "delta_n_rot_max": float(n_R) * raw_max,
+        "delta_n_rot_peak": float(n_R) * raw_peak_max,
+        "dphi_rot_max_abs": abs(float(k0) * float(dz) * float(n_R)) * raw_abs_max,
+    }
+    heavy_payload_keys = {
+        "target_local_fluence_loss_stage1",
+        "target_local_fluence_loss_stage2",
+        "target_local_fluence_loss_heun",
+        "target_local_fluence_loss",
+        "actual_local_fluence_loss",
+        "I_R_stage1",
+        "I_R_stage2",
+    }
+    compact = {key: value for key, value in diagnostics.items()
+               if key not in heavy_payload_keys}
+    return compact, rotational
+
+
 def _performance_sync(enabled):
     if enabled and getattr(xp, "__name__", "numpy") == "cupy":
         xp.cuda.Stream.null.synchronize()
@@ -470,6 +513,7 @@ def propagate_one_pulse(
 
         full_isaacs_on = bool(full_isaacs_mode and switches.use_raman_full_operator)
         raman_diag_parts = []
+        full_raman_rotational = None
         if full_isaacs_on and r_nonlinear_split_order in ("before_other", "strang"):
             raman_length = dz_try if r_nonlinear_split_order == "before_other" else 0.5 * dz_try
             E, pre_raman_diag = _full_raman_substep(E, raman_length)
@@ -692,10 +736,21 @@ def propagate_one_pulse(
                 raman_step_diag = _combine_raman_operator_diagnostics(
                     raman_diag_parts, reference_energy=U0_baseline)
                 IR = raman_step_diag["I_R_stage1"]
-                delta_n_rot = n_R * IR
                 E_dep_rot_step = float(raman_step_diag["actual_global_energy_loss_J"])
                 Qacc_raman += xp.maximum(
                     xp.asarray(raman_step_diag["actual_local_fluence_loss"], dtype=Qacc_raman.dtype), 0.0)
+                # The complete 3-D Raman response and local closure maps are
+                # no longer inputs to the following linear halfstep.  Capture
+                # the legacy scalar diagnostics, then drop every reference to
+                # those payloads before mixed-precision FFT workspace is
+                # requested.  This is a memory-lifetime change only.
+                raman_step_diag, full_raman_rotational = _compact_full_raman_diagnostics(
+                    raman_step_diag, n_R=n_R, k0=k0, dz=dz_try, y0=y0, x0=x0)
+                IR = None
+                delta_n_rot = None
+                raman_diag_parts.clear()
+                pre_raman_diag = None
+                post_raman_diag = None
             else:
                 stage_kwargs = dict(
                     Omega=axes.Omega, dt=dt, omega0=omega0, n0=n0,
@@ -797,9 +852,13 @@ def propagate_one_pulse(
             U_z_list.append(U_now)
             I_max_z_list.append(float(I_now.max()))
             delta_n_elec_max_z_list.append(float(xp.max(delta_n_elec)))
-            delta_n_rot_max_z_list.append(float(xp.max(delta_n_rot)))
+            delta_n_rot_max_z_list.append(
+                full_raman_rotational["delta_n_rot_max"] if full_raman_rotational is not None
+                else float(xp.max(delta_n_rot)))
             delta_n_elec_peak_z_list.append(float(xp.max(delta_n_elec[:, y0, x0])))
-            delta_n_rot_peak_z_list.append(float(xp.max(delta_n_rot[:, y0, x0])))
+            delta_n_rot_peak_z_list.append(
+                full_raman_rotational["delta_n_rot_peak"] if full_raman_rotational is not None
+                else float(xp.max(delta_n_rot[:, y0, x0])))
 
             # on-axis(t)
             I_onax_t = I_now[:, y0, x0]
@@ -895,8 +954,12 @@ def propagate_one_pulse(
             alpha_R_closed_z_list.append(float(alpha_R_closed) if raman_absorb_on else 0.0)
             alpha_R_raw_max_z_list.append(alphaR_raw)
             alpha_R_applied_max_z_list.append(alphaR_applied)
-            IR_max_z_list.append(float(xp.max(IR)) if IR is not None else 0.0)
-            IR_abs_max_z_list.append(float(xp.max(xp.abs(IR))) if IR is not None else 0.0)
+            IR_max_z_list.append(
+                full_raman_rotational["IR_max"] if full_raman_rotational is not None
+                else (float(xp.max(IR)) if IR is not None else 0.0))
+            IR_abs_max_z_list.append(
+                full_raman_rotational["IR_abs_max"] if full_raman_rotational is not None
+                else (float(xp.max(xp.abs(IR))) if IR is not None else 0.0))
             if raman_step_diag is None:
                 raman_step_diag = {
                     "target_global_energy_loss_J": 0.0,
@@ -942,7 +1005,9 @@ def propagate_one_pulse(
             delta_n_plasma_applied_min_z_list.append(float(xp.min(dphi_p)) / (float(k0) * dz_try))
             dphi_kerr_max_abs_z_list.append(float(xp.max(xp.abs(dphi_k))))
             dphi_elec_max_abs_z_list.append(float(xp.max(xp.abs(float(k0) * delta_n_elec * dz_try))))
-            dphi_rot_max_abs_z_list.append(float(xp.max(xp.abs(float(k0) * delta_n_rot * dz_try))))
+            dphi_rot_max_abs_z_list.append(
+                full_raman_rotational["dphi_rot_max_abs"] if full_raman_rotational is not None
+                else float(xp.max(xp.abs(float(k0) * delta_n_rot * dz_try))))
             dphi_elec_applied_max_abs_z_list.append(float(xp.max(xp.abs(float(k0) * delta_n_elec_applied * dz_try))))
             dphi_rot_applied_max_abs_z_list.append(float(xp.max(xp.abs(float(k0) * delta_n_rot_applied * dz_try))))
             dphi_plasma_raw_max_abs_z_list.append(float(xp.max(xp.abs(dphi_p_raw))))
