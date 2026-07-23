@@ -36,6 +36,12 @@ NONLINEAR_DIAGNOSTIC_METADATA = {
         "unit": "W/m^2",
         "use": "detect signed Raman response even when its positive maximum is small",
     },
+    "fwhm_time_z": {
+        "meaning": "on-axis temporal intensity full width at half maximum",
+        "source": "propagate.py: _fwhm_time_1d(I_now[:, y0, x0], dt)",
+        "unit": "s",
+        "use": "pulse-duration evolution along propagation",
+    },
     "delta_n_plasma_min_z": {
         "meaning": "most negative plasma refractive-index increment",
         "source": "propagate.py: plasma_phase(rho, ...) divided by k0*dz",
@@ -382,6 +388,7 @@ Z_HISTORY_TRACE_KEYS = (
     "E_dep_z",
     "fwhm_plasma_z",
     "fwhm_fluence_z",
+    "fwhm_time_z",
     "I_onaxis_max_interp_list",
     "E_dep_rot_z",
     "alpha_R_max_z",

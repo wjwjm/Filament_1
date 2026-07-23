@@ -343,7 +343,7 @@ def propagate_one_pulse(
     E_dep_z_list, E_dep_rot_z_list = [], []  # 电离+IB、拉曼沉积
     E_dep_total_z_list, E_dep_cumulative_z_list = [], []
     U_rel_change_z_list, U_step_change_z_list, E_loss_from_input_z_list = [], [], []
-    fwhm_plasma_z_list, fwhm_fluence_z_list = [], []
+    fwhm_plasma_z_list, fwhm_fluence_z_list, fwhm_time_z_list = [], [], []
     rho_onaxis_time_list = [] if record_onaxis_rho_time else None
     I_onaxis_max_interp_list,alpha_R_mean_z_list,alpha_R_closed_z_list,IR_max_z_list = [],[],[],[]
     delta_n_elec_max_z_list, delta_n_rot_max_z_list = [], []
@@ -805,6 +805,7 @@ def propagate_one_pulse(
             I_onax_t = I_now[:, y0, x0]
             I_onaxis_max_z_list.append(float(I_onax_t.max()))
             I_center_t0_z_list.append(float(I_onax_t[t0_idx]))
+            fwhm_time_z_list.append(float(_fwhm_time_1d(I_onax_t, dt)))
             kpk = int(xp.argmax(I_onax_t))
             if 0 < kpk < (I_onax_t.shape[0] - 1):
                 I_onaxis_peak_interp = float(parabola_peak(I_onax_t[kpk - 1], I_onax_t[kpk], I_onax_t[kpk + 1]))
@@ -1031,6 +1032,7 @@ def propagate_one_pulse(
 
         "fwhm_plasma_z":            _np.asarray(fwhm_plasma_z_list,       dtype=rdtype_np),
         "fwhm_fluence_z":           _np.asarray(fwhm_fluence_z_list,      dtype=rdtype_np),
+        "fwhm_time_z":              _np.asarray(fwhm_time_z_list,         dtype=rdtype_np),
         "I_onaxis_max_interp_list": _np.asarray(I_onaxis_max_interp_list, dtype=rdtype_np),
         "raman_absorption_on":      bool(use_raman and raman_absorb_on),
         "raman_absorption_calculated": bool(use_raman and raman_absorption_compute),

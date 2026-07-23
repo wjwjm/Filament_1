@@ -1,0 +1,30 @@
+{
+  "schema": "phase8c.full_eq27_raman.test_a.submission_manifest.v1",
+  "status": "prepared_not_submitted",
+  "jobs_authorized": 2,
+  "additional_profiling_smokes_authorized": 0,
+  "optimization_jobs_authorized": 0,
+  "walltime_policy": {
+    "partition": "gpu",
+    "max_time": "UNLIMITED",
+    "requested_time": "15:00:00"
+  },
+  "shared_resources": {
+    "gpu_count": 1,
+    "cpu_threads": 8,
+    "site_default_memory_mb_per_gpu": 126000,
+    "nodelist": "g0609",
+    "expected_gpu_model": "NVIDIA GeForce RTX 5090"
+  },
+  "source_config_sha256": "2a6f3e37d161fb8f431885facbbd8cfc25d8a1d7b82970f73288a1bf8c19bcab",
+  "on_config_sha256": "ccddc4eb0982ac7b3f7c2d3f86554ff8275b975d3c80ccf006ede17ef6fd7995",
+  "off_config_sha256": "cf9a4d5c6f6d13a97a529b7603dc122991a8323e82e16720792bfb844d62a895",
+  "strict_config_diff": [
+    {
+      "path": "propagation.use_raman_full_operator",
+      "on": true,
+      "off": false
+    }
+  ],
+  "full_production_jobs_submitted": 0
+}
