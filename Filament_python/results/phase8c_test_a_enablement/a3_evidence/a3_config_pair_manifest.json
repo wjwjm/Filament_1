@@ -1,0 +1,20 @@
+{
+  "schema": "phase8c.a3.config_pair.v1",
+  "source_config": "/data/run01/scvi806/user_Wangjimin/phase8c_a3_staging/Filament_1_4fdedbc4d7a7_attempt3_sparse/Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on_energy_audit.json",
+  "run_contract": {
+    "grid": {
+      "Nx": 512,
+      "Ny": 512,
+      "Lx": 0.008,
+      "Ly": 0.008,
+      "Nt": 384,
+      "Twin": 9.6e-13
+    },
+    "steps": 20,
+    "nominal_z_m": 0.002
+  },
+  "difference": "propagation.diag_bk_nee_profile only",
+  "profile_off_sha256": "ca0117ba709f302dfa9eec4b7f36d8a35ea205b3982903e49630a37672b90694",
+  "profile_on_sha256": "cad1d333936736ec3d199596dacf9428033c241bbee3ea8a40031d29feee36c4",
+  "equal_after_removing_profile_switch": true
+}

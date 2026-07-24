@@ -208,6 +208,44 @@ def test_float32_energy_projection_does_not_depend_on_diagnostic_request():
     assert abs(diagnostics["energy_projection_scale"] - 1.0) < 1e-6
 
 
+def test_full_raman_diagnostic_compaction_preserves_scalar_contract():
+    from KHz_filament.propagate import _compact_full_raman_diagnostics
+
+    response = np.array([
+        [[-2.0, 1.0], [3.0, -4.0]],
+        [[5.0, -6.0], [7.0, -8.0]],
+    ], dtype=np.float32)
+    local = np.ones((2, 2), dtype=np.float32)
+    diagnostics = {
+        "target_local_fluence_loss_stage1": local,
+        "target_local_fluence_loss_stage2": local,
+        "target_local_fluence_loss_heun": local,
+        "target_local_fluence_loss": local,
+        "actual_local_fluence_loss": local,
+        "I_R_stage1": response,
+        "I_R_stage2": response,
+        "target_global_energy_loss_J": 1.25e-9,
+        "actual_global_energy_loss_J": 1.24e-9,
+        "global_closure_residual": 2.0e-4,
+        "convolution_count": 4,
+        "operator_substep_count": 2,
+    }
+    compact, rotational = _compact_full_raman_diagnostics(
+        diagnostics, n_R=2.0e-23, k0=3.0, dz=4.0e-5, y0=0, x0=1)
+
+    assert compact["convolution_count"] == 4
+    assert compact["operator_substep_count"] == 2
+    assert not any(key in compact for key in (
+        "target_local_fluence_loss_stage1", "target_local_fluence_loss_stage2",
+        "target_local_fluence_loss_heun", "target_local_fluence_loss",
+        "actual_local_fluence_loss", "I_R_stage1", "I_R_stage2"))
+    assert rotational["IR_max"] == 7.0
+    assert rotational["IR_abs_max"] == 8.0
+    assert rotational["delta_n_rot_max"] == 1.4e-22
+    assert rotational["delta_n_rot_peak"] == 2.0e-23
+    assert np.isclose(rotational["dphi_rot_max_abs"], 1.92e-26)
+
+
 def test_strict_full_summary_reports_effective_absorption_off(capsys):
     from KHz_filament.config import (
         BeamConfig, GridConfig, HeatConfig, IonizationConfig,

@@ -1,0 +1,24 @@
+{
+  "schema": "phase8c.a3.staging_provenance.v1",
+  "source_repository": "wjwjm/Filament_1",
+  "source_branch": "codex/phase8c-test-a-enablement",
+  "source_sha": "4fdedbc4d7a7fb1970d026a56ca27ec297d5ec0c",
+  "operational_baseline_sha": "f70c5f48dd11e6db2376604751c8b13afdc1cd2f",
+  "frozen_physics_baseline_sha": "e11d13f103c484953c0f733aa9b410bff385b2b5",
+  "staging_directory": "/data/run01/scvi806/user_Wangjimin/phase8c_a3_staging/Filament_1_4fdedbc4d7a7_attempt3_sparse",
+  "source_worktree_clean": true,
+  "detached_head": true,
+  "git_fsck_passed": true,
+  "existing_dirty_repository_used": false,
+  "gpu_job_submitted": false,
+  "sparse_checkout": true,
+  "sparse_paths": [
+    "Filament_python/KHz_filament",
+    "Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on_energy_audit.json",
+    "Filament_python/tools/run_phase8b_full_size_smoke.py"
+  ],
+  "partial_staging_attempts_preserved": [
+    "Filament_1_4fdedbc4d7a7",
+    "Filament_1_4fdedbc4d7a7_attempt2"
+  ]
+}

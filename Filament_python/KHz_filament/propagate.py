@@ -107,6 +107,48 @@ def _combine_raman_operator_diagnostics(parts, *, reference_energy):
             for part in parts),
     }
 
+def _compact_full_raman_diagnostics(diagnostics, *, n_R, k0, dz, y0, x0):
+    """Keep the scalar/2-D Eq. (27) audit and release 3-D response payloads.
+
+    A full Raman Strang step returns response volumes for both Heun stages of
+    both substeps.  They are useful while forming the per-step accounting, but
+    no subsequent propagation operator consumes them.  Keeping those arrays
+    alive until the following mixed-precision BK-NEE halfstep can leave too
+    little room for its complex128 inverse temporal FFT on a 32 GiB GPU.
+
+    This function evaluates the legacy output scalars from the final raw
+    response, then returns a diagnostics dictionary that deliberately contains
+    only scalar values.  It does not change the Eq. (27) field update, its
+    Strang/Heun order, or its convolution count.
+    """
+    response = diagnostics.get("I_R_stage1")
+    if response is None:
+        raw_max = raw_abs_max = raw_peak_max = 0.0
+    else:
+        raw_max = float(xp.max(response))
+        raw_abs_max = float(xp.max(xp.abs(response)))
+        raw_peak_max = float(xp.max(response[:, y0, x0]))
+
+    rotational = {
+        "IR_max": raw_max,
+        "IR_abs_max": raw_abs_max,
+        "delta_n_rot_max": float(n_R) * raw_max,
+        "delta_n_rot_peak": float(n_R) * raw_peak_max,
+        "dphi_rot_max_abs": abs(float(k0) * float(dz) * float(n_R)) * raw_abs_max,
+    }
+    heavy_payload_keys = {
+        "target_local_fluence_loss_stage1",
+        "target_local_fluence_loss_stage2",
+        "target_local_fluence_loss_heun",
+        "target_local_fluence_loss",
+        "actual_local_fluence_loss",
+        "I_R_stage1",
+        "I_R_stage2",
+    }
+    compact = {key: value for key, value in diagnostics.items()
+               if key not in heavy_payload_keys}
+    return compact, rotational
+
 
 def _performance_sync(enabled):
     if enabled and getattr(xp, "__name__", "numpy") == "cupy":
@@ -206,6 +248,7 @@ def propagate_one_pulse(
     save_count = 0
     diag_operator_energy = bool(getattr(p, "diag_operator_energy", False))
     diag_linear_halfstep_energy = bool(getattr(p, "diag_linear_halfstep_energy", False))
+    diag_bk_nee_profile = bool(getattr(p, "diag_bk_nee_profile", False))
     if diag_operator_energy and save_every != 1:
         raise ValueError("diag_operator_energy requires record_every_z=1 for step-aligned accounting")
     if diag_linear_halfstep_energy and save_every != 1:
@@ -233,6 +276,8 @@ def propagate_one_pulse(
         use_factor = bool(getattr(p, "full_linear_factorize", False))
     if diag_linear_halfstep_energy and not use_bk_nee:
         raise ValueError("diag_linear_halfstep_energy currently audits the production bk_nee path only")
+    if diag_bk_nee_profile and not use_bk_nee:
+        raise ValueError("diag_bk_nee_profile currently profiles the production bk_nee path only")
     linear_energy_scale = 0.5 * float(eps0) * float(c0) * float(n0) * float(dt) * float(axes.dx) * float(axes.dy)
 
     def _finalize_linear_halfstep_diagnostic(item):
@@ -340,7 +385,7 @@ def propagate_one_pulse(
     E_dep_z_list, E_dep_rot_z_list = [], []  # 电离+IB、拉曼沉积
     E_dep_total_z_list, E_dep_cumulative_z_list = [], []
     U_rel_change_z_list, U_step_change_z_list, E_loss_from_input_z_list = [], [], []
-    fwhm_plasma_z_list, fwhm_fluence_z_list = [], []
+    fwhm_plasma_z_list, fwhm_fluence_z_list, fwhm_time_z_list = [], [], []
     rho_onaxis_time_list = [] if record_onaxis_rho_time else None
     I_onaxis_max_interp_list,alpha_R_mean_z_list,alpha_R_closed_z_list,IR_max_z_list = [],[],[],[]
     delta_n_elec_max_z_list, delta_n_rot_max_z_list = [], []
@@ -378,6 +423,7 @@ def propagate_one_pulse(
     energy_after_raman_pre_z_list, energy_after_nonraman_z_list = [], []
     energy_after_raman_post_z_list, energy_after_linear_half2_z_list = [], []
     linear_halfstep_1_z_list, linear_halfstep_2_z_list = [], []
+    linear_profile_halfstep_1_z_list, linear_profile_halfstep_2_z_list = [], []
     E_dep_cumulative = 0.0
     raman_target_loss_cumulative = 0.0
     raman_actual_loss_cumulative = 0.0
@@ -426,6 +472,7 @@ def propagate_one_pulse(
         _performance_sync(measure_performance)
         linear_started = time.perf_counter()
         linear_halfstep_1_diag = linear_halfstep_2_diag = None
+        linear_profile_halfstep_1_diag = linear_profile_halfstep_2_diag = None
 
         # 线性半步
         if use_uppe:
@@ -442,9 +489,14 @@ def propagate_one_pulse(
                 precision_strategy=getattr(p, "linear_precision_strategy", "baseline_complex64"),
                 return_energy_diagnostics=diag_linear_halfstep_energy,
                 energy_scale=linear_energy_scale if diag_linear_halfstep_energy else None,
+                return_profile_diagnostics=diag_bk_nee_profile,
             )
-            if diag_linear_halfstep_energy:
+            if diag_linear_halfstep_energy and diag_bk_nee_profile:
+                E, linear_halfstep_1_diag, linear_profile_halfstep_1_diag = linear_result
+            elif diag_linear_halfstep_energy:
                 E, linear_halfstep_1_diag = linear_result
+            elif diag_bk_nee_profile:
+                E, linear_profile_halfstep_1_diag = linear_result
             else:
                 E = linear_result
         else:
@@ -460,6 +512,7 @@ def propagate_one_pulse(
 
         full_isaacs_on = bool(full_isaacs_mode and switches.use_raman_full_operator)
         raman_diag_parts = []
+        full_raman_rotational = None
         if full_isaacs_on and r_nonlinear_split_order in ("before_other", "strang"):
             raman_length = dz_try if r_nonlinear_split_order == "before_other" else 0.5 * dz_try
             E, pre_raman_diag = _full_raman_substep(E, raman_length)
@@ -682,10 +735,21 @@ def propagate_one_pulse(
                 raman_step_diag = _combine_raman_operator_diagnostics(
                     raman_diag_parts, reference_energy=U0_baseline)
                 IR = raman_step_diag["I_R_stage1"]
-                delta_n_rot = n_R * IR
                 E_dep_rot_step = float(raman_step_diag["actual_global_energy_loss_J"])
                 Qacc_raman += xp.maximum(
                     xp.asarray(raman_step_diag["actual_local_fluence_loss"], dtype=Qacc_raman.dtype), 0.0)
+                # The complete 3-D Raman response and local closure maps are
+                # no longer inputs to the following linear halfstep.  Capture
+                # the legacy scalar diagnostics, then drop every reference to
+                # those payloads before mixed-precision FFT workspace is
+                # requested.  This is a memory-lifetime change only.
+                raman_step_diag, full_raman_rotational = _compact_full_raman_diagnostics(
+                    raman_step_diag, n_R=n_R, k0=k0, dz=dz_try, y0=y0, x0=x0)
+                IR = None
+                delta_n_rot = None
+                raman_diag_parts.clear()
+                pre_raman_diag = None
+                post_raman_diag = None
             else:
                 stage_kwargs = dict(
                     Omega=axes.Omega, dt=dt, omega0=omega0, n0=n0,
@@ -748,9 +812,14 @@ def propagate_one_pulse(
                 precision_strategy=getattr(p, "linear_precision_strategy", "baseline_complex64"),
                 return_energy_diagnostics=diag_linear_halfstep_energy,
                 energy_scale=linear_energy_scale if diag_linear_halfstep_energy else None,
+                return_profile_diagnostics=diag_bk_nee_profile,
             )
-            if diag_linear_halfstep_energy:
+            if diag_linear_halfstep_energy and diag_bk_nee_profile:
+                E, linear_halfstep_2_diag, linear_profile_halfstep_2_diag = linear_result
+            elif diag_linear_halfstep_energy:
                 E, linear_halfstep_2_diag = linear_result
+            elif diag_bk_nee_profile:
+                E, linear_profile_halfstep_2_diag = linear_result
             else:
                 E = linear_result
         else:
@@ -782,14 +851,19 @@ def propagate_one_pulse(
             U_z_list.append(U_now)
             I_max_z_list.append(float(I_now.max()))
             delta_n_elec_max_z_list.append(float(xp.max(delta_n_elec)))
-            delta_n_rot_max_z_list.append(float(xp.max(delta_n_rot)))
+            delta_n_rot_max_z_list.append(
+                full_raman_rotational["delta_n_rot_max"] if full_raman_rotational is not None
+                else float(xp.max(delta_n_rot)))
             delta_n_elec_peak_z_list.append(float(xp.max(delta_n_elec[:, y0, x0])))
-            delta_n_rot_peak_z_list.append(float(xp.max(delta_n_rot[:, y0, x0])))
+            delta_n_rot_peak_z_list.append(
+                full_raman_rotational["delta_n_rot_peak"] if full_raman_rotational is not None
+                else float(xp.max(delta_n_rot[:, y0, x0])))
 
             # on-axis(t)
             I_onax_t = I_now[:, y0, x0]
             I_onaxis_max_z_list.append(float(I_onax_t.max()))
             I_center_t0_z_list.append(float(I_onax_t[t0_idx]))
+            fwhm_time_z_list.append(float(_fwhm_time_1d(I_onax_t, dt)))
             kpk = int(xp.argmax(I_onax_t))
             if 0 < kpk < (I_onax_t.shape[0] - 1):
                 I_onaxis_peak_interp = float(parabola_peak(I_onax_t[kpk - 1], I_onax_t[kpk], I_onax_t[kpk + 1]))
@@ -851,6 +925,9 @@ def propagate_one_pulse(
             if diag_linear_halfstep_energy:
                 linear_halfstep_1_z_list.append(_finalize_linear_halfstep_diagnostic(linear_halfstep_1_diag))
                 linear_halfstep_2_z_list.append(_finalize_linear_halfstep_diagnostic(linear_halfstep_2_diag))
+            if diag_bk_nee_profile:
+                linear_profile_halfstep_1_z_list.append(linear_profile_halfstep_1_diag)
+                linear_profile_halfstep_2_z_list.append(linear_profile_halfstep_2_diag)
             alpha_ion_raw_max_z_list.append(float(xp.max(xp.maximum(alpha_ion_raw, 0.0))))
             alpha_ion_corr_max_z_list.append(float(xp.max(alpha_ion)))
             alpha_ion_applied_max_z_list.append(float(xp.max(alpha_ion_applied)))
@@ -876,8 +953,12 @@ def propagate_one_pulse(
             alpha_R_closed_z_list.append(float(alpha_R_closed) if raman_absorb_on else 0.0)
             alpha_R_raw_max_z_list.append(alphaR_raw)
             alpha_R_applied_max_z_list.append(alphaR_applied)
-            IR_max_z_list.append(float(xp.max(IR)) if IR is not None else 0.0)
-            IR_abs_max_z_list.append(float(xp.max(xp.abs(IR))) if IR is not None else 0.0)
+            IR_max_z_list.append(
+                full_raman_rotational["IR_max"] if full_raman_rotational is not None
+                else (float(xp.max(IR)) if IR is not None else 0.0))
+            IR_abs_max_z_list.append(
+                full_raman_rotational["IR_abs_max"] if full_raman_rotational is not None
+                else (float(xp.max(xp.abs(IR))) if IR is not None else 0.0))
             if raman_step_diag is None:
                 raman_step_diag = {
                     "target_global_energy_loss_J": 0.0,
@@ -923,7 +1004,9 @@ def propagate_one_pulse(
             delta_n_plasma_applied_min_z_list.append(float(xp.min(dphi_p)) / (float(k0) * dz_try))
             dphi_kerr_max_abs_z_list.append(float(xp.max(xp.abs(dphi_k))))
             dphi_elec_max_abs_z_list.append(float(xp.max(xp.abs(float(k0) * delta_n_elec * dz_try))))
-            dphi_rot_max_abs_z_list.append(float(xp.max(xp.abs(float(k0) * delta_n_rot * dz_try))))
+            dphi_rot_max_abs_z_list.append(
+                full_raman_rotational["dphi_rot_max_abs"] if full_raman_rotational is not None
+                else float(xp.max(xp.abs(float(k0) * delta_n_rot * dz_try))))
             dphi_elec_applied_max_abs_z_list.append(float(xp.max(xp.abs(float(k0) * delta_n_elec_applied * dz_try))))
             dphi_rot_applied_max_abs_z_list.append(float(xp.max(xp.abs(float(k0) * delta_n_rot_applied * dz_try))))
             dphi_plasma_raw_max_abs_z_list.append(float(xp.max(xp.abs(dphi_p_raw))))
@@ -1013,6 +1096,7 @@ def propagate_one_pulse(
 
         "fwhm_plasma_z":            _np.asarray(fwhm_plasma_z_list,       dtype=rdtype_np),
         "fwhm_fluence_z":           _np.asarray(fwhm_fluence_z_list,      dtype=rdtype_np),
+        "fwhm_time_z":              _np.asarray(fwhm_time_z_list,         dtype=rdtype_np),
         "I_onaxis_max_interp_list": _np.asarray(I_onaxis_max_interp_list, dtype=rdtype_np),
         "raman_absorption_on":      bool(use_raman and raman_absorb_on),
         "raman_absorption_calculated": bool(use_raman and raman_absorption_compute),
@@ -1117,6 +1201,12 @@ def propagate_one_pulse(
                 diag[f"linear_halfstep_{half_index}_{key}"] = _np.asarray(
                     [record[key] for record in records], dtype=_np.float64
                 )
+    if diag_bk_nee_profile:
+        diag["bk_nee_profile_enabled"] = _np.bool_(True)
+        for half_index, records in ((1, linear_profile_halfstep_1_z_list), (2, linear_profile_halfstep_2_z_list)):
+            diag[f"bk_nee_profile_halfstep_{half_index}_json"] = _np.asarray(
+                [json.dumps(record, sort_keys=True) for record in records]
+            )
     if record_onaxis_rho_time and (rho_onaxis_time_list is not None and len(rho_onaxis_time_list) > 0):
         diag["rho_onaxis_t_z"] = _np.stack(rho_onaxis_time_list, axis=0).astype(rdtype_np, copy=False)
 

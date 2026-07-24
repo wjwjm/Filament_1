@@ -68,3 +68,41 @@ def test_unitary_projection_is_opt_in_and_does_not_worsen_reference_error():
     assert projected_audit["unitary_projection_scale_deviation"] >= 0.0
     assert projected_error <= baseline_error * (1.0 + 1e-6)
     assert abs(projected_audit["energy_after_J"] - projected_audit["energy_before_J"]) <= abs(baseline_audit["energy_after_J"] - baseline_audit["energy_before_J"])
+
+
+def test_bk_nee_profile_does_not_change_field():
+    from KHz_filament.linear import step_linear_bk_nee_factorized
+    field, omega, kperp2 = _problem()
+    plain = step_linear_bk_nee_factorized(field, Omega=omega, kperp2=kperp2, k0=7e6,
+                                           omega0=2.35e15, dz=5e-5,
+                                           precision_strategy="mixed_precision")
+    profiled, _ = step_linear_bk_nee_factorized(field, Omega=omega, kperp2=kperp2, k0=7e6,
+                                                 omega0=2.35e15, dz=5e-5,
+                                                 precision_strategy="mixed_precision",
+                                                 return_profile_diagnostics=True)
+    assert np.array_equal(plain, profiled)
+
+
+def test_bk_nee_profile_reports_all_stages():
+    from KHz_filament.linear import step_linear_bk_nee_factorized
+    field, omega, kperp2 = _problem()
+    _, profile = step_linear_bk_nee_factorized(field, Omega=omega, kperp2=kperp2, k0=7e6,
+                                                omega0=2.35e15, dz=5e-5,
+                                                precision_strategy="mixed_precision",
+                                                return_profile_diagnostics=True)
+    required = {"allocation_workspace_preparation", "cast_input_to_complex128", "temporal_fft",
+                "spatial_fft2", "transfer_kernel_preparation", "transfer_multiply",
+                "inverse_spatial_fft2", "inverse_temporal_fft", "cast_output_to_complex64"}
+    assert required <= set(profile["stages"])
+    assert all(profile["stages"][name]["calls"] > 0 for name in required)
+
+
+def test_bk_nee_profile_records_reserved_memory():
+    from KHz_filament.linear import step_linear_bk_nee_factorized
+    field, omega, kperp2 = _problem()
+    _, profile = step_linear_bk_nee_factorized(field, Omega=omega, kperp2=kperp2, k0=7e6,
+                                                omega0=2.35e15, dz=5e-5,
+                                                precision_strategy="mixed_precision",
+                                                return_profile_diagnostics=True)
+    assert profile["peak_allocated_gpu_memory_bytes"] >= 0
+    assert profile["peak_reserved_gpu_memory_bytes"] >= 0

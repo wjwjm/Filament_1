@@ -1,0 +1,100 @@
+{
+  "schema": "phase8c.a3.baseline_profile.v1",
+  "status": "a3_completed_stop_required",
+  "source_sha": "4fdedbc4d7a7fb1970d026a56ca27ec297d5ec0c",
+  "remote_branch_sha": "4fdedbc4d7a7fb1970d026a56ca27ec297d5ec0c",
+  "operational_baseline_sha": "f70c5f48dd11e6db2376604751c8b13afdc1cd2f",
+  "frozen_physics_baseline_sha": "e11d13f103c484953c0f733aa9b410bff385b2b5",
+  "slurm": {
+    "job_id": "180573",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed": "00:03:20",
+    "partition": "gpu",
+    "gpu_count": 1,
+    "cpu_threads": 8,
+    "host_memory_mb": 126000,
+    "time_limit": "01:00:00",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "gpu_total_memory_bytes": 33668988928
+  },
+  "contract": {
+    "source_worktree_clean": true,
+    "runtime_sha_self_check": true,
+    "existing_dirty_repository_used": false,
+    "grid": {"Nx": 512, "Ny": 512, "Nt": 384, "Lx_m": 0.008, "Ly_m": 0.008, "Twin_s": 9.6e-13},
+    "accepted_steps": 20,
+    "nominal_z_m": 0.002,
+    "linear_model": "bk_nee",
+    "linear_precision_strategy": "mixed_precision",
+    "linear_unitary_projection_used": false,
+    "full_isaacs_eq27_raman": true,
+    "legacy_raman_phase": false,
+    "legacy_raman_absorption": false,
+    "profiling_only_config_difference": true,
+    "a3_gpu_smoke_jobs_submitted": 1,
+    "full_jobs_submitted": 0,
+    "a4_executed": false
+  },
+  "profile_off_cold_start": {
+    "elapsed_walltime_s": 112.49733453989029,
+    "mean_step_walltime_s": 2.9477484941482546,
+    "projected_15000_step_walltime_s": 44216.227412223816,
+    "projected_15000_step_walltime_h": 12.282285392284393,
+    "peak_allocated_bytes": 17350811648,
+    "peak_reserved_bytes": 32638006272,
+    "peak_reserved_fraction": 0.9693788649785497
+  },
+  "profile_on_warm_cache": {
+    "elapsed_walltime_s": 37.30113425292075,
+    "mean_step_walltime_s": 1.7465411961078643,
+    "projected_15000_step_walltime_s": 26198.117941617966,
+    "projected_15000_step_walltime_h": 7.277254983782768,
+    "peak_allocated_bytes": 23803770368,
+    "peak_reserved_bytes": 32635907072,
+    "peak_reserved_fraction": 0.9693165168039584,
+    "stage_total_walltime_s": 4.827267693122849,
+    "explicit_synchronization_walltime_s": 8.777216763002798,
+    "linear_walltime_total_s": 18.295999467372894,
+    "naive_stage_accounting_residual_s": 13.468731774250045,
+    "stage_percentages": {
+      "spatial_fft2": 28.022715607567715,
+      "inverse_spatial_fft2": 26.383668157103358,
+      "transfer_kernel_preparation": 14.133635391383823,
+      "inverse_temporal_fft": 8.11515856357853,
+      "cast_output_to_complex64": 7.05458295746435,
+      "temporal_fft": 6.703284903582434,
+      "cast_input_to_complex128": 5.329189767164688,
+      "transfer_multiply": 4.254646336692319,
+      "allocation_workspace_preparation": 0.0031183154627804754
+    }
+  },
+  "closure_and_physics": {
+    "linear_residual_max_abs_J": 2.116910119420723e-11,
+    "raman_step_closure_p99": 0.00015019090147688982,
+    "raman_cumulative_closure_final": 2.831530582625419e-05,
+    "legacy_alpha_R_max": 0.0,
+    "raman_operator_substeps_per_z_step": 2.0,
+    "raman_convolutions_per_z_step": 4.0,
+    "nan_inf_count": 0,
+    "raman_energy_projection_iterations_max": 3,
+    "raman_energy_projection_scale_deviation_max": 6.361944304700273e-11
+  },
+  "interpretation": {
+    "performance_gate_passed": false,
+    "memory_gate_passed_at_85_percent": false,
+    "profiling_overhead_identifiable": false,
+    "profiling_overhead_note": "Profiling-on ran second in the same GPU allocation and inherited warm driver/JIT/cache state. Its apparent negative overhead is not a valid performance result and must not be interpreted as a speedup.",
+    "stage_accounting_note": "Per-stage timings include synchronization boundaries; explicit synchronization time overlaps those stage intervals. The naive residual is reported for observability, not as an additive timing error.",
+    "raman_projection_note": "The linear solver used mixed_precision, not the R5 unitary_projection strategy. The frozen full-Eq.27 Raman operator nevertheless emitted its existing raman_energy_projection diagnostics; they are recorded for review and were not introduced by an A3 configuration change.",
+    "next_action": "Stop after A3. Do not enter A4 or submit any new smoke/full propagation without separate authorization."
+  },
+  "evidence": {
+    "remote_run_root": "/data/run01/scvi806/user_Wangjimin/phase8c_a3_runs/a3_4fdedbc4d7a7_attempt3",
+    "staging_directory": "/data/run01/scvi806/user_Wangjimin/phase8c_a3_staging/Filament_1_4fdedbc4d7a7_attempt3_sparse",
+    "profile_summary": "a3_evidence/a3_profile_summary.json",
+    "staging_provenance": "a3_evidence/a3_staging_provenance.json",
+    "runtime_preflight": "a3_evidence/a3_runtime_preflight.json",
+    "config_pair_manifest": "a3_evidence/a3_config_pair_manifest.json"
+  }
+}

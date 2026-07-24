@@ -1,0 +1,15 @@
+{
+  "schema": "phase8c.full_eq27_raman.test_a.config_diff.v1",
+  "base_config": "configs\\isaacs_raman_closure\\120fs_talebpour_isaacs_full_operator_on_energy_audit.json",
+  "on_config": "results\\phase8c_full_raman_causality\\test_a_on_config.json",
+  "off_config": "results\\phase8c_full_raman_causality\\test_a_off_config.json",
+  "differences": [
+    {
+      "path": "propagation.use_raman_full_operator",
+      "on": true,
+      "off": false
+    }
+  ],
+  "single_physical_variable": "propagation.use_raman_full_operator",
+  "status": "passed"
+}
