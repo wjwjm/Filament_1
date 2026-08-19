@@ -14,7 +14,15 @@ from .linear_full import step_linear_full_factorized, step_linear_full_3d
 from .air_dispersion import n_of_omega
 from .constants import c0, eps0
 from .config import resolve_nonlinear_switches
-from .raman import apply_isaacs_raman_operator_step, isaacs_raman_stage, make_raman_kernel, precompute_kernel_fft, raman_convolve_intensity, resolve_raman_rot_params
+from .raman import (
+    apply_isaacs_raman_operator_step,
+    historical_fr_mixture_response,
+    isaacs_raman_stage,
+    make_raman_kernel,
+    precompute_kernel_fft,
+    raman_convolve_intensity,
+    resolve_raman_rot_params,
+)
 from .diagnostics import (
     intensity,
     pulse_energy,
@@ -320,7 +328,9 @@ def propagate_one_pulse(
         r_model = str(getattr(raman_conf, "model", "rot_sinexp")).lower()
         n_R = float(getattr(raman_conf, "n_R", 2.3e-23))
         r_operator_mode = str(getattr(raman_conf, "operator_mode", "legacy_split")).lower()
-        fR_ignored_rot_sinexp = (r_model == "rot_sinexp")
+        fR_ignored_rot_sinexp = (
+            r_model == "rot_sinexp" and r_operator_mode != "historical_fr_mixture"
+        )
         if fR_ignored_rot_sinexp:
             print(f"[Raman] model=rot_sinexp uses explicit n_R={n_R:.3e} m^2/W for phase/absorption; f_R={fR:.3g} ignored in phase channel.")
         if (r_method == "fft"):
@@ -347,6 +357,20 @@ def propagate_one_pulse(
     else:
         H_w, fR, r_method, r_chunk = None, 0.0, "iir", 65536
     full_isaacs_mode = bool(use_raman and r_operator_mode == "full_isaacs_eq27")
+    historical_fr_mixture_mode = bool(
+        use_raman and r_operator_mode == "historical_fr_mixture"
+    )
+    fR_used_historical_fr_mixture = 0.0
+    historical_omega_R = 0.0
+    historical_Gamma_R = 0.0
+    if historical_fr_mixture_mode:
+        # Historical phase kernel parameters are derived from T2/T_R only;
+        # the config-level omega_R/Gamma_R remain reserved for absorption.
+        fR_used_historical_fr_mixture = float(fR)
+        historical_omega_R = 2.0 * _np.pi / float(
+            getattr(raman_conf, "T_R", 8.4e-12)
+        )
+        historical_Gamma_R = 1.0 / float(getattr(raman_conf, "T2", 8.0e-11))
     r_nonlinear_split_order = str(
         getattr(raman_conf, "nonlinear_split_order", "after_other")
     ).lower()
@@ -524,24 +548,39 @@ def propagate_one_pulse(
         # evaluated, so I, rho, ionization, plasma, and electronic Kerr are live.
         I = inten_ion(E, n0, I_cap=getattr(ion_conf, "I_cap", 1e19))
 
-        # 延迟 Kerr：显式双系数 Δn = n2_elec*I + n_R*(Omega*I)
+        # 延迟 Kerr：
+        #  - 默认 legacy_split：显式双系数 Δn = n2_elec*I + n_R*I_R
+        #  - historical_fr_mixture：pre-April 单总系数混合 Δn = n2*I_nl,
+        #    I_nl = (1-f_R)*I + f_R*I_R，仅替换相位算子；吸收路径不变。
         raman_stage_pre = None
         raman_step_diag = None
         if use_raman and not full_isaacs_mode:
-            IR = raman_convolve_intensity(
-                I, H_w if r_method == "fft" else None,
-                method=r_method, dt=dt,
-                T2=getattr(raman_conf, "T2", None),
-                T_R=getattr(raman_conf, "T_R", None),
-                omega_R=getattr(raman_conf, "omega_R", None),
-                Gamma_R=getattr(raman_conf, "Gamma_R", None),
-                chunk_pixels=r_chunk,
-                iir_sampling=getattr(raman_conf, "iir_sampling", "legacy_right_hold"),
-            )
+            if historical_fr_mixture_mode:
+                IR = historical_fr_mixture_response(
+                    I, dt=dt,
+                    T2=getattr(raman_conf, "T2", None),
+                    T_R=getattr(raman_conf, "T_R", None),
+                    chunk_pixels=r_chunk,
+                )
+            else:
+                IR = raman_convolve_intensity(
+                    I, H_w if r_method == "fft" else None,
+                    method=r_method, dt=dt,
+                    T2=getattr(raman_conf, "T2", None),
+                    T_R=getattr(raman_conf, "T_R", None),
+                    omega_R=getattr(raman_conf, "omega_R", None),
+                    Gamma_R=getattr(raman_conf, "Gamma_R", None),
+                    chunk_pixels=r_chunk,
+                    iir_sampling=getattr(raman_conf, "iir_sampling", "legacy_right_hold"),
+                )
         else:
             IR = None
-        delta_n_elec = n2_elec * I
-        delta_n_rot = n_R * IR if (IR is not None) else xp.zeros_like(I, dtype=rdtype)
+        if historical_fr_mixture_mode and IR is not None:
+            delta_n_elec = n2_elec * (1.0 - float(fR)) * I
+            delta_n_rot = n2_elec * float(fR) * IR
+        else:
+            delta_n_elec = n2_elec * I
+            delta_n_rot = n_R * IR if (IR is not None) else xp.zeros_like(I, dtype=rdtype)
         delta_n_elec_applied = delta_n_elec if switches.use_electronic_kerr else xp.zeros_like(I, dtype=rdtype)
         delta_n_rot_applied = delta_n_rot if switches.use_raman_phase else xp.zeros_like(I, dtype=rdtype)
         delta_n_kerr = delta_n_elec_applied + delta_n_rot_applied
@@ -1179,6 +1218,9 @@ def propagate_one_pulse(
         "n2_elec_used": float(n2_elec),
         "n_R_used": float(n_R),
         "f_R_ignored_rot_sinexp": bool(fR_ignored_rot_sinexp),
+        "f_R_used_historical_fr_mixture": float(fR_used_historical_fr_mixture),
+        "historical_raman_omega_R_rad_s": float(historical_omega_R),
+        "historical_raman_Gamma_R_1_s": float(historical_Gamma_R),
         "raman_absorption_model": absorption_model,  # 便于外部读
         "ionization_operator_correction_on": bool(use_ion_op_corr),
         "ionization_operator_method": ion_op_method,

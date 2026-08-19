@@ -186,6 +186,11 @@
 
 - **enabled (bool)**：是否启用拉曼延迟非线性（Raman delayed response）。
 - **f_R (float)**：拉曼分量占 Kerr 总响应的比例（空气常用 0.1–0.15）。
+- **operator_mode (str)**：Raman 相位算子的实现口径：
+  - `"legacy_split"`（默认）：显式双系数 `Δn = n2_elec·I + n_R·I_R`，`f_R` 不参与相位通道。
+  - `"split_energy_closed"`：split 相位 + closed-form 吸收口径。
+  - `"full_isaacs_eq27"`：完整 Isaacs Eq. (27) 复场算子（显式 opt-in）。
+  - `"historical_fr_mixture"`：pre-April 历史 f_R mixture 相位算子（仅相位通道）。
 - **model (str)**：拉曼响应核模型：
   - `"rot_sinexp"`：旋转拉曼的“指数衰减 × 正弦”核（带 Heaviside `u(t)`）
   - `"exp"`：单指数核（常用于光纤振动拉曼的简化占位）
@@ -202,5 +207,7 @@
 - **n_rot_frac (float)**：旋转（rotational）贡献占比（或参与分子数比例）参数。
 - **R0_mode (str)**：R0（某个特征半径/响应尺度）取法模式（如 `"mom"` 可能表示由矩/二阶矩估计）。
 - **R0_fixed_m (float, m)**：当 `R0_mode` 需要固定值时使用的 R0（固定半径）。
+
+> **historical_fr_mixture（诊断用途）**：`I_R = h_R*I`，`I_nl = (1-f_R)·I + f_R·I_R`，`Δn_NL = n2·I_nl`，`Δφ = k0·Δn_NL·Δz`。相位核由 `T2`/`T_R` 决定（`ω_R=2π/T_R`、`Γ_R=1/T2`，`method=iir`、`iir_sampling=legacy_right_hold`），显式忽略 `omega_R`/`Gamma_R`（二者仍保留给吸收路径）。吸收与 `legacy_split` 对照完全一致（conv_deriv、`n_R`、`omega_R`、`Gamma_R`），不恢复历史 conv_deriv 的 `n0/c0` 写法。该模式仅用于判断“只替换 Raman 相位算子”是否改变 120 fs 成丝起涨，不作为默认生产实现。
 
 ---
