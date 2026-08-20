@@ -7,6 +7,9 @@
 #SBATCH --time=15:00:00
 
 set -euo pipefail
+# Submission is intentionally performed by submit_historical_fr_mixture_job.sh,
+# which sets Slurm's initial cwd and stdout/stderr paths to RUN_DIR before this
+# script begins.  Keeping REPO_DIR immutable makes this guard meaningful.
 : "${EXPECTED_GIT_SHA:?missing EXPECTED_GIT_SHA}"
 : "${REPO_DIR:?missing REPO_DIR}"
 : "${RUN_DIR:?missing RUN_DIR}"

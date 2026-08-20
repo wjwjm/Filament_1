@@ -117,7 +117,6 @@ def main(argv=None) -> None:
             "gpu_count": 1,
             "cpu_threads": 8,
             "site_default_memory_mb_per_gpu": 126000,
-            "nodelist": "g0609",
             "expected_gpu_model": "NVIDIA GeForce RTX 5090",
         },
         "source_config_sha256": _sha256(args.base),
