@@ -152,6 +152,22 @@ def _load_prepare_module():
     return module
 
 
+def _load_postprocess_module():
+    path = ROOT / "tools" / "postprocess_historical_fr_mixture.py"
+    spec = importlib.util.spec_from_file_location("postprocess_historical_fr_mixture", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_postprocess_accepts_isolated_batch_actual_sha_metadata():
+    module = _load_postprocess_module()
+    assert module.execution_git_sha({"execution_git_sha": "legacy"}) == "legacy"
+    assert module.execution_git_sha({"actual_sha": "fbbf189"}) == "fbbf189"
+    assert module.execution_git_sha({}) == ""
+
+
 def test_prepare_tool_single_field_config_diff():
     module = _load_prepare_module()
     base = module.json.loads(module.BASE.read_text(encoding="utf-8"))

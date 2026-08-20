@@ -25,10 +25,26 @@ RAMAN_Z_FIELDS = (
 )
 
 
+def execution_git_sha(metadata: dict[str, Any]) -> str:
+    """Read either supported job-metadata provenance spelling.
+
+    The legacy observability runner writes ``execution_git_sha``.  The
+    isolated historical Raman batch job writes ``actual_sha`` together with
+    ``sha_match`` so it can prove the staged repository is immutable before
+    propagation.  Both represent the code SHA that executed the NPZ.
+    """
+    return str(metadata.get("execution_git_sha") or metadata.get("actual_sha") or "").strip()
+
+
 def validate(npz_path: Path, config_path: Path, metadata_path: Path | None = None,
              *, expected_execution_sha: str | None = None) -> dict[str, Any]:
     base = validate_npz(npz_path, config_path, metadata_path)
     failures = list(base["failures"])
+    actual_execution_sha = execution_git_sha(base["metadata"])
+    if actual_execution_sha:
+        # The shared baseline validator predates the isolated batch metadata
+        # schema and otherwise reports this sole false failure.
+        failures = [item for item in failures if item != "run metadata lacks execution_git_sha"]
     config = json.loads(config_path.read_text(encoding="utf-8"))
     propagation = config.get("propagation", {})
     raman = config.get("raman", {})
@@ -38,7 +54,6 @@ def validate(npz_path: Path, config_path: Path, metadata_path: Path | None = Non
         failures.append("historical_fr_mixture requires Raman absorption enabled")
     if raman.get("operator_mode") != "historical_fr_mixture":
         failures.append("configuration is not raman.operator_mode=historical_fr_mixture")
-    actual_execution_sha = str(base["metadata"].get("execution_git_sha", "")).strip()
     if expected_execution_sha and not actual_execution_sha.startswith(expected_execution_sha):
         failures.append("run metadata execution_git_sha does not match the expected execution SHA")
 
