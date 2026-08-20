@@ -14,7 +14,11 @@ import math
 import sys
 from pathlib import Path
 
+import matplotlib
 import numpy as np
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -24,6 +28,60 @@ import compare_raman_phase_causality as cc  # noqa: E402
 
 RHO = (1e19, 1e20, 1e21, 1e22)
 INT = (1e16, 3e16, 1e17, 3e17, 5e17)
+CASE_LABELS = {
+    "production": "Current production (legacy_split)",
+    "raman_off": "Raman phase OFF",
+    "historical_fr_mixture": "Historical f_R mixture",
+}
+CASE_COLORS = {
+    "production": "#b91c1c",
+    "raman_off": "#475569",
+    "historical_fr_mixture": "#0369a1",
+}
+
+
+def _plot_comparison(out_dir: Path, x: np.ndarray, series: dict[str, dict[str, np.ndarray]],
+                     px: np.ndarray, py: np.ndarray) -> None:
+    """Write the standard causal-comparison figures from the aligned diagnostics."""
+    plt.rcParams.update({"figure.dpi": 150, "savefig.dpi": 200, "font.size": 9})
+
+    fig, ax = plt.subplots(figsize=(7.0, 4.2))
+    for name, data in series.items():
+        ax.semilogy(x, data["rho_max_z"], label=CASE_LABELS[name], color=CASE_COLORS[name])
+    ax.semilogy(px, py, "k--", linewidth=1.2, label="PyCAP digitization")
+    ax.set(xlabel="x relative to focus (cm)", ylabel=r"peak electron density (m$^{-3}$)")
+    ax.grid(True, which="both", alpha=0.25); ax.legend(fontsize=8); fig.tight_layout()
+    fig.savefig(out_dir / "rho_vs_x.png"); plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(7.0, 4.2))
+    for name, data in series.items():
+        ax.semilogy(x, data["rho_max_z"], label=CASE_LABELS[name], color=CASE_COLORS[name])
+    ax.semilogy(px, py, "k--", linewidth=1.2, label="PyCAP digitization")
+    ax.axhline(1e22, color="#111827", linewidth=0.8, linestyle=":")
+    ax.set(xlim=(-18.5, -10.0), ylim=(3e20, 1e23), xlabel="x relative to focus (cm)",
+           ylabel=r"peak electron density (m$^{-3}$)")
+    ax.grid(True, which="both", alpha=0.25); ax.legend(fontsize=8); fig.tight_layout()
+    fig.savefig(out_dir / "onset_zoom_1e22.png"); plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(7.0, 4.2))
+    for name, data in series.items():
+        ax.semilogy(x, data["I_max_z"], label=CASE_LABELS[name], color=CASE_COLORS[name])
+    ax.set(xlabel="x relative to focus (cm)", ylabel=r"I$_{max}$ (W m$^{-2}$)")
+    ax.grid(True, which="both", alpha=0.25); ax.legend(fontsize=8); fig.tight_layout()
+    fig.savefig(out_dir / "Imax_vs_x.png"); plt.close(fig)
+
+    fig, axes = plt.subplots(2, 1, figsize=(7.0, 6.0), sharex=True)
+    for name, data in series.items():
+        axes[0].semilogy(x, np.abs(data["dphi_rot_applied_max_abs_z"]),
+                         label=CASE_LABELS[name], color=CASE_COLORS[name])
+        axes[1].semilogy(x, np.abs(data["alpha_R_applied_max_z"]),
+                         label=CASE_LABELS[name], color=CASE_COLORS[name])
+    axes[0].set_ylabel(r"max $|\Delta\phi_R|$ (rad)")
+    axes[1].set(xlabel="x relative to focus (cm)", ylabel=r"max $|\alpha_R|$ (m$^{-1}$)")
+    for ax in axes:
+        ax.grid(True, which="both", alpha=0.25)
+    axes[0].legend(fontsize=8); fig.tight_layout()
+    fig.savefig(out_dir / "raman_phase_diagnostics.png"); plt.close(fig)
 
 
 def main() -> None:
@@ -171,6 +229,7 @@ def main() -> None:
     }
     (args.out_dir / "historical_fr_mixture_comparison_summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    _plot_comparison(args.out_dir, x, series, px, py)
 
     def write_csv(name, rows):
         rows = list(rows)
@@ -191,11 +250,15 @@ def main() -> None:
     pycap_1e22 = onset_1e22["x_pycap_cm"]
     shift = onset_1e22["onset_shift_mixture_minus_production_cm"]
     direction = "later (toward PyCAP)" if shift and shift > eps else "earlier" if shift and shift < -eps else "within epsilon"
+    mix_peak = next(row for row in peak_rows if row["case"] == "historical_fr_mixture")
+    prod_peak = next(row for row in peak_rows if row["case"] == "production")
+    pycap_peak = next(row for row in peak_rows if row["case"] == "pycap")
     lines = [
         "# historical_fr_mixture 120 fs causal comparison",
         "",
         f"- 1e22 onset: production={prod_1e22} cm, mixture={mix_1e22} cm, PyCAP={pycap_1e22} cm.",
         f"- Mixture minus production shift at 1e22: **{shift} cm** ({direction}, epsilon={eps:.3f} cm).",
+        f"- Peak rho: production={prod_peak['rho_peak_m3']:.4e} m^-3 at {prod_peak['peak_x_cm']:.3f} cm; mixture={mix_peak['rho_peak_m3']:.4e} m^-3 at {mix_peak['peak_x_cm']:.3f} cm; PyCAP={pycap_peak['rho_peak_m3']:.4e} m^-3 at {pycap_peak['peak_x_cm']:.3f} cm.",
         f"- RMSE vs PyCAP (rho_max_z): production={rmse['production']:.4e}, mixture={rmse['historical_fr_mixture']:.4e}, Raman-OFF={rmse['raman_off']:.4e}.",
         "",
         "Core question: with every other model component frozen, does swapping the Raman phase operator to the pre-April f_R mixture move the 120 fs onset back toward PyCAP? See `historical_fr_mixture_comparison_summary.json` for the full effect-chain metrics.",

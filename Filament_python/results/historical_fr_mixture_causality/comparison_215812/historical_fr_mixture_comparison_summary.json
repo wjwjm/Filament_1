@@ -1,0 +1,367 @@
+{
+  "schema": "khz_filament.historical_fr_mixture.comparison.v1",
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95)",
+  "epsilon_x_cm": 0.1,
+  "series": {
+    "production": "Filament_python\\results\\ionization_model_propagation\\talebpour_120fs_20260717T114321Z\\baseline_axial_diagnostics.csv",
+    "raman_off": "Filament_python\\results\\raman_phase_causality\\raman_phase_off_120fs_20260718T201000Z\\raman_phase_off_axial_diagnostics.csv",
+    "historical_fr_mixture": "Filament_python\\results\\historical_fr_mixture_causality\\postprocess_215812\\historical_fr_mixture_axial_diagnostics.csv",
+    "pycap": "Filament_python\\results\\density_translation_width\\density_translation_width_20260715_002\\paper_pycap_120fs.csv"
+  },
+  "rho_threshold_crossings": [
+    {
+      "family": "rho_total",
+      "threshold": 1e+19,
+      "x_production_cm": -19.19399851718201,
+      "x_raman_off_cm": -19.24839206100622,
+      "x_historical_fr_mixture_cm": -19.24691231288658,
+      "x_pycap_cm": null,
+      "onset_shift_mixture_minus_production_cm": -0.05291379570456911
+    },
+    {
+      "family": "rho_total",
+      "threshold": 1e+20,
+      "x_production_cm": -18.327101012541323,
+      "x_raman_off_cm": -17.90914718647249,
+      "x_historical_fr_mixture_cm": -17.82963146823811,
+      "x_pycap_cm": null,
+      "onset_shift_mixture_minus_production_cm": 0.49746954430321466
+    },
+    {
+      "family": "rho_total",
+      "threshold": 1e+21,
+      "x_production_cm": -17.29790221064008,
+      "x_raman_off_cm": -16.044769277185907,
+      "x_historical_fr_mixture_cm": -15.791170549320327,
+      "x_pycap_cm": null,
+      "onset_shift_mixture_minus_production_cm": 1.5067316613197512
+    },
+    {
+      "family": "rho_total",
+      "threshold": 1e+22,
+      "x_production_cm": -16.411900580443586,
+      "x_raman_off_cm": -14.013635670804236,
+      "x_historical_fr_mixture_cm": -13.395007613340857,
+      "x_pycap_cm": -14.027210012757275,
+      "onset_shift_mixture_minus_production_cm": 3.016892967102729,
+      "error_production_to_pycap_cm": 2.3846905676863113,
+      "error_raman_off_to_pycap_cm": 0.013574341953038527,
+      "error_historical_fr_mixture_to_pycap_cm": 0.6322023994164176
+    }
+  ],
+  "onset_1e22_shift": {
+    "mixture_minus_production_cm": 3.016892967102729,
+    "mixture_error_to_pycap_cm": 0.6322023994164176,
+    "production_error_to_pycap_cm": 2.3846905676863113,
+    "raman_off_error_to_pycap_cm": 0.013574341953038527
+  },
+  "intensity_threshold_crossings": [
+    {
+      "threshold_W_m2": 1e+16,
+      "case": "production",
+      "x_cm": -56.36688406443704
+    },
+    {
+      "threshold_W_m2": 1e+16,
+      "case": "raman_off",
+      "x_cm": -56.354634905798804
+    },
+    {
+      "threshold_W_m2": 1e+16,
+      "case": "historical_fr_mixture",
+      "x_cm": -56.351324488886846
+    },
+    {
+      "threshold_W_m2": 3e+16,
+      "case": "production",
+      "x_cm": -37.87043414441722
+    },
+    {
+      "threshold_W_m2": 3e+16,
+      "case": "raman_off",
+      "x_cm": -37.990863272857595
+    },
+    {
+      "threshold_W_m2": 3e+16,
+      "case": "historical_fr_mixture",
+      "x_cm": -38.004275080591064
+    },
+    {
+      "threshold_W_m2": 1e+17,
+      "case": "production",
+      "x_cm": -19.91548672096387
+    },
+    {
+      "threshold_W_m2": 1e+17,
+      "case": "raman_off",
+      "x_cm": -20.23407850203084
+    },
+    {
+      "threshold_W_m2": 1e+17,
+      "case": "historical_fr_mixture",
+      "x_cm": -20.274581464724115
+    },
+    {
+      "threshold_W_m2": 3e+17,
+      "case": "production",
+      "x_cm": -17.225172110934626
+    },
+    {
+      "threshold_W_m2": 3e+17,
+      "case": "raman_off",
+      "x_cm": -15.92499997759584
+    },
+    {
+      "threshold_W_m2": 3e+17,
+      "case": "historical_fr_mixture",
+      "x_cm": -15.643374216707885
+    },
+    {
+      "threshold_W_m2": 5e+17,
+      "case": "production",
+      "x_cm": -16.01118173214129
+    },
+    {
+      "threshold_W_m2": 5e+17,
+      "case": "raman_off",
+      "x_cm": -12.805166859448638
+    },
+    {
+      "threshold_W_m2": 5e+17,
+      "case": "historical_fr_mixture",
+      "x_cm": -11.611481897473324
+    }
+  ],
+  "raman_diagnostics": [
+    {
+      "case": "production",
+      "metric": "IR_max_z",
+      "peak": 4.6789057613031014e+17,
+      "final": 1.909271876861952e+17
+    },
+    {
+      "case": "production",
+      "metric": "delta_n_rot_max_z",
+      "peak": 1.0761483281385154e-05,
+      "final": 4.391325546748703e-06
+    },
+    {
+      "case": "production",
+      "metric": "delta_n_rot_applied_max_z",
+      "peak": 1.0761483281385154e-05,
+      "final": 4.391325546748703e-06
+    },
+    {
+      "case": "production",
+      "metric": "dphi_rot_max_abs_z",
+      "peak": 0.008454331196844578,
+      "final": 0.0017249351367354393
+    },
+    {
+      "case": "production",
+      "metric": "dphi_rot_applied_max_abs_z",
+      "peak": 0.008454331196844578,
+      "final": 0.0017249351367354393
+    },
+    {
+      "case": "production",
+      "metric": "alpha_R_applied_max_z",
+      "peak": 0.017791403457522392,
+      "final": 0.003622152144089341
+    },
+    {
+      "case": "raman_off",
+      "metric": "IR_max_z",
+      "peak": 3.6773022080067174e+17,
+      "final": 1.3136290618802176e+16
+    },
+    {
+      "case": "raman_off",
+      "metric": "delta_n_rot_max_z",
+      "peak": 8.457795047434047e-06,
+      "final": 3.0213467994144594e-07
+    },
+    {
+      "case": "raman_off",
+      "metric": "delta_n_rot_applied_max_z",
+      "peak": 0.0,
+      "final": 0.0
+    },
+    {
+      "case": "raman_off",
+      "metric": "dphi_rot_max_abs_z",
+      "peak": 0.00664452975615859,
+      "final": 0.00011868004366988316
+    },
+    {
+      "case": "raman_off",
+      "metric": "dphi_rot_applied_max_abs_z",
+      "peak": 0.0,
+      "final": 0.0
+    },
+    {
+      "case": "raman_off",
+      "metric": "alpha_R_applied_max_z",
+      "peak": 0.018092110753059387,
+      "final": 0.000873601296916604
+    },
+    {
+      "case": "historical_fr_mixture",
+      "metric": "IR_max_z",
+      "peak": 3.585319470408663e+17,
+      "final": 1.408356820451328e+16
+    },
+    {
+      "case": "historical_fr_mixture",
+      "metric": "delta_n_rot_max_z",
+      "peak": 1.5644795681168944e-08,
+      "final": 6.47305098411266e-10
+    },
+    {
+      "case": "historical_fr_mixture",
+      "metric": "delta_n_rot_applied_max_z",
+      "peak": 1.5644795681168944e-08,
+      "final": 6.47305098411266e-10
+    },
+    {
+      "case": "historical_fr_mixture",
+      "metric": "dphi_rot_max_abs_z",
+      "peak": 1.229071040143026e-05,
+      "final": 2.5426473371226166e-07
+    },
+    {
+      "case": "historical_fr_mixture",
+      "metric": "dphi_rot_applied_max_abs_z",
+      "peak": 1.229071040143026e-05,
+      "final": 2.5426473371226166e-07
+    },
+    {
+      "case": "historical_fr_mixture",
+      "metric": "alpha_R_applied_max_z",
+      "peak": 0.017237713560461998,
+      "final": 0.0008061047410592437
+    }
+  ],
+  "energy_change": [
+    {
+      "case": "production",
+      "metric": "U_rel_change_z",
+      "final": -0.05080492049455643,
+      "max_abs": 0.05080492049455643
+    },
+    {
+      "case": "production",
+      "metric": "E_dep_cumulative_z",
+      "final": 7.977016502991319e-05,
+      "max_abs": 7.977016502991319e-05
+    },
+    {
+      "case": "production",
+      "metric": "E_loss_from_input_z",
+      "final": 0.00011032354086637497,
+      "max_abs": 0.00011032354086637497
+    },
+    {
+      "case": "raman_off",
+      "metric": "U_rel_change_z",
+      "final": -0.03593730181455612,
+      "max_abs": 0.03593730181455612
+    },
+    {
+      "case": "raman_off",
+      "metric": "E_dep_cumulative_z",
+      "final": 4.434540824149735e-05,
+      "max_abs": 4.434540824149735e-05
+    },
+    {
+      "case": "raman_off",
+      "metric": "E_loss_from_input_z",
+      "final": 7.803831249475479e-05,
+      "max_abs": 7.803831249475479e-05
+    },
+    {
+      "case": "historical_fr_mixture",
+      "metric": "U_rel_change_z",
+      "final": -0.03408367186784744,
+      "max_abs": 0.03408367186784744
+    },
+    {
+      "case": "historical_fr_mixture",
+      "metric": "E_dep_cumulative_z",
+      "final": 4.0478545997757465e-05,
+      "max_abs": 4.0478545997757465e-05
+    },
+    {
+      "case": "historical_fr_mixture",
+      "metric": "E_loss_from_input_z",
+      "final": 7.401313632726669e-05,
+      "max_abs": 7.401313632726669e-05
+    }
+  ],
+  "numerical_path": [
+    {
+      "case": "production",
+      "dz_min_m": 4.999999873689376e-05,
+      "dz_max_m": 9.999999747378752e-05,
+      "rejections_max": 0.0,
+      "safety_max": 0.0
+    },
+    {
+      "case": "raman_off",
+      "dz_min_m": 4.999999873689376e-05,
+      "dz_max_m": 9.999999747378752e-05,
+      "rejections_max": 0.0,
+      "safety_max": 0.0
+    },
+    {
+      "case": "historical_fr_mixture",
+      "dz_min_m": 4.999999873689376e-05,
+      "dz_max_m": 9.999999747378752e-05,
+      "rejections_max": 0.0,
+      "safety_max": 0.0
+    }
+  ],
+  "peak_and_width": [
+    {
+      "case": "production",
+      "rho_peak_m3": 6.460902306022546e+22,
+      "peak_x_cm": -14.440001249313351,
+      "peak_top_center_cm": -14.405001401901242,
+      "fwhm_cm": 12.075501620625838,
+      "tail_area_above_half_m3_cm": 1.6659067815088284e+23,
+      "rmse_vs_pycap": 1.8723185068331606e+22
+    },
+    {
+      "case": "raman_off",
+      "rho_peak_m3": 2.4977816965526158e+22,
+      "peak_x_cm": -10.329998731613156,
+      "peak_top_center_cm": -10.269997715950009,
+      "fwhm_cm": 12.841942864692358,
+      "tail_area_above_half_m3_cm": 6.596420139476342e+22,
+      "rmse_vs_pycap": 2.144254368153124e+22
+    },
+    {
+      "case": "historical_fr_mixture",
+      "rho_peak_m3": 2.034969956385831e+22,
+      "peak_x_cm": -9.854997396469113,
+      "peak_top_center_cm": -9.680001139640805,
+      "fwhm_cm": 13.61661849581767,
+      "tail_area_above_half_m3_cm": 5.71093666462857e+22,
+      "rmse_vs_pycap": 2.443401814857123e+22
+    },
+    {
+      "case": "pycap",
+      "rho_peak_m3": 6.4546415332439435e+22,
+      "peak_x_cm": -12.184211090182039,
+      "peak_top_center_cm": -12.044643952837454,
+      "fwhm_cm": 8.73799136602939,
+      "tail_area_above_half_m3_cm": 1.3525016584404954e+23,
+      "rmse_vs_pycap": 0.0
+    }
+  ],
+  "rmse_vs_pycap": {
+    "production": 1.8723185068331606e+22,
+    "raman_off": 2.144254368153124e+22,
+    "historical_fr_mixture": 2.443401814857123e+22
+  }
+}
