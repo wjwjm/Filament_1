@@ -526,3 +526,30 @@ def apply_isaacs_raman_operator_step(E, dz, *, Omega, dt, omega0, n0, n_R,
 
 def math_isfinite(value):
     return bool(_np.isfinite(float(value)))
+
+
+def historical_fr_mixture_response(I, *, dt, T2, T_R, chunk_pixels=65536):
+    """Historical pre-April delayed response ``I_R = h_R * I``.
+
+    Replicates the 2026-03-18 (4c330ac) phase-channel convolution exactly:
+    the rotational kernel is parameterized by ``T2``/``T_R`` only
+    (``omega_R = 2*pi/T_R``, ``Gamma_R = 1/T2``) and the IIR uses the
+    ``legacy_right_hold`` recursion.  The config-level ``omega_R``/``Gamma_R``
+    fields are intentionally ignored here; they remain reserved for the
+    absorption path.
+    """
+    return raman_convolve_intensity(
+        I, None, method="iir", dt=dt, T2=T2, T_R=T_R,
+        chunk_pixels=chunk_pixels, iir_sampling="legacy_right_hold",
+    )
+
+
+def historical_fr_mixture_index(I, IR, *, f_R, n2):
+    """Historical pre-April nonlinear index ``Delta_n_NL = n2 * I_nl``.
+
+    ``I_nl = (1 - f_R) * I + f_R * I_R`` is the single total-Kerr mixture used
+    by the pre-April implementation; ``n2`` is the total Kerr coefficient
+    (the beam ``n2_air``), not an electronic-only coefficient.
+    """
+    return (float(n2) * ((1.0 - float(f_R)) * I + float(f_R) * IR)).astype(
+        I.dtype, copy=False)

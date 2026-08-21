@@ -1,0 +1,13 @@
+case,metric,peak
+production,dphi_elec_applied_max_abs_z,
+production,dphi_rot_applied_max_abs_z,0.008454331196844578
+production,alpha_R_applied_max_z,0.017791403457522392
+raman_off,dphi_elec_applied_max_abs_z,
+raman_off,dphi_rot_applied_max_abs_z,0.0
+raman_off,alpha_R_applied_max_z,0.018092110753059387
+historical_fr_mixture,dphi_elec_applied_max_abs_z,
+historical_fr_mixture,dphi_rot_applied_max_abs_z,1.229071040143026e-05
+historical_fr_mixture,alpha_R_applied_max_z,0.017237713560461998
+raman_off_kerr085,dphi_elec_applied_max_abs_z,
+raman_off_kerr085,dphi_rot_applied_max_abs_z,0.0
+raman_off_kerr085,alpha_R_applied_max_z,0.017237985506653786

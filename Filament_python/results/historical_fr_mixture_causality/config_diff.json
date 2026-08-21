@@ -1,0 +1,14 @@
+{
+  "schema": "khz_filament.historical_fr_mixture.config_diff.v1",
+  "base_config": "configs\\ionization_model_propagation\\120fs_talebpour_full_model.json",
+  "derived_config": "results\\historical_fr_mixture_causality\\historical_fr_mixture_120fs_config.json",
+  "differences": [
+    {
+      "path": "raman.operator_mode",
+      "base": null,
+      "historical_fr_mixture": "historical_fr_mixture"
+    }
+  ],
+  "single_physical_variable": "raman.operator_mode",
+  "status": "passed"
+}

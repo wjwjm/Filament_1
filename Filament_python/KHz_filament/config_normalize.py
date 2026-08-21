@@ -156,10 +156,31 @@ def _normalize_raman(raman: Dict[str, Any]) -> None:
         raise ValueError(f"raman.iir_sampling must be one of {allowed_sampling}.")
     raman["iir_sampling"] = sampling
     operator_mode = str(raman.get("operator_mode", "legacy_split") or "legacy_split").lower()
-    allowed_modes = ("legacy_split", "split_energy_closed", "full_isaacs_eq27")
+    allowed_modes = ("legacy_split", "split_energy_closed", "full_isaacs_eq27", "historical_fr_mixture")
     if operator_mode not in allowed_modes:
         raise ValueError(f"raman.operator_mode must be one of {allowed_modes}.")
     raman["operator_mode"] = operator_mode
+    if operator_mode == "historical_fr_mixture":
+        # The historical pre-April f_R mixture is a phase-only split operator.
+        # It reuses the historical rot_sinexp kernel parameterization (T2/T_R)
+        # and the legacy_right_hold IIR, while absorption stays on the current
+        # comparison path (omega_R/Gamma_R/n_R) unchanged.
+        if model != "rot_sinexp":
+            raise ValueError("historical_fr_mixture requires raman.model='rot_sinexp'.")
+        if raman.get("method", "iir") not in (None, "iir"):
+            raise ValueError("historical_fr_mixture requires raman.method='iir'.")
+        if sampling != "legacy_right_hold":
+            raise ValueError("historical_fr_mixture requires raman.iir_sampling='legacy_right_hold'.")
+        if raman.get("f_R") is None:
+            raise ValueError("historical_fr_mixture requires raman.f_R.")
+        f_R = float(_to_float(raman["f_R"]))
+        if not (0.0 <= f_R < 1.0):
+            raise ValueError("historical_fr_mixture requires 0 <= raman.f_R < 1.")
+        for name in ("T2", "T_R"):
+            if raman.get(name) is None:
+                raise ValueError(f"historical_fr_mixture requires raman.{name}.")
+            if float(_to_float(raman[name])) <= 0.0:
+                raise ValueError(f"historical_fr_mixture requires raman.{name} > 0.")
     integrator = str(raman.get("operator_integrator", "heun") or "heun").lower()
     if integrator not in ("euler", "heun"):
         raise ValueError("raman.operator_integrator must be 'euler' or 'heun'.")

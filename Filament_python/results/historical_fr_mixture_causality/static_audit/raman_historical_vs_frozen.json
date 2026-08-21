@@ -1,0 +1,58 @@
+{
+  "rows": [
+    {
+      "label": "c34c3a",
+      "sha": "c34c3a267cae47b4cf60f7aaca4c60be86c7d9db",
+      "phase_semantics": "historical_fr_mixture",
+      "kernel": "area_normalized",
+      "iir_recursion": "S=rS+cI[n]; IR=Im(kS)",
+      "f_R_in_phase": true,
+      "n_R_in_phase": false,
+      "self_steepening_order": "shock(I_nl) then *n2",
+      "absorption_wR_factor": "n0/c0",
+      "kerr_phase_api": "kerr_phase"
+    },
+    {
+      "label": "4c330ac",
+      "sha": "4c330ac8c5e9ff71a41b2ecc4e29b90cac139650",
+      "phase_semantics": "historical_fr_mixture",
+      "kernel": "area_normalized",
+      "iir_recursion": "S=rS+cI[n]; IR=Im(kS)",
+      "f_R_in_phase": true,
+      "n_R_in_phase": false,
+      "self_steepening_order": "shock(I_nl) then *n2",
+      "absorption_wR_factor": "n0/c0",
+      "kerr_phase_api": "kerr_phase"
+    },
+    {
+      "label": "037ead0",
+      "sha": "037ead0b31305b0dd1862dc5f665bde7891b7995",
+      "phase_semantics": "explicit_n2_elec_I_plus_n_R_IR",
+      "kernel": "analytic_prefactor",
+      "iir_recursion": "S=rS+cI[n]; IR=Im(kS)",
+      "f_R_in_phase": false,
+      "n_R_in_phase": true,
+      "self_steepening_order": "shock(summed delta_n)",
+      "absorption_wR_factor": "n_R/c0",
+      "kerr_phase_api": "kerr_phase"
+    },
+    {
+      "label": "e11d13f",
+      "sha": "e11d13f103c484953c0f733aa9b410bff385b2b5",
+      "phase_semantics": "explicit_n2_elec_I_plus_n_R_IR",
+      "kernel": "analytic_prefactor",
+      "iir_recursion": "S=rS+cI[n]; IR=Im(kS)",
+      "f_R_in_phase": false,
+      "n_R_in_phase": true,
+      "self_steepening_order": "shock(summed delta_n)",
+      "absorption_wR_factor": "n_R/c0",
+      "kerr_phase_api": "kerr_phase"
+    }
+  ],
+  "assertions": {
+    "legacy_split_is_explicit_nR_IR_not_fr_mixture": true,
+    "4c330ac_is_fr_mixture": true,
+    "037ead0_is_boundary": true,
+    "historical_absorption_not_to_restore": true
+  }
+}

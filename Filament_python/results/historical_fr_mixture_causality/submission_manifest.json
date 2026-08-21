@@ -1,0 +1,33 @@
+{
+  "schema": "khz_filament.historical_fr_mixture.submission_manifest.v1",
+  "status": "prepared_not_submitted",
+  "jobs_authorized": 1,
+  "additional_profiling_smokes_authorized": 0,
+  "optimization_jobs_authorized": 0,
+  "walltime_policy": {
+    "partition": "gpu",
+    "max_time": "UNLIMITED",
+    "requested_time": "15:00:00"
+  },
+  "shared_resources": {
+    "gpu_count": 1,
+    "cpu_threads": 8,
+    "site_default_memory_mb_per_gpu": 126000,
+    "expected_gpu_model": "NVIDIA GeForce RTX 5090"
+  },
+  "source_config_sha256": "ffb1cb8753d1371992698c6bf5146c16b8cd38b6a4d76061162f0a6fcac3c549",
+  "derived_config_sha256": "118899eaafd00b8072a1b94f9e599763979c66164962d2463b01c5da50f3b296",
+  "strict_config_diff": [
+    {
+      "path": "raman.operator_mode",
+      "base": null,
+      "historical_fr_mixture": "historical_fr_mixture"
+    }
+  ],
+  "full_production_jobs_submitted": 0,
+  "comparison_series": {
+    "current_production": "results/ionization_model_propagation/talebpour_120fs_20260717T114321Z/baseline_axial_diagnostics.csv",
+    "raman_phase_off": "results/raman_phase_causality/raman_phase_off_120fs_20260718T201000Z/raman_phase_off_axial_diagnostics.csv",
+    "pycap_120fs": "results/density_translation_width/density_translation_width_20260715_002/paper_pycap_120fs.csv"
+  }
+}

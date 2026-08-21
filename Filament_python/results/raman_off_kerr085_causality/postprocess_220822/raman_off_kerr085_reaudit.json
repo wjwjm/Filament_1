@@ -1,0 +1,217 @@
+{
+  "schema": "khz_filament.raman_off_kerr085.postprocess.v1",
+  "gate": "passed",
+  "npz_path": "/data/run01/scvi806/user_Wangjimin/raman_off_kerr085_20260821T073259Z/run/raman_off_kerr085.npz",
+  "config_path": "/data/run01/scvi806/user_Wangjimin/raman_off_kerr085_20260821T073259Z/Filament_1/Filament_python/results/raman_off_kerr085_causality/raman_off_kerr085_120fs_config.json",
+  "npz_sha256": "7719ccf9600049ff918f2167b8213e0e002be4172880e22ac953b56c4a9aa55b",
+  "config_sha256": "da9cbdecf0e231ab55e4f66d2ba0e20df9f76642bc0bca0f608ec84d754d5088",
+  "run_metadata": {
+    "schema": "khz_filament.raman_off_kerr085.job_metadata.v1",
+    "case_id": "raman_off_kerr085",
+    "status": "completed",
+    "exit_code": 0,
+    "slurm_job_id": "220822",
+    "execution_git_sha": "ba730a28568eb46a811c418a040a09a302c60662",
+    "expected_git_sha": "ba730a28568eb46a811c418a040a09a302c60662",
+    "config_path": "/data/run01/scvi806/user_Wangjimin/raman_off_kerr085_20260821T073259Z/Filament_1/Filament_python/results/raman_off_kerr085_causality/raman_off_kerr085_120fs_config.json",
+    "config_sha256": "da9cbdecf0e231ab55e4f66d2ba0e20df9f76642bc0bca0f608ec84d754d5088",
+    "gpu_model": "NVIDIA GeForce RTX 5090",
+    "gpu_total_memory_bytes": 33668988928,
+    "cpu_threads": 8,
+    "diagnostic_schema": "khz_filament.propagation_observability.v1"
+  },
+  "base_summary": {
+    "z_records": 15000,
+    "z_start_m": 9.999999747378752e-05,
+    "z_end_m": 1.2999999523162842,
+    "z_median_step_m": 0.00010000169277191162,
+    "npz_sha256": "7719ccf9600049ff918f2167b8213e0e002be4172880e22ac953b56c4a9aa55b",
+    "npz_size_bytes": 30741492,
+    "config_sha256": "da9cbdecf0e231ab55e4f66d2ba0e20df9f76642bc0bca0f608ec84d754d5088",
+    "field_status": {
+      "z_axis": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "I_onaxis_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "I_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "delta_n_plasma_min_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "E_dep_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "E_loss_from_input_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "E_dep_cumulative_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "U_rel_change_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "dphi_plasma_raw_max_abs_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "dphi_plasma_applied_max_abs_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "alpha_ion_raw_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "alpha_ion_applied_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_N2_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_O2_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "rho_O2_fraction_at_rho_total_max_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "dz_used_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "adaptive_rejection_count_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      },
+      "safety_mode_trigger_count_z": {
+        "shape": [
+          15000
+        ],
+        "finite": true
+      }
+    },
+    "diagnostic_validation_passed": true,
+    "safety_mode_event_summary": "{\"configured_mode\": \"on\", \"rejection_count\": 0, \"source\": \"live propagation-loop counters\", \"trigger_count\": 0}"
+  },
+  "raman_field_status": {
+    "IR_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 3.585046654086021e+17
+    },
+    "delta_n_rot_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 8.245607205026317e-06
+    },
+    "delta_n_rot_applied_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.0
+    },
+    "dphi_rot_max_abs_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.006477832794189453
+    },
+    "dphi_rot_applied_max_abs_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.0
+    },
+    "alpha_R_raw_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.017237985506653786
+    },
+    "alpha_R_applied_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.017237985506653786
+    }
+  },
+  "candidate_scalars": {
+    "n2_elec_used": 6.63e-24,
+    "staggered_delta_n_elec_over_I": {
+      "finite_count": 15000,
+      "median": 6.630132838577645e-24,
+      "relative_abs_quantiles": [
+        1.9030816034160125e-08,
+        0.00021984303633770796,
+        0.0010500878932841685,
+        0.0025993869036123832,
+        0.003627197402824689
+      ]
+    }
+  },
+  "staggered_ratio_note": "delta_n_elec_max_z is sampled at the nonlinear operator, while I_max_z is sampled after the following linear half-step; their pointwise ratio is not an exact n2 identity. The median ratio is used only as a 1% gross-consistency check.",
+  "failures": []
+}
