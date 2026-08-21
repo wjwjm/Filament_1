@@ -25,6 +25,15 @@ def load_prepare():
     return module
 
 
+def load_postprocess():
+    path = ROOT / "tools" / "postprocess_raman_off_kerr085.py"
+    spec = importlib.util.spec_from_file_location("postprocess_raman_off_kerr085", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_prepare_is_exactly_one_field_and_loadable(tmp_path):
     module = load_prepare()
     base = json.loads(module.BASE.read_text(encoding="utf-8"))
@@ -86,3 +95,26 @@ def test_submission_scripts_do_not_pin_a_node():
     submit = (ROOT / "tools" / "submit_raman_off_kerr085_job.sh").read_text(encoding="utf-8")
     assert "--nodelist" not in sbatch and "--nodelist" not in submit
     assert "--chdir=" in submit and "--output=" in submit and "--error=" in submit
+
+
+def test_postprocess_ratio_check_accounts_for_staggered_diagnostics():
+    module = load_postprocess()
+    post_linear_intensity = np.linspace(1.0, 2.0, 101)
+    nonlinear_intensity = post_linear_intensity * np.linspace(0.996, 1.004, 101)
+    summary = module.summarize_staggered_index_ratio(
+        module.EXPECTED_N2 * nonlinear_intensity, post_linear_intensity
+    )
+    assert summary["finite_count"] == 101
+    assert np.isclose(
+        summary["median"], module.EXPECTED_N2,
+        rtol=module.STAGGERED_RATIO_MEDIAN_RTOL, atol=0.0,
+    )
+    assert summary["relative_abs_quantiles"][-1] > 2e-5
+
+    wrong = module.summarize_staggered_index_ratio(
+        2.0 * module.EXPECTED_N2 * nonlinear_intensity, post_linear_intensity
+    )
+    assert not np.isclose(
+        wrong["median"], module.EXPECTED_N2,
+        rtol=module.STAGGERED_RATIO_MEDIAN_RTOL, atol=0.0,
+    )

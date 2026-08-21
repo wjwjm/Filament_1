@@ -5,14 +5,40 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 from validate_raman_phase_ablation import validate_raman_phase_off
 
 
 EXPECTED_N2 = 6.63e-24
+STAGGERED_RATIO_MEDIAN_RTOL = 1e-2
+
+
+def summarize_staggered_index_ratio(
+    delta_n_elec_max: np.ndarray,
+    intensity_after_linear_halfstep: np.ndarray,
+) -> dict:
+    """Summarize a consistency ratio whose numerator and denominator are staggered."""
+    dn = np.asarray(delta_n_elec_max, float)
+    imax = np.asarray(intensity_after_linear_halfstep, float)
+    mask = np.isfinite(dn) & np.isfinite(imax) & (imax > 0.0)
+    ratio = dn[mask] / imax[mask]
+    if ratio.size == 0:
+        return {"finite_count": 0, "median": None, "relative_abs_quantiles": []}
+    relative_abs = np.abs(ratio / EXPECTED_N2 - 1.0)
+    return {
+        "finite_count": int(ratio.size),
+        "median": float(np.median(ratio)),
+        "relative_abs_quantiles": [
+            float(value) for value in np.quantile(relative_abs, [0.0, 0.5, 0.9, 0.99, 1.0])
+        ],
+    }
 
 
 def validate(npz: Path, config: Path, metadata: Path, expected_sha: str) -> dict:
@@ -30,13 +56,17 @@ def validate(npz: Path, config: Path, metadata: Path, expected_sha: str) -> dict
             if not np.isclose(scalars["n2_elec_used"], EXPECTED_N2, rtol=1e-7, atol=0.0):
                 failures.append("n2_elec_used is not 6.63e-24")
         if "delta_n_elec_max_z" in data.files and "I_max_z" in data.files:
-            dn = np.asarray(data["delta_n_elec_max_z"], float)
-            imax = np.asarray(data["I_max_z"], float)
-            mask = imax > 0.0
-            ratio = dn[mask] / imax[mask]
-            scalars["median_delta_n_elec_over_I"] = float(np.median(ratio))
-            if not np.allclose(ratio, EXPECTED_N2, rtol=2e-5, atol=0.0):
-                failures.append("delta_n_elec_max_z / I_max_z does not match 6.63e-24")
+            ratio_summary = summarize_staggered_index_ratio(
+                data["delta_n_elec_max_z"], data["I_max_z"]
+            )
+            scalars["staggered_delta_n_elec_over_I"] = ratio_summary
+            median = ratio_summary["median"]
+            if median is None or not np.isclose(
+                median, EXPECTED_N2, rtol=STAGGERED_RATIO_MEDIAN_RTOL, atol=0.0
+            ):
+                failures.append(
+                    "staggered median delta_n_elec_max_z / I_max_z is inconsistent with 6.63e-24"
+                )
     result["failures"] = failures
     result["passed"] = not failures
     result["candidate_scalars"] = scalars
@@ -54,6 +84,11 @@ def write(result: dict, out_dir: Path, npz: Path, config: Path) -> None:
         "base_summary": result["base"]["summary"],
         "raman_field_status": result["raman_field_status"],
         "candidate_scalars": result["candidate_scalars"],
+        "staggered_ratio_note": (
+            "delta_n_elec_max_z is sampled at the nonlinear operator, while I_max_z is "
+            "sampled after the following linear half-step; their pointwise ratio is not an "
+            "exact n2 identity. The median ratio is used only as a 1% gross-consistency check."
+        ),
         "failures": result["failures"],
     }
     (out_dir / "raman_off_kerr085_reaudit.json").write_text(

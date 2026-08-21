@@ -1,8 +1,8 @@
 {
   "schema": "khz_filament.raman_off_kerr085.submission_manifest.v1",
-  "status": "prepared_not_submitted",
+  "status": "completed_postprocessed",
   "jobs_authorized": 1,
-  "full_production_jobs_submitted": 0,
+  "full_production_jobs_submitted": 1,
   "direct_parent_worktree_lf_sha256": "95c74c17f3f4631bab56c2b2de076e23839c27054cfcd4460a55cbbac47e01d9",
   "direct_parent_executed_crlf_sha256": "d57aadda4c75999722f63919ac92d6a7a42c743d9c3ae2837d502e98176a49b5",
   "direct_parent_line_ending_note": "JSON semantics are identical; job 176915 recorded CRLF bytes, while Git checkout enforces LF",
@@ -22,6 +22,44 @@
     "site_default_memory_mb_per_gpu": 126000,
     "requested_time": "08:00:00",
     "expected_gpu_model": "NVIDIA GeForce RTX 5090"
+  },
+  "execution": {
+    "slurm_job_id": "220822",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "node": "m4gn1401",
+    "elapsed": "02:44:56",
+    "execution_git_sha": "ba730a28568eb46a811c418a040a09a302c60662",
+    "config_sha256": "da9cbdecf0e231ab55e4f66d2ba0e20df9f76642bc0bca0f608ec84d754d5088",
+    "npz_sha256": "7719ccf9600049ff918f2167b8213e0e002be4172880e22ac953b56c4a9aa55b",
+    "gpu_model": "NVIDIA GeForce RTX 5090",
+    "cpu_threads": 8,
+    "remote_run_dir": "/data/run01/scvi806/user_Wangjimin/raman_off_kerr085_20260821T073259Z/run",
+    "raw_npz_committed": false
+  },
+  "results": {
+    "postprocess_gate": "passed",
+    "candidate_1e22_onset_cm": -13.393971643586088,
+    "raman_off_1e22_onset_cm": -14.013635670804236,
+    "historical_fr_mixture_1e22_onset_cm": -13.395007613340857,
+    "pycap_1e22_onset_cm": -14.027210012757275,
+    "candidate_minus_raman_off_cm": 0.619664027218148,
+    "candidate_minus_historical_cm": 0.0010359697547688285,
+    "criterion_epsilon_cm": 0.1,
+    "supports_electronic_kerr_origin": true,
+    "candidate_peak_density_m-3": 2.0344637517877144e22,
+    "candidate_peak_density_x_cm": -9.850002527236935,
+    "candidate_peak_Imax_W_m-2": 5.43276666743423e17,
+    "candidate_peak_Imax_x_cm": -7.830001115798946,
+    "candidate_final_energy_relative_change": -0.03408045694231987,
+    "candidate_rejections_max": 0,
+    "candidate_safety_triggers_max": 0
+  },
+  "result_paths": {
+    "postprocess": "results/raman_off_kerr085_causality/postprocess_220822",
+    "comparison": "results/raman_off_kerr085_causality/comparison_220822",
+    "job_metadata": "results/raman_off_kerr085_causality/raman_off_kerr085_job_metadata.json",
+    "diagnostic_report": "results/raman_off_kerr085_causality/raman_off_kerr085.diagnostic_report.json"
   },
   "comparison_series": {
     "production": "results/ionization_model_propagation/talebpour_120fs_20260717T114321Z/baseline_axial_diagnostics.csv",

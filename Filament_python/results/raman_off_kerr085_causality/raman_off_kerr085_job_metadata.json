@@ -1,0 +1,15 @@
+{
+  "schema": "khz_filament.raman_off_kerr085.job_metadata.v1",
+  "case_id": "raman_off_kerr085",
+  "status": "completed",
+  "exit_code": 0,
+  "slurm_job_id": "220822",
+  "execution_git_sha": "ba730a28568eb46a811c418a040a09a302c60662",
+  "expected_git_sha": "ba730a28568eb46a811c418a040a09a302c60662",
+  "config_path": "/data/run01/scvi806/user_Wangjimin/raman_off_kerr085_20260821T073259Z/Filament_1/Filament_python/results/raman_off_kerr085_causality/raman_off_kerr085_120fs_config.json",
+  "config_sha256": "da9cbdecf0e231ab55e4f66d2ba0e20df9f76642bc0bca0f608ec84d754d5088",
+  "gpu_model": "NVIDIA GeForce RTX 5090",
+  "gpu_total_memory_bytes": 33668988928,
+  "cpu_threads": 8,
+  "diagnostic_schema": "khz_filament.propagation_observability.v1"
+}

@@ -132,6 +132,15 @@ def main() -> None:
         "case": name, "threshold_W_m-2": threshold,
         "x_cm": cc.cross(x, data["I_max_z"], threshold),
     } for threshold in INTENSITY_THRESHOLDS for name, data in series.items()]
+    intensity_peaks = []
+    for name, data in series.items():
+        imax = np.asarray(data["I_max_z"], float)
+        peak_index = int(np.argmax(imax))
+        intensity_peaks.append({
+            "case": name,
+            "I_max_peak_W_m-2": float(imax[peak_index]),
+            "peak_x_cm": float(x[peak_index]),
+        })
     energy = [{
         "case": name, "metric": field, "final": float(np.asarray(data[field])[-1]),
         "max_abs": float(np.max(np.abs(np.asarray(data[field])))),
@@ -163,6 +172,7 @@ def main() -> None:
             "supports_electronic_kerr_origin_within_epsilon": supports_electronic_origin,
         },
         "peak_and_width": peaks, "intensity_threshold_crossings": intensity,
+        "intensity_peaks": intensity_peaks,
         "energy_change": energy, "numerical_path": numerical,
         "phase_and_absorption_diagnostics": phase, "rmse_vs_pycap": rmses,
     }
@@ -171,6 +181,7 @@ def main() -> None:
     write_csv(args.out_dir / "rho_threshold_crossings.csv", crossings)
     write_csv(args.out_dir / "peak_and_width.csv", peaks)
     write_csv(args.out_dir / "intensity_threshold_crossings.csv", intensity)
+    write_csv(args.out_dir / "intensity_peaks.csv", intensity_peaks)
     write_csv(args.out_dir / "energy_change.csv", energy)
     write_csv(args.out_dir / "numerical_path.csv", numerical)
     write_csv(args.out_dir / "phase_and_absorption_diagnostics.csv", phase)
@@ -182,12 +193,16 @@ def main() -> None:
         "NOT SUPPORTED: candidate onset is not within the fixed epsilon of the historical mixture."
     )
     candidate_peak = next(row for row in peaks if row["case"] == "raman_off_kerr085")
+    candidate_intensity_peak = next(
+        row for row in intensity_peaks if row["case"] == "raman_off_kerr085"
+    )
     report = [
         "# Raman phase OFF + 0.85 electronic Kerr causal comparison", "",
         f"- 1e22 onset: Raman-OFF={off_onset:.6f} cm, candidate={candidate_onset:.6f} cm, historical={historical_onset:.6f} cm, PyCAP={onset['x_pycap_cm']:.6f} cm.",
         f"- Candidate shift from Raman-OFF: {candidate_onset - off_onset:+.6f} cm.",
         f"- Candidate residual to historical mixture: {candidate_onset - historical_onset:+.6f} cm (epsilon={epsilon:.3f} cm).",
         f"- Candidate peak density: {candidate_peak['rho_peak_m-3']:.4e} m^-3 at {candidate_peak['peak_x_cm']:.3f} cm.",
+        f"- Candidate peak I_max: {candidate_intensity_peak['I_max_peak_W_m-2']:.4e} W/m^2 at {candidate_intensity_peak['peak_x_cm']:.3f} cm.",
         f"- Core criterion: **{verdict}**", "",
     ]
     (args.out_dir / "raman_off_kerr085_comparison_report.md").write_text(
