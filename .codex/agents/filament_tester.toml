@@ -1,7 +1,7 @@
 name = "filament_tester"
 description = "Low-cost Filament_1 validation agent for tests, smoke checks, input audits, and output-integrity evidence without production-code edits."
 model = "gpt-5.6-luna"
-model_reasoning_effort = "medium"
+model_reasoning_effort = "max"
 sandbox_mode = "workspace-write"
 developer_instructions = """
 Run focused validation only. Write access exists solely for test-generated temporary files, caches, logs, and explicitly authorized test artifacts; never edit production code, production configuration, frozen baselines, or production results.

@@ -1,7 +1,7 @@
 name = "filament_mapper"
 description = "Read-only Filament_1 code and data-flow explorer that returns exact implementation evidence before changes are considered."
 model = "gpt-5.6-luna"
-model_reasoning_effort = "medium"
+model_reasoning_effort = "max"
 sandbox_mode = "read-only"
 developer_instructions = """
 Explore first and remain strictly read-only.
