@@ -1,0 +1,32 @@
+{
+  "schema": "khz_filament.raman_off_kerr085.submission_manifest.v1",
+  "status": "prepared_not_submitted",
+  "jobs_authorized": 1,
+  "full_production_jobs_submitted": 0,
+  "direct_parent_worktree_lf_sha256": "95c74c17f3f4631bab56c2b2de076e23839c27054cfcd4460a55cbbac47e01d9",
+  "direct_parent_executed_crlf_sha256": "d57aadda4c75999722f63919ac92d6a7a42c743d9c3ae2837d502e98176a49b5",
+  "direct_parent_line_ending_note": "JSON semantics are identical; job 176915 recorded CRLF bytes, while Git checkout enforces LF",
+  "derived_config_sha256": "da9cbdecf0e231ab55e4f66d2ba0e20df9f76642bc0bca0f608ec84d754d5088",
+  "strict_config_diff": [
+    {
+      "path": "beam.n2_air",
+      "raman_phase_off": 7.8e-24,
+      "raman_off_kerr085": 6.63e-24
+    }
+  ],
+  "physics_statement": "Raman phase OFF with electronic Kerr coefficient scaled to 0.85 of the phase-OFF parent",
+  "resources": {
+    "partition": "gpu",
+    "gpu_count": 1,
+    "cpu_threads": 8,
+    "site_default_memory_mb_per_gpu": 126000,
+    "requested_time": "08:00:00",
+    "expected_gpu_model": "NVIDIA GeForce RTX 5090"
+  },
+  "comparison_series": {
+    "production": "results/ionization_model_propagation/talebpour_120fs_20260717T114321Z/baseline_axial_diagnostics.csv",
+    "raman_phase_off": "results/raman_phase_causality/raman_phase_off_120fs_20260718T201000Z/raman_phase_off_axial_diagnostics.csv",
+    "historical_fr_mixture": "results/historical_fr_mixture_causality/postprocess_215812/historical_fr_mixture_axial_diagnostics.csv",
+    "pycap": "results/density_translation_width/density_translation_width_20260715_002/paper_pycap_120fs.csv"
+  }
+}

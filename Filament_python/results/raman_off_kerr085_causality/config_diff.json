@@ -1,0 +1,15 @@
+{
+  "schema": "khz_filament.raman_off_kerr085.config_diff.v1",
+  "direct_parent": "results\\raman_phase_causality\\raman_phase_off_120fs_20260718T201000Z\\120fs_talebpour_full_model_raman_phase_off.json",
+  "derived_config": "results\\raman_off_kerr085_causality\\raman_off_kerr085_120fs_config.json",
+  "differences": [
+    {
+      "path": "beam.n2_air",
+      "raman_phase_off": 7.8e-24,
+      "raman_off_kerr085": 6.63e-24
+    }
+  ],
+  "single_physical_variable": "beam.n2_air",
+  "electronic_kerr_scale": 0.85,
+  "status": "passed"
+}
