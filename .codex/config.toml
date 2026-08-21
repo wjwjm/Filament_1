@@ -31,3 +31,9 @@ max_energy_relative_growth_warn = 0.10
 max_rho_warn_m3 = 1.0e25
 require_positive_fwhm = true
 require_finite_diagnostics = true
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3
+default_subagent_model = "gpt-5.6-luna"
+default_subagent_reasoning_effort = "medium"
