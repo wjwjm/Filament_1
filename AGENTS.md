@@ -215,3 +215,100 @@
 Luna 子 Agent 可查代码和调用链、找配置和测试、整理证据、检查数值闭合、执行明确修改和低成本验证。以下决定必须保留给主 Sol Agent：为什么修改、物理模型是否合理、是否接受新数值策略、是否改变模型参数或冻结基准、是否启动完整传播或提交生产 Slurm Job、如何解释与 PyCAP/文献的差异，以及最终科学结论。遇到这些问题时，子 Agent 必须停止扩展并返回证据与待决问题。
 
 安装或调用 Agent 不得修改物理/数值模型、生产配置或生产数据，不得重新生成或覆盖冻结结果，不得混同冻结物理基准 SHA 与后续只读分析/文档 SHA，不得自行改变坐标、电子密度 onset 或 PyCAP 比较口径，也不得因测试通过而宣称已复现论文。
+
+<!-- BEGIN FILAMENT SUBAGENT ORCHESTRATION -->
+
+# Filament_1 Scientific-Code Subagent Orchestration
+
+## Scope
+
+These rules apply to the Filament_1 ultrashort-pulse filamentation simulation repository.
+
+They supplement the global code-engineering orchestration policy.
+
+Where this project policy is more restrictive than the global policy, this project policy takes precedence.
+
+The repository contains scientific and numerical simulation code. A change may be syntactically correct, software-correct, and test-passing while still being numerically or physically wrong. Scientific-code changes therefore require strict separation between:
+
+1. software correctness;
+2. numerical correctness;
+3. physical correctness.
+
+The parent Sol agent retains final scientific judgment.
+
+---
+
+## Project-Specific Agents
+
+Prefer these project-specific agents over their generic global equivalents when operating on Filament_1 scientific code.
+
+| Generic role | Filament_1 preferred role |
+| --- | --- |
+| `repo_explorer` | `filament_mapper` |
+| `scoped_worker` | `filament_worker` |
+| `code_reviewer` | `filament_numerical_reviewer` for scientific/numerical changes |
+| `test_runner` | `filament_tester` |
+| `debug_scout` | keep using global `debug_scout` |
+
+These are preferred roles, not a requirement to spawn every role for every task.
+
+---
+
+## Named-Agent Runtime Compatibility
+
+Use the configured named Filament agents when the runtime actually supports selecting them.
+
+Do not claim that `filament_mapper`, `filament_worker`, `filament_numerical_reviewer`, or `filament_tester` was used unless the corresponding custom role was actually selected or loaded.
+
+If named custom-agent selection is unavailable but generic subagent spawning works:
+
+- generic read-only children may be used for bounded investigation or review;
+- generic write children may be used only when their effective permissions and task scope are sufficiently controlled;
+- preserve the role boundaries described below;
+- report material loss of configured model, reasoning, sandbox, or custom-role guarantees.
+
+Do not silently treat a generic spawned thread as a loaded Filament custom agent.
+
+---
+
+## Parent Scientific Authority
+
+The parent agent is responsible for deciding:
+
+- whether a proposed physics change is justified;
+- whether a numerical strategy is acceptable;
+- whether a model discrepancy has been explained;
+- whether a reference comparison is valid;
+- whether a baseline may change;
+- whether an expensive propagation run or Slurm submission is warranted;
+- whether scientific evidence is sufficient for a conclusion.
+
+Subagents must stop and return evidence plus the remaining decision to the parent before acting on any item above.
+
+---
+
+## Project Routing and Sequencing
+
+1. Analysis-only scientific requests: prefer `filament_mapper`; run `filament_numerical_reviewer` in parallel when mathematical conventions, conserved quantities, phase, energy, causality, or physical closure must be assessed. Do not start `filament_worker`.
+2. Bounded scientific-code changes: first map the implementation chain as needed; let exactly one `filament_worker` write each overlapping code/configuration/test area; after integration, use `filament_numerical_reviewer` and `filament_tester` independently where practical.
+3. Fault diagnosis: use `debug_scout` for the reproducible technical cause and `filament_mapper` for code/configuration provenance. A worker begins only after the parent resolves the diagnosis and change boundary.
+4. Low-cost validation: `filament_tester` may run syntax, unit, smoke, input-audit, and output-integrity checks. Passing software tests do not establish numerical or physical correctness.
+
+Parallel work is restricted to independent read-only mapping, numerical review, diagnosis, and low-cost validation. Serialize all production-code writes, configuration changes that affect the same run, numerical integration, and final scientific acceptance.
+
+---
+
+## Non-Delegable Safety Stops
+
+No child agent may autonomously:
+
+- submit, cancel, alter, or monitor a production Slurm job as a decision-making action;
+- launch expensive or large-grid propagation beyond an explicitly approved bounded check;
+- change model defaults, frozen baselines, reference-comparison definitions, physical parameters, coordinate conventions, onset definitions, or PyCAP comparison semantics;
+- overwrite simulation outputs, caches, historical result artifacts, or frozen data;
+- commit, push, create a pull request, or make an external publication claim;
+- treat a passing test as proof of physical reproduction or scientific validity.
+
+For these cases, stop and return the relevant code/data provenance, numerical evidence, estimated cost or risk, and the precise parent or user decision required.
+
+<!-- END FILAMENT SUBAGENT ORCHESTRATION -->
