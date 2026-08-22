@@ -29,7 +29,10 @@ if str(FILAMENT_ROOT) not in sys.path:
 from validate_current_observability_baseline import sha256, validate_npz  # noqa: E402
 from create_isaacs_complete_eq27_execution_lock import (  # noqa: E402
     ExecutionLockError,
+    STAGING_PROVENANCE_METHOD,
+    STAGING_PROVENANCE_SOURCE_CLASS,
     validate_manifest_lock,
+    validate_staging_provenance,
 )
 
 
@@ -65,6 +68,7 @@ LOCK_SCHEMA = "khz_filament.isaacs_complete_eq27.c2_execution_lock.v1"
 FIXED_MANIFEST_REL = "results/isaacs_complete_eq27/submission_manifest.json"
 FIXED_CONFIG_REL = "results/isaacs_complete_eq27/120fs_talebpour_isaacs_complete_eq27.json"
 JOB_RECEIPT_SCHEMA = "khz_filament.isaacs_complete_eq27.job_receipt.v1"
+STAGING_PROVENANCE_SCHEMA = "khz_filament.isaacs_complete_eq27.staging_provenance.v1"
 
 
 def execution_git_sha(metadata: dict[str, Any]) -> str:
@@ -261,6 +265,54 @@ def _validate_execution_binding(
     if metadata.get("execution_lock_sha256") != lock_sha["sha256"]:
         failures.append("run metadata execution_lock_sha256 does not match the supplied lock")
 
+    staging_provenance: dict[str, Any] | None = None
+    staging_path_value = metadata.get("staging_provenance_path")
+    staging_sha_value = str(metadata.get("staging_provenance_sha256") or "").strip().lower()
+    if not isinstance(staging_path_value, str) or not staging_path_value.strip():
+        failures.append("run metadata staging_provenance_path is required")
+    if not staging_sha_value:
+        failures.append("run metadata staging_provenance_sha256 is required")
+    metadata_git_sha = str(metadata.get("execution_git_sha") or "").strip()
+    locked_git_sha = str(lock.get("expected_git_sha") or "").strip()
+    if not metadata_git_sha:
+        failures.append("run metadata lacks execution_git_sha for staging provenance")
+    if not locked_git_sha or metadata_git_sha != locked_git_sha:
+        failures.append("staging provenance execution SHA is not consistently bound to metadata/lock")
+    if isinstance(staging_path_value, str) and staging_path_value.strip() and staging_sha_value and locked_git_sha:
+        staging_path = Path(staging_path_value).resolve()
+        try:
+            staging_provenance = validate_staging_provenance(
+                staging_path,
+                expected_sha256=staging_sha_value,
+                expected_git_sha=locked_git_sha,
+                repo=FILAMENT_ROOT.parent,
+            )
+        except (ExecutionLockError, OSError, ValueError, KeyError, TypeError) as exc:
+            failures.append(f"candidate staging provenance validation failed: {exc}")
+        else:
+            if staging_provenance["path"] != str(staging_path):
+                failures.append("candidate staging provenance path does not match metadata")
+            if staging_provenance["sha256"] != staging_sha_value:
+                failures.append("candidate staging provenance SHA does not match metadata")
+            if staging_provenance["schema"] != STAGING_PROVENANCE_SCHEMA:
+                failures.append("candidate staging provenance schema is invalid")
+            if staging_provenance["method"] != STAGING_PROVENANCE_METHOD:
+                failures.append("candidate staging provenance method is not fixed")
+            if staging_provenance["source_class"] != STAGING_PROVENANCE_SOURCE_CLASS:
+                failures.append("candidate staging provenance source_class is not fixed")
+            if metadata.get("staging_provenance_method") != staging_provenance["method"]:
+                failures.append("run metadata staging_provenance_method does not match provenance")
+            if metadata.get("staging_provenance_source_class") != staging_provenance["source_class"]:
+                failures.append("run metadata staging_provenance_source_class does not match provenance")
+            if metadata.get("method") != staging_provenance["method"]:
+                failures.append("run metadata method does not match staging provenance")
+            if metadata.get("source_class") != staging_provenance["source_class"]:
+                failures.append("run metadata source_class does not match staging provenance")
+            if metadata.get("staging_provenance_branch") != staging_provenance["branch"]:
+                failures.append("run metadata staging_provenance_branch does not match provenance")
+            if staging_provenance["expected_git_sha"] != locked_git_sha or staging_provenance["expected_git_sha"] != metadata_git_sha:
+                failures.append("candidate staging provenance expected_git_sha does not match metadata/lock")
+
     manifest_hash = _hash_record(manifest_path, "candidate manifest", failures)
     expected_manifest_sha = str(metadata.get("manifest_sha256") or lock.get("manifest_sha256") or "").strip().lower()
     if not expected_manifest_sha or manifest_hash["sha256"] != expected_manifest_sha:
@@ -354,6 +406,13 @@ def _validate_execution_binding(
         "config_path": str(config_path.resolve()),
         "config_sha256": actual_config_sha,
         "expected_git_sha": str(metadata.get("execution_git_sha") or "").strip(),
+        "staging_provenance_path": str(metadata.get("staging_provenance_path") or ""),
+        "staging_provenance_sha256": str(metadata.get("staging_provenance_sha256") or "").strip().lower(),
+        "staging_provenance_method": str(metadata.get("staging_provenance_method") or ""),
+        "staging_provenance_source_class": str(metadata.get("staging_provenance_source_class") or ""),
+        "staging_provenance_branch": str(metadata.get("staging_provenance_branch") or ""),
+        "method": str(metadata.get("method") or ""),
+        "source_class": str(metadata.get("source_class") or ""),
     }.items():
         if receipt.get(key) != expected:
             failures.append(f"candidate held-job receipt {key} does not match the execution binding")
@@ -387,11 +446,38 @@ def _validate_execution_binding(
         "execution_lock": lock_sha,
         "submission_lock": submission_hash,
         "job_receipt": receipt_hash,
+        "staging_provenance": (
+            {"path": staging_provenance["path"], "sha256": staging_provenance["sha256"]}
+            if staging_provenance is not None else {
+                "path": str(metadata.get("staging_provenance_path") or ""),
+                "sha256": str(metadata.get("staging_provenance_sha256") or ""),
+            }
+        ),
         "global_consumed_lock": {"path": str(global_record.resolve()), "sha256": global_hash["sha256"]},
         "campaign_id": CAMPAIGN_ID,
         "remote_campaign_root": REMOTE_CAMPAIGN_ROOT,
         "operator_mode": COMPLETE_MODE,
         "use_raman_full_operator": True,
+        "staging_provenance_method": (
+            staging_provenance["method"] if staging_provenance is not None
+            else str(metadata.get("staging_provenance_method") or "")
+        ),
+        "staging_provenance_source_class": (
+            staging_provenance["source_class"] if staging_provenance is not None
+            else str(metadata.get("staging_provenance_source_class") or "")
+        ),
+        "staging_provenance_branch": (
+            staging_provenance["branch"] if staging_provenance is not None
+            else str(metadata.get("staging_provenance_branch") or "")
+        ),
+        "method": (
+            staging_provenance["method"] if staging_provenance is not None
+            else str(metadata.get("method") or "")
+        ),
+        "source_class": (
+            staging_provenance["source_class"] if staging_provenance is not None
+            else str(metadata.get("source_class") or "")
+        ),
     })
     return binding
 
@@ -751,12 +837,21 @@ def write_audit(result: dict[str, Any], out_dir: Path, *, npz_path: Path, config
         "operator_mode": COMPLETE_MODE,
         "operator_state": operator_state,
         "operator": {"mode": COMPLETE_MODE, "state": operator_state},
-        "provenance_class": "candidate_execution_verified",
+        "provenance_class": STAGING_PROVENANCE_SOURCE_CLASS,
+        "execution_provenance_class": "candidate_execution_verified",
         "provenance": {
-            "class": "candidate_execution_verified",
+            "class": STAGING_PROVENANCE_SOURCE_CLASS,
+            "execution_class": "candidate_execution_verified",
             "execution_git_sha": execution_git_sha(metadata),
             "expected_execution_sha": result.get("expected_execution_sha"),
             "run_status": run_status,
+            "staging": binding.get("staging_provenance", {
+                "path": str(metadata.get("staging_provenance_path") or ""),
+                "sha256": str(metadata.get("staging_provenance_sha256") or ""),
+            }),
+            "method": binding.get("staging_provenance_method", metadata.get("staging_provenance_method")),
+            "source_class": binding.get("staging_provenance_source_class", metadata.get("staging_provenance_source_class")),
+            "branch": binding.get("staging_provenance_branch", metadata.get("staging_provenance_branch")),
         },
         "numerical_admission": numerical_admission,
         "numerical_admission_detail": {
@@ -797,6 +892,22 @@ def write_audit(result: dict[str, Any], out_dir: Path, *, npz_path: Path, config
             "path": str(metadata.get("job_receipt_path") or ""),
             "sha256": str(metadata.get("job_receipt_sha256") or ""),
         }),
+        "staging_provenance": binding.get("staging_provenance", {
+            "path": str(metadata.get("staging_provenance_path") or ""),
+            "sha256": str(metadata.get("staging_provenance_sha256") or ""),
+        }),
+        "staging_provenance_method": binding.get(
+            "staging_provenance_method", metadata.get("staging_provenance_method")
+        ),
+        "staging_provenance_source_class": binding.get(
+            "staging_provenance_source_class", metadata.get("staging_provenance_source_class")
+        ),
+        "staging_provenance_branch": binding.get(
+            "staging_provenance_branch", metadata.get("staging_provenance_branch")
+        ),
+        "provenance_class": STAGING_PROVENANCE_SOURCE_CLASS,
+        "method": STAGING_PROVENANCE_METHOD,
+        "source_class": STAGING_PROVENANCE_SOURCE_CLASS,
             "campaign_id": CAMPAIGN_ID,
             "remote_campaign_root": REMOTE_CAMPAIGN_ROOT,
             "operator_mode": COMPLETE_MODE,
@@ -817,6 +928,8 @@ def write_audit(result: dict[str, Any], out_dir: Path, *, npz_path: Path, config
         "# Complete Isaacs Eq. (27) candidate postprocess",
         "",
         f"Gate: **{payload['gate']}**.",
+        "",
+        f"Candidate staging provenance class: `{payload['provenance_class']}`. This verified-bundle source does not establish a direct GitHub remote push/fetch verification.",
         "",
         "The candidate is required to use `full_isaacs_eq27_complete`, with the full complex Eq. (27) electronic and rotational RHS, no legacy Raman absorption, and fixed x_focus_cm = 100 * (z_m - 0.95).",
         "",

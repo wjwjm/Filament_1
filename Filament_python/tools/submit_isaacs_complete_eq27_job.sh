@@ -12,6 +12,8 @@ set -euo pipefail
 : "${EXECUTION_LOCK_PATH:?missing EXECUTION_LOCK_PATH}"
 : "${EXPECTED_EXECUTION_LOCK_SHA256:?missing EXPECTED_EXECUTION_LOCK_SHA256}"
 : "${EXPECTED_GPU_MODEL:?missing EXPECTED_GPU_MODEL}"
+: "${STAGING_PROVENANCE_PATH:?missing STAGING_PROVENANCE_PATH}"
+: "${EXPECTED_STAGING_PROVENANCE_SHA256:?missing EXPECTED_STAGING_PROVENANCE_SHA256}"
 
 readonly FIXED_REMOTE_CAMPAIGN_ROOT="/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2"
 readonly FIXED_CAMPAIGN_ID="isaacs_complete_eq27_c2"
@@ -90,6 +92,62 @@ actual_execution_lock_sha256="$(sha256sum "${EXECUTION_LOCK_PATH}" | awk '{print
 if [[ "${actual_execution_lock_sha256}" != "${EXPECTED_EXECUTION_LOCK_SHA256}" ]]; then
   echo "FATAL: execution lock SHA mismatch expected=${EXPECTED_EXECUTION_LOCK_SHA256} actual=${actual_execution_lock_sha256}" >&2
   exit 23
+fi
+
+# The verified-bundle provenance is an external, read-only input.  It is
+# validated before any RUN_DIR/campaign-lock side effect and is intentionally
+# not copied into the manifest or submission/global records.
+if [[ "${STAGING_PROVENANCE_PATH}" != /* ]]; then
+  STAGING_PROVENANCE_DIR="$(dirname -- "${STAGING_PROVENANCE_PATH}")"
+  STAGING_PROVENANCE_NAME="$(basename -- "${STAGING_PROVENANCE_PATH}")"
+  STAGING_PROVENANCE_DIR="$(cd -- "${STAGING_PROVENANCE_DIR}" && pwd -P)" || {
+    echo "FATAL: cannot resolve STAGING_PROVENANCE_PATH: ${STAGING_PROVENANCE_PATH}" >&2
+    exit 2
+  }
+  STAGING_PROVENANCE_PATH="${STAGING_PROVENANCE_DIR}/${STAGING_PROVENANCE_NAME}"
+fi
+[[ -f "${STAGING_PROVENANCE_PATH}" ]] || {
+  echo "FATAL: staging provenance not found: ${STAGING_PROVENANCE_PATH}" >&2
+  exit 26
+}
+actual_staging_provenance_sha256="$(sha256sum "${STAGING_PROVENANCE_PATH}" | awk '{print $1}')"
+if [[ "${actual_staging_provenance_sha256}" != "${EXPECTED_STAGING_PROVENANCE_SHA256}" ]]; then
+  echo "FATAL: staging provenance SHA mismatch expected=${EXPECTED_STAGING_PROVENANCE_SHA256} actual=${actual_staging_provenance_sha256}" >&2
+  exit 23
+fi
+staging_validation="$(
+  REPO_DIR="${REPO_DIR}" EXPECTED_GIT_SHA="${EXPECTED_GIT_SHA}" \
+  EXECUTION_LOCK_PATH="${EXECUTION_LOCK_PATH}" \
+  EXPECTED_STAGING_PROVENANCE_SHA256="${actual_staging_provenance_sha256}" \
+  python3 - "${STAGING_PROVENANCE_PATH}" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+repo = Path(os.environ["REPO_DIR"]).resolve()
+sys.path.insert(0, str(repo / "Filament_python" / "tools"))
+from create_isaacs_complete_eq27_execution_lock import validate_staging_provenance
+
+lock = json.loads(Path(os.environ["EXECUTION_LOCK_PATH"]).read_text(encoding="utf-8"))
+if not isinstance(lock, dict) or lock.get("expected_git_sha") != os.environ["EXPECTED_GIT_SHA"]:
+    raise SystemExit("staging provenance execution SHA does not match the execution lock")
+binding = validate_staging_provenance(
+    Path(sys.argv[1]),
+    expected_sha256=os.environ["EXPECTED_STAGING_PROVENANCE_SHA256"],
+    expected_git_sha=lock["expected_git_sha"],
+    repo=repo,
+)
+print(f"{binding['method']}\t{binding['source_class']}\t{binding['branch']}")
+PY
+)" || {
+  echo "FATAL: verified-bundle staging provenance preflight failed" >&2
+  exit 2
+}
+IFS=$'\t' read -r STAGING_PROVENANCE_METHOD STAGING_PROVENANCE_SOURCE_CLASS STAGING_PROVENANCE_BRANCH <<< "${staging_validation}"
+if [[ -z "${STAGING_PROVENANCE_METHOD}" || -z "${STAGING_PROVENANCE_SOURCE_CLASS}" || -z "${STAGING_PROVENANCE_BRANCH}" ]]; then
+  echo "FATAL: staging provenance preflight returned incomplete binding" >&2
+  exit 2
 fi
 
 # Re-run the shared side-effect-free validator before reserving RUN_DIR or the
@@ -435,6 +493,8 @@ write_post_sbatch_failure() {
     printf 'config_path=%s\n' "${CONFIG_PATH}"
     printf 'expected_config_sha256=%s\n' "${EXPECTED_CONFIG_SHA256}"
     printf 'expected_git_sha=%s\n' "${EXPECTED_GIT_SHA}"
+    printf 'staging_provenance_path=%s\n' "${STAGING_PROVENANCE_PATH}"
+    printf 'staging_provenance_sha256=%s\n' "${actual_staging_provenance_sha256}"
     printf 'run_dir=%s\n' "${RUN_DIR}"
     printf 'job_receipt_path=%s\n' "${JOB_RECEIPT_PATH}"
     [[ -n "${detail}" ]] && printf 'detail=%s\n' "${detail}"
@@ -508,6 +568,8 @@ export EXPECTED_GPU_MODEL CASE_ID SUBMISSION_LOCK MANIFEST_PATH EXPECTED_MANIFES
 export CAMPAIGN_ID="${FIXED_CAMPAIGN_ID}"
 export REMOTE_CAMPAIGN_ROOT="${FIXED_REMOTE_CAMPAIGN_ROOT}"
 export GLOBAL_CONSUMED_LOCK EXECUTION_LOCK_PATH EXPECTED_EXECUTION_LOCK_SHA256 JOB_RECEIPT_PATH
+export STAGING_PROVENANCE_PATH EXPECTED_STAGING_PROVENANCE_SHA256
+export STAGING_PROVENANCE_METHOD STAGING_PROVENANCE_SOURCE_CLASS STAGING_PROVENANCE_BRANCH
 
 # Submit held first.  The job receipt is the immutable job-id binding; the
 # submission/global records are never edited after sbatch returns.
@@ -540,7 +602,11 @@ if ! JOB_ID="${job_id}" RECEIPT_PATH="${JOB_RECEIPT_PATH}" \
   CONFIG_PATH="${CONFIG_PATH}" CONFIG_SHA256="${EXPECTED_CONFIG_SHA256}" \
   EXPECTED_GIT_SHA="${EXPECTED_GIT_SHA}" CAMPAIGN_ID="${FIXED_CAMPAIGN_ID}" \
   REMOTE_CAMPAIGN_ROOT="${FIXED_REMOTE_CAMPAIGN_ROOT}" RUN_DIR="${RUN_DIR}" \
-  RESERVATION_TOKEN="${OWNER_TOKEN}" python3 - <<'PY'
+  RESERVATION_TOKEN="${OWNER_TOKEN}" STAGING_PROVENANCE_PATH="${STAGING_PROVENANCE_PATH}" \
+  STAGING_PROVENANCE_SHA256="${actual_staging_provenance_sha256}" \
+  STAGING_PROVENANCE_METHOD="${STAGING_PROVENANCE_METHOD}" \
+  STAGING_PROVENANCE_SOURCE_CLASS="${STAGING_PROVENANCE_SOURCE_CLASS}" \
+  STAGING_PROVENANCE_BRANCH="${STAGING_PROVENANCE_BRANCH}" python3 - <<'PY'
 import json
 import os
 import stat
@@ -562,6 +628,13 @@ payload = {
     "config_path": os.path.realpath(os.environ["CONFIG_PATH"]),
     "config_sha256": os.environ["CONFIG_SHA256"],
     "expected_git_sha": os.environ["EXPECTED_GIT_SHA"],
+    "staging_provenance_path": os.path.realpath(os.environ["STAGING_PROVENANCE_PATH"]),
+    "staging_provenance_sha256": os.environ["STAGING_PROVENANCE_SHA256"],
+    "staging_provenance_method": os.environ["STAGING_PROVENANCE_METHOD"],
+    "staging_provenance_source_class": os.environ["STAGING_PROVENANCE_SOURCE_CLASS"],
+    "staging_provenance_branch": os.environ["STAGING_PROVENANCE_BRANCH"],
+    "method": os.environ["STAGING_PROVENANCE_METHOD"],
+    "source_class": os.environ["STAGING_PROVENANCE_SOURCE_CLASS"],
 }
 path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 os.chmod(path, stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)

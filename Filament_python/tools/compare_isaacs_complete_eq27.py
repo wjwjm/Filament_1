@@ -29,7 +29,10 @@ if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 from create_isaacs_complete_eq27_execution_lock import (  # noqa: E402
     ExecutionLockError,
+    STAGING_PROVENANCE_METHOD,
+    STAGING_PROVENANCE_SOURCE_CLASS,
     validate_manifest_lock,
+    validate_staging_provenance,
 )
 
 
@@ -61,6 +64,7 @@ CASE_LABELS = {
 EXPECTED_GPU_MODEL = "NVIDIA GeForce RTX 5090"
 EXPECTED_I_CAP = 1.0e19
 JOB_RECEIPT_SCHEMA = "khz_filament.isaacs_complete_eq27.job_receipt.v1"
+STAGING_PROVENANCE_SCHEMA = "khz_filament.isaacs_complete_eq27.staging_provenance.v1"
 FIXED_CONFIG_PATH = Path(__file__).resolve().parents[1] / "results" / "isaacs_complete_eq27" / "120fs_talebpour_isaacs_complete_eq27.json"
 FIXED_PYCAP_PATH = Path(__file__).resolve().parents[1] / "results" / "density_translation_width" / "density_translation_width_20260715_002" / "paper_pycap_120fs.csv"
 FIXED_PYCAP_SHA256 = "9b43e75ebc08ccb0a7796829e45c6727b42ab12cd661b9a3d8d235ef89d31461"
@@ -306,6 +310,11 @@ def _candidate_raw_chain(
     source = audit.get("raw_source")
     if not isinstance(source, dict) or source.get("generated_from_raw_npz") is not True:
         return ["candidate audit lacks generated_from_raw_npz raw-source chain"]
+    if audit.get("provenance_class") != STAGING_PROVENANCE_SOURCE_CLASS:
+        return ["candidate audit provenance_class is not verified_bundle_non_strict"]
+    provenance = audit.get("provenance")
+    if not isinstance(provenance, dict) or provenance.get("class") != STAGING_PROVENANCE_SOURCE_CLASS:
+        return ["candidate audit provenance class is not verified_bundle_non_strict"]
     if source.get("job_id") != expected_job_id:
         failures = ["candidate raw-source job id does not match the audit"]
     else:
@@ -316,8 +325,13 @@ def _candidate_raw_chain(
         failures.append("candidate raw-source use_raman_full_operator is not true")
     if source.get("gpu_model") != EXPECTED_GPU_MODEL:
         failures.append("candidate raw-source GPU model is not fixed")
+    if source.get("provenance_class") != STAGING_PROVENANCE_SOURCE_CLASS:
+        failures.append("candidate raw-source provenance_class is not verified_bundle_non_strict")
     records: dict[str, dict[str, Any]] = {}
-    for name in ("npz", "metadata", "config", "manifest", "execution_lock", "submission_lock", "global_consumed_lock", "job_receipt"):
+    for name in (
+        "npz", "metadata", "config", "manifest", "execution_lock", "submission_lock",
+        "global_consumed_lock", "job_receipt", "staging_provenance",
+    ):
         value = source.get(name)
         if (
             not isinstance(value, dict)
@@ -363,6 +377,33 @@ def _candidate_raw_chain(
     except InsufficientEvidenceError as exc:
         return [str(exc)]
     expected_sha = str(metadata.get("execution_git_sha") or "").strip()
+    staging: dict[str, Any] | None = None
+    try:
+        staging = validate_staging_provenance(
+            paths["staging_provenance"],
+            expected_sha256=records["staging_provenance"]["sha256"],
+            expected_git_sha=expected_sha,
+            repo=Path(__file__).resolve().parents[2],
+        )
+    except (ExecutionLockError, OSError, ValueError, KeyError, TypeError) as exc:
+        failures.append(f"candidate raw-source staging provenance validation failed: {exc}")
+    else:
+        if staging["schema"] != STAGING_PROVENANCE_SCHEMA:
+            failures.append("candidate raw-source staging provenance schema is invalid")
+        if staging["method"] != STAGING_PROVENANCE_METHOD:
+            failures.append("candidate raw-source staging provenance method is not fixed")
+        if staging["source_class"] != STAGING_PROVENANCE_SOURCE_CLASS:
+            failures.append("candidate raw-source staging provenance source_class is not fixed")
+        if source.get("staging_provenance_method") != staging["method"]:
+            failures.append("candidate raw-source staging provenance method does not match the file")
+        if source.get("staging_provenance_source_class") != staging["source_class"]:
+            failures.append("candidate raw-source staging provenance source_class does not match the file")
+        if source.get("method") != staging["method"]:
+            failures.append("candidate raw-source method does not match staging provenance")
+        if source.get("source_class") != staging["source_class"]:
+            failures.append("candidate raw-source source_class does not match staging provenance")
+        if source.get("staging_provenance_branch") != staging["branch"]:
+            failures.append("candidate raw-source staging provenance branch does not match the file")
     if str(metadata.get("slurm_job_id") or "").strip() != expected_job_id:
         failures.append("candidate raw metadata job id does not match the audit")
     if metadata.get("status") != "completed" or metadata.get("exit_code") != 0:
@@ -385,6 +426,20 @@ def _candidate_raw_chain(
         failures.append("candidate raw metadata execution_lock_sha256 does not match the raw chain")
     if metadata.get("manifest_path") != records["manifest"]["path"] or metadata.get("manifest_sha256") != records["manifest"]["sha256"]:
         failures.append("candidate raw metadata manifest binding does not match the raw chain")
+    if metadata.get("staging_provenance_path") != records["staging_provenance"]["path"]:
+        failures.append("candidate raw metadata staging provenance path does not match the raw chain")
+    if str(metadata.get("staging_provenance_sha256") or "").strip().lower() != records["staging_provenance"]["sha256"]:
+        failures.append("candidate raw metadata staging provenance SHA does not match the raw chain")
+    if metadata.get("staging_provenance_method") != STAGING_PROVENANCE_METHOD:
+        failures.append("candidate raw metadata staging provenance method is not fixed")
+    if metadata.get("staging_provenance_source_class") != STAGING_PROVENANCE_SOURCE_CLASS:
+        failures.append("candidate raw metadata staging provenance source_class is not fixed")
+    if metadata.get("method") != STAGING_PROVENANCE_METHOD:
+        failures.append("candidate raw metadata method is not fixed")
+    if metadata.get("source_class") != STAGING_PROVENANCE_SOURCE_CLASS:
+        failures.append("candidate raw metadata source_class is not fixed")
+    if staging is not None and metadata.get("staging_provenance_branch") != staging["branch"]:
+        failures.append("candidate raw metadata staging provenance branch does not match the file")
     try:
         receipt = _read_raw_metadata(paths["job_receipt"], label="candidate held-job receipt")
     except InsufficientEvidenceError as exc:
@@ -412,6 +467,8 @@ def _candidate_raw_chain(
         failures.append("candidate receipt reservation_token does not match submission/global records")
     if metadata.get("job_receipt_path") != records["job_receipt"]["path"] or metadata.get("job_receipt_sha256") != records["job_receipt"]["sha256"]:
         failures.append("candidate raw metadata job receipt binding does not match the raw chain")
+    if source.get("staging_provenance") != records["staging_provenance"]:
+        failures.append("candidate raw-source staging provenance record does not match the raw chain")
     for key, expected in {
         "campaign_id": "isaacs_complete_eq27_c2",
         "remote_campaign_root": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2",
@@ -423,6 +480,13 @@ def _candidate_raw_chain(
         "config_path": records["config"]["path"],
         "config_sha256": records["config"]["sha256"],
         "expected_git_sha": expected_sha,
+        "staging_provenance_path": records["staging_provenance"]["path"],
+        "staging_provenance_sha256": records["staging_provenance"]["sha256"],
+        "staging_provenance_method": STAGING_PROVENANCE_METHOD,
+        "staging_provenance_source_class": STAGING_PROVENANCE_SOURCE_CLASS,
+        "staging_provenance_branch": str(metadata.get("staging_provenance_branch") or ""),
+        "method": STAGING_PROVENANCE_METHOD,
+        "source_class": STAGING_PROVENANCE_SOURCE_CLASS,
     }.items():
         if receipt.get(key) != expected:
             failures.append(f"candidate held-job receipt {key} is not fixed")
@@ -463,6 +527,8 @@ def _candidate_raw_chain(
             failures.append(f"candidate execution lock {key} is not fixed")
     if lock.get("expected_git_sha") != expected_sha:
         failures.append("candidate execution lock expected_git_sha does not match metadata")
+    if staging is not None and staging["expected_git_sha"] != lock.get("expected_git_sha"):
+        failures.append("candidate staging provenance expected_git_sha does not match execution lock")
     try:
         manifest = _read_raw_metadata(paths["manifest"], label="candidate C2 manifest")
     except InsufficientEvidenceError as exc:
@@ -1385,6 +1451,13 @@ def compare(
                 "job_id": candidate_job_id,
                 "audit_json": str(candidate_audit),
                 "audit_gate": "passed",
+                "provenance_class": STAGING_PROVENANCE_SOURCE_CLASS,
+                "staging_provenance": candidate_audit_payload.get("provenance", {}).get("staging", {}),
+                "qualification": (
+                    "Candidate execution is bound to an externally verified Git bundle, "
+                    "but this verified_bundle_non_strict source does not prove a direct "
+                    "GitHub remote push/fetch."
+                ),
             },
             "excluded_invalid_jobs": ["179706", "179988"],
             "excluded_invalid_jobs_reason": "not used for physical classification",
@@ -1419,6 +1492,7 @@ def compare(
         f"- Full-axis RMSE current/candidate: `{rmse['current_full_eq27']}` / `{rmse['candidate_complete_eq27']}` m^-3.",
         "",
         f"Fallback qualification: current full Eq.27 job 180748 and Raman-OFF job 180749 are `{FALLBACK_PROVENANCE_CLASS}` comparators. Their supplied audits and CSV path/SHA records passed, but this remains a non-strict fallback comparison and is not evidence of a strict same-run pair; those jobs used mixed_precision while the locked mother/candidate retains its baseline default linear precision.",
+        f"Candidate provenance qualification: `{STAGING_PROVENANCE_SOURCE_CLASS}` (verified Git bundle after remote GitHub transport failure); this does not establish direct GitHub remote push/fetch verification.",
         "Invalid jobs 179706 and 179988 are excluded from physical classification.",
         "",
         "Causal interpretation: this classification covers the complete combined Eq.27 implementation, including electronic stage placement and electronic-rotational Heun coupling; it does not isolate the derivative algebra alone.",

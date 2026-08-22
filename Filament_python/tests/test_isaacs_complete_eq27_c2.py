@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -136,7 +137,24 @@ def _write_candidate_chain(
     config_path = post.FILAMENT_ROOT / "results" / "isaacs_complete_eq27" / "120fs_talebpour_isaacs_complete_eq27.json"
     manifest_path = post.FILAMENT_ROOT / "results" / "isaacs_complete_eq27" / "submission_manifest.json"
     metadata_path = run_dir / "metadata.json"
-    execution_sha = "d" * 40
+    execution_sha = subprocess.check_output(
+        ["git", "-C", str(ROOT.parent), "rev-parse", "HEAD"], text=True,
+    ).strip()
+    branch = subprocess.check_output(
+        ["git", "-C", str(ROOT.parent), "branch", "--show-current"], text=True,
+    ).strip()
+    staging_path = tmp_path / f"staging_provenance_{job_id}.json"
+    staging_path.write_text(json.dumps({
+        "schema": "khz_filament.isaacs_complete_eq27.staging_provenance.v1",
+        "method": "verified_git_bundle_after_remote_github_transport_failure",
+        "source_class": "verified_bundle_non_strict",
+        "expected_git_sha": execution_sha,
+        "branch": branch,
+        "github_push_verified": True,
+        "bundle_path": str(tmp_path / f"bundle_{job_id}.bundle"),
+        "bundle_sha256": "b" * 64,
+        "remote_failure_logs": ["github_transport_failure.log"],
+    }, indent=2) + "\n", encoding="utf-8")
     metadata = {
         "schema": "khz_filament.isaacs_complete_eq27.job_metadata.v1", "status": "completed", "exit_code": 0,
         "slurm_job_id": job_id, "execution_git_sha": execution_sha, "propagation_invocations": 1,
@@ -145,6 +163,13 @@ def _write_candidate_chain(
         "config_path": str(config_path.resolve()), "config_sha256": _sha(config_path),
         "npz_sha256": _sha(npz_path), "manifest_path": str(manifest_path.resolve()), "manifest_sha256": _sha(manifest_path),
         "global_consumed_lock": str((tmp_path / f"global_{job_id}_{'full' if include_numerical else 'incomplete'}" / ".consumed.lock").resolve()),
+        "staging_provenance_path": str(staging_path.resolve()),
+        "staging_provenance_sha256": _sha(staging_path),
+        "staging_provenance_method": "verified_git_bundle_after_remote_github_transport_failure",
+        "staging_provenance_source_class": "verified_bundle_non_strict",
+        "staging_provenance_branch": branch,
+        "method": "verified_git_bundle_after_remote_github_transport_failure",
+        "source_class": "verified_bundle_non_strict",
     }
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     lock_path = tmp_path / "execution_lock.json"
@@ -194,6 +219,13 @@ def _write_candidate_chain(
         "manifest_sha256": _sha(manifest_path), "execution_lock_path": str(lock_path.resolve()),
         "execution_lock_sha256": _sha(lock_path), "config_path": str(config_path.resolve()),
         "config_sha256": _sha(config_path), "expected_git_sha": execution_sha,
+        "staging_provenance_path": str(staging_path.resolve()),
+        "staging_provenance_sha256": _sha(staging_path),
+        "staging_provenance_method": "verified_git_bundle_after_remote_github_transport_failure",
+        "staging_provenance_source_class": "verified_bundle_non_strict",
+        "staging_provenance_branch": branch,
+        "method": "verified_git_bundle_after_remote_github_transport_failure",
+        "source_class": "verified_bundle_non_strict",
     }
     receipt_path.write_text(json.dumps(receipt, indent=2), encoding="utf-8")
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
@@ -214,6 +246,12 @@ def _write_candidate_chain(
             "submission_lock": {"path": str(submission_path.resolve()), "sha256": _sha(submission_path)},
             "global_consumed_lock": {"path": str(global_record.resolve()), "sha256": _sha(global_record)},
             "job_receipt": {"path": str(receipt_path.resolve()), "sha256": _sha(receipt_path)},
+            "staging_provenance": {"path": str(staging_path.resolve()), "sha256": _sha(staging_path)},
+            "staging_provenance_method": "verified_git_bundle_after_remote_github_transport_failure",
+            "staging_provenance_source_class": "verified_bundle_non_strict",
+            "staging_provenance_branch": branch,
+            "method": "verified_git_bundle_after_remote_github_transport_failure",
+            "source_class": "verified_bundle_non_strict",
         },
     }
     post.validate = lambda *args, **kwargs: result
@@ -385,6 +423,55 @@ def test_execution_lock_binds_clean_head_manifest_and_config_without_submission(
     assert 'subprocess.run(["sbatch"' not in source
 
 
+def test_staging_provenance_schema_hash_and_field_tamper_are_rejected(tmp_path):
+    module = _load("create_isaacs_complete_eq27_execution_lock.py")
+    head = subprocess.check_output(["git", "-C", str(ROOT.parent), "rev-parse", "HEAD"], text=True).strip()
+    branch = subprocess.check_output(["git", "-C", str(ROOT.parent), "branch", "--show-current"], text=True).strip()
+    payload = {
+        "schema": module.STAGING_PROVENANCE_SCHEMA,
+        "method": module.STAGING_PROVENANCE_METHOD,
+        "source_class": module.STAGING_PROVENANCE_SOURCE_CLASS,
+        "expected_git_sha": head,
+        "branch": branch,
+        "github_push_verified": True,
+        "bundle_path": str(tmp_path / "verified.bundle"),
+        "bundle_sha256": "b" * 64,
+        "remote_failure_logs": ["remote-github-timeout.log"],
+    }
+    path = tmp_path / "staging_provenance.json"
+
+    def write(value):
+        path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+
+    write(payload)
+    valid = module.validate_staging_provenance(
+        path, expected_sha256=_sha(path), expected_git_sha=head, repo=ROOT.parent,
+        expected_branch=branch,
+    )
+    assert valid["source_class"] == "verified_bundle_non_strict"
+
+    with pytest.raises(module.ExecutionLockError, match="SHA mismatch"):
+        module.validate_staging_provenance(path, expected_sha256="0" * 64, expected_git_sha=head, repo=ROOT.parent)
+
+    for field, value in {
+        "schema": "tampered.schema",
+        "method": "direct_github_push",
+        "source_class": "strict_remote_verified",
+        "branch": "tampered-branch",
+        "github_push_verified": False,
+        "bundle_path": "",
+        "bundle_sha256": "",
+        "remote_failure_logs": [],
+    }.items():
+        tampered = dict(payload)
+        tampered[field] = value
+        write(tampered)
+        with pytest.raises(module.ExecutionLockError):
+            module.validate_staging_provenance(
+                path, expected_sha256=_sha(path), expected_git_sha=head, repo=ROOT.parent,
+            )
+
+
 def test_submit_and_batch_scripts_are_single_case_and_single_invocation():
     submit = (ROOT / "tools" / "submit_isaacs_complete_eq27_job.sh").read_text(encoding="utf-8")
     batch = (ROOT / "tools" / "isaacs_complete_eq27_full.sbatch").read_text(encoding="utf-8")
@@ -469,6 +556,62 @@ def test_submit_and_batch_bind_gpu_and_operational_provenance_without_cleanup():
     ):
         assert token in batch
     assert 'rm -rf -- "${RUN_DIR}"' not in submit
+
+
+def test_submit_batch_and_receipt_require_external_staging_provenance_binding():
+    submit = (ROOT / "tools" / "submit_isaacs_complete_eq27_job.sh").read_text(encoding="utf-8")
+    batch = (ROOT / "tools" / "isaacs_complete_eq27_full.sbatch").read_text(encoding="utf-8")
+    for token in (
+        ': "${STAGING_PROVENANCE_PATH:?missing STAGING_PROVENANCE_PATH}"',
+        ': "${EXPECTED_STAGING_PROVENANCE_SHA256:?missing EXPECTED_STAGING_PROVENANCE_SHA256}"',
+        "validate_staging_provenance",
+        "staging_provenance_path",
+        "staging_provenance_sha256",
+        "STAGING_PROVENANCE_METHOD",
+        "STAGING_PROVENANCE_SOURCE_CLASS",
+    ):
+        assert token in submit
+        assert token in batch
+    assert 'staging_provenance_path' in submit[submit.index('sbatch_output='):]
+    assert 'staging_provenance_sha256' in batch
+    assert 'submission_record.txt' in submit
+
+
+def test_candidate_raw_chain_rejects_staging_provenance_and_receipt_tamper(tmp_path):
+    post = _load("postprocess_isaacs_complete_eq27.py")
+    compare = _load("compare_isaacs_complete_eq27.py")
+    audit_path, axial, extras = _write_candidate_chain(tmp_path, np.ones(8) * 1.2e22, post)
+    payload = json.loads(audit_path.read_text(encoding="utf-8"))
+    staging_path = Path(payload["raw_source"]["staging_provenance"]["path"])
+    staging = json.loads(staging_path.read_text(encoding="utf-8"))
+    staging["method"] = "direct_github_push"
+    staging_path.write_text(json.dumps(staging), encoding="utf-8")
+    failures = compare._candidate_raw_chain(
+        payload, audit_path=audit_path, expected_job_id="180800", axial=axial, extras=extras,
+    )
+    assert any("staging provenance" in item.lower() for item in failures)
+
+    audit_path, axial, extras = _write_candidate_chain(tmp_path / "receipt", np.ones(8) * 1.2e22, post)
+    payload = json.loads(audit_path.read_text(encoding="utf-8"))
+    receipt_path = Path(payload["raw_source"]["job_receipt"]["path"])
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["staging_provenance_sha256"] = "0" * 64
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    failures = compare._candidate_raw_chain(
+        payload, audit_path=audit_path, expected_job_id="180800", axial=axial, extras=extras,
+    )
+    assert any("receipt" in item.lower() and "staging" in item.lower() for item in failures)
+
+
+def test_candidate_audit_and_report_preserve_verified_bundle_non_strict_limitation(tmp_path):
+    post = _load("postprocess_isaacs_complete_eq27.py")
+    audit_path, _, _ = _write_candidate_chain(tmp_path, np.ones(8) * 1.2e22, post)
+    payload = json.loads(audit_path.read_text(encoding="utf-8"))
+    assert payload["provenance_class"] == "verified_bundle_non_strict"
+    assert payload["raw_source"]["provenance_class"] == "verified_bundle_non_strict"
+    report = audit_path.with_name("isaacs_complete_eq27_reaudit_report.md").read_text(encoding="utf-8")
+    assert "verified_bundle_non_strict" in report
+    assert "direct GitHub remote push/fetch" in report
 
 
 def test_compare_rejects_replaced_pycap_and_tampered_fixed_raw_chain(tmp_path, monkeypatch):

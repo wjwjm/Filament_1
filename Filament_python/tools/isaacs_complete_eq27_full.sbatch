@@ -24,6 +24,8 @@ set -euo pipefail
 : "${GLOBAL_CONSUMED_LOCK:?missing GLOBAL_CONSUMED_LOCK}"
 : "${SUBMISSION_LOCK:?missing SUBMISSION_LOCK}"
 : "${JOB_RECEIPT_PATH:?missing JOB_RECEIPT_PATH}"
+: "${STAGING_PROVENANCE_PATH:?missing STAGING_PROVENANCE_PATH}"
+: "${EXPECTED_STAGING_PROVENANCE_SHA256:?missing EXPECTED_STAGING_PROVENANCE_SHA256}"
 
 readonly FIXED_CAMPAIGN_ID="isaacs_complete_eq27_c2"
 readonly FIXED_REMOTE_CAMPAIGN_ROOT="/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2"
@@ -153,7 +155,10 @@ from KHz_filament.runner import run_from_file
 sys.path.insert(0, str(Path(repo := os.environ["REPO_DIR"]) / "Filament_python" / "tools"))
 from create_isaacs_complete_eq27_execution_lock import (  # noqa: E402
     ExecutionLockError,
+    STAGING_PROVENANCE_METHOD,
+    STAGING_PROVENANCE_SOURCE_CLASS,
     validate_manifest_lock,
+    validate_staging_provenance,
 )
 
 
@@ -212,6 +217,28 @@ if binding["lock"].get("use_raman_full_operator") is not True:
     raise SystemExit("FATAL: execution lock requires use_raman_full_operator=true")
 if binding["manifest"].get("campaign_id") != os.environ["CAMPAIGN_ID"]:
     raise SystemExit("FATAL: batch manifest campaign_id mismatch")
+
+try:
+    staging_provenance = validate_staging_provenance(
+        Path(os.environ["STAGING_PROVENANCE_PATH"]),
+        expected_sha256=os.environ["EXPECTED_STAGING_PROVENANCE_SHA256"],
+        expected_git_sha=os.environ["EXPECTED_GIT_SHA"],
+        repo=Path(repo),
+    )
+except (ExecutionLockError, OSError, ValueError, KeyError, TypeError) as exc:
+    raise SystemExit(f"FATAL: batch staging provenance validation failed: {exc}") from exc
+if staging_provenance["path"] != str(Path(os.environ["STAGING_PROVENANCE_PATH"]).resolve()):
+    raise SystemExit("FATAL: batch staging provenance path does not match its environment binding")
+if staging_provenance["sha256"] != str(os.environ["EXPECTED_STAGING_PROVENANCE_SHA256"]).strip().lower():
+    raise SystemExit("FATAL: batch staging provenance SHA does not match its environment binding")
+if staging_provenance["expected_git_sha"] != binding["lock"].get("expected_git_sha") or staging_provenance["expected_git_sha"] != git_head():
+    raise SystemExit("FATAL: batch staging provenance expected_git_sha is not bound to the execution lock/HEAD")
+if staging_provenance["method"] != STAGING_PROVENANCE_METHOD:
+    raise SystemExit("FATAL: batch staging provenance method is not fixed")
+if staging_provenance["source_class"] != STAGING_PROVENANCE_SOURCE_CLASS:
+    raise SystemExit("FATAL: batch staging provenance source_class is not fixed")
+if os.environ.get("STAGING_PROVENANCE_BRANCH") and os.environ["STAGING_PROVENANCE_BRANCH"] != staging_provenance["branch"]:
+    raise SystemExit("FATAL: batch staging provenance branch does not match its environment binding")
 
 submission_lock = Path(os.environ["SUBMISSION_LOCK"]).resolve()
 if submission_lock != Path(os.environ["RUN_DIR"]).resolve() / "SUBMISSION_LOCK":
@@ -283,6 +310,13 @@ for key, expected in {
     "config_path": str(fixed_config),
     "config_sha256": os.environ["EXPECTED_CONFIG_SHA256"],
     "expected_git_sha": os.environ["EXPECTED_GIT_SHA"],
+    "staging_provenance_path": staging_provenance["path"],
+    "staging_provenance_sha256": staging_provenance["sha256"],
+    "staging_provenance_method": staging_provenance["method"],
+    "staging_provenance_source_class": staging_provenance["source_class"],
+    "staging_provenance_branch": staging_provenance["branch"],
+    "method": staging_provenance["method"],
+    "source_class": staging_provenance["source_class"],
 }.items():
     if receipt.get(key) != expected:
         raise SystemExit(f"FATAL: job receipt {key} mismatch")
@@ -319,6 +353,13 @@ payload = {
     "global_consumed_lock": os.environ["GLOBAL_CONSUMED_LOCK"],
     "job_receipt_path": str(receipt_path),
     "job_receipt_sha256": receipt_sha,
+    "staging_provenance_path": staging_provenance["path"],
+    "staging_provenance_sha256": staging_provenance["sha256"],
+    "staging_provenance_method": staging_provenance["method"],
+    "staging_provenance_source_class": staging_provenance["source_class"],
+    "staging_provenance_branch": staging_provenance["branch"],
+    "method": staging_provenance["method"],
+    "source_class": staging_provenance["source_class"],
     "reservation_token": receipt_token,
     "config_path": config,
     "config_sha256": os.environ["EXPECTED_CONFIG_SHA256"],

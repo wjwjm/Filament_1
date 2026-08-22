@@ -37,6 +37,9 @@ C1_SUMMARY_REL = "results/isaacs_complete_eq27/c1_closure_summary.json"
 C1_SUMMARY_SHA256 = "ccf6f865042651894e747f1272c5371cad8bc4bb7fd6abd11b61684a795ebcdc"
 C1_REPORT_REL = "results/isaacs_complete_eq27/c1_operator_report.md"
 C1_REPORT_SHA256 = "fe8b7fe99a88dde5d4c987d88d1a87dd5208461bb70ff25af6e365ef4ac7b21d"
+STAGING_PROVENANCE_SCHEMA = "khz_filament.isaacs_complete_eq27.staging_provenance.v1"
+STAGING_PROVENANCE_METHOD = "verified_git_bundle_after_remote_github_transport_failure"
+STAGING_PROVENANCE_SOURCE_CLASS = "verified_bundle_non_strict"
 
 
 def _prepare_module():
@@ -59,6 +62,101 @@ def sha256(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def validate_staging_provenance(
+    path: Path,
+    *,
+    expected_sha256: str,
+    expected_git_sha: str,
+    repo: Path | None = None,
+    expected_branch: str | None = None,
+) -> dict[str, Any]:
+    """Validate the external verified-bundle provenance record.
+
+    The record is deliberately outside the C2 manifest and submission/global
+    records.  It is an immutable input supplied by the machine staging the
+    verified Git bundle; only its path/SHA and the resulting semantic binding
+    are carried into execution metadata and the held-job receipt.
+    """
+    path = Path(path).expanduser().resolve()
+    if not path.is_file():
+        raise ExecutionLockError(f"staging provenance file does not exist: {path}")
+    supplied_sha = str(expected_sha256 or "").strip().lower()
+    if not supplied_sha:
+        raise ExecutionLockError("expected staging provenance SHA256 is empty")
+    actual_sha = sha256(path)
+    if actual_sha != supplied_sha:
+        raise ExecutionLockError(
+            f"staging provenance SHA mismatch: expected={supplied_sha} actual={actual_sha}"
+        )
+    payload = _load_object(path, "staging provenance")
+    if payload.get("schema") != STAGING_PROVENANCE_SCHEMA:
+        raise ExecutionLockError("staging provenance schema is invalid")
+    if payload.get("method") != STAGING_PROVENANCE_METHOD:
+        raise ExecutionLockError("staging provenance method is invalid")
+    if payload.get("source_class") != STAGING_PROVENANCE_SOURCE_CLASS:
+        raise ExecutionLockError("staging provenance source_class is invalid")
+    actual_sha_value = str(expected_git_sha or "").strip()
+    if not actual_sha_value:
+        raise ExecutionLockError("expected Git SHA for staging provenance is empty")
+    if payload.get("expected_git_sha") != actual_sha_value:
+        raise ExecutionLockError("staging provenance expected_git_sha does not match the execution SHA")
+    repo_path = Path(repo or REPO).expanduser().resolve()
+    try:
+        head = subprocess.run(
+            ["git", "-C", str(repo_path), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise ExecutionLockError(f"cannot resolve current HEAD for staging provenance: {exc}") from exc
+    if head != actual_sha_value:
+        raise ExecutionLockError(
+            f"staging provenance expected_git_sha does not match current HEAD: {head}"
+        )
+    branch = payload.get("branch")
+    if not isinstance(branch, str) or not branch.strip():
+        raise ExecutionLockError("staging provenance branch is empty")
+    if expected_branch is None:
+        try:
+            expected_branch = subprocess.run(
+                ["git", "-C", str(repo_path), "symbolic-ref", "--quiet", "--short", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+        except (OSError, subprocess.CalledProcessError) as exc:
+            raise ExecutionLockError(f"cannot resolve current branch for staging provenance: {exc}") from exc
+    if not expected_branch or branch != str(expected_branch).strip():
+        raise ExecutionLockError("staging provenance branch does not match the expected branch")
+    if payload.get("github_push_verified") is not True:
+        raise ExecutionLockError("staging provenance github_push_verified must be true")
+    for key in ("bundle_path", "bundle_sha256"):
+        value = payload.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise ExecutionLockError(f"staging provenance {key} is empty")
+    logs = payload.get("remote_failure_logs")
+    if (
+        not isinstance(logs, list)
+        or not logs
+        or any(not isinstance(item, str) or not item.strip() for item in logs)
+    ):
+        raise ExecutionLockError("staging provenance remote_failure_logs is empty or invalid")
+    return {
+        "path": str(path),
+        "sha256": actual_sha,
+        "schema": payload["schema"],
+        "method": payload["method"],
+        "source_class": payload["source_class"],
+        "expected_git_sha": payload["expected_git_sha"],
+        "branch": branch,
+        "github_push_verified": payload["github_push_verified"],
+        "bundle_path": payload["bundle_path"],
+        "bundle_sha256": payload["bundle_sha256"],
+        "remote_failure_logs": list(logs),
+    }
 
 
 def _git(*args: str) -> str:
