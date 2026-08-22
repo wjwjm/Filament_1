@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -483,7 +485,7 @@ def test_submit_and_batch_scripts_are_single_case_and_single_invocation():
     assert 'sbatch_output="$(sbatch --hold --parsable' in submit
     assert "mkdir -- \"${RUN_DIR}\"" in submit
     assert "SUBMISSION_LOCK" in submit
-    assert "IFS=$'\\t' read -r CONFIG_PATH EXPECTED_CONFIG_SHA256" in submit
+    assert "IFS=$'\\t' read -r VALIDATED_REMOTE_CAMPAIGN_ROOT VALIDATED_CAMPAIGN_ID VALIDATED_CONFIG_PATH VALIDATED_CONFIG_SHA256" in submit
     assert "slurm_job_id.txt" in submit
     assert "CASE_ID=complete_eq27" in submit
     assert "\npython " not in submit
@@ -579,6 +581,69 @@ def test_submit_batch_and_receipt_require_external_staging_provenance_binding():
     assert 'staging_provenance_path' in submit[submit.index('sbatch_output='):]
     assert 'staging_provenance_sha256' in batch
     assert 'submission_record.txt' in submit
+
+
+def test_submit_launcher_real_bash_path_does_not_assign_readonly_fixed_bindings(tmp_path):
+    bash = shutil.which("bash")
+    if not bash:
+        pytest.skip("bash is unavailable")
+
+    def bash_path(path: Path) -> str:
+        resolved = path.resolve()
+        drive = resolved.drive.rstrip(":").lower()
+        return f"/mnt/{drive}{resolved.as_posix()[2:]}"
+
+    repo = ROOT.parent
+    manifest = ROOT / "results" / "isaacs_complete_eq27" / "submission_manifest.json"
+    config = ROOT / "results" / "isaacs_complete_eq27" / "120fs_talebpour_isaacs_complete_eq27.json"
+    lock = tmp_path / "execution_lock.json"
+    lock.write_text("{}\n", encoding="utf-8")
+    staging = tmp_path / "staging_provenance.json"
+    staging.write_text("{}\n", encoding="utf-8")
+    run_dir = tmp_path / "existing-run-dir"
+    run_dir.mkdir()
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    fake_python = fake_bin / "python3"
+    fake_python.write_text(
+        "#!/usr/bin/env bash\n"
+        "if [[ -n \"${VALIDATOR_CAMPAIGN_ID:-}\" ]]; then\n"
+        "  printf '%s\\t%s\\t%s\\t%s\\n' \"${VALIDATOR_REMOTE_CAMPAIGN_ROOT}\" \"${VALIDATOR_CAMPAIGN_ID}\" \"${VALIDATED_CONFIG_PATH}\" \"${VALIDATED_CONFIG_SHA256}\"\n"
+        "elif [[ $# -eq 3 ]]; then\n"
+        "  printf '%s\\t%s\\n' \"${VALIDATED_CONFIG_PATH}\" \"${VALIDATED_CONFIG_SHA256}\"\n"
+        "else\n"
+        "  printf '%s\\t%s\\t%s\\n' verified_git_bundle_after_remote_github_transport_failure verified_bundle_non_strict codex/isaacs-raman-reclosure\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    fake_python.write_bytes(fake_python.read_bytes().replace(b"\r\n", b"\n"))
+    fake_python.chmod(0o755)
+    head = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip()
+    env_values = {
+        "PATH": bash_path(fake_bin) + ":/usr/bin:/bin",
+        "REPO_DIR": bash_path(repo),
+        "RUN_DIR": bash_path(run_dir),
+        "EXPECTED_GIT_SHA": head,
+        "MANIFEST_PATH": bash_path(manifest),
+        "EXPECTED_MANIFEST_SHA256": _sha(manifest),
+        "EXECUTION_LOCK_PATH": bash_path(lock),
+        "EXPECTED_EXECUTION_LOCK_SHA256": _sha(lock),
+        "EXPECTED_GPU_MODEL": "NVIDIA GeForce RTX 5090",
+        "STAGING_PROVENANCE_PATH": bash_path(staging),
+        "EXPECTED_STAGING_PROVENANCE_SHA256": _sha(staging),
+        "VALIDATED_CONFIG_PATH": bash_path(config),
+        "VALIDATED_CONFIG_SHA256": _sha(config),
+    }
+    assignments = " ".join(f"{key}={shlex.quote(value)}" for key, value in env_values.items())
+    result = subprocess.run(
+        [bash, "-c", f"env {assignments} {shlex.quote(bash_path(ROOT / 'tools' / 'submit_isaacs_complete_eq27_job.sh'))}"],
+        capture_output=True, text=True,
+    )
+    combined = result.stdout + result.stderr
+    assert result.returncode == 27, combined
+    assert "readonly variable" not in combined
+    assert "FIXED_CAMPAIGN_ID" not in combined
+    assert "RUN_DIR already exists" in combined
 
 
 def test_candidate_raw_chain_rejects_staging_provenance_and_receipt_tamper(tmp_path):

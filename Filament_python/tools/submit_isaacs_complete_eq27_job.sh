@@ -204,8 +204,8 @@ manifest_validation="$(
   MANIFEST_CONFIG_PATH="${CONFIG_PATH:-}" \
   MANIFEST_CONFIG_SHA256="${EXPECTED_CONFIG_SHA256:-}" \
   EXECUTION_LOCK_PATH="${EXECUTION_LOCK_PATH}" \
-  FIXED_REMOTE_CAMPAIGN_ROOT="${FIXED_REMOTE_CAMPAIGN_ROOT}" \
-  FIXED_CAMPAIGN_ID="${FIXED_CAMPAIGN_ID}" \
+  VALIDATOR_REMOTE_CAMPAIGN_ROOT="${FIXED_REMOTE_CAMPAIGN_ROOT}" \
+  VALIDATOR_CAMPAIGN_ID="${FIXED_CAMPAIGN_ID}" \
   EXPECTED_GPU_MODEL="${EXPECTED_GPU_MODEL}" \
   EXPECTED_MANIFEST_SHA256="${actual_manifest_sha256}" \
   python3 - "${MANIFEST_PATH}" <<'PY'
@@ -255,9 +255,9 @@ if not isinstance(lock, dict):
     fail("execution lock top-level value is not an object")
 if lock.get("schema") != "khz_filament.isaacs_complete_eq27.c2_execution_lock.v1":
     fail("execution lock schema is invalid")
-if lock.get("campaign_id") != os.environ["FIXED_CAMPAIGN_ID"]:
+if lock.get("campaign_id") != os.environ["VALIDATOR_CAMPAIGN_ID"]:
     fail("execution lock campaign_id is not the fixed campaign id")
-if lock.get("remote_campaign_root") != os.environ["FIXED_REMOTE_CAMPAIGN_ROOT"]:
+if lock.get("remote_campaign_root") != os.environ["VALIDATOR_REMOTE_CAMPAIGN_ROOT"]:
     fail("execution lock remote_campaign_root is not the fixed campaign root")
 if lock.get("status") != "authorized_not_consumed":
     fail("execution lock status is not authorized_not_consumed")
@@ -298,9 +298,9 @@ if lock.get("manifest_path") != manifest_rel:
 if lock.get("manifest_sha256") != os.environ["EXPECTED_MANIFEST_SHA256"]:
     fail("execution lock manifest_sha256 does not match actual manifest hash")
 
-if manifest.get("remote_campaign_root") != os.environ["FIXED_REMOTE_CAMPAIGN_ROOT"]:
+if manifest.get("remote_campaign_root") != os.environ["VALIDATOR_REMOTE_CAMPAIGN_ROOT"]:
     fail("remote_campaign_root is not the fixed campaign root")
-if manifest.get("campaign_id") != os.environ["FIXED_CAMPAIGN_ID"]:
+if manifest.get("campaign_id") != os.environ["VALIDATOR_CAMPAIGN_ID"]:
     fail("campaign_id is not the fixed campaign id")
 if manifest.get("status") != "prepared_not_submitted":
     fail("status is not prepared_not_submitted")
@@ -431,17 +431,27 @@ if lock.get("pycap_path") != pycap_rel or lock.get("pycap_sha256") != pycap_sha:
 caller_sha = os.environ.get("MANIFEST_CONFIG_SHA256", "")
 if caller_sha and caller_sha != config_sha:
     fail("EXPECTED_CONFIG_SHA256 does not match manifest derived_config_sha256")
-print(f"{config}\t{config_sha}")
+print(f"{manifest['remote_campaign_root']}\t{manifest['campaign_id']}\t{config}\t{config_sha}")
 PY
 )" || {
   echo "FATAL: manifest validation could not be completed" >&2
   exit 2
 }
-IFS=$'\t' read -r CONFIG_PATH EXPECTED_CONFIG_SHA256 <<< "${manifest_validation}"
-[[ -n "${CONFIG_PATH}" && -n "${EXPECTED_CONFIG_SHA256}" ]] || {
+IFS=$'\t' read -r VALIDATED_REMOTE_CAMPAIGN_ROOT VALIDATED_CAMPAIGN_ID VALIDATED_CONFIG_PATH VALIDATED_CONFIG_SHA256 <<< "${manifest_validation}"
+[[ -n "${VALIDATED_REMOTE_CAMPAIGN_ROOT}" && -n "${VALIDATED_CAMPAIGN_ID}" && -n "${VALIDATED_CONFIG_PATH}" && -n "${VALIDATED_CONFIG_SHA256}" ]] || {
   echo "FATAL: manifest validator returned no derived config binding" >&2
   exit 2
 }
+if [[ "${VALIDATED_REMOTE_CAMPAIGN_ROOT}" != "${FIXED_REMOTE_CAMPAIGN_ROOT}" ]]; then
+  echo "FATAL: manifest validator remote campaign root is not the fixed campaign root" >&2
+  exit 2
+fi
+if [[ "${VALIDATED_CAMPAIGN_ID}" != "${FIXED_CAMPAIGN_ID}" ]]; then
+  echo "FATAL: manifest validator campaign id is not the fixed campaign id" >&2
+  exit 2
+fi
+CONFIG_PATH="${VALIDATED_CONFIG_PATH}"
+EXPECTED_CONFIG_SHA256="${VALIDATED_CONFIG_SHA256}"
 
 RUN_PARENT="$(dirname -- "${RUN_DIR}")"
 RUN_NAME="$(basename -- "${RUN_DIR}")"
