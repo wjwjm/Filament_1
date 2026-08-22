@@ -301,6 +301,156 @@ def isaacs_raman_stage(E, *, Omega, dt, omega0, n0, n_R, omega_R, Gamma_R,
     return result
 
 
+def isaacs_complete_eq27_stage(
+    E, *, Omega, dt, omega0, n0, n2, n_R, omega_R, Gamma_R,
+    method="iir", chunk_pixels=65536,
+    iir_sampling="exact_piecewise_linear",
+    return_response=True, return_energy=True, return_components=False,
+):
+    """Evaluate one complete Isaacs Eq. (27) nonlinear-field stage.
+
+    The source is formed in the repository envelope convention as
+
+    ``S = (n2*I + n_R*I_R) * E``
+
+    with ``I = 0.5*eps0*c0*n0*abs(E)**2`` and the existing exact-PWL IIR
+    response for ``I_R``.  The returned right-hand side is
+
+    ``i*(omega0/c0)*S - (1/c0)*d_tau(S)``.
+
+    This API is deliberately separate from :func:`isaacs_raman_stage` so the
+    existing rotational-only operator remains byte-for-byte unchanged.  The
+    optional component payload is intended for local closure audits; normal
+    propagation should leave ``return_components`` disabled to avoid retaining
+    additional full field volumes.
+    """
+    started = _time.perf_counter()
+    rdtype = xp.float32 if E.dtype == xp.complex64 else xp.float64
+    intensity = (
+        0.5 * float(eps0) * float(c0) * float(n0) * xp.abs(E) ** 2
+    ).astype(rdtype, copy=False)
+    method = str(method).lower()
+    if method == "fft":
+        tau = xp.arange(E.shape[0], dtype=xp.float64) * float(dt)
+        kernel = make_raman_kernel(tau, {
+            "model": "isaacs_rot_sinexp",
+            "omega_R": omega_R,
+            "Gamma_R": Gamma_R,
+        })
+        response = raman_convolve_intensity(
+            intensity, kernel, method="fft", dt=dt,
+            chunk_pixels=chunk_pixels,
+        )
+    else:
+        response = raman_convolve_intensity(
+            intensity, method="iir", dt=dt,
+            omega_R=omega_R, Gamma_R=Gamma_R,
+            chunk_pixels=chunk_pixels, iir_sampling=iir_sampling,
+        )
+
+    n2_value = xp.asarray(float(n2), dtype=rdtype)
+    n_R_value = xp.asarray(float(n_R), dtype=rdtype)
+    ctype = E.dtype
+    multiplier = (
+        1j * xp.asarray(Omega, dtype=rdtype) / float(omega0)
+    ).astype(ctype, copy=False)
+
+    def _rhs_from_source(source):
+        normalized_derivative = xp.fft.ifft(
+            multiplier[:, None, None] * xp.fft.fft(source, axis=0), axis=0
+        )
+        return (
+            1j * (float(omega0) / float(c0)) * source
+            - (float(omega0) / float(c0)) * normalized_derivative
+        ).astype(ctype, copy=False)
+
+    if return_components:
+        # Component payloads are an audit-only path.  Keep the two independent
+        # evaluations here so coefficient placement and single counting can be
+        # checked without imposing their FFT/IFFT cost on propagation.
+        electronic_source = (n2_value * intensity * E).astype(E.dtype, copy=False)
+        rotational_source = (n_R_value * response * E).astype(E.dtype, copy=False)
+        rhs_electronic = _rhs_from_source(electronic_source)
+        rhs_rotational = _rhs_from_source(rotational_source)
+        rhs = (rhs_electronic + rhs_rotational).astype(ctype, copy=False)
+    else:
+        # Production path: Eq. (27) differentiates the combined source once.
+        # This is one source FFT/IFFT pair instead of separate electronic and
+        # rotational derivative pairs.
+        combined_source = (
+            (n2_value * intensity + n_R_value * response) * E
+        ).astype(E.dtype, copy=False)
+        rhs = _rhs_from_source(combined_source)
+        rhs_electronic = rhs_rotational = None
+    result = {
+        "rhs": rhs,
+        "rhs_l2_norm": float(xp.linalg.norm(rhs)),
+        "rhs_electronic": rhs_electronic if return_components else None,
+        "rhs_rotational": rhs_rotational if return_components else None,
+        "IR_max": float(xp.max(xp.abs(response))),
+        "convolution_count": 1,
+    }
+    if return_response:
+        result["I_R"] = response.astype(rdtype, copy=False)
+    if return_energy:
+        intensity_scale = float(xp.max(xp.abs(intensity)))
+        if intensity_scale > 0.0:
+            # Keep the Eq. (10) target identical to the already-closed
+            # rotational operator.  The electronic D[I*A] term is a
+            # conservative field operator and is not a second loss channel.
+            derivative_increment_norm = xp.fft.ifft(
+                (1j * xp.asarray(Omega, dtype=rdtype) * float(dt))[:, None, None]
+                * xp.fft.fft(intensity, axis=0), axis=0
+            ).real / intensity_scale
+            response_norm = response / intensity_scale
+            energy_scale = (float(n_R) / float(c0)) * intensity_scale * intensity_scale
+            u_signed = energy_scale * xp.sum(
+                response_norm * derivative_increment_norm, axis=0
+            )
+        else:
+            u_signed = xp.zeros(intensity.shape[1:], dtype=rdtype)
+        result["u_R_signed"] = u_signed.astype(rdtype, copy=False)
+        result["q_R_positive"] = xp.maximum(-u_signed, 0.0).astype(rdtype, copy=False)
+    result["walltime_s"] = float(_time.perf_counter() - started)
+    return result
+
+
+def isaacs_complete_eq27_field_rhs(
+    E, *, Omega, dt, omega0, n0, n2, n_R, omega_R, Gamma_R,
+    method="iir", chunk_pixels=65536,
+    iir_sampling="exact_piecewise_linear", component="combined",
+):
+    """Return a complete Eq. (27) field RHS or one of its components.
+
+    ``component`` may be ``"combined"``, ``"electronic"`` or
+    ``"rotational"``.  Component requests are an audit convenience; the
+    propagation path uses the combined result directly.
+    """
+    component = str(component).lower()
+    if component == "combined":
+        # Keep the public combined-field helper on the same one-FFT-pair
+        # production path as ``isaacs_complete_eq27_stage``.  The component
+        # payload is an audit-only request and is evaluated only below.
+        return isaacs_complete_eq27_stage(
+            E, Omega=Omega, dt=dt, omega0=omega0, n0=n0, n2=n2, n_R=n_R,
+            omega_R=omega_R, Gamma_R=Gamma_R, method=method,
+            chunk_pixels=chunk_pixels, iir_sampling=iir_sampling,
+            return_response=False, return_energy=False,
+            return_components=False,
+        )["rhs"]
+    stage = isaacs_complete_eq27_stage(
+        E, Omega=Omega, dt=dt, omega0=omega0, n0=n0, n2=n2, n_R=n_R,
+        omega_R=omega_R, Gamma_R=Gamma_R, method=method,
+        chunk_pixels=chunk_pixels, iir_sampling=iir_sampling,
+        return_response=False, return_energy=False, return_components=True,
+    )
+    if component == "electronic":
+        return stage["rhs_electronic"]
+    if component == "rotational":
+        return stage["rhs_rotational"]
+    raise ValueError("component must be 'combined', 'electronic', or 'rotational'")
+
+
 def isaacs_raman_field_rhs(E, *, Omega, dt, omega0, n0, n_R, omega_R, Gamma_R,
                            method="iir", chunk_pixels=65536,
                            iir_sampling="exact_piecewise_linear"):
@@ -519,6 +669,151 @@ def apply_isaacs_raman_operator_step(E, dz, *, Omega, dt, omega0, n0, n_R,
             "energy_projection_scale": float(projection["scale"]),
             "energy_projection_initial_residual": float(
                 projection["initial_residual"]),
+        }
+        return result, diagnostics
+    return result
+
+
+def apply_isaacs_complete_eq27_operator_step(
+    E, dz, *, Omega, dt, omega0, n0, n2, n_R, omega_R, Gamma_R,
+    integrator="heun", method="iir", chunk_pixels=65536,
+    iir_sampling="exact_piecewise_linear", return_diagnostics=False,
+    diagnose_projection_difference=False, stage1=None, transverse_cell_area=1.0,
+):
+    """Apply one complete Eq. (27) Euler/Heun field step.
+
+    Heun evaluates a fresh intensity and exact-PWL ``I_R`` response at the
+    predictor field.  For complex64, the existing global energy-projection
+    strategy is reused with the rotational ``q_R`` target only; the
+    electronic ``D[I*A]`` source is not treated as an additional loss channel.
+    The diagnostic payload reports the pure (unprojected) versus projected
+    field and energy differences without changing the production projection.
+    Those extra comparisons are allocated only when
+    ``diagnose_projection_difference`` is true; ordinary scalar/energy
+    diagnostics do not retain a second full field.
+    """
+    kwargs = dict(
+        Omega=Omega, dt=dt, omega0=omega0, n0=n0, n2=n2, n_R=n_R,
+        omega_R=omega_R, Gamma_R=Gamma_R, method=method,
+        chunk_pixels=chunk_pixels, iir_sampling=iir_sampling,
+    )
+    started = _time.perf_counter()
+    stage1 = stage1 or isaacs_complete_eq27_stage(E, **kwargs)
+    k1, q1 = stage1["rhs"], stage1["q_R_positive"]
+    integrator = str(integrator).lower()
+    if integrator == "euler":
+        pure_result = (E + float(dz) * k1).astype(E.dtype, copy=False)
+        stage2 = None
+        target_stage1 = float(dz) * q1
+        target_stage2 = xp.zeros_like(target_stage1)
+        target_heun = target_stage1
+    elif integrator == "heun":
+        predictor = (E + float(dz) * k1).astype(E.dtype, copy=False)
+        # Recompute both I and I_R from the predictor in the complete stage.
+        stage2 = isaacs_complete_eq27_stage(predictor, **kwargs)
+        pure_result = (
+            E + 0.5 * float(dz) * (k1 + stage2["rhs"])
+        ).astype(E.dtype, copy=False)
+        target_stage1 = float(dz) * q1
+        target_stage2 = float(dz) * stage2["q_R_positive"]
+        target_heun = 0.5 * (target_stage1 + target_stage2)
+    else:
+        raise ValueError("Complete Eq.27 integrator must be 'euler' or 'heun'")
+
+    # Keep a copy only for the requested audit payload.  The normal
+    # propagation path otherwise follows the existing allocation pattern.
+    pure_for_diagnostic = (
+        pure_result.copy()
+        if return_diagnostics and diagnose_projection_difference else None
+    )
+    result = pure_result
+    projection = {
+        "applied": False, "iterations": 0, "scale": 1.0,
+        "initial_residual": 0.0,
+    }
+    before_fluence = actual_local = None
+    if stage2 is not None and E.dtype == xp.complex64:
+        result, before_fluence, actual_local, projection = (
+            _project_complex64_heun_energy(
+                E, result, target_heun, k1=k1, k2=stage2["rhs"],
+                dz=dz, dt=dt, n0=n0)
+        )
+
+    if return_diagnostics:
+        if before_fluence is None or actual_local is None:
+            before_fluence, actual_local = stable_field_fluence_and_loss(
+                E, result, dt=dt, n0=n0
+            )
+        local_residual_map = xp.abs(actual_local - target_heun) / xp.maximum(
+            target_heun, xp.maximum(before_fluence * 1e-15, 1e-300)
+        )
+        area = float(transverse_cell_area)
+        target_global = float(xp.sum(target_heun, dtype=xp.float64) * area)
+        actual_global = float(xp.sum(actual_local, dtype=xp.float64) * area)
+        before_global = float(xp.sum(before_fluence, dtype=xp.float64) * area)
+        global_residual = abs(actual_global - target_global) / max(
+            target_global, before_global * 1e-15, 1e-300
+        )
+        if pure_for_diagnostic is not None:
+            _, pure_actual_local = stable_field_fluence_and_loss(
+                E, pure_for_diagnostic, dt=dt, n0=n0
+            )
+            pure_actual_global = float(
+                xp.sum(pure_actual_local, dtype=xp.float64) * area
+            )
+            projection_field_relative_l2 = float(
+                xp.linalg.norm(result - pure_for_diagnostic)
+                / max(float(xp.linalg.norm(pure_for_diagnostic)), 1e-300)
+            )
+            # Compare the projection-induced energy delta with the input
+            # field energy.  Normalizing by the tiny Raman deposited energy
+            # would make a sub-ulp field correction look artificially large.
+            projection_energy_difference = abs(actual_global - pure_actual_global) / max(
+                before_global, 1e-300
+            )
+        else:
+            pure_actual_global = actual_global
+            projection_field_relative_l2 = 0.0
+            projection_energy_difference = 0.0
+        diagnostics = {
+            "target_local_fluence_loss_stage1": target_stage1,
+            "target_local_fluence_loss_stage2": target_stage2,
+            "target_local_fluence_loss_heun": target_heun,
+            "target_local_fluence_loss": target_heun,
+            "target_global_energy_loss_J": target_global,
+            "actual_local_fluence_loss": actual_local,
+            "actual_global_energy_loss_J": actual_global,
+            "pure_actual_global_energy_loss_J": pure_actual_global,
+            "local_closure_residual": float(xp.max(local_residual_map)),
+            "global_closure_residual": float(global_residual),
+            "rhs_l2_norm_stage1": stage1["rhs_l2_norm"],
+            "rhs_l2_norm_stage2": stage2["rhs_l2_norm"] if stage2 else 0.0,
+            "IR_max_stage1": stage1["IR_max"],
+            "IR_max_stage2": stage2["IR_max"] if stage2 else 0.0,
+            "I_R_stage1": stage1.get("I_R"),
+            "I_R_stage2": stage2.get("I_R") if stage2 else None,
+            "convolution_count": stage1["convolution_count"] + (
+                stage2["convolution_count"] if stage2 else 0
+            ),
+            "operator_walltime_s": float(_time.perf_counter() - started),
+            "finite": bool(xp.all(xp.isfinite(result))) and math_isfinite(global_residual),
+            "clipping_count": 0,
+            "actual_loss_evaluation": "stable_component_difference_float64",
+            "energy_projection_applied": bool(projection["applied"]),
+            "energy_projection_iterations": int(projection["iterations"]),
+            "energy_projection_scale": float(projection["scale"]),
+            "energy_projection_initial_residual": float(projection["initial_residual"]),
+            "projection_field_relative_l2": projection_field_relative_l2,
+            "projection_energy_difference_relative": projection_energy_difference,
+            "projection_difference_diagnostics_enabled": bool(
+                diagnose_projection_difference
+            ),
+            "projection_status": (
+                "not_primary_for_C2"
+                if projection_field_relative_l2 <= 1.0e-7
+                and projection_energy_difference <= 2.0e-7
+                else "review_required"
+            ),
         }
         return result, diagnostics
     return result

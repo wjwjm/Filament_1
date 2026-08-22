@@ -16,8 +16,10 @@ from .constants import c0, eps0
 from .config import resolve_nonlinear_switches
 from .raman import (
     apply_isaacs_raman_operator_step,
+    apply_isaacs_complete_eq27_operator_step,
     historical_fr_mixture_response,
     isaacs_raman_stage,
+    isaacs_complete_eq27_stage,
     make_raman_kernel,
     precompute_kernel_fft,
     raman_convolve_intensity,
@@ -356,7 +358,18 @@ def propagate_one_pulse(
         R0_fixed = float(getattr(raman_conf, "R0_fixed_m", 2.0e-4))
     else:
         H_w, fR, r_method, r_chunk = None, 0.0, "iir", 65536
-    full_isaacs_mode = bool(use_raman and r_operator_mode == "full_isaacs_eq27")
+    full_isaacs_complete_mode = bool(
+        use_raman and r_operator_mode == "full_isaacs_eq27_complete"
+    )
+    full_isaacs_rotational_mode = bool(
+        use_raman and r_operator_mode == "full_isaacs_eq27"
+    )
+    full_isaacs_mode = bool(
+        full_isaacs_rotational_mode or full_isaacs_complete_mode
+    )
+    complete_operator_enabled = bool(
+        full_isaacs_complete_mode and switches.use_raman_full_operator
+    )
     historical_fr_mixture_mode = bool(
         use_raman and r_operator_mode == "historical_fr_mixture"
     )
@@ -470,13 +483,26 @@ def propagate_one_pulse(
             method=r_method, chunk_pixels=r_chunk,
             iir_sampling=getattr(raman_conf, "iir_sampling", "exact_piecewise_linear"),
         )
-        first_stage = isaacs_raman_stage(field, **stage_kwargs)
-        updated, diagnostics = apply_isaacs_raman_operator_step(
-            field, step_length,
-            integrator=getattr(raman_conf, "operator_integrator", "heun"),
-            return_diagnostics=True, stage1=first_stage,
-            transverse_cell_area=axes.dx * axes.dy, **stage_kwargs,
-        )
+        if full_isaacs_complete_mode:
+            # In the complete opt-in mode the electronic term is part of the
+            # combined field operator.  The independent switch may suppress
+            # that component, but it must never fall back to scalar phase.
+            stage_kwargs["n2"] = n2_elec if switches.use_electronic_kerr else 0.0
+            first_stage = isaacs_complete_eq27_stage(field, **stage_kwargs)
+            updated, diagnostics = apply_isaacs_complete_eq27_operator_step(
+                field, step_length,
+                integrator=getattr(raman_conf, "operator_integrator", "heun"),
+                return_diagnostics=True, stage1=first_stage,
+                transverse_cell_area=axes.dx * axes.dy, **stage_kwargs,
+            )
+        else:
+            first_stage = isaacs_raman_stage(field, **stage_kwargs)
+            updated, diagnostics = apply_isaacs_raman_operator_step(
+                field, step_length,
+                integrator=getattr(raman_conf, "operator_integrator", "heun"),
+                return_diagnostics=True, stage1=first_stage,
+                transverse_cell_area=axes.dx * axes.dy, **stage_kwargs,
+            )
         diagnostics["operator_walltime_s"] += first_stage["walltime_s"]
         return updated, diagnostics
 
@@ -575,17 +601,37 @@ def propagate_one_pulse(
                 )
         else:
             IR = None
-        if historical_fr_mixture_mode and IR is not None:
+        complete_operator_active = bool(
+            full_isaacs_complete_mode and full_isaacs_on
+        )
+        if complete_operator_active:
+            # The complete Eq. (27) update below owns both electronic and
+            # rotational Kerr terms.  Retain raw electronic diagnostics, but
+            # do not feed either component into scalar phase or shock.  The
+            # electronic applied trace remains an equivalent ``n2*I`` record;
+            # it is not a second scalar phase contribution.
+            delta_n_elec = n2_elec * I
+            delta_n_rot = xp.zeros_like(I, dtype=rdtype)
+            delta_n_elec_applied = (
+                delta_n_elec if switches.use_electronic_kerr
+                else xp.zeros_like(I, dtype=rdtype)
+            )
+            delta_n_rot_applied = xp.zeros_like(I, dtype=rdtype)
+            delta_n_kerr = xp.zeros_like(I, dtype=rdtype)
+        elif historical_fr_mixture_mode and IR is not None:
             delta_n_elec = n2_elec * (1.0 - float(fR)) * I
             delta_n_rot = n2_elec * float(fR) * IR
+            delta_n_elec_applied = delta_n_elec if switches.use_electronic_kerr else xp.zeros_like(I, dtype=rdtype)
+            delta_n_rot_applied = delta_n_rot if switches.use_raman_phase else xp.zeros_like(I, dtype=rdtype)
+            delta_n_kerr = delta_n_elec_applied + delta_n_rot_applied
         else:
             delta_n_elec = n2_elec * I
             delta_n_rot = n_R * IR if (IR is not None) else xp.zeros_like(I, dtype=rdtype)
-        delta_n_elec_applied = delta_n_elec if switches.use_electronic_kerr else xp.zeros_like(I, dtype=rdtype)
-        delta_n_rot_applied = delta_n_rot if switches.use_raman_phase else xp.zeros_like(I, dtype=rdtype)
-        delta_n_kerr = delta_n_elec_applied + delta_n_rot_applied
+            delta_n_elec_applied = delta_n_elec if switches.use_electronic_kerr else xp.zeros_like(I, dtype=rdtype)
+            delta_n_rot_applied = delta_n_rot if switches.use_raman_phase else xp.zeros_like(I, dtype=rdtype)
+            delta_n_kerr = delta_n_elec_applied + delta_n_rot_applied
 
-        if switches.use_self_steepening:
+        if switches.use_self_steepening and not complete_operator_active:
             delta_n_kerr = shock_intensity(
                 delta_n_kerr, axes.Omega, omega0, dt=dt,
                 method=str(getattr(p, "self_steepening_method", "tdiff")).lower(),
@@ -796,7 +842,11 @@ def propagate_one_pulse(
                     method=r_method, chunk_pixels=r_chunk,
                     iir_sampling=getattr(raman_conf, "iir_sampling", "exact_piecewise_linear"),
                 )
-                raman_stage_pre = isaacs_raman_stage(E, **stage_kwargs)
+                if full_isaacs_complete_mode:
+                    stage_kwargs["n2"] = n2_elec if switches.use_electronic_kerr else 0.0
+                    raman_stage_pre = isaacs_complete_eq27_stage(E, **stage_kwargs)
+                else:
+                    raman_stage_pre = isaacs_raman_stage(E, **stage_kwargs)
                 IR = raman_stage_pre["I_R"]
                 delta_n_rot = n_R * IR
                 raw_target_local = float(dz_try) * raman_stage_pre["q_R_positive"]
@@ -1174,6 +1224,21 @@ def propagate_one_pulse(
         "energy_after_linear_half2_J": _np.asarray(energy_after_linear_half2_z_list, dtype=_np.float64),
         "delta_n_rot_applied_semantics": _np.asarray(
             "not_applicable_full_complex_operator" if full_isaacs_mode else "split_delayed_index_applied"
+        ),
+        "delta_n_elec_applied_semantics": _np.asarray(
+            "equivalent_n2_I_trace_full_complex_operator"
+            if complete_operator_enabled else "scalar_deltan_elec_applied"
+        ),
+        "dphi_kerr_semantics": _np.asarray(
+            "not_applicable_scalar_phase_full_complex_operator"
+            if complete_operator_enabled else "scalar_dphi_kerr_applied"
+        ),
+        "self_steepening_semantics": _np.asarray(
+            "full_product_derivative_D_S_in_complete_complex_operator"
+            if complete_operator_enabled else (
+                "scalar_shock_intensity_applied"
+                if switches.use_self_steepening else "disabled"
+            )
         ),
         "raman_closure_residual_semantics": _np.asarray(
             "field_vs_eq10" if full_isaacs_on else "not_applicable_feedback_off_or_legacy"

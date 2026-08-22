@@ -371,6 +371,28 @@ NONLINEAR_DIAGNOSTIC_METADATA.update({
     },
 })
 
+# Scalar semantic tags are stored alongside a run as text fields.  They are
+# deliberately kept out of ``NONLINEAR_TRACE_KEYS``: unlike z histories they
+# are not one-dimensional records and must not become mandatory validation
+# arrays for legacy or feedback-off runs.
+NONLINEAR_DIAGNOSTIC_SEMANTICS = {
+    "delta_n_elec_applied_semantics": {
+        "meaning": "whether the electronic applied trace is scalar phase feedback or an equivalent n2*I record",
+        "unit": "text",
+        "use": "interpret delta_n_elec_applied_max_z in the complete complex-operator mode",
+    },
+    "dphi_kerr_semantics": {
+        "meaning": "whether dphi_kerr_max_abs_z is a scalar Kerr phase or is not applicable",
+        "unit": "text",
+        "use": "prevent treating the zero scalar trace as absence of complete-operator Kerr",
+    },
+    "self_steepening_semantics": {
+        "meaning": "self-steepening representation used by the nonlinear field update",
+        "unit": "text",
+        "use": "distinguish scalar shock_intensity from the complete product derivative",
+    },
+}
+
 
 NONLINEAR_TRACE_KEYS = tuple(NONLINEAR_DIAGNOSTIC_METADATA)
 
@@ -556,6 +578,7 @@ def write_nonlinear_diagnostic_report(path: str | Path, diag: dict, *, npz_path:
         "validation": validation,
         "effective_nonlinear_switches": effective_switches,
         "variables": NONLINEAR_DIAGNOSTIC_METADATA,
+        "semantic_fields": NONLINEAR_DIAGNOSTIC_SEMANTICS,
     }
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

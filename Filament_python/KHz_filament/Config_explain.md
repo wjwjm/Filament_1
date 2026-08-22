@@ -67,7 +67,7 @@
 
 - **use_electronic_kerr (bool | null)**：是否将已计算的 `n2*I` 加入传播相位；关闭后仍保存原始电子 Kerr 诊断。
 - **use_raman_phase (bool | null)**：是否将已计算的 `n_R I_R` 加入传播相位；关闭后仍保留 Raman convolution 与原始 Raman 诊断。
-- **use_raman_full_operator (bool | null)**：仅用于显式启用 `full_isaacs_eq27` 复场算子；默认/省略为关闭，且不能与 `use_raman_phase=true` 或 legacy Raman absorption 同时使用。
+- **use_raman_full_operator (bool | null)**：仅用于显式启用 `full_isaacs_eq27` 或 `full_isaacs_eq27_complete` 复场算子；默认/省略为关闭，且不能与 `use_raman_phase=true` 或 legacy Raman absorption 同时使用。
 - **raman.nonlinear_split_order**：完整 Raman 算子与其余非线性项的组合顺序，可选 `after_other`（兼容默认）、`before_other`、`strang`。严格生产候选使用预飞收敛测试选择的顺序。
 - **use_plasma_phase (bool | null)**：是否将由电子密度得到的 plasma phase 加入传播相位；关闭后仍求解并保存 `rho` 与原始 plasma phase。
 - **use_ionization_loss (bool | null)**：是否将已计算的 `alpha_ion` 加入 `alpha_total`；关闭后仍保存原始电离率、电子密度和潜在沉积。
@@ -189,7 +189,8 @@
 - **operator_mode (str)**：Raman 相位算子的实现口径：
   - `"legacy_split"`（默认）：显式双系数 `Δn = n2_elec·I + n_R·I_R`，`f_R` 不参与相位通道。
   - `"split_energy_closed"`：split 相位 + closed-form 吸收口径。
-  - `"full_isaacs_eq27"`：完整 Isaacs Eq. (27) 复场算子（显式 opt-in）。
+  - `"full_isaacs_eq27"`：旧的完整旋转 Raman Eq. (27) 复场子算子；电子 Kerr 仍走 scalar phase/shock（显式 opt-in）。
+  - `"full_isaacs_eq27_complete"`：完整 electronic `D[I A]` 与 rotational `D[I_R A]` 的 combined Eq. (27) 复场算子（显式 opt-in；需要 `propagation.use_raman_full_operator=true`）。
   - `"historical_fr_mixture"`：pre-April 历史 f_R mixture 相位算子（仅相位通道）。
 - **model (str)**：拉曼响应核模型：
   - `"rot_sinexp"`：旋转拉曼的“指数衰减 × 正弦”核（带 Heaviside `u(t)`）

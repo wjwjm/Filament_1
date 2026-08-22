@@ -1,0 +1,27 @@
+# C1 project state
+
+- Baseline SHA: `c9d9b952c4c23d6839374bdc5de184f0cd389eb3`
+- Audit current HEAD: `c9d9b952c4c23d6839374bdc5de184f0cd389eb3`
+- Branch: `codex/isaacs-raman-reclosure`
+- Git dirty: `True`
+- Implementation diff hash (sha256): `c08056a474cd0fc53d37a9fdb5afd14055a8aa2dc3feb0ae1ca70a9e25f244b7`
+- Changed paths:
+  - `Filament_python/KHz_filament/Config_explain.md`
+  - `Filament_python/KHz_filament/README.md`
+  - `Filament_python/KHz_filament/config.py`
+  - `Filament_python/KHz_filament/config_normalize.py`
+  - `Filament_python/KHz_filament/diagnostics.py`
+  - `Filament_python/KHz_filament/propagate.py`
+  - `Filament_python/KHz_filament/raman.py`
+  - `Filament_python/results/isaacs_complete_eq27/PROJECT_STATE.md`
+  - `Filament_python/results/isaacs_complete_eq27/c1_closure_summary.json`
+  - `Filament_python/results/isaacs_complete_eq27/c1_operator_report.md`
+  - `Filament_python/tests/test_isaacs_complete_eq27.py`
+  - `Filament_python/tools/audit_isaacs_complete_eq27.py`
+- Scope: complete Eq.27 electronic+rotational operator closure only
+- Raman parameter change: none
+- Production/default change: none
+- Full propagation: not run
+- Slurm submission: none
+- Overall C1 gate: **PASS**
+- C2 status: parent scientific decision required; this audit does not authorize submission
