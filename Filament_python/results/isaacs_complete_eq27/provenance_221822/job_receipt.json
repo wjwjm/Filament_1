@@ -1,0 +1,23 @@
+{
+  "schema": "khz_filament.isaacs_complete_eq27.job_receipt.v1",
+  "state": "held",
+  "job_id": "221822",
+  "reservation_token": "8c2b91628c1a244b9682891e8f24813e63d5db89056678b033727b7877111b25",
+  "campaign_id": "isaacs_complete_eq27_c2",
+  "remote_campaign_root": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2",
+  "run_dir": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/candidate_43ac6b4",
+  "manifest_path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/Filament_1_43ac6b4_bundle/Filament_python/results/isaacs_complete_eq27/submission_manifest.json",
+  "manifest_sha256": "100d13a5bf61e4babf276dc1cc054f0c0500e72fe9a58f792d6e0c73ff724cd1",
+  "execution_lock_path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/execution_lock_43ac6b4.json",
+  "execution_lock_sha256": "d8eb20fb648e3a53b856a8fbc0f936fd2d666895e20a0db9729461ca11751fd5",
+  "config_path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/Filament_1_43ac6b4_bundle/Filament_python/results/isaacs_complete_eq27/120fs_talebpour_isaacs_complete_eq27.json",
+  "config_sha256": "6c5967f41a0f5d110b3220d5637f764bccb4fe2bd4406647ef30172780954b73",
+  "expected_git_sha": "43ac6b46113b037ca6ec8e1e3b92f942c0477db3",
+  "staging_provenance_path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/staging_provenance_43ac6b4.json",
+  "staging_provenance_sha256": "14a28c14b0b2267ade9b622ec00e1f8c94bf21187ff1e779f0b15ad7d968d859",
+  "staging_provenance_method": "verified_git_bundle_after_remote_github_transport_failure",
+  "staging_provenance_source_class": "verified_bundle_non_strict",
+  "staging_provenance_branch": "codex/isaacs-raman-reclosure",
+  "method": "verified_git_bundle_after_remote_github_transport_failure",
+  "source_class": "verified_bundle_non_strict"
+}

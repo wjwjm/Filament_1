@@ -1,0 +1,15 @@
+{
+  "schema": "khz_filament.isaacs_complete_eq27.staging_provenance.v1",
+  "method": "verified_git_bundle_after_remote_github_transport_failure",
+  "source_class": "verified_bundle_non_strict",
+  "expected_git_sha": "43ac6b46113b037ca6ec8e1e3b92f942c0477db3",
+  "branch": "codex/isaacs-raman-reclosure",
+  "github_push_verified": true,
+  "bundle_path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/isaacs_complete_eq27_c2_43ac6b4.bundle",
+  "bundle_sha256": "df05037655c94edc939d2c26e63c0842a4c3e449db2360bb6965d55cdebbb462",
+  "remote_failure_logs": [
+    "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/fetch_76418313dba3.log",
+    "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/fetch_shallow_76418313dba3.log",
+    "2026-08-22 remote git ls-remote to GitHub timed out after 30 seconds"
+  ]
+}

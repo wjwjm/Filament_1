@@ -5,3 +5,7 @@
 *.md text eol=lf
 *.toml text eol=lf
 *.json text eol=lf
+
+# Preserve the exact external execution-lock bytes referenced by job 221822's
+# immutable receipt and metadata SHA256 binding.
+Filament_python/results/isaacs_complete_eq27/provenance_221822/execution_lock_43ac6b4.json binary
