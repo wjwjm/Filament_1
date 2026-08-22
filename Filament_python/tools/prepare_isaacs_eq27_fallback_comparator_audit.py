@@ -215,8 +215,13 @@ def _verify_fixed_source(role: str) -> tuple[dict[str, str], dict[str, Any], dic
     if not diagnostic_path.is_file() or _sha256(diagnostic_path) != expected["diagnostic_report_sha256"]:
         raise FallbackAuditError(f"{role} fixed diagnostic report is missing or has the wrong SHA256")
     diagnostic = _read_json(diagnostic_path, f"{role} fixed diagnostic report")
-    if diagnostic.get("status") != "COMPLETED" or diagnostic.get("exit_code") != "0:0":
-        raise FallbackAuditError(f"{role} diagnostic report is not COMPLETED with exit code 0:0")
+    validation = diagnostic.get("validation")
+    if diagnostic.get("schema") != "khz_filament.nonlinear_diagnostics.v1":
+        raise FallbackAuditError(f"{role} diagnostic report schema is invalid")
+    if diagnostic.get("npz_path") != expected["npz_path"]:
+        raise FallbackAuditError(f"{role} diagnostic report NPZ path is not the fixed raw source")
+    if not isinstance(validation, dict) or validation.get("passed") is not True:
+        raise FallbackAuditError(f"{role} diagnostic validation did not pass")
     raw = _load_raw_npz(npz_path)
     return expected, metadata, raw
 

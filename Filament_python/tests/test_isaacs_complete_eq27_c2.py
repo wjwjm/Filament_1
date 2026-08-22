@@ -314,7 +314,11 @@ def _write_fixed_raw_case(tmp_path: Path, role: str, rho: np.ndarray, fallback, 
     }
     metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     diagnostic_path = raw_path.with_name(f"test_a_{stem}.diagnostic_report.json")
-    diagnostic_path.write_text(json.dumps({"status": "COMPLETED", "exit_code": "0:0"}) + "\n", encoding="utf-8")
+    diagnostic_path.write_text(json.dumps({
+        "schema": "khz_filament.nonlinear_diagnostics.v1",
+        "npz_path": str(raw_path),
+        "validation": {"passed": True, "z_records": int(x.size)},
+    }) + "\n", encoding="utf-8")
     expected = dict(fallback.FIXED_RAW_EVIDENCE[role])
     expected.update({
         "npz_path": str(raw_path), "npz_sha256": _sha(raw_path),
