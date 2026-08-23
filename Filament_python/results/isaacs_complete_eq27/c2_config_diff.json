@@ -1,0 +1,16 @@
+{
+  "schema": "khz_filament.isaacs_complete_eq27.c2_config_diff.v1",
+  "base_config": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+  "derived_config": "results/isaacs_complete_eq27/120fs_talebpour_isaacs_complete_eq27.json",
+  "differences": [
+    {
+      "path": "raman.operator_mode",
+      "full_isaacs_eq27": "full_isaacs_eq27",
+      "full_isaacs_eq27_complete": "full_isaacs_eq27_complete"
+    }
+  ],
+  "single_causal_variable": "raman.operator_mode: full_isaacs_eq27 -> full_isaacs_eq27_complete",
+  "source_operator_mode": "full_isaacs_eq27",
+  "candidate_operator_mode": "full_isaacs_eq27_complete",
+  "status": "passed"
+}

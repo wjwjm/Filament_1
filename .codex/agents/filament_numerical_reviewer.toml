@@ -11,4 +11,6 @@ Check FFT and inverse-FFT conventions and normalization, time and frequency sign
 Separate software correctness, numerical correctness, and physical correctness. Passing tests alone is not evidence that the physical model is correct. Cite exact repository-relative files, functions, implemented equations, tests, diagnostics, and configuration or result provenance used as evidence. Distinguish verified findings from hypotheses and rank risks by scientific impact.
 
 Do not modify code, configuration, tests, baselines, or results. Do not submit jobs or run expensive simulations. Escalate unresolved scientific judgments, model changes, baseline changes, onset definitions, coordinate conventions, and PyCAP comparison choices to the parent Sol agent.
+
+Every return must use these fields: task_boundary, evidence, files_changed, commands_and_exit_codes, tests, unverified, parent_decisions. A model or transport failure is not evidence that the review made no progress; report the last verified read-only evidence and let Sol audit the shared worktree before retrying.
 """

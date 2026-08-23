@@ -1,0 +1,99 @@
+{
+  "schema": "khz_filament.isaacs_raman_reclosure.v1",
+  "paper": {
+    "path": "references\\Isaacs \u7b49 - 2022 - Modeling the propagation of a high-average-power train of ultrashort laser pulses.pdf",
+    "sha256": "4c3322faacf4a6c3183155690b6e3fd9aa83b7c225ff37e2ab283e455bbfaf6f",
+    "equation_pages_pdf": {
+      "eq7_to_eq12": 4,
+      "eq27": 9
+    }
+  },
+  "configuration": {
+    "path": "Filament_python\\configs\\isaacs_raman_closure\\120fs_talebpour_isaacs_full_operator_on.json",
+    "sha256": "942adca964f50b689fa5985c9af46f294da7948646b246c39ca0d50238a1b02a"
+  },
+  "paper_parameters_si": {
+    "omega_R_rad_s": 16000000000000.0,
+    "Gamma_R_1_s": 13000000000000.0,
+    "n_R_m2_W": 2.3e-23,
+    "n2_m2_W": 7.8e-24,
+    "n_R_over_n2": 2.948717948717949,
+    "kernel_decay_time_fs": 76.92307692307692,
+    "kernel_oscillation_period_fs": 392.6990816987241
+  },
+  "kernel_closure": {
+    "continuous_integral_analytic": 1.0,
+    "continuous_integral_quad": 1.0000000000000002,
+    "iir_8192_weight_sum_numeric": 0.9999999999999999,
+    "iir_infinite_weight_sum_analytic": 1.0,
+    "production_dt_fs": 2.5
+  },
+  "gaussian_120fs": {
+    "I_peak_W_m-2": 5e+17,
+    "response_peak_W_m-2": 4.186829006994556e+17,
+    "response_peak_t_fs": 70.0,
+    "fp64_max_abs_error_over_response_peak": 0.00012022722364122918,
+    "fp64_rms_error_over_response_peak": 3.715257951935509e-05,
+    "fp64_max_relative_error_where_response_gt_1e-6_peak": 0.12360534152245366,
+    "fp64_max_relative_error_where_response_gt_1e-3_peak": 0.005142397978759786,
+    "fp32_max_abs_error_over_response_peak": 0.00012149713194449104,
+    "scipy_quad_vs_mpmath_60dps_max_abs_over_response_peak": 3.057206295890326e-16,
+    "Q_peak_dimensionless_gaussian": 0.03567039463339279,
+    "delta_n_rot_peak": 9.62970671608748e-06,
+    "delta_n_elec_peak": 3.9e-06,
+    "max_rot_over_electronic_peak": 2.469155568227559,
+    "crossing_times_fs_rot_over_electronic_peak": {
+      "0.01": -128.852193443578,
+      "0.05": -99.14283143788948,
+      "0.1": -84.28008728726063,
+      "0.25": -61.63307636862206,
+      "0.5": -40.93621436630622
+    },
+    "eq10_u_R_signed_J_m-3": -11955.0850115771,
+    "eq10_deposited_energy_density_J_m-3": 11955.0850115771
+  },
+  "eq27_operator": {
+    "rotational_current_vs_direct_product_derivative_rel_l2": 1.839309581463446e-16,
+    "rotational_product_rule_vs_direct_product_derivative_rel_l2": 0.00020049334915363883,
+    "rotational_current_vs_continuous_response_rel_l2": 0.00010795039510433432,
+    "rotational_error_if_I_R_dA_dt_omitted_rel_l2": 0.12091989005393051,
+    "electronic_scalar_split_vs_full_product_derivative_rel_l2": 0.06754344994739692,
+    "electronic_scalar_split_boundary": "Current full_isaacs_eq27 mode is a full rotational suboperator, not a monolithic Eq.27 implementation of every p_NL component.",
+    "complex64_projection_applied": true,
+    "complex64_projection_scale": 1.000000003268243,
+    "complex64_projected_vs_pure_heun_rel_l2": 1.8577280158638132e-08,
+    "heun_convergence": [
+      {
+        "dz_m": 0.0002,
+        "heun_relative_l2_vs_rk4": 4.087455263927359e-07
+      },
+      {
+        "dz_m": 0.0001,
+        "heun_relative_l2_vs_rk4": 5.10929972669001e-08
+      },
+      {
+        "dz_m": 5e-05,
+        "heun_relative_l2_vs_rk4": 6.386647388846835e-09
+      }
+    ]
+  },
+  "weights": {
+    "electronic": "n2*I once",
+    "rotational": "n_R*I_R once",
+    "f_R_used_by_isaacs_full_operator": false,
+    "legacy_split_rotational_phase_simultaneously_enabled": false,
+    "legacy_raman_absorption_simultaneously_enabled": false
+  },
+  "scope_limitations": [
+    "Closure applies to the strict isaacs_rot_sinexp, exact_piecewise_linear IIR, full rotational operator path in the audited configuration.",
+    "The inactive FFT and legacy Raman paths were not numerically certified by this experiment.",
+    "This is a single-point and small-array audit, not a full-propagation validation.",
+    "The complex64 projection was quantified for one local production-scale probe; cumulative propagation impact was not inferred."
+  ],
+  "decision": {
+    "class": "B",
+    "statement": "For the audited strict Isaacs exact-PWL IIR/full-rotational path, the parameters, kernel normalization, dt handling, weights, Eq. (10) units, and D[I_R A] operator close; no convention or normalization error was found in that path. However, the configuration named full_isaacs_eq27 is not a mathematically complete Eq. (27) nonlinear operator: electronic Kerr remains a scalar shock/phase approximation to D[I A], and complex64 may add a tiny global energy-projection rescaling.",
+    "no_full_propagation_run": true,
+    "no_parameter_fitting": true
+  }
+}

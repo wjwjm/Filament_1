@@ -228,7 +228,9 @@ def resolve_nonlinear_switches(prop: PropagationConfig, raman: RamanConfig | Non
     compute_raman_absorption = bool(
         compute_raman and (legacy_raman_absorption or explicit_raman_absorption is not None)
     )
-    if str(getattr(raman, "operator_mode", "legacy_split")).lower() == "full_isaacs_eq27":
+    if str(getattr(raman, "operator_mode", "legacy_split")).lower() in (
+        "full_isaacs_eq27", "full_isaacs_eq27_complete"
+    ):
         # Eq. (10) is produced by the full-operator stage itself.  Never enter
         # the legacy conv_deriv/closed-form absorption calculation in this mode.
         compute_raman_absorption = False

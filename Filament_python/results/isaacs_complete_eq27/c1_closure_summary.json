@@ -1,0 +1,148 @@
+{
+  "allowed_diff_scope": [
+    "Filament_python/KHz_filament/Config_explain.md",
+    "Filament_python/KHz_filament/README.md",
+    "Filament_python/KHz_filament/config.py",
+    "Filament_python/KHz_filament/config_normalize.py",
+    "Filament_python/KHz_filament/diagnostics.py",
+    "Filament_python/KHz_filament/propagate.py",
+    "Filament_python/KHz_filament/raman.py",
+    "Filament_python/results/isaacs_complete_eq27/PROJECT_STATE.md",
+    "Filament_python/results/isaacs_complete_eq27/c1_closure_summary.json",
+    "Filament_python/results/isaacs_complete_eq27/c1_operator_report.md",
+    "Filament_python/tests/test_isaacs_complete_eq27.py",
+    "Filament_python/tools/audit_isaacs_complete_eq27.py"
+  ],
+  "base_sha": "c9d9b952c4c23d6839374bdc5de184f0cd389eb3",
+  "branch": "codex/isaacs-raman-reclosure",
+  "changed_paths": [
+    "Filament_python/KHz_filament/Config_explain.md",
+    "Filament_python/KHz_filament/README.md",
+    "Filament_python/KHz_filament/config.py",
+    "Filament_python/KHz_filament/config_normalize.py",
+    "Filament_python/KHz_filament/diagnostics.py",
+    "Filament_python/KHz_filament/propagate.py",
+    "Filament_python/KHz_filament/raman.py",
+    "Filament_python/results/isaacs_complete_eq27/PROJECT_STATE.md",
+    "Filament_python/results/isaacs_complete_eq27/c1_closure_summary.json",
+    "Filament_python/results/isaacs_complete_eq27/c1_operator_report.md",
+    "Filament_python/tests/test_isaacs_complete_eq27.py",
+    "Filament_python/tools/audit_isaacs_complete_eq27.py"
+  ],
+  "current_sha": "c9d9b952c4c23d6839374bdc5de184f0cd389eb3",
+  "diff_hash": "c08056a474cd0fc53d37a9fdb5afd14055a8aa2dc3feb0ae1ca70a9e25f244b7",
+  "diff_hash_algorithm": "sha256",
+  "energy_closure_supporting": {
+    "dt_s": 2.5e-15,
+    "edge_amplitude_ratio": 2.931717773175919e-10,
+    "edge_amplitude_ratio_threshold": 1e-06,
+    "old_128fs_window_edge_amplitude_ratio": 0.678285838808053,
+    "old_128fs_window_spurious_flux_fraction": 0.08115089017737817,
+    "pure_complex128_field_vs_Eq10_passed": true,
+    "pure_complex128_field_vs_Eq10_relative_residual": 3.361502586422866e-08,
+    "pure_complex128_field_vs_Eq10_threshold": 1e-06,
+    "window_duration_s": 9.6e-13,
+    "window_samples": 384
+  },
+  "full_propagation_run": false,
+  "gates": {
+    "Heun_convergence": {
+      "error_ratio": 4.000020764996981,
+      "expected_minimum_ratio": 3.5,
+      "passed": true,
+      "single_vs_two_half_error": 20.549013245257665,
+      "two_half_vs_four_quarter_error": 5.137226642690485
+    },
+    "coefficient_single_count_audit": {
+      "checks": {
+        "electronic_double_scale_rel_l2": 0.0,
+        "electronic_single_count_rel_l2": 0.0,
+        "electronic_zero": 0.0,
+        "rotational_double_scale_rel_l2": 0.0,
+        "rotational_single_count_rel_l2": 0.0,
+        "rotational_zero": 0.0
+      },
+      "passed": true
+    },
+    "combined_Eq27_closure": {
+      "combined_minus_components_rel_l2": 0.0,
+      "edge_amplitude_ratio": 2.931717773175919e-10,
+      "edge_amplitude_ratio_threshold": 1e-06,
+      "passed": true,
+      "pure_complex128_field_vs_Eq10_energy_closure": {
+        "actual_global_energy_loss_J": 0.11952940021857893,
+        "passed": true,
+        "relative_residual": 3.361502586422866e-08,
+        "target_global_energy_loss_J": 0.11952940423656294,
+        "threshold": 1e-06
+      },
+      "relative_l2": 1.5410028917768486e-16,
+      "threshold": 1e-06
+    },
+    "electronic_D_IA_closure": {
+      "passed": true,
+      "relative_l2": 1.416746659368396e-17,
+      "threshold": 1e-06
+    },
+    "no_Raman_parameter_change": {
+      "Gamma_R": 13000000000000.0,
+      "n2": 7.8e-24,
+      "n_R": 2.3e-23,
+      "omega_R": 16000000000000.0,
+      "passed": true
+    },
+    "no_unrelated_physics_modification": {
+      "allowed_diff_scope": [
+        "Filament_python/KHz_filament/Config_explain.md",
+        "Filament_python/KHz_filament/README.md",
+        "Filament_python/KHz_filament/config.py",
+        "Filament_python/KHz_filament/config_normalize.py",
+        "Filament_python/KHz_filament/diagnostics.py",
+        "Filament_python/KHz_filament/propagate.py",
+        "Filament_python/KHz_filament/raman.py",
+        "Filament_python/results/isaacs_complete_eq27/PROJECT_STATE.md",
+        "Filament_python/results/isaacs_complete_eq27/c1_closure_summary.json",
+        "Filament_python/results/isaacs_complete_eq27/c1_operator_report.md",
+        "Filament_python/tests/test_isaacs_complete_eq27.py",
+        "Filament_python/tools/audit_isaacs_complete_eq27.py"
+      ],
+      "passed": true,
+      "unrelated_paths": []
+    },
+    "production_default_unchanged": {
+      "default_operator_convention": "legacy",
+      "default_operator_mode": "legacy_split",
+      "old_rotational_reference_rel_l2": 1.4827389708592004e-16,
+      "passed": true
+    },
+    "rotational_D_IRA_closure": {
+      "passed": true,
+      "relative_l2": 3.369795633819466e-17,
+      "threshold": 1e-06
+    }
+  },
+  "git_dirty": true,
+  "next_action": "C1 audit complete; parent must decide whether C2 is admissible",
+  "operator": {
+    "electronic_coefficient_count": 1,
+    "iir_sampling": "exact_piecewise_linear",
+    "intensity_definition": "I=0.5*eps0*c0*n0*abs(A)^2",
+    "mode": "full_isaacs_eq27_complete",
+    "prefactor": "vacuum omega0/c0",
+    "rhs_definition": "i*(omega0/c0)*S-(1/c0)*d_tau(S)",
+    "rotational_coefficient_count": 1,
+    "source_definition": "S=(n2*I+n_R*I_R)*A"
+  },
+  "overall": "PASS",
+  "production_default_changed": false,
+  "projection": {
+    "energy_projection_scale": 1.0000000012010186,
+    "not_primary_for_C2": true,
+    "single_step_energy_relative_diff": 3.4942313175565808e-09,
+    "single_step_field_relative_diff": 1.28022801249017e-08,
+    "status": "not_primary_for_C2"
+  },
+  "raman_parameters_changed": false,
+  "schema": "khz_filament.isaacs_complete_eq27.c1.v1",
+  "slurm_jobs_submitted": 0
+}

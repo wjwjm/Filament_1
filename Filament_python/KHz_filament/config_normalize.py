@@ -156,7 +156,10 @@ def _normalize_raman(raman: Dict[str, Any]) -> None:
         raise ValueError(f"raman.iir_sampling must be one of {allowed_sampling}.")
     raman["iir_sampling"] = sampling
     operator_mode = str(raman.get("operator_mode", "legacy_split") or "legacy_split").lower()
-    allowed_modes = ("legacy_split", "split_energy_closed", "full_isaacs_eq27", "historical_fr_mixture")
+    allowed_modes = (
+        "legacy_split", "split_energy_closed", "full_isaacs_eq27",
+        "full_isaacs_eq27_complete", "historical_fr_mixture",
+    )
     if operator_mode not in allowed_modes:
         raise ValueError(f"raman.operator_mode must be one of {allowed_modes}.")
     raman["operator_mode"] = operator_mode
@@ -214,12 +217,20 @@ def _validate_raman_operator_coupling(raman: Dict[str, Any], propagation: Dict[s
     absorption_model = str(raman.get("absorption_model", "") or "").lower()
     use_split_phase = bool(propagation.get("use_raman_phase", False))
     use_full_operator = bool(propagation.get("use_raman_full_operator", False))
-    if mode == "full_isaacs_eq27" and legacy_absorption:
-        raise ValueError("full_isaacs_eq27 includes Raman energy exchange and rejects legacy Raman absorption.")
-    if mode == "full_isaacs_eq27" and use_split_phase:
-        raise ValueError("full_isaacs_eq27 rejects propagation.use_raman_phase=true; use use_raman_full_operator.")
-    if mode != "full_isaacs_eq27" and use_full_operator:
-        raise ValueError("propagation.use_raman_full_operator=true requires raman.operator_mode=full_isaacs_eq27.")
+    full_modes = ("full_isaacs_eq27", "full_isaacs_eq27_complete")
+    if mode in full_modes and legacy_absorption:
+        raise ValueError(
+            f"{mode} includes Raman energy exchange and rejects legacy Raman absorption."
+        )
+    if mode in full_modes and use_split_phase:
+        raise ValueError(
+            f"{mode} rejects propagation.use_raman_phase=true; use use_raman_full_operator."
+        )
+    if mode not in full_modes and use_full_operator:
+        raise ValueError(
+            "propagation.use_raman_full_operator=true requires raman.operator_mode="
+            "full_isaacs_eq27 or full_isaacs_eq27_complete."
+        )
     if mode == "split_energy_closed" and (legacy_absorption or absorption_model == "conv_deriv"):
         raise ValueError("split_energy_closed rejects legacy conv_deriv/absorption feedback.")
 

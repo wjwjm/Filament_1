@@ -1,0 +1,11 @@
+quantity,paper_definition,si_unit,code_variable,paper_value_or_formula,actual_code_value_or_formula,audit_note
+omega_R,Eq. (9) angular oscillation rate,rad s^-1,raman.omega_R,16000000000000.0,16000000000000.0,No 2*pi conversion; paper already supplies omega.
+Gamma_R,Eq. (9) exponential damping rate,s^-1,raman.Gamma_R,13000000000000.0,13000000000000.0,1/Gamma_R = 76.923 fs; not 1/T2 from historical mode.
+n_R,"Eqs. (8),(10) rotational nonlinear index",m^2 W^-1,raman.n_R,2.3e-23,2.3e-23,2.3e-19 cm^2/W multiplied by 1e-4.
+n2,Eq. (27) electronic nonlinear index,m^2 W^-1,beam.n2_air,7.8e-24,7.8e-24,0.78e-19 cm^2/W multiplied by 1e-4.
+I,Cycle-averaged physical intensity,W m^-2,0.5*eps0*c0*n0*abs(E)^2,physical intensity,KHz_filament.raman.isaacs_raman_stage,Consistent with SI field envelope and measured n2/n_R convention.
+Omega_kernel,Eq. (9) causal response kernel,s^-1,make_raman_kernel / IIR state,((omega^2+Gamma^2)/omega) exp(-Gamma t) sin(omega t) H(t),same analytic prefactor,Continuous integral equals one.
+I_R,Integral Omega(t-t') I(t') dt',W m^-2,response / I_R,causal convolution with dt,IIR coefficients analytically integrate each interval,No additional f_R or n_R factor in I_R.
+delta_n_rot,Rotational refractive-index contribution,dimensionless,n_R*I_R,n_R I_R,full operator algebraically uses n_R once,No electronic/rotational mixing weight in Isaacs model.
+u_R,Eq. (10) signed fluence derivative per length,J m^-3,u_R_signed,(n_R/c) integral I_R dI/dt dt,same with spectral derivative increments,Negative for pulse loss; q_R_positive=-u_R_signed.
+D[p_rot],Eq. (27) full rotational polarization derivative,field m^-1,isaacs_raman_stage.rhs,i*k_vac*n_R*I_R*A-(n_R/c)d_t(I_R*A),same product derivative,Includes I_R*dA/dt.

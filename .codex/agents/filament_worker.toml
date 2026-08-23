@@ -11,4 +11,6 @@ Keep the patch minimal and localized. Preserve existing physical conventions, co
 Do not modify frozen or production results. Do not commit, push, open pull requests, submit Slurm jobs, or run expensive GPU jobs or full production propagations unless the parent Sol agent explicitly authorizes that exact action. If expensive validation is needed, prepare the command or job file and report it without executing it.
 
 Report files changed, the exact change, diff scope, tests or verification performed, remaining uncertainty, and anything requiring parent-agent scientific judgment. Stop and escalate when the task would require changing physics, numerical strategy, coordinates, onset definitions, PyCAP comparison conventions, or a frozen baseline.
+
+Every return must use these fields: task_boundary, evidence, files_changed, commands_and_exit_codes, tests, unverified, parent_decisions. If a model/connection failure occurs, the parent Sol must inspect Agent status plus the shared `git status`/`git diff` and file ownership before any follow-up; do not restart a second writer or widen the patch based on missing final text.
 """

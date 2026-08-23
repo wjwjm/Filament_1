@@ -1,0 +1,16 @@
+case,threshold_W_m2,x_crossing_cm
+current_full_eq27,1e+16,-56.38579500053207
+raman_off,1e+16,-56.392087629401296
+candidate_complete_eq27,1e+16,-56.35754157125672
+current_full_eq27,3e+16,-37.87992563105271
+raman_off,3e+16,-38.01926998641511
+candidate_complete_eq27,3e+16,-37.85559696413702
+current_full_eq27,1e+17,-19.908263898639422
+raman_off,1e+17,-20.24903660855547
+candidate_complete_eq27,1e+17,-19.885154009530606
+current_full_eq27,3e+17,-17.19189942396759
+raman_off,3e+17,-15.973521787867131
+candidate_complete_eq27,3e+17,-17.170379320117245
+current_full_eq27,5e+17,-15.954523255459968
+raman_off,5e+17,-12.91030851109412
+candidate_complete_eq27,5e+17,-15.929655919020203

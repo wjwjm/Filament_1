@@ -1,0 +1,114 @@
+{
+  "schema": "khz_filament.isaacs_complete_eq27.c2_submission_manifest.v1",
+  "campaign_id": "isaacs_complete_eq27_c2",
+  "remote_campaign_root": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2",
+  "status": "prepared_not_submitted",
+  "parent_c1_commit": "459dd108b9873b0e8b18fe83111f386993cf5b9f",
+  "c1_gate": {
+    "commit": "459dd108b9873b0e8b18fe83111f386993cf5b9f",
+    "summary_path": "results/isaacs_complete_eq27/c1_closure_summary.json",
+    "summary_sha256": "ccf6f865042651894e747f1272c5371cad8bc4bb7fd6abd11b61684a795ebcdc",
+    "report_path": "results/isaacs_complete_eq27/c1_operator_report.md",
+    "report_sha256": "fe8b7fe99a88dde5d4c987d88d1a87dd5208461bb70ff25af6e365ef4ac7b21d",
+    "overall": "PASS"
+  },
+  "prepared_from_git_sha": "76418313dba39cc5580dc87fe736bc62d442575b",
+  "expected_git_sha": null,
+  "execution_lock_required": true,
+  "locked_base_config_sha256": "942adca964f50b689fa5985c9af46f294da7948646b246c39ca0d50238a1b02a",
+  "expected_git_sha_resolution": "external execution_lock generated after final source commit",
+  "source_config": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+  "source_config_sha256": "942adca964f50b689fa5985c9af46f294da7948646b246c39ca0d50238a1b02a",
+  "derived_config": "results/isaacs_complete_eq27/120fs_talebpour_isaacs_complete_eq27.json",
+  "derived_config_sha256": "6c5967f41a0f5d110b3220d5637f764bccb4fe2bd4406647ef30172780954b73",
+  "strict_config_diff": [
+    {
+      "path": "raman.operator_mode",
+      "full_isaacs_eq27": "full_isaacs_eq27",
+      "full_isaacs_eq27_complete": "full_isaacs_eq27_complete"
+    }
+  ],
+  "single_causal_variable": "electronic Eq.27 operator form",
+  "causal_interpretation": "complete combined Eq.27 implementation: electronic Kerr moves from the central scalar phase/shock approximation into the combined electronic+rotational Strang half-stages; coefficients and all other configuration fields remain fixed",
+  "causal_limit": "the finite-dz result does not separately identify derivative algebra, electronic stage placement, or electronic-rotational Heun coupling",
+  "operator_modes": {
+    "source": "full_isaacs_eq27",
+    "candidate": "full_isaacs_eq27_complete"
+  },
+  "jobs_authorized": 1,
+  "jobs_submitted": 0,
+  "full_jobs_authorized": 1,
+  "full_propagation_jobs_authorized": 1,
+  "full_production_jobs_submitted": 0,
+  "scan_jobs_authorized": 0,
+  "parameter_scan_authorized": false,
+  "profiling_jobs_authorized": 0,
+  "profiling_authorized": false,
+  "additional_profiling_smokes_authorized": 0,
+  "optimization_jobs_authorized": 0,
+  "walltime_policy": {
+    "partition": "gpu",
+    "requested_time": "15:00:00",
+    "max_time": "UNLIMITED"
+  },
+  "resources": {
+    "partition": "gpu",
+    "gpu_count": 1,
+    "cpu_threads": 8,
+    "requested_time": "15:00:00",
+    "expected_gpu_model": "NVIDIA GeForce RTX 5090",
+    "memory_policy": "site default per requested GPU; batch metadata records peak allocated/reserved bytes",
+    "peak_allocated_bytes_from_existing_metadata": null,
+    "peak_reserved_bytes_from_existing_metadata": null
+  },
+  "shared_resources": {
+    "gpu_count": 1,
+    "cpu_threads": 8,
+    "expected_gpu_model": "NVIDIA GeForce RTX 5090",
+    "site_default_memory_mb_per_gpu": 126000
+  },
+  "fallback_provenance": {
+    "provenance_class": "fallback_verified_non_strict",
+    "strict_sha_locked": true,
+    "classification_qualification": "physical classification is allowed only with the fixed raw NPZ and metadata chain; this remains a non-strict cross-run comparator",
+    "comparators": {
+      "current_full_eq27": {
+        "job_id": "180748",
+        "case": "on",
+        "npz_path": "/data/run01/scvi806/user_Wangjimin/phase8c_b_runs/test_a_f0a7b5d5ac10_fallback/on/test_a_on.npz",
+        "npz_sha256": "68d846d4815cd8387c7a4c4934b26dfe48bcef77cc9140d2f06d2fa8e929a218",
+        "metadata_path": "/data/run01/scvi806/user_Wangjimin/phase8c_b_runs/test_a_f0a7b5d5ac10_fallback/on/test_a_on_job_metadata.json",
+        "metadata_sha256": "0b057fed4763bb2719d7b8288e820d30cf4f458b3752632d65a026cf1eee9f21",
+        "config_sha256": "aafec917d06c252617e5bfdd2ce3a73dd276401c271c33380d59e0172055cf78",
+        "execution_sha": "f0a7b5d5ac103546bd693378e8f8efb4f07c6c27",
+        "gpu_model": "NVIDIA GeForce RTX 5090"
+      },
+      "raman_off": {
+        "job_id": "180749",
+        "case": "off",
+        "npz_path": "/data/run01/scvi806/user_Wangjimin/phase8c_b_runs/test_a_f0a7b5d5ac10_fallback/off/test_a_off.npz",
+        "npz_sha256": "e85b8dbbc0fd20b50f6c8234d3de677119ff46f4acaf459e43b1b8ff5e5dc6f9",
+        "metadata_path": "/data/run01/scvi806/user_Wangjimin/phase8c_b_runs/test_a_f0a7b5d5ac10_fallback/off/test_a_off_job_metadata.json",
+        "metadata_sha256": "d2bd43c85099a03c2b3f226127829c07b99fc955c486989d443d09c08d21716a",
+        "config_sha256": "1c1415941d4497a6caaf6a37ee8559bbd8b8b20a9eeee6377a8dbbc7d28f41ef",
+        "execution_sha": "f0a7b5d5ac103546bd693378e8f8efb4f07c6c27",
+        "gpu_model": "NVIDIA GeForce RTX 5090"
+      }
+    },
+    "excluded_invalid_jobs": [
+      "179706",
+      "179988"
+    ],
+    "exclusion_reason": "both failed/invalid for physical onset classification; retained only as numerical/audit provenance"
+  },
+  "comparison_qualification": "jobs 180748/180749 are fallback_verified_non_strict and used mixed_precision, whereas the locked mother/candidate configuration retains its baseline default linear precision; classification must retain both qualifications",
+  "comparison_inputs": {
+    "current_full_eq27_job": "180748",
+    "raman_off_job": "180749",
+    "candidate_case_id": "complete_eq27",
+    "pycap_120fs": "results/density_translation_width/density_translation_width_20260715_002/paper_pycap_120fs.csv",
+    "pycap_120fs_sha256": "9b43e75ebc08ccb0a7796829e45c6727b42ab12cd661b9a3d8d235ef89d31461",
+    "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95)"
+  },
+  "raw_npz_policy": "raw candidate NPZ stays in RUN_DIR/HPC and is not copied into the repository"
+}

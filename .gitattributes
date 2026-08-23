@@ -2,6 +2,20 @@
 *.sh text eol=lf
 *.sbatch text eol=lf
 *.py text eol=lf
+*.ps1 text eol=lf
 *.md text eol=lf
 *.toml text eol=lf
 *.json text eol=lf
+
+# Preserve the exact external execution-lock bytes referenced by job 221822's
+# immutable receipt and metadata SHA256 binding.
+Filament_python/results/isaacs_complete_eq27/provenance_221822/execution_lock_43ac6b4.json binary
+
+# Preserve the checkout bytes used by the historical v1 execution lock while
+# keeping generated lock/receipt text in the Linux-native form used on HPC.
+Filament_python/results/isaacs_complete_eq27/c1_closure_summary.json text eol=crlf
+Filament_python/results/isaacs_complete_eq27/c1_operator_report.md text eol=crlf
+Filament_python/results/isaacs_complete_eq27/submission_manifest.json text eol=crlf
+Filament_python/results/isaacs_complete_eq27/provenance_221822/SUBMISSION_LOCK text eol=lf
+Filament_python/results/isaacs_complete_eq27/provenance_221822/submission_record.txt text eol=lf
+Filament_python/results/density_translation_width/density_translation_width_20260715_002/paper_pycap_120fs.csv text eol=crlf

@@ -1,0 +1,360 @@
+{
+  "schema": "khz_filament.isaacs_complete_eq27.c2_postprocess.v1",
+  "job_id": "221822",
+  "status": "completed",
+  "gate": "passed",
+  "audit_status": "passed",
+  "case_id": "complete_eq27",
+  "role": "candidate_complete_eq27",
+  "operator_mode": "full_isaacs_eq27_complete",
+  "operator_state": "applied",
+  "operator": {
+    "mode": "full_isaacs_eq27_complete",
+    "state": "applied"
+  },
+  "provenance_class": "verified_bundle_non_strict",
+  "execution_provenance_class": "candidate_execution_verified",
+  "provenance": {
+    "class": "verified_bundle_non_strict",
+    "execution_class": "candidate_execution_verified",
+    "execution_git_sha": "43ac6b46113b037ca6ec8e1e3b92f942c0477db3",
+    "expected_execution_sha": "43ac6b46113b037ca6ec8e1e3b92f942c0477db3",
+    "run_status": "completed",
+    "staging": {
+      "path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/staging_provenance_43ac6b4.json",
+      "sha256": "14a28c14b0b2267ade9b622ec00e1f8c94bf21187ff1e779f0b15ad7d968d859"
+    },
+    "method": "verified_git_bundle_after_remote_github_transport_failure",
+    "source_class": "verified_bundle_non_strict",
+    "branch": "codex/isaacs-raman-reclosure"
+  },
+  "numerical_admission": "passed",
+  "numerical_admission_detail": {
+    "status": "passed",
+    "passed": true,
+    "failures": []
+  },
+  "artifacts": {
+    "axial": {
+      "path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/postprocess_221822/isaacs_complete_eq27_axial_diagnostics.csv",
+      "sha256": "ef040feaf76932c74b9e2195c1d3d96dbaa796c1349d6cd26d90bae4f1d8aef5"
+    },
+    "extras": {
+      "path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/postprocess_221822/isaacs_complete_eq27_raman_extras.csv",
+      "sha256": "24c923695f21d7f3f6d4e605909ce1b41b8ffb83063b5ddc9c79fa6f8a454afb"
+    }
+  },
+  "npz_path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/candidate_43ac6b4/complete_eq27.npz",
+  "config_path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/Filament_1_43ac6b4_bundle/Filament_python/results/isaacs_complete_eq27/120fs_talebpour_isaacs_complete_eq27.json",
+  "npz_sha256": "dc8c030991e3910acc0f09069faa6dcbd9df7b86c2445509a9a6f07d2ec283d8",
+  "config_sha256": "6c5967f41a0f5d110b3220d5637f764bccb4fe2bd4406647ef30172780954b73",
+  "raw_source": {
+    "generated_from_raw_npz": true,
+    "npz": {
+      "path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/candidate_43ac6b4/complete_eq27.npz",
+      "sha256": "dc8c030991e3910acc0f09069faa6dcbd9df7b86c2445509a9a6f07d2ec283d8"
+    },
+    "metadata": {
+      "path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/candidate_43ac6b4/complete_eq27_job_metadata.json",
+      "sha256": "39410ab2a9498a1e928ac0f022ae437e5ac5034e272e04ce5cafe6c1c429dac4"
+    },
+    "config": {
+      "path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/Filament_1_43ac6b4_bundle/Filament_python/results/isaacs_complete_eq27/120fs_talebpour_isaacs_complete_eq27.json",
+      "sha256": "6c5967f41a0f5d110b3220d5637f764bccb4fe2bd4406647ef30172780954b73"
+    },
+    "manifest": {
+      "path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/Filament_1_43ac6b4_bundle/Filament_python/results/isaacs_complete_eq27/submission_manifest.json",
+      "sha256": "100d13a5bf61e4babf276dc1cc054f0c0500e72fe9a58f792d6e0c73ff724cd1"
+    },
+    "execution_lock": {
+      "path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/execution_lock_43ac6b4.json",
+      "sha256": "d8eb20fb648e3a53b856a8fbc0f936fd2d666895e20a0db9729461ca11751fd5"
+    },
+    "submission_lock": {
+      "path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/candidate_43ac6b4/SUBMISSION_LOCK",
+      "sha256": "43e8f443404009a1c24c65feb2c73781a78b7ea8a0a72f91a6e9bea84fd9f5de"
+    },
+    "global_consumed_lock": {
+      "path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/.consumed.lock/submission_record.txt",
+      "sha256": "dfc917201550f565bc28779890c772506c5a960fd78b8358a369899454420e23"
+    },
+    "job_receipt": {
+      "path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/candidate_43ac6b4/job_receipt.json",
+      "sha256": "81cb3bc34a9e01fe26e9d62632ef508dee8f64d058715a0177b6045b6c45ef88"
+    },
+    "staging_provenance": {
+      "path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/staging_provenance_43ac6b4.json",
+      "sha256": "14a28c14b0b2267ade9b622ec00e1f8c94bf21187ff1e779f0b15ad7d968d859"
+    },
+    "staging_provenance_method": "verified_git_bundle_after_remote_github_transport_failure",
+    "staging_provenance_source_class": "verified_bundle_non_strict",
+    "staging_provenance_branch": "codex/isaacs-raman-reclosure",
+    "provenance_class": "verified_bundle_non_strict",
+    "method": "verified_git_bundle_after_remote_github_transport_failure",
+    "source_class": "verified_bundle_non_strict",
+    "campaign_id": "isaacs_complete_eq27_c2",
+    "remote_campaign_root": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2",
+    "operator_mode": "full_isaacs_eq27_complete",
+    "use_raman_full_operator": true,
+    "job_id": "221822",
+    "gpu_model": "NVIDIA GeForce RTX 5090",
+    "propagation_invocations": 1
+  },
+  "run_metadata": {
+    "schema": "khz_filament.isaacs_complete_eq27.job_metadata.v1",
+    "case_id": "complete_eq27",
+    "status": "completed",
+    "exit_code": 0,
+    "slurm_job_id": "221822",
+    "expected_git_sha": "43ac6b46113b037ca6ec8e1e3b92f942c0477db3",
+    "execution_git_sha": "43ac6b46113b037ca6ec8e1e3b92f942c0477db3",
+    "git_status_clean": true,
+    "campaign_id": "isaacs_complete_eq27_c2",
+    "remote_campaign_root": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2",
+    "manifest_path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/Filament_1_43ac6b4_bundle/Filament_python/results/isaacs_complete_eq27/submission_manifest.json",
+    "manifest_sha256": "100d13a5bf61e4babf276dc1cc054f0c0500e72fe9a58f792d6e0c73ff724cd1",
+    "execution_lock_path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/execution_lock_43ac6b4.json",
+    "execution_lock_sha256": "d8eb20fb648e3a53b856a8fbc0f936fd2d666895e20a0db9729461ca11751fd5",
+    "submission_lock_path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/candidate_43ac6b4/SUBMISSION_LOCK",
+    "submission_lock_sha256": "43e8f443404009a1c24c65feb2c73781a78b7ea8a0a72f91a6e9bea84fd9f5de",
+    "global_consumed_lock": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/.consumed.lock",
+    "job_receipt_path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/candidate_43ac6b4/job_receipt.json",
+    "job_receipt_sha256": "81cb3bc34a9e01fe26e9d62632ef508dee8f64d058715a0177b6045b6c45ef88",
+    "staging_provenance_path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/staging_provenance_43ac6b4.json",
+    "staging_provenance_sha256": "14a28c14b0b2267ade9b622ec00e1f8c94bf21187ff1e779f0b15ad7d968d859",
+    "staging_provenance_method": "verified_git_bundle_after_remote_github_transport_failure",
+    "staging_provenance_source_class": "verified_bundle_non_strict",
+    "staging_provenance_branch": "codex/isaacs-raman-reclosure",
+    "method": "verified_git_bundle_after_remote_github_transport_failure",
+    "source_class": "verified_bundle_non_strict",
+    "reservation_token": "8c2b91628c1a244b9682891e8f24813e63d5db89056678b033727b7877111b25",
+    "config_path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/Filament_1_43ac6b4_bundle/Filament_python/results/isaacs_complete_eq27/120fs_talebpour_isaacs_complete_eq27.json",
+    "config_sha256": "6c5967f41a0f5d110b3220d5637f764bccb4fe2bd4406647ef30172780954b73",
+    "gpu_model": "NVIDIA GeForce RTX 5090",
+    "gpu_total_memory_bytes": 33668988928,
+    "cpu_threads": 8,
+    "thread_environment": {
+      "OMP_NUM_THREADS": "8",
+      "OPENBLAS_NUM_THREADS": "8",
+      "MKL_NUM_THREADS": "8",
+      "NUMEXPR_NUM_THREADS": "8"
+    },
+    "staging_directory": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/Filament_1_43ac6b4_bundle",
+    "run_directory": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/candidate_43ac6b4",
+    "operator_mode": "full_isaacs_eq27_complete",
+    "use_raman_full_operator": true,
+    "profiling_enabled": false,
+    "propagation_invocations": 1,
+    "peak_allocated_bytes": 0,
+    "peak_reserved_bytes": 0,
+    "peak_memory_source": "candidate NPZ gpu_allocated_step_bytes/gpu_reserved_step_bytes when available",
+    "npz_sha256": "dc8c030991e3910acc0f09069faa6dcbd9df7b86c2445509a9a6f07d2ec283d8"
+  },
+  "semantic_values": {
+    "raman_operator_mode": "full_isaacs_eq27_complete",
+    "delta_n_rot_applied_semantics": "not_applicable_full_complex_operator",
+    "delta_n_elec_applied_semantics": "equivalent_n2_I_trace_full_complex_operator",
+    "dphi_kerr_semantics": "not_applicable_scalar_phase_full_complex_operator",
+    "self_steepening_semantics": "full_product_derivative_D_S_in_complete_complex_operator",
+    "raman_closure_residual_semantics": "field_vs_eq10",
+    "raman_operator_feedback_enabled": true,
+    "raman_absorption_on": false,
+    "raman_absorption_calculated": false
+  },
+  "field_status": {
+    "IR_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 4.696013131439145e+17
+    },
+    "IR_abs_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 4.696013131439145e+17
+    },
+    "delta_n_elec_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 5.237577170191798e-06
+    },
+    "delta_n_rot_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 1.0800829841173254e-05
+    },
+    "delta_n_elec_applied_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 5.237577170191798e-06
+    },
+    "delta_n_rot_applied_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.0
+    },
+    "dphi_elec_max_abs_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.004114693962037563
+    },
+    "dphi_rot_max_abs_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.00848524272441864
+    },
+    "dphi_elec_applied_max_abs_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.004114693962037563
+    },
+    "dphi_rot_applied_max_abs_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.0
+    },
+    "alpha_R_raw_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.0
+    },
+    "alpha_R_applied_max_z": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.0
+    },
+    "raman_rhs_l2_norm": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 64389734465536.0
+    },
+    "raman_target_loss_step_J": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 1.8565859960517628e-08
+    },
+    "raman_actual_loss_step_J": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 1.8567725135198998e-08
+    },
+    "raman_closure_residual_step": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.00024496580590493977
+    },
+    "raman_target_loss_cumulative_J": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 3.974117498728447e-05
+    },
+    "raman_actual_loss_cumulative_J": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 3.974117134930566e-05
+    },
+    "raman_cumulative_closure_residual": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 2.848635813279543e-05
+    },
+    "raman_convolution_count_step": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 4.0
+    },
+    "raman_operator_substep_count": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 2.0
+    },
+    "raman_operator_walltime_step_s": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 14.47843074798584
+    },
+    "raman_energy_projection_iterations": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 3.0
+    },
+    "raman_energy_projection_scale_deviation": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 5.355714760568731e-10
+    },
+    "raman_energy_projection_initial_residual": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.008944118395447731
+    },
+    "gpu_allocated_step_bytes": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.0
+    },
+    "gpu_reserved_step_bytes": {
+      "shape": [
+        15000
+      ],
+      "finite": true,
+      "max_abs": 0.0
+    }
+  },
+  "raman_closure": {
+    "step_p99_abs": 0.00019719847710803157,
+    "cumulative_final_abs": 1.5459647784155095e-07
+  },
+  "failures": []
+}

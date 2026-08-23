@@ -74,6 +74,8 @@ Filament_1/
 - [配置字段说明](Filament_python/KHz_filament/Config_explain.md)
 - [电离子包说明](Filament_python/KHz_filament/ionization/README.md)
 - [工具、测试和 MATLAB 说明](Filament_python/tools/README.md)
+- [Sol–Luna/HPC 执行手册](docs/experience/sol_luna_hpc_execution_playbook.md)
+- [Isaacs Eq.27 C2 执行复盘](docs/experience/2026-08-22_isaacs_eq27_c2_postmortem.md)
 
 ## 最小检查
 
@@ -105,7 +107,11 @@ git status --short
 git ls-remote origin refs/heads/main
 ```
 
-随后通过已有 papp_cloud 会话交互登录，再在远端执行只读 Git 查询：
+随后通过已有 papp_cloud 会话交互登录，再在远端执行只读 Git 查询。包含
+中文路径、管道、重定向、正则、命令替换或多层引号的操作必须改用
+`Filament_python/tools/hpc_ops/Invoke-PappRemoteScript.ps1` 的参数数组和
+脚本上传方式；先使用 `-DryRun`，再运行只读 `hpc_preflight.sh`。简单、无
+变量展开的只读查询仍可直接执行：
 
 ```powershell
 wsl bash -c "~/papp_cloud/papp_cloud_linux_amd64 ssh scvi806@nc-n50r5"

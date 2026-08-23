@@ -1,0 +1,333 @@
+{
+  "schema": "khz_filament.isaacs_complete_eq27.c2_comparison.v1",
+  "coordinate_definition": "x_focus_cm = 100 * (z_m - 0.95)",
+  "classification": "electronic_eq27_operator_not_supported",
+  "classification_basis": {
+    "candidate_minus_current_x_1e22_cm": 0.03210538079646241,
+    "candidate_current_shift_abs_cm": 0.03210538079646241,
+    "candidate_onset_improvement_to_pycap_cm": 0.03210538079646241,
+    "candidate_peak_density_relative_error": 0.014064800017842983,
+    "candidate_rmse_vs_pycap_m3": 1.8162163471727834e+22,
+    "current_rmse_vs_pycap_m3": 1.8351075059873155e+22,
+    "candidate_peak_position_error_cm": 2.1457897871983285,
+    "current_peak_position_error_cm": 2.165787145520472,
+    "thresholds": {
+      "not_supported_shift_lt_cm": 0.1,
+      "not_supported_improvement_lt_cm": 0.1,
+      "supported_improvement_ge_cm": 0.5,
+      "supported_peak_density_relative_error_le": 0.25,
+      "supported_rmse_worsening_fraction_le": 0.1,
+      "supported_peak_position_worsening_le_cm": 0.5
+    }
+  },
+  "causal_interpretation": "classification applies to the complete combined Eq.27 implementation, including the electronic move from the central scalar phase/shock approximation into the combined electronic+rotational Strang half-stages",
+  "causal_limit": "the result does not separately identify derivative algebra, electronic stage placement, or electronic-rotational Heun coupling",
+  "comparator_provenance": {
+    "class": "fallback_verified_non_strict",
+    "qualification": "Current full Eq.27 and Raman-OFF passed their supplied audit, job-id, input path, and input SHA gates, but remain non-strict fallback comparators rather than a strict same-run pair. They used mixed_precision, while the locked mother/candidate configuration retains its baseline default linear precision.",
+    "current_full_eq27": {
+      "job_id": "180748",
+      "role": "fallback comparator",
+      "provenance_class": "fallback_verified_non_strict",
+      "physical_classification_allowed": true,
+      "audit_json": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/comparator_audits_43ac6b4/current_full_eq27_fallback_audit.json"
+    },
+    "raman_off": {
+      "job_id": "180749",
+      "role": "fallback comparator",
+      "provenance_class": "fallback_verified_non_strict",
+      "physical_classification_allowed": true,
+      "audit_json": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/comparator_audits_43ac6b4/raman_off_fallback_audit.json"
+    },
+    "candidate": {
+      "job_id": "221822",
+      "audit_json": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/postprocess_221822/isaacs_complete_eq27_reaudit.json",
+      "audit_gate": "passed",
+      "provenance_class": "verified_bundle_non_strict",
+      "staging_provenance": {
+        "path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/staging_provenance_43ac6b4.json",
+        "sha256": "14a28c14b0b2267ade9b622ec00e1f8c94bf21187ff1e779f0b15ad7d968d859"
+      },
+      "qualification": "Candidate execution is bound to an externally verified Git bundle, but this verified_bundle_non_strict source does not prove a direct GitHub remote push/fetch."
+    },
+    "excluded_invalid_jobs": [
+      "179706",
+      "179988"
+    ],
+    "excluded_invalid_jobs_reason": "not used for physical classification"
+  },
+  "series": {
+    "current_full_eq27": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/comparator_audits_43ac6b4/current_full_eq27_fallback_axial_diagnostics.csv",
+    "raman_off": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/comparator_audits_43ac6b4/raman_off_fallback_axial_diagnostics.csv",
+    "candidate_complete_eq27": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/postprocess_221822/isaacs_complete_eq27_axial_diagnostics.csv",
+    "pycap": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/Filament_1_43ac6b4_bundle/Filament_python/results/density_translation_width/density_translation_width_20260715_002/paper_pycap_120fs.csv"
+  },
+  "rho_threshold_crossings": [
+    {
+      "family": "rho_total",
+      "threshold_m3": 1e+19,
+      "x_current_full_eq27_cm": -19.188150126356092,
+      "x_raman_off_cm": -19.279733495058046,
+      "x_candidate_complete_eq27_cm": -19.166024172511243,
+      "x_pycap_cm": null,
+      "candidate_minus_current_cm": 0.022125953844849278,
+      "current_error_to_pycap_cm": null,
+      "candidate_error_to_pycap_cm": null,
+      "candidate_onset_improvement_cm": null
+    },
+    {
+      "family": "rho_total",
+      "threshold_m3": 1e+20,
+      "x_current_full_eq27_cm": -18.315061038682327,
+      "x_raman_off_cm": -17.948662683053833,
+      "x_candidate_complete_eq27_cm": -18.290615518478507,
+      "x_pycap_cm": null,
+      "candidate_minus_current_cm": 0.024445520203819626,
+      "current_error_to_pycap_cm": null,
+      "candidate_error_to_pycap_cm": null,
+      "candidate_onset_improvement_cm": null
+    },
+    {
+      "family": "rho_total",
+      "threshold_m3": 1e+21,
+      "x_current_full_eq27_cm": -17.27656569029766,
+      "x_raman_off_cm": -16.097403396461612,
+      "x_candidate_complete_eq27_cm": -17.24817147095778,
+      "x_pycap_cm": null,
+      "candidate_minus_current_cm": 0.028394219339880067,
+      "current_error_to_pycap_cm": null,
+      "candidate_error_to_pycap_cm": null,
+      "candidate_onset_improvement_cm": null
+    },
+    {
+      "family": "rho_total",
+      "threshold_m3": 1e+22,
+      "x_current_full_eq27_cm": -16.379965316371187,
+      "x_raman_off_cm": -14.086542891510392,
+      "x_candidate_complete_eq27_cm": -16.347859935574725,
+      "x_pycap_cm": -14.027210012757275,
+      "candidate_minus_current_cm": 0.03210538079646241,
+      "current_error_to_pycap_cm": 2.352755303613913,
+      "candidate_error_to_pycap_cm": 2.3206499228174504,
+      "candidate_onset_improvement_cm": 0.03210538079646241
+    }
+  ],
+  "intensity_threshold_crossings": [
+    {
+      "threshold_W_m2": 1e+16,
+      "case": "current_full_eq27",
+      "x_crossing_cm": -56.38579500053207
+    },
+    {
+      "threshold_W_m2": 1e+16,
+      "case": "raman_off",
+      "x_crossing_cm": -56.392087629401296
+    },
+    {
+      "threshold_W_m2": 1e+16,
+      "case": "candidate_complete_eq27",
+      "x_crossing_cm": -56.35754157125672
+    },
+    {
+      "threshold_W_m2": 3e+16,
+      "case": "current_full_eq27",
+      "x_crossing_cm": -37.87992563105271
+    },
+    {
+      "threshold_W_m2": 3e+16,
+      "case": "raman_off",
+      "x_crossing_cm": -38.01926998641511
+    },
+    {
+      "threshold_W_m2": 3e+16,
+      "case": "candidate_complete_eq27",
+      "x_crossing_cm": -37.85559696413702
+    },
+    {
+      "threshold_W_m2": 1e+17,
+      "case": "current_full_eq27",
+      "x_crossing_cm": -19.908263898639422
+    },
+    {
+      "threshold_W_m2": 1e+17,
+      "case": "raman_off",
+      "x_crossing_cm": -20.24903660855547
+    },
+    {
+      "threshold_W_m2": 1e+17,
+      "case": "candidate_complete_eq27",
+      "x_crossing_cm": -19.885154009530606
+    },
+    {
+      "threshold_W_m2": 3e+17,
+      "case": "current_full_eq27",
+      "x_crossing_cm": -17.19189942396759
+    },
+    {
+      "threshold_W_m2": 3e+17,
+      "case": "raman_off",
+      "x_crossing_cm": -15.973521787867131
+    },
+    {
+      "threshold_W_m2": 3e+17,
+      "case": "candidate_complete_eq27",
+      "x_crossing_cm": -17.170379320117245
+    },
+    {
+      "threshold_W_m2": 5e+17,
+      "case": "current_full_eq27",
+      "x_crossing_cm": -15.954523255459968
+    },
+    {
+      "threshold_W_m2": 5e+17,
+      "case": "raman_off",
+      "x_crossing_cm": -12.91030851109412
+    },
+    {
+      "threshold_W_m2": 5e+17,
+      "case": "candidate_complete_eq27",
+      "x_crossing_cm": -15.929655919020203
+    }
+  ],
+  "shape_metrics": [
+    {
+      "case": "current_full_eq27",
+      "rho_peak_m3": 6.386969863459744e+22,
+      "peak_x_cm": -14.349998235702511,
+      "peak_top_center_cm": -14.354999065399166,
+      "fwhm_cm": 11.97673298624553,
+      "rise_10_90_cm": 1.5097147633447232,
+      "fall_90_10_cm": 13.373826838406812,
+      "post_peak_tail_area_above_half_m3_cm": 1.6334413131062895e+23,
+      "post_peak_plus_5cm_tail_area_above_half_m3_cm": 5.548901770959217e+22,
+      "post_peak_plus_10cm_tail_area_above_half_m3_cm": 9.164278691004416e+20,
+      "post_peak_half_distance_cm": 10.606062297897566,
+      "crossings": {
+        "10000000000000000000": -19.188150126356092,
+        "100000000000000000000": -18.315061038682327,
+        "1000000000000000000000": -17.27656569029766,
+        "10000000000000000000000": -16.379965316371187
+      },
+      "intensity_peak_x_cm": -11.58999919891357,
+      "rmse_vs_pycap_m3": 1.8351075059873155e+22
+    },
+    {
+      "case": "raman_off",
+      "rho_peak_m3": 2.5239478355676197e+22,
+      "peak_x_cm": -10.36999940872192,
+      "peak_top_center_cm": -10.35999774932861,
+      "fwhm_cm": 12.90143147291574,
+      "rise_10_90_cm": 3.281193645715957,
+      "fall_90_10_cm": 15.084548346754591,
+      "post_peak_tail_area_above_half_m3_cm": 6.654757133159687e+22,
+      "post_peak_plus_5cm_tail_area_above_half_m3_cm": 1.521233200731306e+22,
+      "post_peak_plus_10cm_tail_area_above_half_m3_cm": 0.0,
+      "post_peak_half_distance_cm": 9.489563112416544,
+      "crossings": {
+        "10000000000000000000": -19.279733495058046,
+        "100000000000000000000": -17.948662683053833,
+        "1000000000000000000000": -16.097403396461612,
+        "10000000000000000000000": -14.086542891510392
+      },
+      "intensity_peak_x_cm": -7.894999980926509,
+      "rmse_vs_pycap_m3": 2.1256455164723225e+22
+    },
+    {
+      "case": "candidate_complete_eq27",
+      "rho_peak_m3": 6.363858290892004e+22,
+      "peak_x_cm": -14.330000877380368,
+      "peak_top_center_cm": -14.30499970912933,
+      "fwhm_cm": 11.937001540198006,
+      "rise_10_90_cm": 1.5185769001684069,
+      "fall_90_10_cm": 13.13844166923968,
+      "post_peak_tail_area_above_half_m3_cm": 1.6530681266274902e+23,
+      "post_peak_plus_5cm_tail_area_above_half_m3_cm": 5.631712314160339e+22,
+      "post_peak_plus_10cm_tail_area_above_half_m3_cm": 8.874281669981372e+20,
+      "post_peak_half_distance_cm": 10.580717596520019,
+      "crossings": {
+        "10000000000000000000": -19.166024172511243,
+        "100000000000000000000": -18.290615518478507,
+        "1000000000000000000000": -17.24817147095778,
+        "10000000000000000000000": -16.347859935574725
+      },
+      "intensity_peak_x_cm": -11.310000419616696,
+      "rmse_vs_pycap_m3": 1.8162163471727834e+22
+    },
+    {
+      "case": "pycap",
+      "rho_peak_m3": 6.4546415332439435e+22,
+      "peak_x_cm": -12.184211090182039,
+      "peak_top_center_cm": -12.044643952837454,
+      "fwhm_cm": 8.73799136602939,
+      "rise_10_90_cm": 1.4366877386863646,
+      "fall_90_10_cm": 9.797251109048728,
+      "post_peak_tail_area_above_half_m3_cm": 1.3525016584404954e+23,
+      "post_peak_plus_5cm_tail_area_above_half_m3_cm": 1.9892362416107416e+22,
+      "post_peak_plus_10cm_tail_area_above_half_m3_cm": 0.0,
+      "post_peak_half_distance_cm": 7.491321874245567,
+      "crossings": {
+        "10000000000000000000": null,
+        "100000000000000000000": null,
+        "1000000000000000000000": null,
+        "10000000000000000000000": -14.027210012757275
+      },
+      "intensity_peak_x_cm": null,
+      "rmse_vs_pycap_m3": 0.0
+    }
+  ],
+  "rmse_vs_pycap_m3": {
+    "current_full_eq27": 1.8351075059873155e+22,
+    "raman_off": 2.1256455164723225e+22,
+    "candidate_complete_eq27": 1.8162163471727834e+22
+  },
+  "energy_numerical_path": [
+    {
+      "case": "current_full_eq27",
+      "finite_required_fields": true,
+      "U_rel_change_final": -0.04983736202120781,
+      "U_rel_change_max_abs": 0.04983736202120781,
+      "E_dep_cumulative_final_J": 0.00010838569141924381,
+      "E_loss_from_input_final_J": 0.00010822247713804245,
+      "dz_min_m": 4.999999873689376e-05,
+      "dz_max_m": 9.999999747378752e-05,
+      "adaptive_rejection_count_max": 0.0,
+      "safety_trigger_count_max": 0.0,
+      "gpu_allocated_peak_bytes": null,
+      "gpu_reserved_peak_bytes": null
+    },
+    {
+      "case": "raman_off",
+      "finite_required_fields": true,
+      "U_rel_change_final": -0.016815494745969772,
+      "U_rel_change_max_abs": 0.016826430335640907,
+      "E_dep_cumulative_final_J": 3.667298369691707e-05,
+      "E_loss_from_input_final_J": 3.651506267488003e-05,
+      "dz_min_m": 4.999999873689376e-05,
+      "dz_max_m": 9.999999747378752e-05,
+      "adaptive_rejection_count_max": 0.0,
+      "safety_trigger_count_max": 0.0,
+      "gpu_allocated_peak_bytes": null,
+      "gpu_reserved_peak_bytes": null
+    },
+    {
+      "case": "candidate_complete_eq27",
+      "finite_required_fields": true,
+      "U_rel_change_final": -0.0630846694111824,
+      "U_rel_change_max_abs": 0.0630846694111824,
+      "E_dep_cumulative_final_J": 0.00010611287143547088,
+      "E_loss_from_input_final_J": 0.00013698916882276535,
+      "dz_min_m": 4.999999873689376e-05,
+      "dz_max_m": 9.999999747378752e-05,
+      "adaptive_rejection_count_max": 0.0,
+      "safety_trigger_count_max": 0.0,
+      "gpu_allocated_peak_bytes": 0.0,
+      "gpu_reserved_peak_bytes": 0.0
+    }
+  ],
+  "generated_figures": [
+    "rho_vs_x.png",
+    "onset_zoom_1e22.png",
+    "Imax_vs_x.png"
+  ],
+  "evidence_gate": "passed"
+}
