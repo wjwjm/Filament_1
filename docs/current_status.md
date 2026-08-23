@@ -3,6 +3,7 @@
 - 日期: 2026-08-23
 - 分支: `main`
 - 基线 HEAD (本轮开始前): `37f79794f8b1dd93b4431e11f21e70f7059c6492`
+- 本轮最终 HEAD 见 `git rev-parse HEAD`（以线头为准）。
 
 ## 目标
 
@@ -12,29 +13,36 @@
 ## 已完成（软件/结构）
 
 1. 全仓库 inventory 与五分类：`docs/repo_layout/repository_inventory.{md,json}`
-   - 786 files / 92,011,103 bytes；含 git_tracked 与 SHA256（>64 MiB 的文件不哈希）。
+   - 最终数字 **796 files / 92,430,286 bytes**；含 git_tracked 与 SHA256（>64 MiB 的文件不哈希）。
+   - 唯一权威数字以 `docs/repo_layout/repository_inventory.json` 的 `total_files`/`total_bytes` 为准。
 2. `configs/production/` 三份默认配置副本（与权威原件 SHA256 一致，原件未动）。
+   - 新增只读校验器 `Filament_python/tools/audit/verify_config_production_copies.py`；
+   - 新增 pytest 回归测试 `Filament_python/tests/test_config_production_copies.py`（CI/pytest 自动验证副本一致性）。
 3. 4 个 phase 文档归档：`docs/architecture|physics_decisions|known_residuals`。
 4. `修改记录/` 证据归档：`results/reference_evidence/修改记录/`。
 5. old→new 路径图：`docs/repo_layout/path_map.json`。
 6. 目标骨架目录已建：`configs|tools|tests|docs|results` 的子分类。
 
-## 未完成 / 遗留（待后续轮次，需用户确认）
+## 已冻结（不再主动搬动）
 
-- `Filament_python/configs|stages|results|tests|tools` 的物理移动：
-  被约 40+ 处 `ROOT/"..."` 硬编码引用阻断，本轮按约束暂缓，避免破坏入口。
-- `configs/production` 目前是“借阅副本”；权威原件仍在 `Filament_python/` 顶层，
-  待 ROOT 解析层建立后再统一迁移。
-- `tests/` 拆分与 `tools/archive` 逐步归档尚未开始。
+- `Filament_python/configs|stages|results|tests|tools` 的**大规模物理迁移已冻结**：
+  `deferred_until_architecture_requires_it`（见 `REPOSITORY_STRUCTURE.md` §5）。
+  仅在具体开发被旧路径阻塞时，才局部建 path resolver 并移动受阻塞部分。
+- `configs/production` 目前是“权威原件 + 同步副本”双份状态；短期接受，
+  由 SHA256 校验器 + pytest 测试防止漂移。
 
 ## 验证结论（严格分离软件与科学）
 
-- pytest：基线 268 passed, 3 skipped（约 69.8 s，改动前）；**再验证 268 passed, 3 skipped**。
+- pytest：基线 268 passed, 3 skipped（约 69.8 s，改动前）；**再验证 270 passed, 3 skipped（66.98 s，含新增配置副本一致性测试）**。
 - 生产行为不变证明：`git diff 37f7979..HEAD -- <生产面>` 为空（零改动）。
 - tiny Npulses=1 冒烟（fp32）两次独立运行：`U_z` 守恒至 0.01%，输出 NPZ
   SHA256 完全一致（bitwise）。
   - 此为运行确定性/等价性证据，**不构成任何新的科学结论**。
 
-## 下一轮建议
+## 远端同步状态（待执行）
 
-见 `REPOSITORY_STRUCTURE.md` §5。
+- 本地 `main` 领先 `origin/main` 的整理 commit 需在 Round 1.5 正常推送（**不 squash**，
+  保留逐批迁移历史）。推送前重新核查：
+  1. `git ls-remote origin refs/heads/main` 确认远端基点；
+  2. 确认本地 6 个 restructuring commit 均在、生产面 diff 为空；
+  3. `git push origin main` 后，`git ls-remote origin refs/heads/main` 应指向本地最新 HEAD。

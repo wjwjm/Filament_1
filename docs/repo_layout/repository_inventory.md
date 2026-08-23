@@ -1,15 +1,15 @@
 # Filament_1 仓库结构 inventory
 
-- 生成时间(UTC): 2026-08-23T06:10:52.592355+00:00
-- 仓库 HEAD SHA: `33781861ddd35663822844c66c68c3da5c57efac`
+- 生成时间(UTC): 2026-08-23T06:38:55.771047+00:00
+- 仓库 HEAD SHA: `87996fe9a259d7e010f1af6c7874b76986ef69c5`
 - 分支: `main`
-- 文件总数: 794
-- 总字节数: 92424718
+- 文件总数: 796
+- 总字节数: 92430286
 
 ## 五类统计
 - `production_runtime`: 31
 - `production_config`: 6
-- `generic_tests_tools`: 54
+- `generic_tests_tools`: 56
 - `historical_experiments_audits`: 139
 - `results_documentation_evidence`: 564
 
@@ -29,15 +29,15 @@
 - `configs/production/khz_config.json` — production_config / default_config (2810 B)
 - `configs/production/khz_config_lut.json` — production_config / default_config (2985 B)
 - `docs/architecture/stage1_single_pulse_optimization.md` — results_documentation_evidence / reference_or_doc (983 B)
-- `docs/current_status.md` — results_documentation_evidence / reference_or_doc (1933 B)
+- `docs/current_status.md` — results_documentation_evidence / reference_or_doc (2772 B)
 - `docs/experience/2026-08-22_isaacs_eq27_c2_postmortem.md` — results_documentation_evidence / reference_or_doc (10093 B)
 - `docs/experience/sol_luna_hpc_execution_playbook.md` — results_documentation_evidence / reference_or_doc (8614 B)
 - `docs/known_residuals/known_residual_pycap_onset_20260823.md` — results_documentation_evidence / reference_or_doc (3920 B)
 - `docs/physics_decisions/phase2_switch_isolation.md` — results_documentation_evidence / reference_or_doc (1262 B)
 - `docs/physics_decisions/phase3_0d_ionization_harness.md` — results_documentation_evidence / reference_or_doc (2808 B)
 - `docs/repo_layout/path_map.json` — results_documentation_evidence / reference_or_doc (2424 B)
-- `docs/repo_layout/repository_inventory.json` — results_documentation_evidence / reference_or_doc (272173 B)
-- `docs/repo_layout/repository_inventory.md` — results_documentation_evidence / reference_or_doc (123704 B)
+- `docs/repo_layout/repository_inventory.json` — results_documentation_evidence / reference_or_doc (272790 B)
+- `docs/repo_layout/repository_inventory.md` — results_documentation_evidence / reference_or_doc (123951 B)
 - `Filament_python/compare_khzfil_outputs.py` — generic_tests_tools / runner_or_postprocess (11223 B)
 - `Filament_python/config_ref.json` — production_config / default_config (1728 B)
 - `Filament_python/configs/ionization_model_propagation/120fs_talebpour_full_model.json` — historical_experiments_audits / experiment_config (3349 B)
@@ -648,6 +648,7 @@
 - `Filament_python/tests/test_build_ionization_model_propagation_configs.py` — historical_experiments_audits / phase_test (1641 B)
 - `Filament_python/tests/test_compare_khzfil_outputs.py` — generic_tests_tools / test (2344 B)
 - `Filament_python/tests/test_compare_raman_phase_causality.py` — historical_experiments_audits / phase_test (1401 B)
+- `Filament_python/tests/test_config_production_copies.py` — generic_tests_tools / test (535 B)
 - `Filament_python/tests/test_density_translation_width.py` — historical_experiments_audits / phase_test (1252 B)
 - `Filament_python/tests/test_feedback_energy_normalization.py` — historical_experiments_audits / phase_test (904 B)
 - `Filament_python/tests/test_filament_effect_ledger.py` — historical_experiments_audits / phase_test (3317 B)
@@ -719,6 +720,7 @@
 - `Filament_python/tools/analyze_vacuum_focus.py` — historical_experiments_audits / phase_tool (4909 B)
 - `Filament_python/tools/archive_ionization_rate_model_validation.py` — historical_experiments_audits / phase_tool (14137 B)
 - `Filament_python/tools/audit/build_repository_inventory.py` — generic_tests_tools / audit_tool (9337 B)
+- `Filament_python/tools/audit/verify_config_production_copies.py` — generic_tests_tools / audit_tool (2777 B)
 - `Filament_python/tools/audit_historical_fr_mixture.py` — historical_experiments_audits / phase_tool (8392 B)
 - `Filament_python/tools/audit_isaacs_complete_eq27.py` — historical_experiments_audits / phase_tool (21710 B)
 - `Filament_python/tools/audit_isaacs_raman_reclosure.py` — historical_experiments_audits / phase_tool (32611 B)
@@ -801,7 +803,7 @@
 - `references/papers/README.md` — results_documentation_evidence / reference_or_doc (148 B)
 - `references/papers/talebpour1999.pdf` — results_documentation_evidence / reference_or_doc (184644 B)
 - `references/README.md` — results_documentation_evidence / reference_or_doc (209 B)
-- `REPOSITORY_STRUCTURE.md` — results_documentation_evidence / repo_doc (5531 B)
+- `REPOSITORY_STRUCTURE.md` — results_documentation_evidence / repo_doc (6084 B)
 - `results/reference_evidence/修改记录/20260429.md` — results_documentation_evidence / reference_or_doc (447 B)
 - `results/reference_evidence/修改记录/20260715_横向轮廓验证.md` — results_documentation_evidence / reference_or_doc (1085 B)
 - `results/reference_evidence/修改记录/修改意见1.json` — results_documentation_evidence / reference_or_doc (16202 B)

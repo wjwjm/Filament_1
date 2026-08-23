@@ -1,14 +1,14 @@
 {
   "schema": "filament_1.repository_inventory.v1",
-  "generated_at": "2026-08-23T06:10:52.592355+00:00",
-  "repo_head_sha": "33781861ddd35663822844c66c68c3da5c57efac",
+  "generated_at": "2026-08-23T06:38:55.771047+00:00",
+  "repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
   "branch": "main",
-  "total_files": 794,
-  "total_bytes": 92424718,
+  "total_files": 796,
+  "total_bytes": 92430286,
   "class_summary": {
     "results_documentation_evidence": 564,
     "production_config": 6,
-    "generic_tests_tools": 54,
+    "generic_tests_tools": 56,
     "historical_experiments_audits": 139,
     "production_runtime": 31
   },
@@ -135,11 +135,11 @@
     },
     {
       "path": "docs/current_status.md",
-      "size": 1933,
+      "size": 2772,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
       "git_tracked": true,
-      "sha256": "a25118b8d7d51d59223ccca2196b0dab6eabbdbb8c58eddad4b58badc437c315"
+      "sha256": "f425d90a3684ae0763a3110c842bc7400c102c7e5083dfd68eda1b0f0461003b"
     },
     {
       "path": "docs/experience/2026-08-22_isaacs_eq27_c2_postmortem.md",
@@ -191,19 +191,19 @@
     },
     {
       "path": "docs/repo_layout/repository_inventory.json",
-      "size": 272173,
+      "size": 272790,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
       "git_tracked": true,
-      "sha256": "634f49ec6c0473735bc222a38f409c2e7444d36f33c75143c9913ddbc8f5e28f"
+      "sha256": "f4dc3ec8272394901a2606ddfcd1b056824d30c45a68a5e6bcfcde667bba4b52"
     },
     {
       "path": "docs/repo_layout/repository_inventory.md",
-      "size": 123704,
+      "size": 123951,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
       "git_tracked": true,
-      "sha256": "29ce46c30f2409ef1e8ac75be9f8edc1277915949cf07eb579485a129fe26be2"
+      "sha256": "169f781c3778c413626cd341f39ea4c87fb7fa969b6dac9f63e971cc0af7092c"
     },
     {
       "path": "Filament_python/compare_khzfil_outputs.py",
@@ -5086,6 +5086,14 @@
       "sha256": "51f5009d8ae461b6d8026b61acc9e9589093b022843856257ea1ce7a5ded45a2"
     },
     {
+      "path": "Filament_python/tests/test_config_production_copies.py",
+      "size": 535,
+      "class_one": "generic_tests_tools",
+      "kind": "test",
+      "git_tracked": false,
+      "sha256": "88e9c23b24ae3dd004896eac1c55f96a21dfaa98406afe50770b0fec1731fcd5"
+    },
+    {
       "path": "Filament_python/tests/test_density_translation_width.py",
       "size": 1252,
       "class_one": "historical_experiments_audits",
@@ -5652,6 +5660,14 @@
       "kind": "audit_tool",
       "git_tracked": true,
       "sha256": "45856df4130e49d6499e5a97c4b40c51c0638dfc96755be94b5dcf1416218b2c"
+    },
+    {
+      "path": "Filament_python/tools/audit/verify_config_production_copies.py",
+      "size": 2777,
+      "class_one": "generic_tests_tools",
+      "kind": "audit_tool",
+      "git_tracked": false,
+      "sha256": "1c1852ea12afd816f720ba28d075f4e2405038c20c42a9056c0663a4bdcd7f60"
     },
     {
       "path": "Filament_python/tools/audit_historical_fr_mixture.py",
@@ -6311,11 +6327,11 @@
     },
     {
       "path": "REPOSITORY_STRUCTURE.md",
-      "size": 5531,
+      "size": 6084,
       "class_one": "results_documentation_evidence",
       "kind": "repo_doc",
       "git_tracked": true,
-      "sha256": "5663bbb4f624e8a6033c224afd385a9b8c0d48e26830718a53984928e006f8e4"
+      "sha256": "daaff72aa56134fff64734066705d61012c9185082927ca883d765e78d825a71"
     },
     {
       "path": "results/reference_evidence/修改记录/20260429.md",
