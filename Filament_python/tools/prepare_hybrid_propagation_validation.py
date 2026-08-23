@@ -35,10 +35,12 @@ CAMPAIGN_ID = "hybrid_propagation_validation_0p60"
 REMOTE_CAMPAIGN_ROOT = "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60"
 REMOTE_ACCOUNT_ROOT = "/data/run01/scvi806/user_Wangjimin"
 EXPECTED_GPU_MODEL = "NVIDIA GeForce RTX 5090"
+EXPECTED_NODE = "m4gn1401"
 EXPECTED_CPU_THREADS = 8
 EXPECTED_GPU_COUNT = 1
 REQUESTED_TIME = "15:00:00"
 Z_NL_START_M = 0.60
+LUT_BUILD_CAP_INACTIVE_REQUIRED = True
 SOURCE_CONFIG_REL = "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json"
 SCHEMA = "khz_filament.hybrid_propagation_validation.submission_manifest.v1"
 DIFF_SCHEMA = "khz_filament.hybrid_propagation_validation.config_diff.v1"
@@ -202,6 +204,7 @@ def prepare(out_dir: Path = OUTPUT, *, mother_path: Path = MOTHER) -> dict[str, 
         "status": "prepared_not_submitted",
         "expected_git_sha": None,
         "execution_lock_required": True,
+        "lut_build_cap_inactive_required": LUT_BUILD_CAP_INACTIVE_REQUIRED,
         "expected_git_sha_resolution": "external execution_lock generated after final source commit",
         "prepared_from_git_sha": _git_head(),
         "mother_config": SOURCE_CONFIG_REL,
@@ -242,6 +245,8 @@ def prepare(out_dir: Path = OUTPUT, *, mother_path: Path = MOTHER) -> dict[str, 
         },
         "resources": {
             "partition": "gpu",
+            "nodelist": EXPECTED_NODE,
+            "expected_node": EXPECTED_NODE,
             "gpu_count": EXPECTED_GPU_COUNT,
             "cpu_threads": EXPECTED_CPU_THREADS,
             "requested_time": REQUESTED_TIME,

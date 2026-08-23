@@ -29,6 +29,47 @@ def _load(name: str):
 
 def _write_pair(tmp_path: Path, *, shifted: bool = False) -> tuple[Path, Path, Path]:
     post = _load("postprocess_hybrid_propagation_validation.py")
+    lut_build_audit = {
+        "schema": post.LUT_AUDIT_SCHEMA,
+        "status": "passed",
+        "passed": True,
+        "required": True,
+        "builder_default_cap": post.LUT_BUILDER_DEFAULT_CAP,
+        "cap_threshold": 0.999 * post.LUT_BUILDER_DEFAULT_CAP,
+        "all_configured_caps_valid": True,
+        "all_builder_caps_consistent": True,
+        "all_finite": True,
+        "all_nondecreasing": False,
+        "all_cap_inactive": True,
+        "species": [
+            {
+                "name": "N2",
+                "W_grid_max": 6.0e14,
+                "configured_W_cap": 1.0e19,
+                "configured_cap_valid": True,
+                "builder_default_cap": post.LUT_BUILDER_DEFAULT_CAP,
+                "builder_cap_consistent": True,
+                "finite": True,
+                "nondecreasing": False,
+                "negative_step_count": 1,
+                "max_relative_drop": 1.0e-3,
+                "cap_inactive": True,
+            },
+            {
+                "name": "O2",
+                "W_grid_max": 1.5e15,
+                "configured_W_cap": 1.0e19,
+                "configured_cap_valid": True,
+                "builder_default_cap": post.LUT_BUILDER_DEFAULT_CAP,
+                "builder_cap_consistent": True,
+                "finite": True,
+                "nondecreasing": True,
+                "negative_step_count": 0,
+                "max_relative_drop": 0.0,
+                "cap_inactive": True,
+            },
+        ],
+    }
     run_dir = tmp_path / "run"
     run_dir.mkdir(parents=True)
     z = np.arange(1, 102, dtype=float) * 0.01
@@ -122,6 +163,9 @@ def _write_pair(tmp_path: Path, *, shifted: bool = False) -> tuple[Path, Path, P
             "config_path": f"/data/configs/{case}.json",
             "config_sha256": f"{case:0<64}"[:64],
             "gpu_model": post.EXPECTED_GPU,
+            "nodelist": post.EXPECTED_NODE,
+            "expected_node": post.EXPECTED_NODE,
+            "lut_build_audit": lut_build_audit,
             "cpu_threads": 8,
             "backend": "cupy",
             "dtype": "fp32",
@@ -145,6 +189,9 @@ def _write_pair(tmp_path: Path, *, shifted: bool = False) -> tuple[Path, Path, P
         "slurm_job_id": "123",
         "execution_git_sha": "a" * 40,
         "gpu_model": post.EXPECTED_GPU,
+        "nodelist": post.EXPECTED_NODE,
+        "expected_node": post.EXPECTED_NODE,
+        "lut_build_audit": lut_build_audit,
         "case_order": ["reference", "hybrid"],
         "allocation_count": 1,
         "started_at_utc": "2026-08-23T00:00:00+00:00",
@@ -158,6 +205,16 @@ def _write_pair(tmp_path: Path, *, shifted: bool = False) -> tuple[Path, Path, P
         "schema": post.MANIFEST_SCHEMA,
         "campaign_id": post.CAMPAIGN_ID,
         "remote_campaign_root": post.REMOTE_ROOT,
+        "lut_build_cap_inactive_required": True,
+        "resources": {
+            "partition": "gpu",
+            "nodelist": post.EXPECTED_NODE,
+            "expected_node": post.EXPECTED_NODE,
+            "gpu_count": 1,
+            "cpu_threads": 8,
+            "requested_time": "15:00:00",
+            "expected_gpu_model": post.EXPECTED_GPU,
+        },
         "strict_config_diff": [
             {"path": "propagation.propagation_mode", "reference": "full_nonlinear_from_z0", "hybrid": "hybrid"},
             {"path": "propagation.z_nl_start", "reference": 0.0, "hybrid": 0.6},
@@ -191,15 +248,73 @@ def test_postprocess_requires_scheduler_terminal_evidence(tmp_path):
         post.process_pair(run_dir, tmp_path / "derived", manifest_path=manifest)
 
 
+def test_prepare_and_execution_lock_pin_fixed_node(tmp_path):
+    prepare = _load("prepare_hybrid_propagation_validation.py")
+    prepare.prepare(tmp_path)
+    manifest_path = tmp_path / "submission_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["resources"]["nodelist"] == "m4gn1401"
+    assert manifest["resources"]["expected_node"] == "m4gn1401"
+    assert manifest["lut_build_cap_inactive_required"] is True
+
+    lock = _load("create_hybrid_propagation_execution_lock.py")
+    checked = lock.validate_manifest_lock(manifest_path, require_clean=False, require_committed=False)
+    assert checked["manifest"]["resources"]["expected_node"] == lock.EXPECTED_NODE
+    payload = lock.create_lock(
+        manifest_path,
+        tmp_path / "execution_lock.json",
+        require_clean=False,
+        require_committed=False,
+    )
+    assert payload["nodelist"] == "m4gn1401"
+    assert payload["expected_node"] == "m4gn1401"
+    assert payload["lut_build_cap_inactive_required"] is True
+
+
 def test_postprocess_derives_csv_audit_and_retains_raw_npz(tmp_path):
     post, run_dir, out_dir, audit = _postprocess(tmp_path)
     assert audit["status"] == "complete_evidence"
+    assert audit["lut_build_audit"]["passed"] is True
+    assert audit["lut_build_audit"]["all_nondecreasing"] is False
     assert (out_dir / "reference_axial.csv").is_file()
     assert (out_dir / "hybrid_axial.csv").is_file()
     assert (out_dir / "performance.csv").is_file()
     assert (out_dir / "hybrid_propagation_validation_audit.json").is_file()
     assert (run_dir / "reference" / "reference.npz").is_file()
     assert not (out_dir / "reference.npz").exists()
+
+
+def test_postprocess_requires_fixed_shared_node_binding(tmp_path):
+    post = _load("postprocess_hybrid_propagation_validation.py")
+    run_dir, manifest, scheduler = _write_pair(tmp_path)
+    metadata_path = run_dir / "hybrid" / "hybrid_job_metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["nodelist"] = "other-node"
+    metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+    with pytest.raises(post.InsufficientEvidenceError, match="node binding"):
+        post.process_pair(run_dir, tmp_path / "derived", manifest_path=manifest, scheduler_terminal_evidence=scheduler)
+
+
+def test_postprocess_requires_lut_cap_inactive_audit(tmp_path):
+    post = _load("postprocess_hybrid_propagation_validation.py")
+    run_dir, manifest, scheduler = _write_pair(tmp_path)
+    metadata_path = run_dir / "hybrid" / "hybrid_job_metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["lut_build_audit"]["species"][0]["cap_inactive"] = False
+    metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+    with pytest.raises(post.InsufficientEvidenceError, match="LUT species N2"):
+        post.process_pair(run_dir, tmp_path / "derived", manifest_path=manifest, scheduler_terminal_evidence=scheduler)
+
+
+def test_postprocess_rejects_lut_grid_at_builder_threshold(tmp_path):
+    post = _load("postprocess_hybrid_propagation_validation.py")
+    run_dir, manifest, scheduler = _write_pair(tmp_path)
+    metadata_path = run_dir / "hybrid" / "hybrid_job_metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["lut_build_audit"]["species"][0]["W_grid_max"] = metadata["lut_build_audit"]["cap_threshold"]
+    metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+    with pytest.raises(post.InsufficientEvidenceError, match="reaches the builder cap"):
+        post.process_pair(run_dir, tmp_path / "derived", manifest_path=manifest, scheduler_terminal_evidence=scheduler)
 
 
 def test_compare_passes_or_rejects_only_after_complete_pair(tmp_path):
@@ -236,6 +351,15 @@ def test_campaign_shell_contract_has_single_allocation_and_no_retry():
     submit = (TOOLS / "submit_hybrid_propagation_validation.sh").read_text(encoding="utf-8")
     batch = (TOOLS / "hybrid_propagation_validation.sbatch").read_text(encoding="utf-8")
     assert submit.count("sbatch --hold --parsable") == 1
+    assert "#SBATCH --nodelist=m4gn1401" in batch
+    assert "EXPECTED_NODELIST" in submit
+    assert "SLURM_JOB_NODELIST" in batch
+    assert '"nodelist"' in batch and '"expected_node"' in batch
+    assert "prepare_ionization_lut_cache" in batch
+    assert "lut_build_audit" in batch
+    assert "nondecreasing" in batch and "negative_step_count" in batch and "max_relative_drop" in batch
+    assert "all_monotonic" not in batch
+    assert "lut_build_cap_inactive_required" in submit or "lut_build_cap_inactive_required" in batch
     assert "case_order" in batch and "reference" in batch and "hybrid" in batch
     assert "release_failure_record" in submit or "sbatch_failure_record" in submit
     assert "retry" not in submit.lower() and "retry" not in batch.lower()

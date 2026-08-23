@@ -24,6 +24,9 @@ import numpy as np
 CAMPAIGN_ID = "hybrid_propagation_validation_0p60"
 REMOTE_ROOT = "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60"
 EXPECTED_GPU = "NVIDIA GeForce RTX 5090"
+EXPECTED_NODE = "m4gn1401"
+LUT_AUDIT_SCHEMA = "khz_filament.hybrid_propagation_validation.lut_build_audit.v1"
+LUT_BUILDER_DEFAULT_CAP = 1.0e16
 MANIFEST_SCHEMA = "khz_filament.hybrid_propagation_validation.submission_manifest.v1"
 PAIR_SCHEMA = "khz_filament.hybrid_propagation_validation.paired_metadata.v1"
 CASE_SCHEMA = "khz_filament.hybrid_propagation_validation.case_metadata.v1"
@@ -144,6 +147,75 @@ def _manifest_case(manifest: dict[str, Any], case: str) -> dict[str, Any]:
     return cases[case]
 
 
+def _validate_lut_build_audit(value: Any, label: str) -> dict[str, Any]:
+    def _number(raw: Any) -> float:
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return float("nan")
+
+    if not isinstance(value, dict):
+        raise InsufficientEvidenceError(f"{label} LUT build audit is missing")
+    if value.get("schema") != LUT_AUDIT_SCHEMA:
+        raise InsufficientEvidenceError(f"{label} LUT build audit schema is invalid")
+    if value.get("status") != "passed" or value.get("passed") is not True or value.get("required") is not True:
+        raise InsufficientEvidenceError(f"{label} LUT build audit did not pass")
+    builder_cap = _number(value.get("builder_default_cap"))
+    threshold = _number(value.get("cap_threshold"))
+    expected_threshold = 0.999 * LUT_BUILDER_DEFAULT_CAP
+    if not math.isfinite(builder_cap) or not math.isclose(builder_cap, LUT_BUILDER_DEFAULT_CAP, rel_tol=0.0, abs_tol=0.0):
+        raise InsufficientEvidenceError(f"{label} LUT builder default cap is invalid")
+    if not math.isfinite(threshold) or not math.isclose(threshold, expected_threshold, rel_tol=1e-12, abs_tol=0.0):
+        raise InsufficientEvidenceError(f"{label} LUT cap threshold is invalid")
+    for key in ("all_configured_caps_valid", "all_builder_caps_consistent", "all_finite", "all_cap_inactive"):
+        if value.get(key) is not True:
+            raise InsufficientEvidenceError(f"{label} LUT audit aggregate {key} is false")
+    species = value.get("species")
+    if not isinstance(species, list) or not species:
+        raise InsufficientEvidenceError(f"{label} LUT audit has no species records")
+    names: set[str] = set()
+    for item in species:
+        if not isinstance(item, dict):
+            raise InsufficientEvidenceError(f"{label} LUT species record is invalid")
+        name = str(item.get("name") or "")
+        if not name or name in names:
+            raise InsufficientEvidenceError(f"{label} LUT species names are invalid or duplicated")
+        names.add(name)
+        maximum = _number(item.get("W_grid_max"))
+        configured_cap = _number(item.get("configured_W_cap"))
+        item_builder_cap = _number(item.get("builder_default_cap"))
+        if not math.isfinite(maximum) or not math.isfinite(configured_cap) or configured_cap <= 0.0:
+            raise InsufficientEvidenceError(f"{label} LUT species {name} has nonfinite cap/max")
+        if item.get("configured_cap_valid") is not True:
+            raise InsufficientEvidenceError(f"{label} LUT species {name} configured cap is invalid")
+        if not math.isclose(item_builder_cap, builder_cap, rel_tol=0.0, abs_tol=0.0):
+            raise InsufficientEvidenceError(f"{label} LUT species {name} builder cap is inconsistent")
+        if item.get("builder_cap_consistent") is not True:
+            raise InsufficientEvidenceError(f"{label} LUT species {name} builder cap consistency is false")
+        if item.get("finite") is not True or item.get("cap_inactive") is not True:
+            raise InsufficientEvidenceError(f"{label} LUT species {name} finite/cap-inactive checks failed")
+        nondecreasing = item.get("nondecreasing")
+        negative_step_count = _number(item.get("negative_step_count"))
+        max_relative_drop = _number(item.get("max_relative_drop"))
+        if not isinstance(nondecreasing, bool) or not math.isfinite(negative_step_count) or negative_step_count < 0.0 or not negative_step_count.is_integer():
+            raise InsufficientEvidenceError(f"{label} LUT species {name} nondecreasing diagnostics are invalid")
+        if not math.isfinite(max_relative_drop) or max_relative_drop < 0.0:
+            raise InsufficientEvidenceError(f"{label} LUT species {name} relative-drop diagnostic is invalid")
+        if nondecreasing and negative_step_count != 0.0:
+            raise InsufficientEvidenceError(f"{label} LUT species {name} nondecreasing diagnostics are inconsistent")
+        if not maximum < threshold:
+            raise InsufficientEvidenceError(f"{label} LUT species {name} reaches the builder cap")
+    if not all(item.get("configured_cap_valid") is True for item in species):
+        raise InsufficientEvidenceError(f"{label} LUT configured-cap aggregate is inconsistent")
+    if not all(item.get("builder_cap_consistent") is True for item in species):
+        raise InsufficientEvidenceError(f"{label} LUT builder-cap aggregate is inconsistent")
+    if not all(item.get("finite") is True for item in species):
+        raise InsufficientEvidenceError(f"{label} LUT finite aggregate is inconsistent")
+    if not all(item.get("cap_inactive") is True for item in species):
+        raise InsufficientEvidenceError(f"{label} LUT cap-inactive aggregate is inconsistent")
+    return value
+
+
 def _validate_scheduler_evidence(
     path: Path | None,
     *,
@@ -206,6 +278,13 @@ def _validate_case(
         raise InsufficientEvidenceError(f"{case} execution SHA does not match pair")
     if metadata.get("gpu_model") != EXPECTED_GPU:
         raise InsufficientEvidenceError(f"{case} GPU model is not the fixed RTX 5090")
+    if metadata.get("nodelist") != EXPECTED_NODE or metadata.get("expected_node") != EXPECTED_NODE:
+        raise InsufficientEvidenceError(f"{case} node binding is not the fixed {EXPECTED_NODE}")
+    if metadata.get("nodelist") != pair.get("nodelist") or metadata.get("expected_node") != pair.get("expected_node"):
+        raise InsufficientEvidenceError(f"{case} node binding does not match pair metadata")
+    case_lut_audit = _validate_lut_build_audit(metadata.get("lut_build_audit"), f"{case} metadata")
+    if case_lut_audit != pair.get("lut_build_audit"):
+        raise InsufficientEvidenceError(f"{case} LUT build audit does not match pair metadata")
     if metadata.get("backend") != "cupy" or metadata.get("dtype") != "fp32":
         raise InsufficientEvidenceError(f"{case} backend/dtype is not the fixed cupy/fp32 contract")
     if int(metadata.get("cpu_threads", 0)) != 8:
@@ -375,6 +454,8 @@ def process_pair(
         raise InsufficientEvidenceError("campaign manifest schema/campaign binding is invalid")
     if manifest.get("remote_campaign_root") != REMOTE_ROOT:
         raise InsufficientEvidenceError("campaign remote root is not fixed")
+    if manifest.get("lut_build_cap_inactive_required") is not True:
+        raise InsufficientEvidenceError("manifest LUT cap-inactive requirement is missing")
     expected_diff = [
         {
             "path": "propagation.propagation_mode",
@@ -399,6 +480,9 @@ def process_pair(
         raise InsufficientEvidenceError("paired metadata case/allocation contract is invalid")
     if pair.get("gpu_model") != EXPECTED_GPU:
         raise InsufficientEvidenceError("paired metadata GPU model is not the fixed RTX 5090")
+    if pair.get("nodelist") != EXPECTED_NODE or pair.get("expected_node") != EXPECTED_NODE:
+        raise InsufficientEvidenceError(f"paired metadata node binding is not the fixed {EXPECTED_NODE}")
+    lut_build_audit = _validate_lut_build_audit(pair.get("lut_build_audit"), "paired metadata")
     execution_sha = str(pair.get("execution_git_sha") or "").strip()
     if not execution_sha:
         raise InsufficientEvidenceError("paired metadata lacks execution_git_sha")
@@ -419,7 +503,7 @@ def process_pair(
         cases[case] = metadata
         data_map[case] = data
         _write_csv(out_dir / f"{case}_axial.csv", _axial_rows(data), list(_axial_rows(data)[0]))
-    for key in ("backend", "dtype", "linear_model", "linear_precision_strategy", "thread_environment"):
+    for key in ("backend", "dtype", "linear_model", "linear_precision_strategy", "thread_environment", "nodelist", "expected_node"):
         if cases["reference"].get(key) != cases["hybrid"].get(key):
             raise InsufficientEvidenceError(f"paired cases do not share {key}")
     perf_fields = [
@@ -441,6 +525,9 @@ def process_pair(
         "execution_git_sha": execution_sha,
         "case_order": ["reference", "hybrid"],
         "gpu_model": cases["reference"]["gpu_model"],
+        "nodelist": cases["reference"]["nodelist"],
+        "expected_node": cases["reference"]["expected_node"],
+        "lut_build_audit": lut_build_audit,
         "backend": cases["reference"]["backend"],
         "dtype": cases["reference"]["dtype"],
         "linear_model": cases["reference"]["linear_model"],
@@ -463,6 +550,9 @@ def process_pair(
                 "config_sha256": cases[case].get("config_sha256"),
                 "execution_git_sha": cases[case].get("execution_git_sha"),
                 "gpu_model": cases[case].get("gpu_model"),
+                "nodelist": cases[case].get("nodelist"),
+                "expected_node": cases[case].get("expected_node"),
+                "lut_build_audit": cases[case].get("lut_build_audit"),
                 "npz_path": cases[case]["_npz_path"],
                 "npz_sha256": cases[case]["_npz_sha256"],
                 "metadata_path": cases[case]["_metadata_path"],

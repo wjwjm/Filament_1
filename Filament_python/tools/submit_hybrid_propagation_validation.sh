@@ -14,6 +14,7 @@ readonly PROVENANCE_V2_INPUT="$4"
 readonly CAMPAIGN_ID="hybrid_propagation_validation_0p60"
 readonly REMOTE_ROOT="/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60"
 readonly EXPECTED_GPU_MODEL="NVIDIA GeForce RTX 5090"
+readonly EXPECTED_NODELIST="m4gn1401"
 readonly MANIFEST_REL="Filament_python/results/hybrid_propagation_validation/submission_manifest.json"
 readonly BATCH_REL="Filament_python/tools/hybrid_propagation_validation.sbatch"
 
@@ -61,6 +62,10 @@ if lock.get("schema") != module.LOCK_SCHEMA or lock.get("status") != "authorized
     raise SystemExit("execution lock schema/status invalid")
 if lock.get("expected_git_sha") != expected_sha or lock.get("manifest_sha256") != checked["manifest_sha256"]:
     raise SystemExit("execution lock HEAD/manifest binding invalid")
+if lock.get("nodelist") != module.EXPECTED_NODE or lock.get("expected_node") != module.EXPECTED_NODE:
+    raise SystemExit("execution lock node binding invalid")
+if lock.get("lut_build_cap_inactive_required") is not module.LUT_BUILD_CAP_INACTIVE_REQUIRED:
+    raise SystemExit("execution lock LUT cap-inactive binding invalid")
 if module.sha256(lock_path) == "":
     raise SystemExit("execution lock hash unavailable")
 print(json.dumps({"head": expected_sha, "manifest_sha256": checked["manifest_sha256"]}))
@@ -118,7 +123,7 @@ chmod 444 "${SUBMISSION_LOCK}"
 trap - EXIT
 SBATCH_OUTPUT="$(sbatch --hold --parsable \
   --chdir="${RUN_DIR}" --output="${RUN_DIR}/slurm-%j.out" --error="${RUN_DIR}/slurm-%j.err" \
-  --export=ALL,REPO_DIR="${REPO_DIR}",RUN_DIR="${RUN_DIR}",EXPECTED_GIT_SHA="${EXPECTED_GIT_SHA}",MANIFEST_PATH="${MANIFEST_PATH}",EXPECTED_MANIFEST_SHA256="${EXPECTED_MANIFEST_SHA256}",EXECUTION_LOCK_PATH="${EXECUTION_LOCK_PATH}",EXPECTED_EXECUTION_LOCK_SHA256="${EXPECTED_EXECUTION_LOCK_SHA256}",PROVENANCE_V2_PATH="${PROVENANCE_V2_PATH}",EXPECTED_PROVENANCE_V2_SHA256="${EXPECTED_PROVENANCE_V2_SHA256}",JOB_RECEIPT_PATH="${JOB_RECEIPT_PATH}",SUBMISSION_LOCK="${SUBMISSION_LOCK}",GLOBAL_CONSUMED_LOCK="${GLOBAL_CONSUMED_LOCK}",EXPECTED_GPU_MODEL="${EXPECTED_GPU_MODEL}",CAMPAIGN_ID="${CAMPAIGN_ID}" \
+  --export=ALL,REPO_DIR="${REPO_DIR}",RUN_DIR="${RUN_DIR}",EXPECTED_GIT_SHA="${EXPECTED_GIT_SHA}",MANIFEST_PATH="${MANIFEST_PATH}",EXPECTED_MANIFEST_SHA256="${EXPECTED_MANIFEST_SHA256}",EXECUTION_LOCK_PATH="${EXECUTION_LOCK_PATH}",EXPECTED_EXECUTION_LOCK_SHA256="${EXPECTED_EXECUTION_LOCK_SHA256}",PROVENANCE_V2_PATH="${PROVENANCE_V2_PATH}",EXPECTED_PROVENANCE_V2_SHA256="${EXPECTED_PROVENANCE_V2_SHA256}",JOB_RECEIPT_PATH="${JOB_RECEIPT_PATH}",SUBMISSION_LOCK="${SUBMISSION_LOCK}",GLOBAL_CONSUMED_LOCK="${GLOBAL_CONSUMED_LOCK}",EXPECTED_GPU_MODEL="${EXPECTED_GPU_MODEL}",EXPECTED_NODELIST="${EXPECTED_NODELIST}",CAMPAIGN_ID="${CAMPAIGN_ID}" \
   "${BATCH_PATH}")" || {
     printf '%s\n' "sbatch invocation failed or was ambiguous; locks retained" > "${RUN_DIR}/sbatch_failure_record.txt"
     exit 17

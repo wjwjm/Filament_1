@@ -26,6 +26,8 @@ DEFAULT_OUTPUT = REPO / ".git" / "codex-locks" / "hybrid_propagation_validation_
 CAMPAIGN_ID = "hybrid_propagation_validation_0p60"
 REMOTE_CAMPAIGN_ROOT = "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60"
 EXPECTED_GPU_MODEL = "NVIDIA GeForce RTX 5090"
+EXPECTED_NODE = "m4gn1401"
+LUT_BUILD_CAP_INACTIVE_REQUIRED = True
 LOCK_SCHEMA = "khz_filament.hybrid_propagation_validation.execution_lock.v1"
 EXPECTED_RESOLUTION = "external execution_lock generated after final source commit"
 
@@ -144,6 +146,8 @@ def validate_manifest_lock(
         raise ExecutionLockError("manifest expected_git_sha must be null before lock creation")
     if manifest.get("execution_lock_required") is not True:
         raise ExecutionLockError("manifest execution_lock_required must be true")
+    if manifest.get("lut_build_cap_inactive_required") is not LUT_BUILD_CAP_INACTIVE_REQUIRED:
+        raise ExecutionLockError("manifest lut_build_cap_inactive_required must be true")
     if manifest.get("expected_git_sha_resolution") != EXPECTED_RESOLUTION:
         raise ExecutionLockError("manifest expected_git_sha_resolution is invalid")
     head = _git("rev-parse", "HEAD")
@@ -201,6 +205,8 @@ def validate_manifest_lock(
         raise ExecutionLockError("manifest resources are missing")
     expected_resources = {
         "partition": "gpu",
+        "nodelist": EXPECTED_NODE,
+        "expected_node": EXPECTED_NODE,
         "gpu_count": 1,
         "cpu_threads": 8,
         "requested_time": "15:00:00",
@@ -291,6 +297,7 @@ def create_lock(
         "campaign_id": CAMPAIGN_ID,
         "remote_campaign_root": REMOTE_CAMPAIGN_ROOT,
         "status": "authorized_not_consumed",
+        "lut_build_cap_inactive_required": LUT_BUILD_CAP_INACTIVE_REQUIRED,
         "expected_git_sha": checked["head"],
         "manifest_path": _record_path(checked["manifest_path"]),
         "manifest_sha256": checked["manifest_sha256"],
@@ -304,6 +311,8 @@ def create_lock(
         "allocation_count": 1,
         "retry_policy": "no_retry",
         "expected_gpu_model": EXPECTED_GPU_MODEL,
+        "nodelist": EXPECTED_NODE,
+        "expected_node": EXPECTED_NODE,
         "gpu_count": 1,
         "cpu_threads": 8,
         "requested_time": "15:00:00",

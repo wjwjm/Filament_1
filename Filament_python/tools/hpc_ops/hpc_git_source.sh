@@ -23,6 +23,7 @@ ACCOUNT=""
 REMOTE_ROOT=""
 STAGING_ROOT=""
 MODE=""
+SOURCE_MODE="auto"
 URL=""
 REF=""
 EXPECTED_HEAD=""
@@ -54,9 +55,9 @@ json_escape() {
 
 emit_json() {
     local ok="$1" state="$2" error
-    printf '{"schema":"filament.hpc_ops.git_source.v1","ok":%s,"state":"%s","source_class":"%s","mode":"%s","account":"%s","target":"%s","ref":"%s","expected_head":"%s","expected_branch":"%s","target_head":"%s","target_branch":"%s","fetch_head":"%s","acquisition_only":false' \
-        "$ok" "$state" "$(json_escape "$SOURCE_CLASS")" "$(json_escape "$MODE")" \
-        "$(json_escape "$ACCOUNT")" "$(json_escape "$TARGET")" "$(json_escape "$REF")" \
+    printf '{"schema":"filament.hpc_ops.git_source.v1","ok":%s,"state":"%s","source_class":"%s","source_mode":"%s","mode":"%s","account":"%s","target":"%s","ref":"%s","expected_head":"%s","expected_branch":"%s","target_head":"%s","target_branch":"%s","fetch_head":"%s","acquisition_only":false' \
+        "$ok" "$state" "$(json_escape "$SOURCE_CLASS")" "$(json_escape "$SOURCE_MODE")" \
+        "$(json_escape "$MODE")" "$(json_escape "$ACCOUNT")" "$(json_escape "$TARGET")" "$(json_escape "$REF")" \
         "$(json_escape "$EXPECTED_HEAD")" "$(json_escape "$EXPECTED_BRANCH")" \
         "$(json_escape "$TARGET_HEAD")" "$(json_escape "$TARGET_BRANCH")" \
         "$(json_escape "$FETCH_HEAD_VALUE")"
@@ -93,6 +94,7 @@ parse_args() {
             --remote-root) [[ "$#" -ge 2 ]] || return 1; REMOTE_ROOT="$2"; shift 2 ;;
             --staging-root) [[ "$#" -ge 2 ]] || return 1; STAGING_ROOT="$2"; shift 2 ;;
             --mode) [[ "$#" -ge 2 ]] || return 1; MODE="$2"; shift 2 ;;
+            --source-mode) [[ "$#" -ge 2 ]] || return 1; SOURCE_MODE="${2,,}"; shift 2 ;;
             --url) [[ "$#" -ge 2 ]] || return 1; URL="$2"; shift 2 ;;
             --ref) [[ "$#" -ge 2 ]] || return 1; REF="$2"; shift 2 ;;
             --expected-head) [[ "$#" -ge 2 ]] || return 1; EXPECTED_HEAD="$2"; shift 2 ;;
@@ -107,9 +109,10 @@ parse_args() {
         esac
     done
     [[ "$MODE" == clone || "$MODE" == fetch ]] || return 1
+    [[ "$SOURCE_MODE" == auto || "$SOURCE_MODE" == proxy-only || "$SOURCE_MODE" == bundle-only ]] || return 1
     [[ -n "$ACCOUNT" && -n "$REMOTE_ROOT" && -n "$STAGING_ROOT" && -n "$URL" &&
        -n "$REF" && -n "$EXPECTED_HEAD" && -n "$EXPECTED_BRANCH" &&
-       -n "$PROXY_ENV" && -n "$TARGET" ]]
+       -n "$TARGET" ]]
 }
 
 reject_unsafe_path_text() {
@@ -171,6 +174,12 @@ validate_inputs() {
     local expected_ref
     validate_account_roots
     validate_target
+    if [[ "$SOURCE_MODE" == bundle-only ]]; then
+        [[ -n "$BUNDLE" && -n "$BUNDLE_SHA" ]] || fail "bundle-only source mode requires bundle and bundle-sha" "$RC_BUNDLE"
+        [[ "$BUNDLE_SHA" =~ ^[0-9a-fA-F]{64}$ ]] || fail "bundle SHA256 must be 64 hexadecimal characters" "$RC_BUNDLE"
+    else
+        [[ -n "$PROXY_ENV" ]] || fail "proxy env path is required for the selected source mode" "$RC_ARGS"
+    fi
     [[ "$URL" != *$'\n'* && "$URL" != *$'\r'* && "$URL" != *$'\t'* ]] || fail "GitHub URL contains a control character" "$RC_URL"
     [[ "$URL" =~ ^https://github\.com/[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*(\.git)?$ ]] || fail "GitHub URL is not in the fixed safe form" "$RC_URL"
     [[ "$REF" =~ ^refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*$ && "$REF" != *".."* && "$REF" != *"//"* && "$REF" != */ ]] || fail "Git ref is not a safe branch ref" "$RC_URL"
@@ -181,8 +190,10 @@ validate_inputs() {
     (( ${#EXPECTED_HEAD} == 40 || ${#EXPECTED_HEAD} == 64 )) || fail "expected head must be a full SHA-1 or SHA-256" "$RC_ARGS"
     [[ "$TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]] || fail "timeout-seconds must be a positive integer" "$RC_ARGS"
     (( TIMEOUT_SECONDS >= 1 && TIMEOUT_SECONDS <= 300 )) || fail "timeout-seconds must be between 1 and 300" "$RC_ARGS"
-    reject_unsafe_path_text "$PROXY_ENV" || fail "proxy env path is not safe" "$RC_TARGET"
-    [[ "$PROXY_ENV" == "$REMOTE_ROOT"/* ]] || fail "proxy env is outside remote root" "$RC_TARGET"
+    if [[ -n "$PROXY_ENV" ]]; then
+        reject_unsafe_path_text "$PROXY_ENV" || fail "proxy env path is not safe" "$RC_TARGET"
+        [[ "$PROXY_ENV" == "$REMOTE_ROOT"/* ]] || fail "proxy env is outside remote root" "$RC_TARGET"
+    fi
     if [[ -n "$BUNDLE" ]]; then
         reject_unsafe_path_text "$BUNDLE" || fail "bundle path is not safe" "$RC_BUNDLE"
         [[ "$BUNDLE" == "$REMOTE_ROOT"/* ]] || fail "bundle is outside remote root" "$RC_BUNDLE"
@@ -270,6 +281,30 @@ fi
 if [[ "$DRY_RUN" == 1 ]]; then
     SOURCE_CLASS="not_executed"
     emit_json true "dry_run"
+    exit 0
+fi
+
+if [[ "$SOURCE_MODE" == bundle-only ]]; then
+    prepare_stable_bundle || fail "verified bundle acquisition failed" "$RC_BUNDLE"
+    SOURCE_CLASS="verified_bundle_non_strict"
+    if [[ "$MODE" == clone ]]; then
+        clone_from_source "$STABLE_BUNDLE" || fail "bundle clone failed" "$RC_GIT"
+    else
+        fetch_from_source "$STABLE_BUNDLE" || fail "bundle fetch failed" "$RC_GIT"
+    fi
+    emit_json true "completed"
+    exit 0
+fi
+
+if [[ "$SOURCE_MODE" == proxy-only ]]; then
+    run_proxy_probe || fail "strict proxy probe failed" "$RC_PROXY"
+    SOURCE_CLASS="strict_remote_verified"
+    if [[ "$MODE" == clone ]]; then
+        clone_from_source "$URL" || fail "strict proxy clone failed" "$RC_GIT"
+    else
+        fetch_from_source "$URL" || fail "strict proxy fetch failed" "$RC_GIT"
+    fi
+    emit_json true "completed"
     exit 0
 fi
 

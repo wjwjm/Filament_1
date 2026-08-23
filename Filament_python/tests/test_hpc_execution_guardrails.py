@@ -542,13 +542,14 @@ real_git=$(command -v git)
 cat > "$fakebin/git" <<'EOF'
 #!/usr/bin/env bash
 for arg in "$@"; do
-    if [[ "$arg" == ls-remote ]]; then exit 1; fi
+    if [[ "$arg" == ls-remote ]]; then : > "$PROBE_MARKER"; exit 1; fi
     if [[ "${FAIL_GIT_STATUS:-0}" == 1 && "$arg" == status ]]; then exit 97; fi
 done
 exec "$REAL_GIT" "$@"
 EOF
 chmod 700 -- "$fakebin/git"
 export REAL_GIT="$real_git"
+export PROBE_MARKER="$root/probe-called"
 PATH="$fakebin:$PATH"
 
 target="$staging/checkout"
@@ -563,6 +564,22 @@ assert report["target_branch"] == "main"
 assert report["fetch_head"] == sys.argv[2]
 PY
 test -z "$(git -C "$target" status --porcelain=v1 --untracked-files=all)"
+
+bundle_only_target="$staging/checkout_bundle_only"
+rm -f -- "$PROBE_MARKER"
+bundle_only_json=$("$root/tool/hpc_git_source.sh" --account scvi806 --remote-root "$remote_root" --staging-root "$staging" --mode clone --source-mode bundle-only --url https://github.com/example/repo.git --ref refs/heads/main --expected-head "$head" --expected-branch main --target "$bundle_only_target" --bundle "$bundle" --bundle-sha "$bundle_sha" --timeout-seconds 1)
+python3 - "$bundle_only_json" "$head" <<'PY'
+import json, sys
+report = json.loads(sys.argv[1])
+assert report["ok"] is True
+assert report["source_class"] == "verified_bundle_non_strict"
+assert report["source_mode"] == "bundle-only"
+assert report["target_head"] == sys.argv[2]
+assert report["target_branch"] == "main"
+assert report["fetch_head"] == sys.argv[2]
+PY
+test ! -e "$PROBE_MARKER"
+test -z "$(git -C "$bundle_only_target" status --porcelain=v1 --untracked-files=all)"
 
 fetch_json=$("$root/tool/hpc_git_source.sh" --account scvi806 --remote-root "$remote_root" --staging-root "$staging" --mode fetch --url https://github.com/example/repo.git --ref refs/heads/main --expected-head "$head" --expected-branch main --proxy-env "$proxy" --target "$target" --bundle "$bundle" --bundle-sha "$bundle_sha" --timeout-seconds 1)
 python3 - "$fetch_json" "$head" <<'PY'

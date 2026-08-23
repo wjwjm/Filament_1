@@ -6,6 +6,7 @@
   "status": "prepared_not_submitted",
   "expected_git_sha": null,
   "execution_lock_required": true,
+  "lut_build_cap_inactive_required": true,
   "expected_git_sha_resolution": "external execution_lock generated after final source commit",
   "prepared_from_git_sha": "756ad2569788186d79e0d55ccbdfb45c00de3f7f",
   "mother_config": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
@@ -60,6 +61,8 @@
   },
   "resources": {
     "partition": "gpu",
+    "nodelist": "m4gn1401",
+    "expected_node": "m4gn1401",
     "gpu_count": 1,
     "cpu_threads": 8,
     "requested_time": "15:00:00",

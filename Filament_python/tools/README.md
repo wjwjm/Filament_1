@@ -21,6 +21,13 @@ python Filament_python/tools/validate_ion_lut_runtime.py --config Filament_pytho
 
 工具会读写 `cache/rate_tables`；缓存是可再生成的运行产物，不应提交。模型、采样范围、插值方式或 reference 精度变化后，应重新检查缓存签名和验证误差。
 
+Hybrid Propagation 0.60 m formal sbatch warm-up 会通过
+`prepare_ionization_lut_cache` 复用/构建当前 strict mother 的 LUT，并把每个
+species 的 `W_grid` 最大值、配置 `W_cap`、builder 默认 cap 以及有限性、
+`nondecreasing`、负步数量、最大相对回落和 `cap_inactive` 结果写入 paired/case
+metadata；`nondecreasing` 仅作诊断记录，不是 formal pass/fail gate；任一表触及
+`0.999 * W_CAP_DEFAULT` 都会在传播前拒绝该 allocation。
+
 相关说明：[电离子包](../KHz_filament/ionization/README.md) 与 [运行指南](../README.md)。
 
 非线性消融配置示例（只生成 JSON 和 manifest，不运行仿真）：

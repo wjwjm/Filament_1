@@ -84,9 +84,11 @@ no-argument flag and does not write a second report or any arbitrary path.
 
 `hpc_git_source.sh` exposes fixed `clone`/`fetch` arguments with explicit
 account, remote root, and staging root. Targets are restricted to that staging
-root. It validates the GitHub URL, performs the exact proxy probe first, and
-falls back only after copying the bundle to a private mode-600 snapshot and
-checking its raw SHA/ref/HEAD. Clone mode builds a clean expected-branch
+root. `--source-mode auto` preserves the proxy-first behavior; `proxy-only`
+requires a successful exact proxy probe, while `bundle-only` requires an
+explicit bundle and SHA256 and skips proxy access entirely. Bundle acquisition
+still copies to a private mode-600 snapshot and checks its raw SHA/ref/HEAD.
+Clone mode builds a clean expected-branch
 checkout in a private temporary directory and atomically renames it to a
 nonexistent target. Fetch mode requires an already clean target at the expected
 branch/HEAD and only updates `FETCH_HEAD`; it never resets or merges. It cannot
