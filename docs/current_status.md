@@ -1,7 +1,7 @@
 # 当前项目状态 (Round 1 Restructuring)
 
 - 日期: 2026-08-23
-- 分支: `restructure_round1`
+- 分支: `main`
 - 基线 HEAD (本轮开始前): `37f79794f8b1dd93b4431e11f21e70f7059c6492`
 
 ## 目标

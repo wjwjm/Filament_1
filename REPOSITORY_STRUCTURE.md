@@ -3,7 +3,7 @@
 > 第一轮整理范围：只做分类、inventory、低风险移动与文档化；**不新增多脉冲物理，
 > 不改变任何公式、默认参数、operator、precision 策略或数值顺序。**
 
-## 0. 当前状态（2026-08-23，branch `restructure_round1`）
+## 0. 当前状态（2026-08-23，branch `main`）
 
 - 已完成：完整五类 inventory + machine-readable manifest；
   4 个 phase 文档从 `Filament_python/docs/` 归档到目标 `docs/`；
