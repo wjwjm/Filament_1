@@ -1,10 +1,10 @@
 {
   "schema": "filament_1.repository_inventory.v1",
-  "generated_at": "2026-08-23T05:22:21.031982+00:00",
-  "repo_head_sha": "42fbbe211256f4ecf474da4567b1db5adf415170",
+  "generated_at": "2026-08-23T05:23:09.851701+00:00",
+  "repo_head_sha": "8799839f23545b2f2cc14b1e3829d9c1690ca78f",
   "branch": "main",
   "total_files": 791,
-  "total_bytes": 92413045,
+  "total_bytes": 92413121,
   "class_summary": {
     "results_documentation_evidence": 561,
     "unclassified": 3,
@@ -131,7 +131,7 @@
       "size": 983,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": false,
+      "git_tracked": true,
       "sha256": "0ffcff9b2dac8228e15c48f667584d8bb548e01e5e06473ac906cf25884fd9e0"
     },
     {
@@ -155,7 +155,7 @@
       "size": 3920,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": false,
+      "git_tracked": true,
       "sha256": "600a7e1a8d7790540087ab2fce06f78ec8c194a3806aa15114979f1db8244a21"
     },
     {
@@ -163,7 +163,7 @@
       "size": 1262,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": false,
+      "git_tracked": true,
       "sha256": "29867e934fdb76e8e65c1cd1ef59bcf57cdd6b618dfabcf34b79ebc26785582f"
     },
     {
@@ -171,24 +171,24 @@
       "size": 2808,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": false,
+      "git_tracked": true,
       "sha256": "cd4c3e882fa30bd01cc3a93fbb70892d5b0aeb6c8cccc3676ef84c4263b04271"
     },
     {
       "path": "docs/repo_layout/repository_inventory.json",
-      "size": 271165,
+      "size": 271196,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
       "git_tracked": true,
-      "sha256": "170ae2c3e64cfaa9ebcf90548417b249bc22b232ad0dc38e493d9bdd54902eb3"
+      "sha256": "58005256e7261a3993226923185d931c80728f0a0819f43dcb1c1131c63b3936"
     },
     {
       "path": "docs/repo_layout/repository_inventory.md",
-      "size": 123254,
+      "size": 123287,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
       "git_tracked": true,
-      "sha256": "1a4b5aa726aeaf3c8f6906382ca5d947389343930aa8a602727f35c548ecbb92"
+      "sha256": "520227978f3ae57af9dc98a6568b37b73bf450044ea051b3b7fd670ee5a34b9c"
     },
     {
       "path": "Filament_python/compare_khzfil_outputs.py",
@@ -5632,11 +5632,11 @@
     },
     {
       "path": "Filament_python/tools/audit/build_repository_inventory.py",
-      "size": 9010,
+      "size": 9022,
       "class_one": "generic_tests_tools",
       "kind": "audit_tool",
       "git_tracked": true,
-      "sha256": "016cce107f0d7c03f9bce39a9e22328c284418a67d4501854e564fe15863842e"
+      "sha256": "09eb1f6ed7a37e8cdb6643c05ee39a1104e921ca694b240f470e3e078fc6853b"
     },
     {
       "path": "Filament_python/tools/audit_historical_fr_mixture.py",
@@ -6295,51 +6295,51 @@
       "sha256": "714207424bf386abd4086a23398b9fbce293bb76f97c8b2321fc49d6cbf7b26b"
     },
     {
-      "path": "修改记录/20260429.md",
+      "path": "results/reference_evidence/修改记录/20260429.md",
       "size": 447,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": true,
+      "git_tracked": false,
       "sha256": "cc8f41801fb2884c5b4b0ecc0b94399ff6e9c251fae244fdc1f472e75a02e4af"
     },
     {
-      "path": "修改记录/20260715_横向轮廓验证.md",
+      "path": "results/reference_evidence/修改记录/20260715_横向轮廓验证.md",
       "size": 1085,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": true,
+      "git_tracked": false,
       "sha256": "a4901ddc3eae65e59d18f999c14e1b9bb716d080e801f0ac7a94036f689998de"
     },
     {
-      "path": "修改记录/修改意见1.json",
+      "path": "results/reference_evidence/修改记录/修改意见1.json",
       "size": 16202,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": true,
+      "git_tracked": false,
       "sha256": "42aa070dc0fbf9a9412f765305e3844f611fb29ef5f99230db586fe67eddcd09"
     },
     {
-      "path": "修改记录/讨论-1.json",
+      "path": "results/reference_evidence/修改记录/讨论-1.json",
       "size": 22917,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": true,
+      "git_tracked": false,
       "sha256": "75d564a60586879757a105d701bcfa1d160f0fd718551499e701c20a51ce8371"
     },
     {
-      "path": "修改记录/讨论-2.json",
+      "path": "results/reference_evidence/修改记录/讨论-2.json",
       "size": 18632,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": true,
+      "git_tracked": false,
       "sha256": "9acde5a2a78d7443f32704eb0269f39a1cdc9684bbffc00bb8258d5a7efc121c"
     },
     {
-      "path": "修改记录/讨论-3.json",
+      "path": "results/reference_evidence/修改记录/讨论-3.json",
       "size": 19354,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": true,
+      "git_tracked": false,
       "sha256": "61410734422a77f8112a10e6f15c32a6134391944b849f62e4ea761e75365a9c"
     }
   ]

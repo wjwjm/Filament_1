@@ -154,7 +154,7 @@ def classify(path: Path) -> tuple[str, str]:
         if path.name in ("README.md", "requirements.txt"):
             return "results_documentation_evidence", "repo_doc"
 
-    if rel.startswith(("references/", "修改记录/", "docs/")):
+    if rel.startswith(("references/", "修改记录/", "docs/", "results/")):
         return "results_documentation_evidence", "reference_or_doc"
     if rel.startswith((".codex/", ".workbuddy/")):
         return "results_documentation_evidence", "repo_meta"
