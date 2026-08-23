@@ -1,0 +1,131 @@
+{
+  "grid": {
+    "Nx": 512,
+    "Ny": 512,
+    "Lx": 0.008,
+    "Ly": 0.008,
+    "Nt": 384,
+    "Twin": 0.96e-12
+  },
+  "beam": {
+    "lam0": 8.0e-07,
+    "n0": 1.00027,
+    "w0": 0.001979,
+    "tau_fwhm": 1.2e-13,
+    "E0_peak": 0.0,
+    "energy_J": null,
+    "P0_peak": 17000000000.0,
+    "focal_length": 0.95,
+    "n2_air": 7.8e-24
+  },
+  "propagation": {
+    "linear_model": "bk_nee",
+    "z_max": 1.3,
+    "dz": 0.0001,
+    "strang": true,
+    "linear_chunk_t": 8,
+    "auto_substep": true,
+    "dz_min": 2.5e-05,
+    "grow_factor": 1.5,
+    "precheck_kerr": true,
+    "max_precheck_iter": 8,
+    "use_self_steepening": true,
+    "full_linear_factorize": false,
+    "self_steepening_method": "tdiff",
+    "progress_every_z": 250,
+    "show_eta": true,
+    "shrink_factor": 0.5,
+    "max_linear_phase": 0.8,
+    "max_alpha_dz": 0.2,
+    "max_kerr_phase": 0.3,
+    "imax_growth_limit": 0.5,
+    "shock_chunk_pixels": 65536,
+    "safety_mode": "on",
+    "energy_probe_every": 25,
+    "energy_probe_tol": 0.03,
+    "diag_extra": true,
+    "focus_window_step": true,
+    "focus_center_m": 0.95,
+    "focus_halfwidth_m": 0.1,
+    "dz_focus": 5e-05,
+    "limit_focus_window": true,
+    "window_halfwidth_m": 0.2
+  },
+  "ionization": {
+    "species": [
+      {
+        "name": "N2",
+        "rate": "ppt_talebpour_i_lut",
+        "reference_model": "ppt_talebpour_i_full_reference",
+        "Ip_eV": 15.6,
+        "Zeff": 0.9,
+        "l": 0,
+        "m": 0,
+        "fraction": 0.8,
+        "W_scale": 1.0
+      },
+      {
+        "name": "O2",
+        "rate": "ppt_talebpour_i_lut",
+        "reference_model": "ppt_talebpour_i_full_reference",
+        "Ip_eV": 12.1,
+        "Ip_eV_eff": 12.55,
+        "Zeff": 0.53,
+        "l": 0,
+        "m": 0,
+        "fraction": 0.2,
+        "W_scale": 1.0
+      }
+    ],
+    "time_mode": "full",
+    "integrator": "rk4",
+    "cycle_avg_samples": 16,
+    "mean_clip_frac": 0,
+    "beta_rec": 0.0,
+    "sigma_ib": 0.0,
+    "nu_ei_const": 0.0,
+    "I_cap": 1e+19,
+    "W_cap": 1e+19,
+    "rate_table": {
+      "enabled": true,
+      "reuse_cache": true,
+      "cache_dir": "cache/rate_tables",
+      "rebuild_if_missing": true,
+      "force_rebuild": false,
+      "save_tables": true,
+      "I_min_SI": 100000000.0,
+      "I_max_SI": 1e+19,
+      "n_samples": 3000,
+      "spacing": "log",
+      "interp_mode": "loglog",
+      "ref_cycle_avg_samples": 64,
+      "popruzhenko_sum_tol": 1e-06,
+      "popruzhenko_max_terms": 256
+    }
+  },
+  "heat": {
+    "D_gas": 2e-05,
+    "gamma_heat": -1e-23,
+    "f_rep": 1000.0
+  },
+  "run": {
+    "Npulses": 1
+  },
+  "raman": {
+    "enabled": true,
+    "f_R": 0.15,
+    "model": "rot_sinexp",
+    "T2": 8e-11,
+    "T_R": 8.4e-12,
+    "method": "iir",
+    "chunk_pixels": 65536,
+    "diagnose": true,
+    "absorption_model": "conv_deriv",
+    "absorption": true,
+    "abs_mask_frac": 0.001,
+    "max_alpha_dz": 0.002,
+    "omega_R": 16000000000000.0,
+    "Gamma_R": 13000000000000.0,
+    "n_R": 2.3e-23
+  }
+}

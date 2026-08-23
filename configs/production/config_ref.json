@@ -1,0 +1,89 @@
+{
+  "grid": {
+    "Nx": 128,
+    "Ny": 128,
+    "Nt": 96,
+    "Lx": 0.006,
+    "Ly": 0.006,
+    "Twin": 6.4e-13
+  },
+  "beam": {
+    "lam0": 8.0e-7,
+    "n0": 1.00027,
+    "w0": 1.979e-3,
+    "tau_fwhm": 4.0e-14,
+    "E0_peak": 0.0,
+    "energy_J": 6.8e-4,
+    "P0_peak": null,
+    "focal_length": 0.95,
+    "n2_air": 7.8e-24
+  },
+  "propagation": {
+    "linear_model": "uppe",
+    "z_max": 0.02,
+    "dz": 0.001,
+    "strang": true,
+    "auto_substep": false,
+    "use_self_steepening": true,
+    "full_linear_factorize": false,
+    "diag_extra": true,
+    "progress_every_z": 10,
+    "show_eta": false
+  },
+  "ionization": {
+    "species": [
+      {
+        "name": "N2",
+        "rate": "ppt_talebpour_i_full",
+        "Ip_eV": 15.6,
+        "Zeff": 0.9,
+        "l": 0,
+        "m": 0,
+        "fraction": 0.8
+      },
+      {
+        "name": "O2",
+        "rate": "ppt_talebpour_i_full",
+        "Ip_eV": 12.1,
+        "Ip_eV_eff": 12.55,
+        "Zeff": 0.53,
+        "l": 0,
+        "m": 0,
+        "fraction": 0.2
+      }
+    ],
+    "time_mode": "full",
+    "integrator": "rk4",
+    "cycle_avg_samples": 64,
+    "mean_clip_frac": 0.001,
+    "beta_rec": 0.0,
+    "sigma_ib": 0.0,
+    "nu_ei_const": null,
+    "I_cap": 1.0e19,
+    "W_cap": 1.0e16
+  },
+  "heat": {
+    "D_gas": 2.0e-5,
+    "gamma_heat": -1.0e-23,
+    "f_rep": 1.0e3
+  },
+  "run": {
+    "Npulses": 1
+  },
+  "raman": {
+    "enabled": true,
+    "f_R": 0.15,
+    "model": "rot_sinexp",
+    "T2": 8.0e-11,
+    "T_R": 8.4e-12,
+    "diagnose": false,
+    "absorption_model": "closed_form",
+    "absorption": true,
+    "omega_R": 7.5e11,
+    "Gamma_R": 1.25e10,
+    "tau_fwhm": 1.2e-13,
+    "n_rot_frac": 0.99,
+    "R0_mode": "mom",
+    "R0_fixed_m": 2.0e-4
+  }
+}
