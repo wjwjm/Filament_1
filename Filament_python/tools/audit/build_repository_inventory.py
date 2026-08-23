@@ -95,7 +95,7 @@ def classify(path: Path) -> tuple[str, str]:
             return "production_runtime", "runtime_source"
         return "production_runtime", "runtime_doc"
 
-    if path.name in PRODUCTION_CONFIGS and rel.startswith("Filament_python/"):
+    if path.name in PRODUCTION_CONFIGS and rel.startswith(("Filament_python/", "configs/production/")):
         return "production_config", "default_config"
 
     if rel.startswith("Filament_python/tests/"):
@@ -158,7 +158,7 @@ def classify(path: Path) -> tuple[str, str]:
         return "results_documentation_evidence", "reference_or_doc"
     if rel.startswith((".codex/", ".workbuddy/")):
         return "results_documentation_evidence", "repo_meta"
-    if path.name in ("AGENTS.md", "README.md", ".gitignore", ".gitattributes"):
+    if path.name in ("AGENTS.md", "README.md", "REPOSITORY_STRUCTURE.md", ".gitignore", ".gitattributes"):
         return "results_documentation_evidence", "repo_doc"
 
     return "unclassified", "unknown"
