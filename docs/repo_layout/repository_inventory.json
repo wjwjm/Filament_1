@@ -1,16 +1,16 @@
 {
   "schema": "filament_1.repository_inventory.v1",
-  "generated_at": "2026-08-23T05:20:53.547177+00:00",
-  "repo_head_sha": "37f79794f8b1dd93b4431e11f21e70f7059c6492",
+  "generated_at": "2026-08-23T05:22:21.031982+00:00",
+  "repo_head_sha": "42fbbe211256f4ecf474da4567b1db5adf415170",
   "branch": "main",
   "total_files": 791,
-  "total_bytes": 92411148,
+  "total_bytes": 92413045,
   "class_summary": {
-    "results_documentation_evidence": 557,
+    "results_documentation_evidence": 561,
     "unclassified": 3,
     "generic_tests_tools": 54,
     "production_config": 3,
-    "historical_experiments_audits": 143,
+    "historical_experiments_audits": 139,
     "production_runtime": 31
   },
   "files": [
@@ -107,7 +107,7 @@
       "size": 1728,
       "class_one": "unclassified",
       "kind": "unknown",
-      "git_tracked": false,
+      "git_tracked": true,
       "sha256": "b7c9a8675afe423d5e4251cd3d98c6f2ae727a8bd39fd93e64829eea0f8abe86"
     },
     {
@@ -115,7 +115,7 @@
       "size": 2810,
       "class_one": "unclassified",
       "kind": "unknown",
-      "git_tracked": false,
+      "git_tracked": true,
       "sha256": "ec93f98f8b90dc3fc74822f3e68790724d04edd2848071f1fdce49d72ab57864"
     },
     {
@@ -123,8 +123,16 @@
       "size": 2985,
       "class_one": "unclassified",
       "kind": "unknown",
-      "git_tracked": false,
+      "git_tracked": true,
       "sha256": "472a1d6b8990b45942f829f505983687b2d38c781d474ec34904dbe0f8a1fbab"
+    },
+    {
+      "path": "docs/architecture/stage1_single_pulse_optimization.md",
+      "size": 983,
+      "class_one": "results_documentation_evidence",
+      "kind": "reference_or_doc",
+      "git_tracked": false,
+      "sha256": "0ffcff9b2dac8228e15c48f667584d8bb548e01e5e06473ac906cf25884fd9e0"
     },
     {
       "path": "docs/experience/2026-08-22_isaacs_eq27_c2_postmortem.md",
@@ -143,20 +151,44 @@
       "sha256": "99c77885146a1b4821521955351600cadeb4682a09a9473d068374d16ae453f1"
     },
     {
-      "path": "docs/repo_layout/repository_inventory.json",
-      "size": 269745,
+      "path": "docs/known_residuals/known_residual_pycap_onset_20260823.md",
+      "size": 3920,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
       "git_tracked": false,
-      "sha256": "076310b5bc01331e3b16ad7024a1e919e54f03091d456cacc2e3fbe29480ab7b"
+      "sha256": "600a7e1a8d7790540087ab2fce06f78ec8c194a3806aa15114979f1db8244a21"
+    },
+    {
+      "path": "docs/physics_decisions/phase2_switch_isolation.md",
+      "size": 1262,
+      "class_one": "results_documentation_evidence",
+      "kind": "reference_or_doc",
+      "git_tracked": false,
+      "sha256": "29867e934fdb76e8e65c1cd1ef59bcf57cdd6b618dfabcf34b79ebc26785582f"
+    },
+    {
+      "path": "docs/physics_decisions/phase3_0d_ionization_harness.md",
+      "size": 2808,
+      "class_one": "results_documentation_evidence",
+      "kind": "reference_or_doc",
+      "git_tracked": false,
+      "sha256": "cd4c3e882fa30bd01cc3a93fbb70892d5b0aeb6c8cccc3676ef84c4263b04271"
+    },
+    {
+      "path": "docs/repo_layout/repository_inventory.json",
+      "size": 271165,
+      "class_one": "results_documentation_evidence",
+      "kind": "reference_or_doc",
+      "git_tracked": true,
+      "sha256": "170ae2c3e64cfaa9ebcf90548417b249bc22b232ad0dc38e493d9bdd54902eb3"
     },
     {
       "path": "docs/repo_layout/repository_inventory.md",
-      "size": 122777,
+      "size": 123254,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": false,
-      "sha256": "f025d381c7f4a5b1c09243b0187f0390bffe7c6eaba2dca204c6a1d8d4c6c4b6"
+      "git_tracked": true,
+      "sha256": "1a4b5aa726aeaf3c8f6906382ca5d947389343930aa8a602727f35c548ecbb92"
     },
     {
       "path": "Filament_python/compare_khzfil_outputs.py",
@@ -285,38 +317,6 @@
       "kind": "experiment_config",
       "git_tracked": true,
       "sha256": "4e5786db6f5adf3f57114a5d023a657e96f3aedc9c19ee4340ea03580d7a979c"
-    },
-    {
-      "path": "Filament_python/docs/known_residual_pycap_onset_20260823.md",
-      "size": 3920,
-      "class_one": "historical_experiments_audits",
-      "kind": "phase_doc",
-      "git_tracked": true,
-      "sha256": "600a7e1a8d7790540087ab2fce06f78ec8c194a3806aa15114979f1db8244a21"
-    },
-    {
-      "path": "Filament_python/docs/phase2_switch_isolation.md",
-      "size": 1262,
-      "class_one": "historical_experiments_audits",
-      "kind": "phase_doc",
-      "git_tracked": true,
-      "sha256": "29867e934fdb76e8e65c1cd1ef59bcf57cdd6b618dfabcf34b79ebc26785582f"
-    },
-    {
-      "path": "Filament_python/docs/phase3_0d_ionization_harness.md",
-      "size": 2808,
-      "class_one": "historical_experiments_audits",
-      "kind": "phase_doc",
-      "git_tracked": true,
-      "sha256": "cd4c3e882fa30bd01cc3a93fbb70892d5b0aeb6c8cccc3676ef84c4263b04271"
-    },
-    {
-      "path": "Filament_python/docs/stage1_single_pulse_optimization.md",
-      "size": 983,
-      "class_one": "historical_experiments_audits",
-      "kind": "phase_doc",
-      "git_tracked": true,
-      "sha256": "0ffcff9b2dac8228e15c48f667584d8bb548e01e5e06473ac906cf25884fd9e0"
     },
     {
       "path": "Filament_python/finalize_stage1.py",
@@ -5635,7 +5635,7 @@
       "size": 9010,
       "class_one": "generic_tests_tools",
       "kind": "audit_tool",
-      "git_tracked": false,
+      "git_tracked": true,
       "sha256": "016cce107f0d7c03f9bce39a9e22328c284418a67d4501854e564fe15863842e"
     },
     {

@@ -1,17 +1,17 @@
 # Filament_1 仓库结构 inventory
 
-- 生成时间(UTC): 2026-08-23T05:20:53.547177+00:00
-- 仓库 HEAD SHA: `37f79794f8b1dd93b4431e11f21e70f7059c6492`
+- 生成时间(UTC): 2026-08-23T05:22:21.031982+00:00
+- 仓库 HEAD SHA: `42fbbe211256f4ecf474da4567b1db5adf415170`
 - 分支: `main`
 - 文件总数: 791
-- 总字节数: 92411148
+- 总字节数: 92413045
 
 ## 五类统计
 - `production_runtime`: 31
 - `production_config`: 3
 - `generic_tests_tools`: 54
-- `historical_experiments_audits`: 143
-- `results_documentation_evidence`: 557
+- `historical_experiments_audits`: 139
+- `results_documentation_evidence`: 561
 - `unclassified`: 3
 
 ## 分类明细（按 path 排序，完整清单见 repository_inventory.json）
@@ -29,10 +29,14 @@
 - `configs/production/config_ref.json` — unclassified / unknown (1728 B)
 - `configs/production/khz_config.json` — unclassified / unknown (2810 B)
 - `configs/production/khz_config_lut.json` — unclassified / unknown (2985 B)
+- `docs/architecture/stage1_single_pulse_optimization.md` — results_documentation_evidence / reference_or_doc (983 B)
 - `docs/experience/2026-08-22_isaacs_eq27_c2_postmortem.md` — results_documentation_evidence / reference_or_doc (10093 B)
 - `docs/experience/sol_luna_hpc_execution_playbook.md` — results_documentation_evidence / reference_or_doc (8614 B)
-- `docs/repo_layout/repository_inventory.json` — results_documentation_evidence / reference_or_doc (269745 B)
-- `docs/repo_layout/repository_inventory.md` — results_documentation_evidence / reference_or_doc (122777 B)
+- `docs/known_residuals/known_residual_pycap_onset_20260823.md` — results_documentation_evidence / reference_or_doc (3920 B)
+- `docs/physics_decisions/phase2_switch_isolation.md` — results_documentation_evidence / reference_or_doc (1262 B)
+- `docs/physics_decisions/phase3_0d_ionization_harness.md` — results_documentation_evidence / reference_or_doc (2808 B)
+- `docs/repo_layout/repository_inventory.json` — results_documentation_evidence / reference_or_doc (271165 B)
+- `docs/repo_layout/repository_inventory.md` — results_documentation_evidence / reference_or_doc (123254 B)
 - `Filament_python/compare_khzfil_outputs.py` — generic_tests_tools / runner_or_postprocess (11223 B)
 - `Filament_python/config_ref.json` — production_config / default_config (1728 B)
 - `Filament_python/configs/ionization_model_propagation/120fs_talebpour_full_model.json` — historical_experiments_audits / experiment_config (3349 B)
@@ -49,10 +53,6 @@
 - `Filament_python/configs/raman_phase_causality/120fs_talebpour_full_model_raman_phase_off.json` — historical_experiments_audits / experiment_config (3350 B)
 - `Filament_python/configs/raman_phase_causality/raman_phase_ablation_config_manifest.json` — historical_experiments_audits / experiment_config (1385 B)
 - `Filament_python/configs/vacuum_focus_validation/flat_top_90_vacuum.json` — historical_experiments_audits / experiment_config (996 B)
-- `Filament_python/docs/known_residual_pycap_onset_20260823.md` — historical_experiments_audits / phase_doc (3920 B)
-- `Filament_python/docs/phase2_switch_isolation.md` — historical_experiments_audits / phase_doc (1262 B)
-- `Filament_python/docs/phase3_0d_ionization_harness.md` — historical_experiments_audits / phase_doc (2808 B)
-- `Filament_python/docs/stage1_single_pulse_optimization.md` — historical_experiments_audits / phase_doc (983 B)
 - `Filament_python/finalize_stage1.py` — historical_experiments_audits / phase_tool (6436 B)
 - `Filament_python/finalize_transverse_profile_validation.py` — historical_experiments_audits / phase_tool (10371 B)
 - `Filament_python/khz_config.json` — production_config / default_config (2810 B)
