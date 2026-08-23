@@ -15,6 +15,7 @@ readonly CAMPAIGN_ID="hybrid_propagation_validation_0p60"
 readonly REMOTE_ROOT="/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60"
 readonly EXPECTED_GPU_MODEL="NVIDIA GeForce RTX 5090"
 readonly EXPECTED_NODELIST="m4gn1401"
+readonly PYTHON_BIN="/data/home/scvi806/.conda/envs/Filament_python/bin/python"
 readonly MANIFEST_REL="Filament_python/results/hybrid_propagation_validation/submission_manifest.json"
 readonly BATCH_REL="Filament_python/tools/hybrid_propagation_validation.sbatch"
 
@@ -36,6 +37,7 @@ PROVENANCE_V2_PATH="$(cd -- "$(dirname -- "${PROVENANCE_V2_INPUT}")" && pwd -P)/
 for path in "${MANIFEST_PATH}" "${BATCH_PATH}" "${EXECUTION_LOCK_PATH}" "${PROVENANCE_V2_PATH}"; do
   [[ -f "${path}" && ! -L "${path}" ]] || { echo "FATAL: required regular file missing: ${path}" >&2; exit 12; }
 done
+[[ -x "${PYTHON_BIN}" ]] || { echo "FATAL: fixed Filament_python interpreter is unavailable" >&2; exit 12; }
 
 cd "${REPO_DIR}"
 EXPECTED_GIT_SHA="$(git rev-parse HEAD)"
@@ -45,7 +47,7 @@ EXPECTED_EXECUTION_LOCK_SHA256="$(sha256sum "${EXECUTION_LOCK_PATH}" | awk '{pri
 EXPECTED_PROVENANCE_V2_SHA256="$(sha256sum "${PROVENANCE_V2_PATH}" | awk '{print $1}')"
 
 VALIDATION="$({
-  python - "${MANIFEST_PATH}" "${EXECUTION_LOCK_PATH}" "${EXPECTED_GIT_SHA}" <<'PY'
+  "${PYTHON_BIN}" - "${MANIFEST_PATH}" "${EXECUTION_LOCK_PATH}" "${EXPECTED_GIT_SHA}" <<'PY'
 import importlib.util, json, sys
 from pathlib import Path
 manifest_path = Path(sys.argv[1])
@@ -71,7 +73,7 @@ if module.sha256(lock_path) == "":
 print(json.dumps({"head": expected_sha, "manifest_sha256": checked["manifest_sha256"]}))
 PY
 } 2>&1)" || { echo "FATAL: manifest/lock validation failed" >&2; exit 14; }
-python Filament_python/tools/hpc_ops/provenance_v2.py validate --repo "${REPO_DIR}" --manifest "${PROVENANCE_V2_PATH}" >/dev/null
+"${PYTHON_BIN}" Filament_python/tools/hpc_ops/provenance_v2.py validate --repo "${REPO_DIR}" --manifest "${PROVENANCE_V2_PATH}" >/dev/null
 
 mkdir -p -- "${REMOTE_ROOT}"
 GLOBAL_CONSUMED_LOCK="${REMOTE_ROOT}/.consumed.lock"
@@ -103,7 +105,7 @@ chmod 700 "${GLOBAL_CONSUMED_LOCK}"
 
 SUBMISSION_LOCK="${RUN_DIR}/SUBMISSION_LOCK"
 JOB_RECEIPT_PATH="${RUN_DIR}/job_receipt.json"
-python - "${SUBMISSION_LOCK}" "${CAMPAIGN_ID}" "${RUN_DIR}" "${EXPECTED_GIT_SHA}" \
+"${PYTHON_BIN}" - "${SUBMISSION_LOCK}" "${CAMPAIGN_ID}" "${RUN_DIR}" "${EXPECTED_GIT_SHA}" \
   "${EXPECTED_MANIFEST_SHA256}" "${EXPECTED_EXECUTION_LOCK_SHA256}" "${EXPECTED_PROVENANCE_V2_SHA256}" <<'PY'
 import json, sys
 from datetime import datetime, timezone
@@ -134,7 +136,7 @@ JOB_ID="${SBATCH_OUTPUT%%;*}"
   exit 18
 }
 
-python - "${JOB_RECEIPT_PATH}" "${JOB_ID}" "${CAMPAIGN_ID}" "${RUN_DIR}" "${EXPECTED_GIT_SHA}" \
+"${PYTHON_BIN}" - "${JOB_RECEIPT_PATH}" "${JOB_ID}" "${CAMPAIGN_ID}" "${RUN_DIR}" "${EXPECTED_GIT_SHA}" \
   "${EXPECTED_MANIFEST_SHA256}" "${EXPECTED_EXECUTION_LOCK_SHA256}" "${EXPECTED_PROVENANCE_V2_SHA256}" <<'PY'
 import json, secrets, sys
 from datetime import datetime, timezone

@@ -353,6 +353,8 @@ def test_campaign_shell_contract_has_single_allocation_and_no_retry():
     assert submit.count("sbatch --hold --parsable") == 1
     assert "#SBATCH --nodelist=m4gn1401" in batch
     assert "EXPECTED_NODELIST" in submit
+    assert 'PYTHON_BIN="/data/home/scvi806/.conda/envs/Filament_python/bin/python"' in submit
+    assert "\npython " not in submit
     assert "SLURM_JOB_NODELIST" in batch
     assert '"nodelist"' in batch and '"expected_node"' in batch
     assert "prepare_ionization_lut_cache" in batch
