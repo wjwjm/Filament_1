@@ -154,7 +154,10 @@ def _rel(path: Path) -> str:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    # Raw hashes are consumed on Linux HPC.  Force LF bytes on Windows so the
+    # manifest hashes exactly match the committed Git blobs and remote checkout.
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
 
 
 def prepare(out_dir: Path = OUTPUT, *, mother_path: Path = MOTHER) -> dict[str, Any]:

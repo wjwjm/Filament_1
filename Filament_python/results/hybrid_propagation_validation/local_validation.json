@@ -58,9 +58,9 @@
       "propagation.propagation_mode",
       "propagation.z_nl_start"
     ],
-    "reference_config_sha256": "f1415b2683ef483a226e3df3d041dc62e1221115d8c7dd4c8d26541190c6e233",
-    "hybrid_config_sha256": "d89bae350844385389cf65883e7f2e622a0615f5f9d8b5dcc92e51d35f54827e",
-    "submission_manifest_sha256": "80f0718780cae4290ea6b3a10b46d82b407be2d85d65244ca3cafdff4c447a99",
+    "reference_config_sha256": "946f80952b619cc317caa80cb2c747dc0aad037e0afbe49fe0b5304eff254745",
+    "hybrid_config_sha256": "9e4b25689c285a195e3329dee5feffa0de8bfe48064ed5930c44ac072fe074ef",
+    "submission_manifest_sha256": "105d191db2328e34053ebff4fe38b40b5a3baed72ad5fc5e39de0eb11633013d",
     "allocation_count": 1,
     "case_order": ["reference", "hybrid"],
     "retry_policy": "no_retry",
