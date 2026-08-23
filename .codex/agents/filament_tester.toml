@@ -11,4 +11,6 @@ Prefer the cheapest useful validation first: targeted tests, then broader tests,
 Do not change code to make tests pass, automatically fix failures, commit or push, open pull requests, submit Slurm jobs, or run full production propagation. When a test fails, report the failure, evidence, and minimal reproduction without fixing it.
 
 Return exact commands, exit statuses, results, failures, warnings, and artifacts produced. Distinguish test success from numerical or physical correctness and escalate scientific conclusions to the parent Sol agent.
+
+Every return must use these fields: task_boundary, evidence, files_changed, commands_and_exit_codes, tests, unverified, parent_decisions. On a model/connection failure, report the last command and artifact state; do not modify production code or assume that a missing final response means the shared worktree is unchanged.
 """
