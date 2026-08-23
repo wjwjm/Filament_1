@@ -749,3 +749,15 @@ def test_secret_scan_of_new_guardrails():
     assert "https://user:password" + "@" not in text
     assert "Invoke-Expression" not in (HPC_OPS / "Invoke-PappRemoteScript.ps1").read_text(encoding="utf-8")
     assert "cmd /c" not in (HPC_OPS / "Invoke-PappRemoteScript.ps1").read_text(encoding="utf-8")
+
+
+def test_powershell_wrapper_defers_bootstrap_substitutions_to_remote_shell():
+    wrapper = (HPC_OPS / "Invoke-PappRemoteScript.ps1").read_text(encoding="utf-8")
+    mkdir_line = next(line for line in wrapper.splitlines() if "$mkdirCommand =" in line)
+    assert "resolved_root=\\$(realpath" in mkdir_line
+    assert '"\\$resolved_root"' in mkdir_line
+    assert '"\\$(stat -c %u' in mkdir_line
+    assert '"\\$(id -u)' in mkdir_line
+    assert '"\\$(stat -c %a' in mkdir_line
+    assert 'test -d --' not in mkdir_line
+    assert 'test ! -e --' not in mkdir_line

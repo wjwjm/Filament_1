@@ -22,6 +22,13 @@ manifest SHA256 values before invoking the script, and removes only the files
 and mode-700 run directory created for that invocation. A best-effort wrapper
 cleanup covers transfer or dispatcher-start failures.
 
+The papp transport passes remote command arguments through a local WSL shell.
+The wrapper therefore escapes bootstrap dollar expansions exactly once so
+`realpath`, ownership, and mode checks execute on the remote host. Rejections
+include a credential-free `failure_stage` label without exposing command text,
+paths beyond the already-declared remote root, proxy values, or transport
+diagnostics.
+
 Use a dry run before any network operation:
 
 ```powershell
