@@ -27,6 +27,7 @@ readonly CAMPAIGN_ID="hybrid_propagation_validation_0p60"
 readonly REMOTE_ROOT="/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60"
 readonly FIXED_NODELIST="m4gn1401"
 readonly FIXED_CONDA_PREFIX="/data/home/scvi806/.conda/envs/Filament_python"
+readonly FIXED_PYTHON="${FIXED_CONDA_PREFIX}/bin/python"
 if [[ "${SLURM_CPUS_PER_TASK:-}" != "8" ]]; then
   echo "FATAL: paired campaign requires exactly 8 CPUs" >&2
   exit 20
@@ -63,7 +64,8 @@ done
 [[ "$(sha256sum "${EXECUTION_LOCK_PATH}" | awk '{print $1}')" == "${EXPECTED_EXECUTION_LOCK_SHA256}" ]] || { echo "FATAL: execution-lock SHA mismatch" >&2; exit 28; }
 [[ "$(sha256sum "${PROVENANCE_V2_PATH}" | awk '{print $1}')" == "${EXPECTED_PROVENANCE_V2_SHA256}" ]] || { echo "FATAL: provenance-v2 SHA mismatch" >&2; exit 29; }
 
-python Filament_python/tools/hpc_ops/provenance_v2.py validate \
+[[ -x "${FIXED_PYTHON}" ]] || { echo "FATAL: fixed Filament_python interpreter is unavailable" >&2; exit 29; }
+"${FIXED_PYTHON}" Filament_python/tools/hpc_ops/provenance_v2.py validate \
   --repo "${REPO_DIR}" --manifest "${PROVENANCE_V2_PATH}"
 
 export PYTHONPYCACHEPREFIX="${RUN_DIR}/pycache"

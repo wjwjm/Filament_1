@@ -1,0 +1,1 @@
+/var/spool/slurmd/job222014/slurm_script: line 66: python: command not found

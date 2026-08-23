@@ -356,6 +356,8 @@ def test_campaign_shell_contract_has_single_allocation_and_no_retry():
     assert 'PYTHON_BIN="/data/home/scvi806/.conda/envs/Filament_python/bin/python"' in submit
     assert "\npython " not in submit
     assert "SLURM_JOB_NODELIST" in batch
+    assert 'FIXED_PYTHON="${FIXED_CONDA_PREFIX}/bin/python"' in batch
+    assert "\npython Filament_python/tools/hpc_ops/provenance_v2.py" not in batch
     assert '"nodelist"' in batch and '"expected_node"' in batch
     assert "prepare_ionization_lut_cache" in batch
     assert "lut_build_audit" in batch
