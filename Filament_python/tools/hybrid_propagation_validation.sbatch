@@ -26,6 +26,7 @@ set -euo pipefail
 readonly CAMPAIGN_ID="hybrid_propagation_validation_0p60"
 readonly REMOTE_ROOT="/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60"
 readonly FIXED_NODELIST="m4gn1401"
+readonly FIXED_CONDA_PREFIX="/data/home/scvi806/.conda/envs/Filament_python"
 if [[ "${SLURM_CPUS_PER_TASK:-}" != "8" ]]; then
   echo "FATAL: paired campaign requires exactly 8 CPUs" >&2
   exit 20
@@ -79,6 +80,10 @@ export NUMEXPR_NUM_THREADS="${SLURM_CPUS_PER_TASK}"
 
 source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
 conda activate Filament_python
+if [[ "${CONDA_PREFIX:-}" != "${FIXED_CONDA_PREFIX}" ]]; then
+  echo "FATAL: Filament_python conda prefix mismatch" >&2
+  exit 31
+fi
 
 export REPO_DIR RUN_DIR EXPECTED_GIT_SHA MANIFEST_PATH EXECUTION_LOCK_PATH EXPECTED_NODELIST
 export EXPECTED_EXECUTION_LOCK_SHA256 EXPECTED_GPU_MODEL JOB_RECEIPT_PATH

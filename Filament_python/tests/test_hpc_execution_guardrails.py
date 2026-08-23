@@ -434,7 +434,7 @@ trap 'rm -rf -- "$root"' EXIT
     mkdir -p -- "$remote_root"
     tool_dir="$root/tool"
     mkdir -- "$tool_dir"
-    sed -e "s#/data/run01/scvi806#$account_root#g" -e "s#/data/apps/miniforge/25.3.0-3#$root/miniforge#g" "$preflight" > "$tool_dir/hpc_preflight.sh"
+    sed -e "s#/data/run01/scvi806#$account_root#g" -e "s#/data/apps/miniforge/25.3.0-3#$root/miniforge#g" -e "s#/data/home/scvi806/.conda/envs/Filament_python#$root/filament-env#g" "$preflight" > "$tool_dir/hpc_preflight.sh"
     cp -- "$2" "$tool_dir/hpc_proxy_env.sh"
     chmod 700 -- "$tool_dir/hpc_preflight.sh"
     preflight="$tool_dir/hpc_preflight.sh"
@@ -467,23 +467,23 @@ for command in sbatch sacct scontrol; do
 done
 miniforge="$root/miniforge"
 mkdir -p "$miniforge/etc/profile.d"
-mkdir -p "$miniforge/envs/Filament_python/bin"
+mkdir -p "$root/filament-env/bin"
 cat > "$miniforge/etc/profile.d/conda.sh" <<'EOF'
 conda() {
     [[ "$1" == activate && "$2" == Filament_python ]] || return 1
-    export CONDA_PREFIX="$MINIFORGE_ROOT_FIXED/envs/Filament_python"
+    export CONDA_PREFIX="$FILAMENT_ENV_PREFIX_FIXED"
     export PATH="$CONDA_PREFIX/bin:$PATH"
 }
 EOF
-cat > "$miniforge/envs/Filament_python/bin/python" <<'EOF'
+cat > "$root/filament-env/bin/python" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
-chmod 700 -- "$miniforge/envs/Filament_python/bin/python"
+chmod 700 -- "$root/filament-env/bin/python"
 proxy="$root/proxy.env"
 printf '%s\n' 'http_proxy=http://proxy.example.invalid:8080' 'https_proxy=https://proxy.example.invalid:8443' > "$proxy"
 chmod 600 -- "$proxy"
-export REAL_GIT="$real_git" MINIFORGE_ROOT_FIXED="$miniforge"
+export REAL_GIT="$real_git" FILAMENT_ENV_PREFIX_FIXED="$root/filament-env"
     PATH="$fakebin:$PATH"
     "$preflight" --account scvi806 --remote-root "$remote_root" --repo "$repo" --expected-head "$head" --expected-branch main --proxy-env "$proxy" --github-url https://github.com/example/repo.git --github-ref refs/heads/main --bundle "$bundle" --bundle-sha "$bundle_sha" --json
 '''

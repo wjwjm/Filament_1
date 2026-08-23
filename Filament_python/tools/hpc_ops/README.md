@@ -76,7 +76,9 @@ URL or in this repository.
 `hpc_preflight.sh` checks the account/root mapping, requires the repository to
 resolve inside that non-symlinked remote root, verifies repository HEAD/branch
 and clean state, and requires the exact configured Miniforge
-`Filament_python` prefix and interpreter with NumPy/CuPy. It also checks
+root plus the account-owned `Filament_python` prefix at
+`/data/home/scvi806/.conda/envs/Filament_python`, including its interpreter
+with NumPy/CuPy. It also checks
 required Git/SHA256/Slurm tools and a proxy `git ls-remote`
 probe. If the proxy path fails, an explicitly supplied Git bundle is accepted
 only after its raw SHA256, `git bundle verify`, expected ref, and expected

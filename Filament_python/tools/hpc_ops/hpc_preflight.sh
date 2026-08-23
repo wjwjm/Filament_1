@@ -31,6 +31,7 @@ GITHUB_REF=""
 BUNDLE=""
 BUNDLE_SHA=""
 MINIFORGE_ROOT="/data/apps/miniforge/25.3.0-3"
+FILAMENT_ENV_PREFIX="/data/home/scvi806/.conda/envs/Filament_python"
 
 FAIL=0
 FAIL_RC=0
@@ -172,7 +173,7 @@ check_tools() {
 }
 
 check_python_env() {
-    local conda_script="$MINIFORGE_ROOT/etc/profile.d/conda.sh" expected_prefix="$MINIFORGE_ROOT/envs/Filament_python"
+    local conda_script="$MINIFORGE_ROOT/etc/profile.d/conda.sh" expected_prefix="$FILAMENT_ENV_PREFIX"
     local conda_rc numpy_rc cupy_rc python_bin python_real prefix_real
     if [[ ! -f "$conda_script" ]]; then
         add_error "configured Miniforge conda hook is missing" "$RC_PYTHON"
