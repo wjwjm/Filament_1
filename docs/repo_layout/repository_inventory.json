@@ -1,13 +1,13 @@
 {
   "schema": "filament_1.repository_inventory.v1",
-  "generated_at": "2026-08-23T05:23:09.851701+00:00",
-  "repo_head_sha": "8799839f23545b2f2cc14b1e3829d9c1690ca78f",
+  "generated_at": "2026-08-23T06:07:46.353033+00:00",
+  "repo_head_sha": "6a4bafa6ec6a949513acaafd65dd683d9a61531e",
   "branch": "main",
-  "total_files": 791,
-  "total_bytes": 92413121,
+  "total_files": 794,
+  "total_bytes": 92423363,
   "class_summary": {
-    "results_documentation_evidence": 561,
-    "unclassified": 3,
+    "results_documentation_evidence": 563,
+    "unclassified": 4,
     "generic_tests_tools": 54,
     "production_config": 3,
     "historical_experiments_audits": 139,
@@ -135,6 +135,14 @@
       "sha256": "0ffcff9b2dac8228e15c48f667584d8bb548e01e5e06473ac906cf25884fd9e0"
     },
     {
+      "path": "docs/current_status.md",
+      "size": 1947,
+      "class_one": "results_documentation_evidence",
+      "kind": "reference_or_doc",
+      "git_tracked": false,
+      "sha256": "3f90513e1ac64f6eba56ee8f66ec191e0cbc62bec95d4663135a8f4a72958834"
+    },
+    {
       "path": "docs/experience/2026-08-22_isaacs_eq27_c2_postmortem.md",
       "size": 10093,
       "class_one": "results_documentation_evidence",
@@ -175,20 +183,28 @@
       "sha256": "cd4c3e882fa30bd01cc3a93fbb70892d5b0aeb6c8cccc3676ef84c4263b04271"
     },
     {
+      "path": "docs/repo_layout/path_map.json",
+      "size": 2424,
+      "class_one": "results_documentation_evidence",
+      "kind": "reference_or_doc",
+      "git_tracked": false,
+      "sha256": "b305e6175cf18117ba1830735228e22cee5415c0f6245e92036c733a677714b4"
+    },
+    {
       "path": "docs/repo_layout/repository_inventory.json",
-      "size": 271196,
+      "size": 271360,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
       "git_tracked": true,
-      "sha256": "58005256e7261a3993226923185d931c80728f0a0819f43dcb1c1131c63b3936"
+      "sha256": "8ea95ef98d4e0008acc3964566920cfa2e0b670c7456364db4fb05339b606d9c"
     },
     {
       "path": "docs/repo_layout/repository_inventory.md",
-      "size": 123287,
+      "size": 123449,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
       "git_tracked": true,
-      "sha256": "520227978f3ae57af9dc98a6568b37b73bf450044ea051b3b7fd670ee5a34b9c"
+      "sha256": "c51dc1a2381326586b4c01859ba51b48f65f66646e4c44425a1a61f47a8564f0"
     },
     {
       "path": "Filament_python/compare_khzfil_outputs.py",
@@ -6295,11 +6311,19 @@
       "sha256": "714207424bf386abd4086a23398b9fbce293bb76f97c8b2321fc49d6cbf7b26b"
     },
     {
+      "path": "REPOSITORY_STRUCTURE.md",
+      "size": 5545,
+      "class_one": "unclassified",
+      "kind": "unknown",
+      "git_tracked": false,
+      "sha256": "a0ac176b216177f5b10735602184aa0f8d739fc73870a81dc29008e683490b3f"
+    },
+    {
       "path": "results/reference_evidence/修改记录/20260429.md",
       "size": 447,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": false,
+      "git_tracked": true,
       "sha256": "cc8f41801fb2884c5b4b0ecc0b94399ff6e9c251fae244fdc1f472e75a02e4af"
     },
     {
@@ -6307,7 +6331,7 @@
       "size": 1085,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": false,
+      "git_tracked": true,
       "sha256": "a4901ddc3eae65e59d18f999c14e1b9bb716d080e801f0ac7a94036f689998de"
     },
     {
@@ -6315,7 +6339,7 @@
       "size": 16202,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": false,
+      "git_tracked": true,
       "sha256": "42aa070dc0fbf9a9412f765305e3844f611fb29ef5f99230db586fe67eddcd09"
     },
     {
@@ -6323,7 +6347,7 @@
       "size": 22917,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": false,
+      "git_tracked": true,
       "sha256": "75d564a60586879757a105d701bcfa1d160f0fd718551499e701c20a51ce8371"
     },
     {
@@ -6331,7 +6355,7 @@
       "size": 18632,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": false,
+      "git_tracked": true,
       "sha256": "9acde5a2a78d7443f32704eb0269f39a1cdc9684bbffc00bb8258d5a7efc121c"
     },
     {
@@ -6339,7 +6363,7 @@
       "size": 19354,
       "class_one": "results_documentation_evidence",
       "kind": "reference_or_doc",
-      "git_tracked": false,
+      "git_tracked": true,
       "sha256": "61410734422a77f8112a10e6f15c32a6134391944b849f62e4ea761e75365a9c"
     }
   ]

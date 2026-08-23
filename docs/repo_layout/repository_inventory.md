@@ -1,18 +1,18 @@
 # Filament_1 仓库结构 inventory
 
-- 生成时间(UTC): 2026-08-23T05:23:09.851701+00:00
-- 仓库 HEAD SHA: `8799839f23545b2f2cc14b1e3829d9c1690ca78f`
+- 生成时间(UTC): 2026-08-23T06:07:46.353033+00:00
+- 仓库 HEAD SHA: `6a4bafa6ec6a949513acaafd65dd683d9a61531e`
 - 分支: `main`
-- 文件总数: 791
-- 总字节数: 92413121
+- 文件总数: 794
+- 总字节数: 92423363
 
 ## 五类统计
 - `production_runtime`: 31
 - `production_config`: 3
 - `generic_tests_tools`: 54
 - `historical_experiments_audits`: 139
-- `results_documentation_evidence`: 561
-- `unclassified`: 3
+- `results_documentation_evidence`: 563
+- `unclassified`: 4
 
 ## 分类明细（按 path 排序，完整清单见 repository_inventory.json）
 - `.codex/agents/filament_mapper.toml` — results_documentation_evidence / repo_meta (1405 B)
@@ -30,13 +30,15 @@
 - `configs/production/khz_config.json` — unclassified / unknown (2810 B)
 - `configs/production/khz_config_lut.json` — unclassified / unknown (2985 B)
 - `docs/architecture/stage1_single_pulse_optimization.md` — results_documentation_evidence / reference_or_doc (983 B)
+- `docs/current_status.md` — results_documentation_evidence / reference_or_doc (1947 B)
 - `docs/experience/2026-08-22_isaacs_eq27_c2_postmortem.md` — results_documentation_evidence / reference_or_doc (10093 B)
 - `docs/experience/sol_luna_hpc_execution_playbook.md` — results_documentation_evidence / reference_or_doc (8614 B)
 - `docs/known_residuals/known_residual_pycap_onset_20260823.md` — results_documentation_evidence / reference_or_doc (3920 B)
 - `docs/physics_decisions/phase2_switch_isolation.md` — results_documentation_evidence / reference_or_doc (1262 B)
 - `docs/physics_decisions/phase3_0d_ionization_harness.md` — results_documentation_evidence / reference_or_doc (2808 B)
-- `docs/repo_layout/repository_inventory.json` — results_documentation_evidence / reference_or_doc (271196 B)
-- `docs/repo_layout/repository_inventory.md` — results_documentation_evidence / reference_or_doc (123287 B)
+- `docs/repo_layout/path_map.json` — results_documentation_evidence / reference_or_doc (2424 B)
+- `docs/repo_layout/repository_inventory.json` — results_documentation_evidence / reference_or_doc (271360 B)
+- `docs/repo_layout/repository_inventory.md` — results_documentation_evidence / reference_or_doc (123449 B)
 - `Filament_python/compare_khzfil_outputs.py` — generic_tests_tools / runner_or_postprocess (11223 B)
 - `Filament_python/config_ref.json` — production_config / default_config (1728 B)
 - `Filament_python/configs/ionization_model_propagation/120fs_talebpour_full_model.json` — historical_experiments_audits / experiment_config (3349 B)
@@ -800,6 +802,7 @@
 - `references/papers/README.md` — results_documentation_evidence / reference_or_doc (148 B)
 - `references/papers/talebpour1999.pdf` — results_documentation_evidence / reference_or_doc (184644 B)
 - `references/README.md` — results_documentation_evidence / reference_or_doc (209 B)
+- `REPOSITORY_STRUCTURE.md` — unclassified / unknown (5545 B)
 - `results/reference_evidence/修改记录/20260429.md` — results_documentation_evidence / reference_or_doc (447 B)
 - `results/reference_evidence/修改记录/20260715_横向轮廓验证.md` — results_documentation_evidence / reference_or_doc (1085 B)
 - `results/reference_evidence/修改记录/修改意见1.json` — results_documentation_evidence / reference_or_doc (16202 B)

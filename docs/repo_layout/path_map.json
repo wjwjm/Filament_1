@@ -1,0 +1,39 @@
+{
+  "schema": "filament_1.repository_path_map.v1",
+  "note": "old -> new path map for round-1 repository restructuring. Each move is a git rename; content is byte-identical.",
+  "moves": [
+    {
+      "batch": 2,
+      "commit_subject": "Move phase-stamped Filament_python/docs into target docs/ taxonomy",
+      "entries": [
+        { "old": "Filament_python/docs/stage1_single_pulse_optimization.md", "new": "docs/architecture/stage1_single_pulse_optimization.md" },
+        { "old": "Filament_python/docs/known_residual_pycap_onset_20260823.md", "new": "docs/known_residuals/known_residual_pycap_onset_20260823.md" },
+        { "old": "Filament_python/docs/phase2_switch_isolation.md", "new": "docs/physics_decisions/phase2_switch_isolation.md" },
+        { "old": "Filament_python/docs/phase3_0d_ionization_harness.md", "new": "docs/physics_decisions/phase3_0d_ionization_harness.md" }
+      ]
+    },
+    {
+      "batch": 3,
+      "commit_subject": "Move 修改记录 reference evidence into results/reference_evidence",
+      "entries": [
+        { "old": "修改记录/20260429.md", "new": "results/reference_evidence/修改记录/20260429.md" },
+        { "old": "修改记录/2026-02-25.md", "new": "results/reference_evidence/修改记录/2026-02-25.md" },
+        { "old": "修改记录/2026-03-12.md", "new": "results/reference_evidence/修改记录/2026-03-12.md" },
+        { "old": "修改记录/讨论-1.md", "new": "results/reference_evidence/修改记录/讨论-1.md" },
+        { "old": "修改记录/讨论-2.md", "new": "results/reference_evidence/修改记录/讨论-2.md" },
+        { "old": "修改记录/讨论-3.md", "new": "results/reference_evidence/修改记录/讨论-3.md" }
+      ]
+    }
+  ],
+  "deferred_by_reference_audit": {
+    "note": "These live rearrangements were NOT performed in round 1 because >=1 active code/test path references them at their current location.",
+    "items": [
+      "Filament_python/configs/** (referenced by stages scripts and top-level runners)",
+      "Filament_python/stages/** (referenced by submit_stage.py and tests)",
+      "Filament_python/results/** (referenced by scripts and contains .sh launchers)",
+      "Filament_python/tests/** (pytest discovery + conftest root)",
+      "Filament_python/tools/** (ROOT/path references from top-level scripts and results launchers)",
+      "references/** (untracked; left untouched for provenance)"
+    ]
+  }
+}
