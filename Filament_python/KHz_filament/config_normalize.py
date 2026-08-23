@@ -4,7 +4,13 @@ from copy import deepcopy
 from typing import Any, Dict
 
 from .constants import eps0, c0
-from .config_schema import NONLINEAR_SWITCH_FIELDS, RATE_ALIAS_MAP, REMOVED_RATES, TRANSVERSE_PROFILE_TYPES
+from .config_schema import (
+    NONLINEAR_SWITCH_FIELDS,
+    PROPAGATION_MODE_VALUES,
+    RATE_ALIAS_MAP,
+    REMOVED_RATES,
+    TRANSVERSE_PROFILE_TYPES,
+)
 
 
 def E0_from_energy(U: float, w0: float, tau_fwhm: float, n0: float) -> float:
@@ -131,6 +137,75 @@ def _normalize_nonlinear_switches(propagation: Dict[str, Any]) -> None:
             raise ValueError(f"propagation.{name} must be true, false, or omitted for legacy compatibility.")
 
 
+def _normalize_propagation(propagation: Dict[str, Any]) -> None:
+    """Validate the explicit full/hybrid propagation boundary.
+
+    The legacy configuration has no boundary fields and therefore resolves to
+    the historical full nonlinear path.  The hybrid mode is deliberately
+    rejected when the runner would first convert the propagation window to a
+    local focus coordinate, because ``z_nl_start`` is an absolute coordinate.
+    """
+    mode = str(
+        propagation.get("propagation_mode", "full_nonlinear_from_z0")
+        or "full_nonlinear_from_z0"
+    ).strip().lower()
+    if mode not in PROPAGATION_MODE_VALUES:
+        allowed = ", ".join(sorted(PROPAGATION_MODE_VALUES))
+        raise ValueError(f"propagation.propagation_mode must be one of: {allowed}.")
+
+    try:
+        z_nl_start = float(propagation.get("z_nl_start", 0.0) or 0.0)
+        z_max = float(propagation.get("z_max", 1.2))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("propagation.z_nl_start and propagation.z_max must be finite numbers.") from exc
+    import math
+    if not math.isfinite(z_nl_start) or not math.isfinite(z_max):
+        raise ValueError("propagation.z_nl_start and propagation.z_max must be finite numbers.")
+    if z_max <= 0.0:
+        raise ValueError("propagation.z_max must be positive.")
+
+    limit_focus_window = bool(propagation.get("limit_focus_window", True))
+    if mode == "hybrid":
+        if not (0.0 < z_nl_start < z_max):
+            raise ValueError("hybrid propagation requires 0 < propagation.z_nl_start < propagation.z_max.")
+        if limit_focus_window:
+            raise ValueError("hybrid propagation requires propagation.limit_focus_window=false because z_nl_start is absolute.")
+    elif z_nl_start != 0.0:
+        raise ValueError("propagation.z_nl_start must be 0 for propagation_mode='full_nonlinear_from_z0'.")
+
+    propagation["propagation_mode"] = mode
+    propagation["z_nl_start"] = z_nl_start
+
+
+def _validate_hybrid_run_scope(propagation: Dict[str, Any], run: Dict[str, Any]) -> None:
+    """Keep the v1 hybrid contract inside the authorized single-pulse scope.
+
+    A later pulse can carry a nonzero ``dn_gas`` state from earlier pulses.
+    The v1 linear preamble deliberately skips the complete nonlinear/material
+    operator, including that gas-index phase, so exposing it for pulse trains
+    would silently change physics that this validation does not cover.
+    """
+    if propagation.get("propagation_mode") != "hybrid":
+        return
+    raw_n_pulses = run.get("Npulses", 1)
+    if isinstance(raw_n_pulses, bool):
+        raise ValueError("run.Npulses must be an integer.")
+    try:
+        n_pulses_value = float(raw_n_pulses)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("run.Npulses must be an integer.") from exc
+    import math
+    if not math.isfinite(n_pulses_value) or not n_pulses_value.is_integer():
+        raise ValueError("run.Npulses must be an integer.")
+    n_pulses = int(n_pulses_value)
+    if n_pulses != 1:
+        raise ValueError(
+            "hybrid propagation v1 is restricted to run.Npulses=1; "
+            "pulse-train dn_gas semantics are not implemented by this validation."
+        )
+    run["Npulses"] = n_pulses
+
+
 def _normalize_linear_precision(propagation: Dict[str, Any]) -> None:
     strategy = str(propagation.get("linear_precision_strategy", "baseline_complex64") or "baseline_complex64").lower()
     allowed = ("baseline_complex64", "orthonormal_fft", "mixed_precision", "unitary_projection")
@@ -243,9 +318,12 @@ def normalize_config(raw: Dict[str, Any]) -> Dict[str, Any]:
     out["propagation"] = dict(out.get("propagation", {}))
     out["ionization"] = dict(out.get("ionization", {}))
     out["raman"] = dict(out.get("raman", {}))
+    out["run"] = dict(out.get("run", {}))
 
     _normalize_beam(out["beam"], grid=out["grid"])
     _normalize_species(out["ionization"])
+    _normalize_propagation(out["propagation"])
+    _validate_hybrid_run_scope(out["propagation"], out["run"])
     _normalize_nonlinear_switches(out["propagation"])
     _normalize_linear_precision(out["propagation"])
     _normalize_raman(out["raman"])

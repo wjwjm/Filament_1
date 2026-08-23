@@ -30,6 +30,11 @@ class PropagationConfig:
     z_max: float = 1.2      # m
     dz: float = 1e-3      # m
     strang: bool = True     # use Strang splitting if True
+    # ``full_nonlinear_from_z0`` preserves the historical propagation path.
+    # ``hybrid`` is an explicit opt-in that keeps the same linear split before
+    # ``z_nl_start`` and enables the complete nonlinear operator afterwards.
+    propagation_mode: str = "full_nonlinear_from_z0"
+    z_nl_start: float = 0.0  # absolute propagation coordinate [m]
 #---- # ==== B 档：UPPE 相关 ====
     linear_model: str = "uppe"  # "uppe" | "paraxial" | "bk_nee"
     full_linear_factorize: bool = False  # True: ω-切片逐片做2D FFT，省内存（更稳）

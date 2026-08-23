@@ -211,6 +211,17 @@ def run_demo(
     rmap = {"fp32": xp.float32, "fp64": xp.float64}
     rtype = rmap.get(str(dtype).lower(), xp.float32)
 
+    if str(getattr(prop, "propagation_mode", "full_nonlinear_from_z0")).lower() == "hybrid":
+        import numbers
+
+        raw_n_pulses = getattr(run, "Npulses", 1)
+        if (
+            isinstance(raw_n_pulses, bool)
+            or not isinstance(raw_n_pulses, numbers.Integral)
+            or int(raw_n_pulses) != 1
+        ):
+            raise ValueError("hybrid propagation v1 requires run.Npulses=1")
+
     import math
 
     omega0 = 2 * math.pi * c0 / beam.lam0

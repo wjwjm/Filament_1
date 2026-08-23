@@ -44,6 +44,8 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
 
     z_max = float(prop.z_max)
     dz = float(prop.dz)
+    propagation_mode = str(getattr(prop, "propagation_mode", "full_nonlinear_from_z0"))
+    z_nl_start = float(getattr(prop, "z_nl_start", 0.0))
     auto = bool(getattr(prop, "auto_substep", True))
     dzmin = float(getattr(prop, "dz_min", 0.0))
     grow = float(getattr(prop, "grow_factor", 0.0))
@@ -170,6 +172,7 @@ def print_sim_summary(*, grid, beam, prop, ion, heat, run, axes, E, n2_used=None
     print(f"Backend(后端)        : {backend}{dev_extra} | dtype={dtype_str}  # 计算设备与精度")
     print(f"Grid(网格)           : Nx={Nx}, Ny={Ny}, Nt={Nt} | Lx={fmt(Lx,' m')}, Ly={fmt(Ly,' m')}, Twin={fmt(Twin,' s')}  # 时空采样规模")
     print(f"Steps(z步进)         : z_max={fmt(z_max,' m')}, dz={fmt(dz,' m')} | AutoSubstep={onoff(auto)} (dz_min={fmt(dzmin,' m')}, grow×{fmt(grow)})  # 传播步长控制")
+    print(f"Propagation(传播模式): mode={propagation_mode} | z_nl_start={fmt(z_nl_start,' m')}  # hybrid 边界为绝对 z 坐标")
     print(f"Safety(稳定性)       : mode={safety_mode.upper()} | precheck_kerr={onoff(precheck_kerr)} max_iter={max_pre_iter}  # 数值安全设置")
     if focus_step:
         zc = "None" if (z_center is None) else f"{float(z_center):.3f} m"

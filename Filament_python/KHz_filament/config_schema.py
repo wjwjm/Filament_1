@@ -34,6 +34,12 @@ TRANSVERSE_PROFILE_TYPES: Set[str] = {
 }
 
 
+PROPAGATION_MODE_VALUES: Set[str] = {
+    "full_nonlinear_from_z0",
+    "hybrid",
+}
+
+
 NONLINEAR_SWITCH_FIELDS: Set[str] = {
     "use_electronic_kerr",
     "use_raman_phase",

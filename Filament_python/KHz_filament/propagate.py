@@ -237,6 +237,29 @@ def propagate_one_pulse(
     # ---------- 近焦缩步 ----------
     p = prop_conf
     switches = resolve_nonlinear_switches(p, raman_conf, ion_conf)
+    propagation_mode = str(
+        getattr(p, "propagation_mode", "full_nonlinear_from_z0")
+        or "full_nonlinear_from_z0"
+    ).strip().lower()
+    if propagation_mode not in ("full_nonlinear_from_z0", "hybrid"):
+        raise ValueError(
+            "propagation_mode must be 'full_nonlinear_from_z0' or 'hybrid'."
+        )
+    z_nl_start = float(getattr(p, "z_nl_start", 0.0) or 0.0)
+    z_max_f64 = _np.float64(z_max)
+    if not _np.isfinite(z_nl_start) or not _np.isfinite(z_max_f64) or z_max_f64 <= 0.0:
+        raise ValueError("z_max and z_nl_start must be finite, with z_max > 0.")
+    if propagation_mode == "hybrid":
+        if not (0.0 < z_nl_start < float(z_max_f64)):
+            raise ValueError("hybrid propagation requires 0 < z_nl_start < z_max.")
+        if bool(getattr(p, "limit_focus_window", False)):
+            raise ValueError(
+                "hybrid propagation requires limit_focus_window=false because z_nl_start is absolute."
+            )
+    elif z_nl_start != 0.0:
+        raise ValueError(
+            "z_nl_start must be 0 for propagation_mode='full_nonlinear_from_z0'."
+        )
     measure_performance = bool(getattr(p, "measure_performance", False))
     dz_base = float(dz)
     use_focus_win = bool(getattr(p, "focus_window_step", False))
@@ -454,6 +477,11 @@ def propagate_one_pulse(
     raman_energy_projection_scale_deviation_z_list = []
     raman_energy_projection_initial_residual_z_list = []
     linear_walltime_step_z_list, ionization_walltime_step_z_list = [], []
+    nonlinear_walltime_step_z_list = []
+    step_start_z_list, step_end_z_list = [], []
+    nonlinear_operator_applied_z_list = []
+    nonlinear_operator_call_count_step_z_list = []
+    ionization_solver_call_count_step_z_list = []
     total_walltime_step_z_list = []
     gpu_allocated_step_bytes_list, gpu_reserved_step_bytes_list = [], []
     energy_step_start_z_list, energy_after_linear_half1_z_list = [], []
@@ -470,7 +498,9 @@ def propagate_one_pulse(
     adaptive_rejection_count = 0
     safety_mode_trigger_count = 0
     # ---------- 主循环 ----------
-    z = 0.0
+    # Keep the loop coordinate explicitly float64.  The hybrid boundary is an
+    # absolute coordinate and must not inherit local focus-window semantics.
+    z = _np.float64(0.0)
     # Qacc 累积到面密度 J/m^2（把体功率密度在 t,z 两方向积分）
     Qacc = xp.zeros((Ny, Nx), dtype=rdtype)
     Qacc_raman = xp.zeros((Ny, Nx), dtype=rdtype)
@@ -506,16 +536,191 @@ def propagate_one_pulse(
         diagnostics["operator_walltime_s"] += first_stage["walltime_s"]
         return updated, diagnostics
 
-    while z < z_max - 1e-16:
+    def _record_linear_only_step(
+        field, *, step_start_z, step_end_z, dz_used,
+        operator_energy_start, operator_energy_after_linear_half1,
+        operator_energy_after_linear_half2,
+        linear_halfstep_1_diag, linear_halfstep_2_diag,
+        linear_profile_halfstep_1_diag, linear_profile_halfstep_2_diag,
+        linear_walltime_step, total_walltime_step,
+        gpu_allocated_step, gpu_reserved_step,
+    ):
+        """Record a pre-boundary step without entering any nonlinear code.
+
+        The linear field diagnostics remain live.  Every nonlinear/material
+        trace is an explicit finite zero, with ``nonlinear_operator_applied``
+        carrying the distinction between an uncomputed trace and a physical
+        zero in an active step.
+        """
+        nonlocal save_count, E_dep_cumulative, U_previous
+        save_count += 1
+        if not ((save_count % save_every) == 0 or step_end_z >= float(z_max_f64) - 1e-16):
+            return
+
+        z_now = float(step_end_z)
+        I_now = intensity(field, n0)
+        U_now = float(pulse_energy(I_now, dt, axes.dx, axes.dy))
+        I_max = float(I_now.max())
+        I_onax_t = I_now[:, y0, x0]
+        I_onaxis_max = float(I_onax_t.max())
+        I_center_t0 = float(I_onax_t[t0_idx])
+        fwhm_time = float(_fwhm_time_1d(I_onax_t, dt))
+        kpk = int(xp.argmax(I_onax_t))
+        if 0 < kpk < (I_onax_t.shape[0] - 1):
+            I_onaxis_peak_interp = float(
+                parabola_peak(I_onax_t[kpk - 1], I_onax_t[kpk], I_onax_t[kpk + 1])
+            )
+        else:
+            I_onaxis_peak_interp = float(I_onax_t[kpk])
+        F2D = (xp.trapezoid if hasattr(xp, "trapezoid") else xp.trapz)(
+            I_now, dx=dt, axis=0
+        )
+        w_mom = second_moment_radius(
+            I_now, axes.x, axes.y, dt=dt,
+            frac_keep=getattr(prop_conf, "mom_frac_keep", 0.999),
+            rel_floor=getattr(prop_conf, "mom_rel_floor", 1e-8),
+        )
+        fwhm_flu = _fwhm_diameter_xy_center(F2D, axes, x0, y0)
+
+        z_axis_list.append(z_now)
+        U_z_list.append(U_now)
+        I_max_z_list.append(I_max)
+        I_onaxis_max_z_list.append(I_onaxis_max)
+        I_center_t0_z_list.append(I_center_t0)
+        w_mom_z_list.append(float(w_mom))
+        rho_max_z_list.append(0.0)
+        rho_onaxis_max_list.append(0.0)
+        if record_onaxis_rho_time and rho_onaxis_time_list is not None:
+            rho_onaxis_time_list.append(_np.zeros(I_now.shape[0], dtype=rdtype_np))
+
+        E_dep_z_list.append(0.0)
+        E_dep_rot_z_list.append(0.0)
+        E_dep_total_z_list.append(0.0)
+        E_dep_cumulative_z_list.append(E_dep_cumulative)
+        U_rel_change_z_list.append((U_now - U0_baseline) / U0_baseline)
+        U_step_change_z_list.append(U_now - U_previous)
+        E_loss_from_input_z_list.append(U0_baseline - U_now)
+        U_previous = U_now
+        fwhm_plasma_z_list.append(0.0)
+        fwhm_fluence_z_list.append(float(fwhm_flu))
+        fwhm_time_z_list.append(fwhm_time)
+        I_onaxis_max_interp_list.append(I_onaxis_peak_interp)
+
+        for target in (
+            delta_n_elec_max_z_list, delta_n_rot_max_z_list,
+            delta_n_elec_peak_z_list, delta_n_rot_peak_z_list,
+            alpha_R_max_z_list, alpha_ion_raw_max_z_list,
+            alpha_ion_corr_max_z_list, alpha_ib_max_z_list,
+            alpha_total_max_z_list, delta_n_plasma_min_z_list,
+            dphi_kerr_max_abs_z_list, dphi_elec_max_abs_z_list,
+            dphi_rot_max_abs_z_list, dphi_plasma_max_abs_z_list,
+            IR_abs_max_z_list, delta_n_elec_applied_max_z_list,
+            delta_n_rot_applied_max_z_list, delta_n_plasma_applied_min_z_list,
+            dphi_elec_applied_max_abs_z_list, dphi_rot_applied_max_abs_z_list,
+            dphi_plasma_raw_max_abs_z_list, dphi_plasma_applied_max_abs_z_list,
+            alpha_ion_applied_max_z_list, alpha_R_raw_max_z_list,
+            alpha_R_applied_max_z_list, alpha_R_mean_z_list,
+            alpha_R_eff_z_list, alpha_R_closed_z_list, IR_max_z_list,
+        ):
+            target.append(0.0)
+        rho_N2_max_z_list.append(0.0)
+        rho_O2_max_z_list.append(0.0)
+        rho_N2_at_rho_total_max_z_list.append(0.0)
+        rho_O2_at_rho_total_max_z_list.append(0.0)
+        rho_O2_fraction_at_rho_total_max_z_list.append(0.0)
+        dz_used_z_list.append(float(dz_used))
+        adaptive_rejection_count_z_list.append(int(adaptive_rejection_count))
+        safety_mode_trigger_count_z_list.append(int(safety_mode_trigger_count))
+
+        raman_operator_applied_z_list.append(False)
+        raman_rhs_l2_norm_z_list.append(0.0)
+        raman_IR_max_raw_z_list.append(0.0)
+        raman_target_loss_step_z_list.append(0.0)
+        raman_actual_loss_step_z_list.append(0.0)
+        raman_closure_residual_step_z_list.append(0.0)
+        raman_target_loss_cumulative_z_list.append(0.0)
+        raman_actual_loss_cumulative_z_list.append(0.0)
+        raman_cumulative_closure_residual_z_list.append(0.0)
+        raman_convolution_count_step_z_list.append(0)
+        raman_operator_walltime_step_z_list.append(0.0)
+        raman_operator_substep_count_z_list.append(0)
+        raman_energy_projection_iterations_z_list.append(0)
+        raman_energy_projection_scale_deviation_z_list.append(0.0)
+        raman_energy_projection_initial_residual_z_list.append(0.0)
+
+        linear_walltime_step_z_list.append(float(linear_walltime_step))
+        ionization_walltime_step_z_list.append(0.0)
+        nonlinear_walltime_step_z_list.append(0.0)
+        total_walltime_step_z_list.append(float(total_walltime_step))
+        gpu_allocated_step_bytes_list.append(int(gpu_allocated_step))
+        gpu_reserved_step_bytes_list.append(int(gpu_reserved_step))
+        step_start_z_list.append(float(step_start_z))
+        step_end_z_list.append(float(step_end_z))
+        nonlinear_operator_applied_z_list.append(False)
+        nonlinear_operator_call_count_step_z_list.append(0)
+        ionization_solver_call_count_step_z_list.append(0)
+
+        energy_after_linear_half2 = operator_energy_after_linear_half2
+        energy_step_start_z_list.append(operator_energy_start)
+        energy_after_linear_half1_z_list.append(operator_energy_after_linear_half1)
+        energy_after_raman_pre_z_list.append(operator_energy_after_linear_half1)
+        energy_after_nonraman_z_list.append(operator_energy_after_linear_half1)
+        energy_after_raman_post_z_list.append(operator_energy_after_linear_half1)
+        energy_after_linear_half2_z_list.append(energy_after_linear_half2)
+        if diag_linear_halfstep_energy:
+            linear_halfstep_1_z_list.append(
+                _finalize_linear_halfstep_diagnostic(linear_halfstep_1_diag)
+            )
+            linear_halfstep_2_z_list.append(
+                _finalize_linear_halfstep_diagnostic(linear_halfstep_2_diag)
+            )
+        if diag_bk_nee_profile:
+            linear_profile_halfstep_1_z_list.append(linear_profile_halfstep_1_diag)
+            linear_profile_halfstep_2_z_list.append(linear_profile_halfstep_2_diag)
+
+    while z < z_max_f64 - _np.float64(1e-16):
         _performance_sync(measure_performance)
         step_started = time.perf_counter()
         linear_walltime_step = 0.0
-        dz_remain = z_max - z
+        step_start_z = _np.float64(z)
+        boundary_snap_tol = (
+            1024.0 * _np.finfo(_np.float64).eps
+            * max(1.0, abs(float(z_max_f64)), abs(float(z_nl_start)))
+        )
+        if (
+            propagation_mode == "hybrid"
+            and abs(float(step_start_z) - z_nl_start) <= boundary_snap_tol
+        ):
+            step_start_z = _np.float64(z_nl_start)
+            z = step_start_z
+        dz_remain = float(z_max_f64 - step_start_z)
         if use_focus_win and (z_center is not None) and (z_half > 0.0):
-            z_mid = z + 0.5 * dz_base
+            z_mid = float(step_start_z) + 0.5 * dz_base
             dz_try = min(dz_focus if abs(z_mid - float(z_center)) <= z_half else dz_base, dz_remain)
         else:
             dz_try = min(dz_base, dz_remain)
+
+        # A step crossing the hybrid boundary is clipped to the boundary and
+        # remains entirely linear.  The following step starts at the exact
+        # float64 boundary and is the first one allowed to apply nonlinearity.
+        if propagation_mode == "hybrid" and float(step_start_z) < z_nl_start:
+            distance_to_boundary = z_nl_start - float(step_start_z)
+            if distance_to_boundary <= dz_try + boundary_snap_tol:
+                dz_try = distance_to_boundary
+            else:
+                dz_try = min(dz_try, distance_to_boundary)
+        step_end_z = _np.float64(step_start_z + _np.float64(dz_try))
+        if propagation_mode == "hybrid" and float(step_start_z) < z_nl_start:
+            if step_end_z >= _np.float64(z_nl_start):
+                step_end_z = _np.float64(z_nl_start)
+                dz_try = float(step_end_z - step_start_z)
+        nonlinear_active = (
+            propagation_mode == "full_nonlinear_from_z0"
+            or float(step_start_z) >= z_nl_start
+        )
+        nonlinear_operator_call_count_step = 0
+        ionization_solver_call_count_step = 0
+        nonlinear_walltime_step = 0.0
 
         operator_energy_start = _operator_energy(E) if diag_operator_energy else _np.nan
 
@@ -560,7 +765,83 @@ def propagate_one_pulse(
 
         operator_energy_after_linear_half1 = _operator_energy(E) if diag_operator_energy else _np.nan
 
+        if not nonlinear_active:
+            # Second linear half-step for the pre-boundary segment.  This is
+            # intentionally kept as the same existing operator path; no Kerr,
+            # Raman, ionization, plasma, absorption, or heat bookkeeping is
+            # entered for this step.
+            _performance_sync(measure_performance)
+            linear_started = time.perf_counter()
+            if use_uppe:
+                if use_factor:
+                    E = step_linear_full_factorized(E, K02_w, kperp2, dz_try / 2)
+                else:
+                    E = step_linear_full_3d(E, K02_w, kperp2, dz_try / 2)
+            elif use_bk_nee:
+                linear_result = step_linear_bk_nee_factorized(
+                    E, Omega=axes.Omega, kperp2=kperp2, k0=k0,
+                    omega0=omega0, dz=dz_try / 2,
+                    beta2=float(getattr(p, "nee_beta2", 0.0)),
+                    denom_floor=float(getattr(p, "nee_denom_floor", 1e-4)),
+                    precision_strategy=getattr(p, "linear_precision_strategy", "baseline_complex64"),
+                    return_energy_diagnostics=diag_linear_halfstep_energy,
+                    energy_scale=linear_energy_scale if diag_linear_halfstep_energy else None,
+                    return_profile_diagnostics=diag_bk_nee_profile,
+                )
+                if diag_linear_halfstep_energy and diag_bk_nee_profile:
+                    E, linear_halfstep_2_diag, linear_profile_halfstep_2_diag = linear_result
+                elif diag_linear_halfstep_energy:
+                    E, linear_halfstep_2_diag = linear_result
+                elif diag_bk_nee_profile:
+                    E, linear_profile_halfstep_2_diag = linear_result
+                else:
+                    E = linear_result
+            else:
+                prop_xh = xp.sqrt(lin_propagator(kperp2, k0, dz_try, ctype=ctype)).astype(ctype)
+                E = step_linear(E, prop_xh)
+
+            _performance_sync(measure_performance)
+            if measure_performance:
+                linear_walltime_step += time.perf_counter() - linear_started
+                total_walltime_step = time.perf_counter() - step_started
+            else:
+                total_walltime_step = 0.0
+            gpu_allocated_step = gpu_reserved_step = 0
+            if measure_performance and getattr(xp, "__name__", "numpy") == "cupy":
+                pool = xp.get_default_memory_pool()
+                gpu_allocated_step = int(pool.used_bytes())
+                gpu_reserved_step = int(pool.total_bytes())
+            operator_energy_after_linear_half2 = (
+                _operator_energy(E) if diag_operator_energy else _np.nan
+            )
+            _record_linear_only_step(
+                E,
+                step_start_z=step_start_z,
+                step_end_z=step_end_z,
+                dz_used=dz_try,
+                operator_energy_start=operator_energy_start,
+                operator_energy_after_linear_half1=operator_energy_after_linear_half1,
+                operator_energy_after_linear_half2=operator_energy_after_linear_half2,
+                linear_halfstep_1_diag=linear_halfstep_1_diag,
+                linear_halfstep_2_diag=linear_halfstep_2_diag,
+                linear_profile_halfstep_1_diag=linear_profile_halfstep_1_diag,
+                linear_profile_halfstep_2_diag=linear_profile_halfstep_2_diag,
+                linear_walltime_step=linear_walltime_step,
+                total_walltime_step=total_walltime_step,
+                gpu_allocated_step=gpu_allocated_step,
+                gpu_reserved_step=gpu_reserved_step,
+            )
+            z = step_end_z
+            pe = int(getattr(p, "progress_every_z", 0) or 0)
+            if pe and ((save_count % pe) == 0 or z >= z_max_f64 - _np.float64(1e-16)):
+                frac = float(z / z_max_f64)
+                elapsed = time.perf_counter() - t0
+                eta = elapsed / max(frac, 1e-9) * (1.0 - frac)
+                print(f"[z] {float(z):.3f}/{float(z_max_f64):.3f} m ({frac*100:6.2f}%)  elapsed {elapsed:6.1f}s  ETA {eta:6.1f}s")
+            continue
+
         full_isaacs_on = bool(full_isaacs_mode and switches.use_raman_full_operator)
+        nonlinear_started = time.perf_counter()
         raman_diag_parts = []
         full_raman_rotational = None
         if full_isaacs_on and r_nonlinear_split_order in ("before_other", "strang"):
@@ -648,6 +929,7 @@ def propagate_one_pulse(
             ion_source_raw = xp.zeros_like(I, dtype=rdtype)
         else:
             X = field_amplitude_from_intensity(I, n0) if ion_input == "E" else I
+            ionization_solver_call_count_step = 1
             rho_out = evolve_rho_time(
                 X, dt, N0, ion_conf.beta_rec, Wfunc,
                 quasi_static_time=bool(getattr(ion_conf, "quasi_static_time", False)),
@@ -809,6 +1091,7 @@ def propagate_one_pulse(
         dphi_p = dphi_p_raw if switches.use_plasma_phase else xp.zeros_like(dphi_p_raw, dtype=rdtype)
         phase  = dphi_k + dphi_p
 
+        nonlinear_operator_call_count_step = 1
         E = apply_nonlinear(E, phase, alpha_total, dz_try, dn_gas=dn_gas, k0=k0)
         operator_energy_after_nonraman = _operator_energy(E) if diag_operator_energy else _np.nan
         if full_isaacs_mode:
@@ -884,6 +1167,10 @@ def propagate_one_pulse(
             Qacc += xp.asarray(Q_rot_vol, dtype=Qacc.dtype) * dz_try
 
         _performance_sync(measure_performance)
+        if measure_performance:
+            nonlinear_walltime_step = time.perf_counter() - nonlinear_started
+
+        _performance_sync(measure_performance)
         linear_started = time.perf_counter()
 
         # 第二个线性半步
@@ -931,8 +1218,8 @@ def propagate_one_pulse(
         operator_energy_after_linear_half2 = _operator_energy(E) if diag_operator_energy else _np.nan
 
         save_count += 1
-        if (save_count % save_every) == 0 or (z + dz_try >= z_max - 1e-16):
-            z_now = float(z + dz_try)
+        if (save_count % save_every) == 0 or (step_end_z >= z_max_f64 - _np.float64(1e-16)):
+            z_now = float(step_end_z)
             z_axis_list.append(z_now)
 
             I_now = intensity(E, n0)
@@ -1084,9 +1371,15 @@ def propagate_one_pulse(
                 raman_step_diag.get("energy_projection_initial_residual", 0.0)))
             linear_walltime_step_z_list.append(float(linear_walltime_step))
             ionization_walltime_step_z_list.append(float(ionization_walltime_step))
+            nonlinear_walltime_step_z_list.append(float(nonlinear_walltime_step))
             total_walltime_step_z_list.append(float(total_walltime_step))
             gpu_allocated_step_bytes_list.append(int(gpu_allocated_step))
             gpu_reserved_step_bytes_list.append(int(gpu_reserved_step))
+            step_start_z_list.append(float(step_start_z))
+            step_end_z_list.append(float(step_end_z))
+            nonlinear_operator_applied_z_list.append(True)
+            nonlinear_operator_call_count_step_z_list.append(int(nonlinear_operator_call_count_step))
+            ionization_solver_call_count_step_z_list.append(int(ionization_solver_call_count_step))
             delta_n_plasma_min_z_list.append(float(xp.min(dphi_p_raw)) / (float(k0) * dz_try))
             delta_n_elec_applied_max_z_list.append(float(xp.max(delta_n_elec_applied)))
             delta_n_rot_applied_max_z_list.append(float(xp.max(delta_n_rot_applied)))
@@ -1143,17 +1436,24 @@ def propagate_one_pulse(
                         print(f"[z={z:.3f} m] PPT_i cap-hit = {hit_frac * 100:.3f}% (cap={W_cap_used:.2e})")
 
         # 前进 z & 进度
-        z += dz_try
+        z = step_end_z
         pe = int(getattr(p, "progress_every_z", 0) or 0)
-        if pe and ((len(z_axis_list) % pe) == 0 or z >= z_max - 1e-16):
-            frac = z / z_max
+        if pe and ((len(z_axis_list) % pe) == 0 or z >= z_max_f64 - _np.float64(1e-16)):
+            frac = float(z / z_max_f64)
             elapsed = time.perf_counter() - t0
             eta = elapsed / max(frac, 1e-9) * (1.0 - frac)
-            print(f"[z] {z:.3f}/{z_max:.3f} m ({frac*100:6.2f}%)  elapsed {elapsed:6.1f}s  ETA {eta:6.1f}s")
+            print(f"[z] {float(z):.3f}/{float(z_max_f64):.3f} m ({frac*100:6.2f}%)  elapsed {elapsed:6.1f}s  ETA {eta:6.1f}s")
 
     # ---------- 打包 ----------
     diag = {
         "z_axis":                   _np.asarray(z_axis_list,              dtype=rdtype_np),
+        "step_start_z_m":           _np.asarray(step_start_z_list,        dtype=_np.float64),
+        "step_end_z_m":             _np.asarray(step_end_z_list,          dtype=_np.float64),
+        "nonlinear_operator_applied": _np.asarray(nonlinear_operator_applied_z_list, dtype=_np.bool_),
+        "nonlinear_operator_call_count_step": _np.asarray(
+            nonlinear_operator_call_count_step_z_list, dtype=_np.int64),
+        "ionization_solver_call_count_step": _np.asarray(
+            ionization_solver_call_count_step_z_list, dtype=_np.int64),
         "U_z":                      _np.asarray(U_z_list,                 dtype=rdtype_np),
         "I_max_z":                  _np.asarray(I_max_z_list,             dtype=rdtype_np),
         "I_onaxis_max_z":           _np.asarray(I_onaxis_max_z_list,      dtype=rdtype_np),
@@ -1211,10 +1511,13 @@ def propagate_one_pulse(
             raman_energy_projection_initial_residual_z_list, dtype=rdtype_np),
         "linear_walltime_step_s": _np.asarray(linear_walltime_step_z_list, dtype=rdtype_np),
         "ionization_walltime_step_s": _np.asarray(ionization_walltime_step_z_list, dtype=rdtype_np),
+        "nonlinear_walltime_step_s": _np.asarray(nonlinear_walltime_step_z_list, dtype=rdtype_np),
         "total_walltime_step_s": _np.asarray(total_walltime_step_z_list, dtype=rdtype_np),
         "gpu_allocated_step_bytes": _np.asarray(gpu_allocated_step_bytes_list, dtype=_np.int64),
         "gpu_reserved_step_bytes": _np.asarray(gpu_reserved_step_bytes_list, dtype=_np.int64),
         "performance_measurement_enabled": bool(measure_performance),
+        "propagation_mode": _np.asarray(propagation_mode),
+        "z_nl_start_m": _np.float64(z_nl_start),
         "operator_energy_diagnostics_enabled": bool(diag_operator_energy),
         "energy_step_start_J": _np.asarray(energy_step_start_z_list, dtype=_np.float64),
         "energy_after_linear_half1_J": _np.asarray(energy_after_linear_half1_z_list, dtype=_np.float64),

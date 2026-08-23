@@ -1,0 +1,74 @@
+{
+  "schema": "khz_filament.hybrid_propagation_validation.local_validation.v1",
+  "date": "2026-08-23",
+  "status": "local_validation_passed_hpc_not_started",
+  "branch": "codex/hybrid-propagation-validation",
+  "baseline_git_sha": "32703b7080bea0b201ebfd57336a59451183150f",
+  "execution_git_sha": null,
+  "mother_config": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+  "h0_reference_regression": {
+    "status": "passed",
+    "comparison": "prechange baseline 32703b vs postchange full_nonlinear_from_z0 tiny reference",
+    "checked_numeric_arrays": 120,
+    "bitwise_equal_with_equal_nan": true,
+    "excluded_observational_arrays": [
+      "gpu_allocated_step_bytes",
+      "gpu_reserved_step_bytes",
+      "ionization_walltime_step_s",
+      "linear_walltime_step_s",
+      "raman_operator_walltime_step_s",
+      "total_walltime_step_s"
+    ],
+    "prechange_snapshot_location": ".git/codex-baselines/hybrid/h0_prechange_snapshot.npz",
+    "prechange_snapshot_sha256": "8a0fbbb0bc5ff88ed79db9fdd001abec477ca93cdb0127e05589fe1da6c004bc",
+    "comparison_report_location": ".git/codex-baselines/hybrid/h0_deterministic_compare_report.json",
+    "comparison_report_sha256": "f7af5eee1606a29ca968887f732b6c0874a2aa60721ef04c31587c491ea5e105"
+  },
+  "h1_boundary": {
+    "status": "passed",
+    "coverage": [
+      "unaligned step clips to 0.60 m and remains linear",
+      "first active step starts exactly at float64 0.60 m",
+      "aligned production base schedule has 6000 steps to 0.60 m",
+      "pre-boundary nonlinear, ionization, Raman, density and deposition traces are finite zero"
+    ]
+  },
+  "h2_linear_segment": {
+    "status": "passed",
+    "backends_tested": ["numpy"],
+    "dtypes_tested": ["fp64", "fp32"],
+    "linear_model": "bk_nee",
+    "field_intensity_spectrum_relative_l2_max": 1e-07,
+    "energy_relative_difference_max": 1e-07,
+    "phase_rms_rad_max": 1e-06,
+    "gpu_backend_pending_hpc_pair": true
+  },
+  "tests": {
+    "python": "3.13.0",
+    "numpy": "2.4.4",
+    "pytest": "9.0.3",
+    "hybrid_tests": "12 passed",
+    "full_pytest": "282 passed, 3 skipped",
+    "compileall": "passed",
+    "bash_syntax": "passed",
+    "git_diff_check": "passed"
+  },
+  "campaign_contract": {
+    "config_diff_fields": [
+      "propagation.propagation_mode",
+      "propagation.z_nl_start"
+    ],
+    "reference_config_sha256": "f1415b2683ef483a226e3df3d041dc62e1221115d8c7dd4c8d26541190c6e233",
+    "hybrid_config_sha256": "d89bae350844385389cf65883e7f2e622a0615f5f9d8b5dcc92e51d35f54827e",
+    "submission_manifest_sha256": "80f0718780cae4290ea6b3a10b46d82b407be2d85d65244ca3cafdff4c447a99",
+    "allocation_count": 1,
+    "case_order": ["reference", "hybrid"],
+    "retry_policy": "no_retry",
+    "candidate_z_nl_start_m": 0.6
+  },
+  "slurm": {
+    "status": "not_started",
+    "job_id": null,
+    "mechanical_classification": null
+  }
+}

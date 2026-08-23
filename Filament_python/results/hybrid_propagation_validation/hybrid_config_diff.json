@@ -1,0 +1,22 @@
+{
+  "schema": "khz_filament.hybrid_propagation_validation.config_diff.v1",
+  "status": "passed",
+  "mother_config": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+  "reference_config": "results/hybrid_propagation_validation/120fs_talebpour_isaacs_hybrid_reference.json",
+  "hybrid_config": "results/hybrid_propagation_validation/120fs_talebpour_isaacs_hybrid_0p60.json",
+  "differences": [
+    {
+      "path": "propagation.propagation_mode",
+      "reference": "full_nonlinear_from_z0",
+      "hybrid": "hybrid"
+    },
+    {
+      "path": "propagation.z_nl_start",
+      "reference": 0.0,
+      "hybrid": 0.6
+    }
+  ],
+  "single_causal_variable": "absolute nonlinear start plane at 0.60 m",
+  "measure_performance": true,
+  "diag_operator_energy": true
+}

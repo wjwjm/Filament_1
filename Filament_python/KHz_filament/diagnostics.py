@@ -249,6 +249,42 @@ NONLINEAR_DIAGNOSTIC_METADATA = {
 }
 
 NONLINEAR_DIAGNOSTIC_METADATA.update({
+    "step_start_z_m": {
+        "meaning": "float64 absolute coordinate at the start of the recorded propagation step",
+        "source": "propagate.py: float64 propagation-loop coordinate",
+        "unit": "m",
+        "use": "reconstruct exact step intervals and the hybrid nonlinear boundary",
+    },
+    "step_end_z_m": {
+        "meaning": "float64 absolute coordinate at the end of the recorded propagation step",
+        "source": "propagate.py: clipped float64 propagation-loop coordinate",
+        "unit": "m",
+        "use": "verify boundary clipping and step alignment",
+    },
+    "nonlinear_operator_applied": {
+        "meaning": "whether the complete nonlinear material operator was evaluated for this step",
+        "source": "propagate.py: hybrid boundary gate",
+        "unit": "bool",
+        "use": "distinguish finite zero traces from intentionally uncomputed nonlinear diagnostics",
+    },
+    "nonlinear_operator_call_count_step": {
+        "meaning": "number of scalar nonlinear field-operator calls in this propagation step",
+        "source": "propagate.py: apply_nonlinear call counter",
+        "unit": "count",
+        "use": "quantify hybrid operator-call reduction",
+    },
+    "ionization_solver_call_count_step": {
+        "meaning": "number of ionization solver evaluations in this propagation step",
+        "source": "propagate.py: evolve_rho_time call counter",
+        "unit": "count",
+        "use": "quantify avoided ionization work in the linear pre-boundary segment",
+    },
+    "nonlinear_walltime_step_s": {
+        "meaning": "synchronized wall time spent in the nonlinear/material portion of this step",
+        "source": "propagate.py: timer from nonlinear entry through heat bookkeeping",
+        "unit": "s",
+        "use": "compare full and hybrid nonlinear work",
+    },
     "raman_operator_applied": {
         "meaning": "whether the complete Isaacs Raman field operator was applied at each z step",
         "source": "propagate.py: explicit use_raman_full_operator gate",
@@ -401,6 +437,11 @@ NONLINEAR_TRACE_KEYS = tuple(NONLINEAR_DIAGNOSTIC_METADATA)
 # z-leading 2D shape) intentionally do not belong here.
 Z_HISTORY_TRACE_KEYS = (
     "U_z",
+    "step_start_z_m",
+    "step_end_z_m",
+    "nonlinear_operator_applied",
+    "nonlinear_operator_call_count_step",
+    "ionization_solver_call_count_step",
     "I_max_z",
     "I_onaxis_max_z",
     "I_center_t0_z",
@@ -467,6 +508,7 @@ Z_HISTORY_TRACE_KEYS = (
     "raman_operator_substep_count",
     "linear_walltime_step_s",
     "ionization_walltime_step_s",
+    "nonlinear_walltime_step_s",
     "total_walltime_step_s",
     "gpu_allocated_step_bytes",
     "gpu_reserved_step_bytes",
@@ -513,6 +555,37 @@ def validate_nonlinear_diagnostics(diag: dict) -> dict:
         if _np.all(values == 0.0):
             all_zero.append(key)
 
+    step_start = _np.asarray(to_cpu(diag["step_start_z_m"]), dtype=float)
+    step_end = _np.asarray(to_cpu(diag["step_end_z_m"]), dtype=float)
+    if _np.any(step_end < step_start):
+        raise ValueError("diagnostic validation requires step_end_z_m >= step_start_z_m")
+    nonlinear_applied = _np.asarray(
+        to_cpu(diag["nonlinear_operator_applied"]), dtype=bool
+    )
+    nonlinear_calls = _np.asarray(
+        to_cpu(diag["nonlinear_operator_call_count_step"]), dtype=float
+    )
+    ionization_calls = _np.asarray(
+        to_cpu(diag["ionization_solver_call_count_step"]), dtype=float
+    )
+    if _np.any(nonlinear_calls < 0.0) or _np.any(ionization_calls < 0.0):
+        raise ValueError("diagnostic validation found negative nonlinear call counts")
+    if _np.any(nonlinear_calls[~nonlinear_applied] != 0.0):
+        raise ValueError("linear-only steps must have zero nonlinear_operator_call_count_step")
+    if _np.any(ionization_calls[~nonlinear_applied] != 0.0):
+        raise ValueError("linear-only steps must have zero ionization_solver_call_count_step")
+    if _np.any(nonlinear_calls[nonlinear_applied] != 1.0):
+        raise ValueError("active steps must have exactly one nonlinear field-operator call")
+    nonlinear_walltime = _np.asarray(
+        to_cpu(diag["nonlinear_walltime_step_s"]), dtype=float
+    )
+    if _np.any(nonlinear_walltime[~nonlinear_applied] != 0.0):
+        raise ValueError("linear-only steps must have zero nonlinear wall time")
+    if not _np.allclose(step_end, z_axis, rtol=0.0, atol=5e-7):
+        raise ValueError("step_end_z_m must align with z_axis")
+    if step_start.size > 1 and _np.any(step_start[1:] < step_end[:-1] - 2e-15):
+        raise ValueError("recorded propagation steps must not overlap or move backward")
+
     rho_tz = diag.get("rho_onaxis_t_z")
     if rho_tz is not None:
         rho_tz = _np.asarray(to_cpu(rho_tz))
@@ -526,14 +599,23 @@ def validate_nonlinear_diagnostics(diag: dict) -> dict:
 
     U_z = _np.asarray(to_cpu(diag["U_z"]), dtype=float)
     U_step = _np.asarray(to_cpu(diag["U_step_change_z"]), dtype=float)
-    U0 = float(U_z[0] - U_step[0])
+    loss_from_input = _np.asarray(to_cpu(diag["E_loss_from_input_z"]), dtype=float)
+    # ``U_z`` is stored in the run precision.  Reconstructing U0 by subtracting
+    # the much smaller first-step delta from a float32 pulse energy loses the
+    # very signal this consistency check is meant to validate.  The separately
+    # recorded loss trace preserves that small quantity, so use the algebraic
+    # identities U0 = U + loss and U_rel = -loss / U0 instead.
+    U0_by_record = U_z + loss_from_input
+    U0 = float(_np.median(U0_by_record))
     if not _np.isfinite(U0) or U0 <= 0.0:
         raise ValueError("diagnostic validation reconstructed a non-positive input energy")
-    expected_rel = (U_z - U0) / (U0 if abs(U0) > 1e-30 else 1e-30)
+    if not _np.allclose(U0_by_record, U0, rtol=2e-6, atol=max(abs(U0) * 2e-7, 1e-30)):
+        raise ValueError("diagnostic validation found inconsistent input-energy reconstruction")
+    expected_rel = -loss_from_input / _np.maximum(_np.abs(U0_by_record), 1e-30)
     if not _np.allclose(_np.asarray(to_cpu(diag["U_rel_change_z"]), dtype=float), expected_rel, rtol=2e-5, atol=2e-8):
         raise ValueError("diagnostic validation failed U_rel_change_z consistency")
-    expected_step = _np.diff(_np.concatenate(([U0], U_z)))
-    if not _np.allclose(U_step, expected_step, rtol=2e-5, atol=2e-10):
+    expected_step = -_np.diff(_np.concatenate(([0.0], loss_from_input)))
+    if not _np.allclose(U_step, expected_step, rtol=2e-5, atol=2e-20):
         raise ValueError("diagnostic validation failed U_step_change_z consistency")
     expected_deposition = _np.asarray(to_cpu(diag["E_dep_z"]), dtype=float) + _np.asarray(to_cpu(diag["E_dep_rot_z"]), dtype=float)
     if not _np.allclose(_np.asarray(to_cpu(diag["E_dep_total_z"]), dtype=float), expected_deposition, rtol=2e-5, atol=2e-12):

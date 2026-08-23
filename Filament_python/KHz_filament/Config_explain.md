@@ -50,6 +50,8 @@
 - **z_max (float, m)**：最大传播距离。
 - **dz (float, m)**：名义 z 步长（若启用自适应子步，会在此基础上缩放）。
 - **strang (bool)**：是否使用 Strang splitting（典型：线性半步 → 非线性整步 → 线性半步）。
+- **propagation_mode (str)**：传播模式。默认/历史值 `"full_nonlinear_from_z0"` 从 z=0 应用完整非线性；显式 `"hybrid"` 在 `z_nl_start` 之前只执行线性半步。
+- **z_nl_start (float, m)**：`hybrid` 的绝对非线性起始坐标，必须满足 `0 < z_nl_start < z_max`；完整模式必须为 0。`hybrid` v1 要求 `limit_focus_window=false` 且 `run.Npulses=1`；pulse-train 的 `dn_gas` 延续语义不在本验证范围内。
 
 ### 线性模型 / UPPE 相关
 - **linear_model (str)**：线性传播模型选择：
@@ -111,6 +113,8 @@
 - **dz_focus (float, m)**：焦点区域内使用的更小步长。
 - **limit_focus_window (bool)**：是否限制“焦点窗口”之外的传播窗口/策略（具体行为看实现）。
 - **window_halfwidth_m (float, m)**：窗口半宽（常围绕 `focus_center_m` 定义范围）。
+
+Hybrid 传播的 NPZ 还记录 `step_start_z_m`、`step_end_z_m`（float64）、`nonlinear_operator_applied`、`nonlinear_operator_call_count_step`、`ionization_solver_call_count_step` 和 `nonlinear_walltime_step_s`。边界前线性步骤的非线性/密度/沉积 trace 为有限零值，并由 `nonlinear_operator_applied=false` 标识“未计算”。
 
 ---
 

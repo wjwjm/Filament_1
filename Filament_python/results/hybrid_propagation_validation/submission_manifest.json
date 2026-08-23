@@ -1,0 +1,99 @@
+{
+  "schema": "khz_filament.hybrid_propagation_validation.submission_manifest.v1",
+  "campaign_id": "hybrid_propagation_validation_0p60",
+  "remote_campaign_root": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60",
+  "remote_account_root": "/data/run01/scvi806/user_Wangjimin",
+  "status": "prepared_not_submitted",
+  "expected_git_sha": null,
+  "execution_lock_required": true,
+  "expected_git_sha_resolution": "external execution_lock generated after final source commit",
+  "prepared_from_git_sha": "32703b7080bea0b201ebfd57336a59451183150f",
+  "mother_config": "configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+  "mother_config_sha256": "942adca964f50b689fa5985c9af46f294da7948646b246c39ca0d50238a1b02a",
+  "reference_config": "results/hybrid_propagation_validation/120fs_talebpour_isaacs_hybrid_reference.json",
+  "reference_config_sha256": "f1415b2683ef483a226e3df3d041dc62e1221115d8c7dd4c8d26541190c6e233",
+  "hybrid_config": "results/hybrid_propagation_validation/120fs_talebpour_isaacs_hybrid_0p60.json",
+  "hybrid_config_sha256": "d89bae350844385389cf65883e7f2e622a0615f5f9d8b5dcc92e51d35f54827e",
+  "config_diff_path": "results/hybrid_propagation_validation/hybrid_config_diff.json",
+  "config_diff_sha256": "920a681c68f6eba6f8033092147bfd8c6f6ae750cd3832da360b352c151f3051",
+  "strict_config_diff": [
+    {
+      "path": "propagation.propagation_mode",
+      "reference": "full_nonlinear_from_z0",
+      "hybrid": "hybrid"
+    },
+    {
+      "path": "propagation.z_nl_start",
+      "reference": 0.0,
+      "hybrid": 0.6
+    }
+  ],
+  "cases": {
+    "reference": {
+      "case_id": "reference",
+      "propagation_mode": "full_nonlinear_from_z0",
+      "z_nl_start_m": 0.0,
+      "config": "results/hybrid_propagation_validation/120fs_talebpour_isaacs_hybrid_reference.json",
+      "config_sha256": "f1415b2683ef483a226e3df3d041dc62e1221115d8c7dd4c8d26541190c6e233"
+    },
+    "hybrid": {
+      "case_id": "hybrid",
+      "propagation_mode": "hybrid",
+      "z_nl_start_m": 0.6,
+      "config": "results/hybrid_propagation_validation/120fs_talebpour_isaacs_hybrid_0p60.json",
+      "config_sha256": "d89bae350844385389cf65883e7f2e622a0615f5f9d8b5dcc92e51d35f54827e"
+    }
+  },
+  "execution": {
+    "allocation_count": 1,
+    "case_order": [
+      "reference",
+      "hybrid"
+    ],
+    "sequential": true,
+    "warmup": "small_cuda_import_fft_only_not_a_candidate",
+    "retry_policy": "no_retry",
+    "dtype": "fp32",
+    "measure_performance": true,
+    "diag_operator_energy": true,
+    "raw_npz_policy": "raw NPZ remains in remote RUN_DIR/HPC and is never committed"
+  },
+  "resources": {
+    "partition": "gpu",
+    "gpu_count": 1,
+    "cpu_threads": 8,
+    "requested_time": "15:00:00",
+    "expected_gpu_model": "NVIDIA GeForce RTX 5090"
+  },
+  "comparison": {
+    "g1_onset_threshold_m3": 1e+22,
+    "g1_max_abs_shift_cm": 0.1,
+    "g2_max_peak_relative_difference": 0.02,
+    "rho_thresholds_m3": [
+      1e+19,
+      1e+20,
+      1e+21,
+      1e+22
+    ],
+    "intensity_superlevel_fractions": [
+      0.1,
+      0.5,
+      0.9
+    ],
+    "component_max_position_difference_cm": 0.1,
+    "curve_nrmse_max": 0.02,
+    "curve_correlation_min": 0.995,
+    "peak_prominence_fraction": 0.05,
+    "peak_distance_cm": 0.1,
+    "performance_reduction_min_fraction": 0.01,
+    "visual_veto_is_explicit_input": true
+  },
+  "jobs_authorized": 1,
+  "jobs_submitted": 0,
+  "full_propagation_jobs_authorized": 1,
+  "parameter_scan_authorized": false,
+  "profiling_authorized": false,
+  "additional_start_planes_authorized": [],
+  "pulse_train_authorized": false,
+  "round_2_authorized": false
+}

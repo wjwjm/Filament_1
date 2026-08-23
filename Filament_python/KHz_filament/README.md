@@ -28,6 +28,7 @@ cli.py -> confio.py / config_normalize.py -> runner.py -> propagate.py -> diagno
 - Phase 1 非线性可观测性：每个 `z_axis` 记录都会保存电子 Kerr、旋转 Raman、Raman 卷积、等离子体相位/折射率、离化/IB/Raman 吸收和能量收支的历史数组。运行会额外生成 `<out stem>.diagnostic_report.json`（例如 `khzfil_out.npz` 对应 `khzfil_out.diagnostic_report.json`）；其中包含字段物理意义、数据来源、单位、建议用途与自动一致性检查结果。旧字段不改名，旧 NPZ 读取脚本无需调整。
 - 独立反馈开关：`propagation.use_electronic_kerr`、`use_raman_phase`、`use_raman_full_operator`、`use_plasma_phase`、`use_ionization_loss`、`use_raman_absorption` 与既有 `use_self_steepening` 可单独门控传播反馈。`use_raman_full_operator` 仅显式启用完整 Isaacs Eq. (27) 算子，默认关闭；旧配置省略该字段时严格沿用既有 split Raman 语义。
 - Raman `operator_mode="full_isaacs_eq27"` 保持旧边界：只把 rotational `D[I_R A]` 作为复场子算子，电子 Kerr 仍为 scalar phase/shock。新模式 `operator_mode="full_isaacs_eq27_complete"` 为显式 opt-in 的 combined `D[(n2 I+n_R I_R)A]`，启用时电子与 rotational 项都不再进入 scalar Kerr/shock；该模式不改变默认值、Raman 参数、电离或等离子体路径。
+- Hybrid propagation 是显式 opt-in：设置 `propagation.propagation_mode="hybrid"` 和绝对坐标 `z_nl_start`（并设置 `limit_focus_window=false`）后，边界前保留两次线性半步但跳过完整非线性算子；边界跨越步会裁剪到 `z_nl_start`，下一步从精确边界启用非线性。v1 明确限制为 `run.Npulses=1`，尚未实现的 pulse-train `dn_gas` 延续语义会被拒绝而非静默跳过。默认 `full_nonlinear_from_z0` 保持旧路径。输出中的 `step_start_z_m`/`step_end_z_m` 与 `nonlinear_operator_applied` 用于审计边界，非线性调用计数和 wall-time 用于加速评估。
 
 ## 焦区窗口坐标
 
