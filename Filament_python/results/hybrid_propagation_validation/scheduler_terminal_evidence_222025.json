@@ -1,0 +1,21 @@
+{
+  "schema": "khz_filament.hybrid_propagation_validation.scheduler_terminal_evidence.v1",
+  "campaign_id": "hybrid_propagation_validation_0p60",
+  "job_id": "222025",
+  "execution_git_sha": "5ce3be1e4a74eff71dee219116e9a2f29aa3b34b",
+  "run_dir": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60/run_5ce3be1_20260823T143958Z",
+  "state": "COMPLETED",
+  "exit_code": "0:0",
+  "elapsed": "07:35:00",
+  "scheduler_start": "2026-08-23T22:41:06",
+  "scheduler_end": "2026-08-24T06:16:06",
+  "node": "m4gn1401",
+  "partition": "gpu",
+  "allocated_tres": "billing=8,cpu=8,gres/gpu=1,mem=126000M,node=1",
+  "terminal_verified_by": "sacct",
+  "full_propagation_started": true,
+  "reference_started": true,
+  "hybrid_started": true,
+  "raw_npz_count": 2,
+  "source": "scheduler_terminal_evidence"
+}

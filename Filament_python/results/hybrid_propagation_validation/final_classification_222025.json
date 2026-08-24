@@ -1,0 +1,40 @@
+{
+  "schema": "khz_filament.hybrid_propagation_validation.human_final_verdict.v1",
+  "campaign_id": "hybrid_propagation_validation_0p60",
+  "job_id": "222025",
+  "date": "2026-08-24",
+  "mechanical_classification": "hybrid_0p60_not_supported",
+  "human_final_verdict": "partial_pass",
+  "final_classification": "hybrid_0p60_partially_supported_for_acceleration",
+  "visual_review": "approved_partial_pass",
+  "visual_veto": false,
+  "reviewer_causal_claim": "Starting nonlinear propagation at 0.60 m lowers the electron-density peak and delays the filamentation peak position; this is acceptable for low-accuracy acceleration use.",
+  "accepted_effects": {
+    "peak_rho_reference_m3": 6.3614700320096095e+22,
+    "peak_rho_hybrid_m3": 6.0997870245813586e+22,
+    "peak_rho_relative_difference": 0.04113561898610161,
+    "peak_rho_shift_cm": 0.3500044345855713,
+    "g1_onset_1e22_shift_cm": 0.30534815679126304,
+    "intensity_peak_shift_cm": 0.40999650955200195,
+    "rho_peak_count_reference": 1,
+    "rho_peak_count_hybrid": 2
+  },
+  "acceleration": {
+    "case_walltime_reference_s": 16500.017240034416,
+    "case_walltime_hybrid_s": 10739.607226328924,
+    "case_speedup": 1.5363706411518878,
+    "step_speedup": 1.5441674548846416,
+    "nonlinear_call_reduction": 6000,
+    "ionization_call_reduction": 6000,
+    "raman_substep_reduction": 12000,
+    "raman_convolution_reduction": 24000
+  },
+  "numerical_health_note": "Hybrid energy drift 0.0632302 exceeds reference 0.0630072 by 2.2e-4 (beyond the strict 1e-12 tolerance); all raw diagnostics are finite and no NaN/Inf or divergence is present.",
+  "constraints": [
+    "Not a strict-equivalence replacement for the full z=0 nonlinear reference.",
+    "G1/G2/G3 and numerical_health mechanical thresholds remain failed.",
+    "A secondary density feature appears near z~1.19 m (rho peak count 1->2)."
+  ],
+  "execution_git_sha": "5ce3be1e4a74eff71dee219116e9a2f29aa3b34b",
+  "branch": "codex/hybrid-propagation-validation"
+}

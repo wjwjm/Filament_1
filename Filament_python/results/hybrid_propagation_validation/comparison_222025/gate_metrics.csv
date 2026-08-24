@@ -1,0 +1,10 @@
+gate,passed
+G1_onset_1e22,false
+G2_peak_rho,false
+G3_rho_topology,false
+G3_intensity_topology,false
+G3_curve,false
+G3_low_threshold_risk,false
+numerical_health,false
+performance,true
+visual_veto,true

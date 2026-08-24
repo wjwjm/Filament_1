@@ -1,0 +1,269 @@
+{
+  "schema": "khz_filament.hybrid_propagation_validation.postprocess_audit.v1",
+  "status": "complete_evidence",
+  "campaign_id": "hybrid_propagation_validation_0p60",
+  "remote_campaign_root": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60",
+  "run_dir": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60/run_5ce3be1_20260823T143958Z",
+  "manifest_path": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60/staging/Filament_1_5ce3be1/Filament_python/results/hybrid_propagation_validation/submission_manifest.json",
+  "manifest_sha256": "9a1736964c058437d9350d4366c07621126f3179fcdbf5ee3fa07d4ef7e06d93",
+  "execution_git_sha": "5ce3be1e4a74eff71dee219116e9a2f29aa3b34b",
+  "case_order": [
+    "reference",
+    "hybrid"
+  ],
+  "gpu_model": "NVIDIA GeForce RTX 5090",
+  "nodelist": "m4gn1401",
+  "expected_node": "m4gn1401",
+  "lut_build_audit": {
+    "schema": "khz_filament.hybrid_propagation_validation.lut_build_audit.v1",
+    "status": "passed",
+    "passed": true,
+    "required": true,
+    "builder_default_cap": 1e+16,
+    "cap_threshold": 9990000000000000.0,
+    "all_configured_caps_valid": true,
+    "all_builder_caps_consistent": true,
+    "all_finite": true,
+    "all_nondecreasing": false,
+    "all_cap_inactive": true,
+    "species": [
+      {
+        "name": "N2",
+        "W_grid_max": 603777499423360.2,
+        "configured_W_cap": 1e+19,
+        "configured_cap_valid": true,
+        "builder_default_cap": 1e+16,
+        "builder_cap_consistent": true,
+        "finite": true,
+        "nondecreasing": false,
+        "negative_step_count": 1,
+        "max_relative_drop": 0.001820117780753833,
+        "cap_inactive": true
+      },
+      {
+        "name": "O2",
+        "W_grid_max": 1579494750134038.0,
+        "configured_W_cap": 1e+19,
+        "configured_cap_valid": true,
+        "builder_default_cap": 1e+16,
+        "builder_cap_consistent": true,
+        "finite": true,
+        "nondecreasing": false,
+        "negative_step_count": 1,
+        "max_relative_drop": 0.0005355265358164901,
+        "cap_inactive": true
+      }
+    ]
+  },
+  "backend": "cupy",
+  "dtype": "fp32",
+  "linear_model": "bk_nee",
+  "linear_precision_strategy": "baseline_complex64",
+  "thread_environment": {
+    "OMP_NUM_THREADS": "8",
+    "OPENBLAS_NUM_THREADS": "8",
+    "MKL_NUM_THREADS": "8",
+    "NUMEXPR_NUM_THREADS": "8"
+  },
+  "slurm_job_id": "222025",
+  "pair_started_at_utc": "2026-08-23T14:42:06.497047+00:00",
+  "pair_ended_at_utc": "2026-08-23T22:16:06.379530+00:00",
+  "execution_lock_sha256": "9e74cc3f6fae44d741509bb115364a305eda7bd6aa95378775ca426b8a0d74b0",
+  "provenance_v2_path": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60/staging/hybrid_propagation_validation_0p60.5ce3be1.provenance_v2.json",
+  "provenance_v2_sha256": "96830da1858a347971a4718bda38128e47e1976c21568b5269ceffd9b5db9017",
+  "strict_config_diff": [
+    {
+      "path": "propagation.propagation_mode",
+      "reference": "full_nonlinear_from_z0",
+      "hybrid": "hybrid"
+    },
+    {
+      "path": "propagation.z_nl_start",
+      "reference": 0.0,
+      "hybrid": 0.6
+    }
+  ],
+  "scheduler_terminal_evidence": {
+    "path": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60/run_5ce3be1_20260823T143958Z/scheduler_terminal_evidence.json",
+    "sha256": "9664393270e33b1ae68a0fab1c5273813d1c2614f44cde440e1f1c3229685aa5",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "job_id": "222025",
+    "source": "scheduler_terminal_evidence",
+    "raw": {
+      "schema": "khz_filament.hybrid_propagation_validation.scheduler_terminal_evidence.v1",
+      "campaign_id": "hybrid_propagation_validation_0p60",
+      "job_id": "222025",
+      "execution_git_sha": "5ce3be1e4a74eff71dee219116e9a2f29aa3b34b",
+      "run_dir": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60/run_5ce3be1_20260823T143958Z",
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "elapsed": "07:35:00",
+      "scheduler_start": "2026-08-23T22:41:06",
+      "scheduler_end": "2026-08-24T06:16:06",
+      "node": "m4gn1401",
+      "partition": "gpu",
+      "allocated_tres": "billing=8,cpu=8,gres/gpu=1,mem=126000M,node=1",
+      "terminal_verified_by": "sacct",
+      "full_propagation_started": true,
+      "reference_started": true,
+      "hybrid_started": true,
+      "raw_npz_count": 2,
+      "source": "scheduler_terminal_evidence"
+    }
+  },
+  "raw_npz_policy": "raw NPZ remains in HPC RUN_DIR and is not copied",
+  "cases": {
+    "reference": {
+      "case_id": "reference",
+      "status": "completed",
+      "config_path": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60/staging/Filament_1_5ce3be1/Filament_python/results/hybrid_propagation_validation/120fs_talebpour_isaacs_hybrid_reference.json",
+      "config_sha256": "946f80952b619cc317caa80cb2c747dc0aad037e0afbe49fe0b5304eff254745",
+      "execution_git_sha": "5ce3be1e4a74eff71dee219116e9a2f29aa3b34b",
+      "gpu_model": "NVIDIA GeForce RTX 5090",
+      "nodelist": "m4gn1401",
+      "expected_node": "m4gn1401",
+      "lut_build_audit": {
+        "schema": "khz_filament.hybrid_propagation_validation.lut_build_audit.v1",
+        "status": "passed",
+        "passed": true,
+        "required": true,
+        "builder_default_cap": 1e+16,
+        "cap_threshold": 9990000000000000.0,
+        "all_configured_caps_valid": true,
+        "all_builder_caps_consistent": true,
+        "all_finite": true,
+        "all_nondecreasing": false,
+        "all_cap_inactive": true,
+        "species": [
+          {
+            "name": "N2",
+            "W_grid_max": 603777499423360.2,
+            "configured_W_cap": 1e+19,
+            "configured_cap_valid": true,
+            "builder_default_cap": 1e+16,
+            "builder_cap_consistent": true,
+            "finite": true,
+            "nondecreasing": false,
+            "negative_step_count": 1,
+            "max_relative_drop": 0.001820117780753833,
+            "cap_inactive": true
+          },
+          {
+            "name": "O2",
+            "W_grid_max": 1579494750134038.0,
+            "configured_W_cap": 1e+19,
+            "configured_cap_valid": true,
+            "builder_default_cap": 1e+16,
+            "builder_cap_consistent": true,
+            "finite": true,
+            "nondecreasing": false,
+            "negative_step_count": 1,
+            "max_relative_drop": 0.0005355265358164901,
+            "cap_inactive": true
+          }
+        ]
+      },
+      "npz_path": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60/run_5ce3be1_20260823T143958Z/reference/reference.npz",
+      "npz_sha256": "c0e24a52e64e4c5d2460e4a10eee88c321855938a682b26b5a6b32509f0af928",
+      "metadata_path": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60/run_5ce3be1_20260823T143958Z/reference/reference_job_metadata.json",
+      "case_total_walltime_s": 16500.017240034416,
+      "performance": {
+        "case_total_walltime_s": 16500.017240034416,
+        "step_time_s": 15936.41929590702,
+        "linear_time_s": 2420.572220429778,
+        "nonlinear_time_s": 13409.198933899403,
+        "ionization_time_s": 5796.50307649374,
+        "raman_time_s": 5072.711828351021,
+        "nonlinear_call_count": 15000,
+        "ionization_call_count": 15000,
+        "raman_substep_count": 30000,
+        "raman_convolution_count": 60000,
+        "gpu_peak_allocated_bytes": 15321817600,
+        "gpu_peak_reserved_bytes": 28612113408
+      },
+      "propagation_mode": "full_nonlinear_from_z0",
+      "z_nl_start_m": 0.0,
+      "z_records": 15000,
+      "finite": true
+    },
+    "hybrid": {
+      "case_id": "hybrid",
+      "status": "completed",
+      "config_path": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60/staging/Filament_1_5ce3be1/Filament_python/results/hybrid_propagation_validation/120fs_talebpour_isaacs_hybrid_0p60.json",
+      "config_sha256": "9e4b25689c285a195e3329dee5feffa0de8bfe48064ed5930c44ac072fe074ef",
+      "execution_git_sha": "5ce3be1e4a74eff71dee219116e9a2f29aa3b34b",
+      "gpu_model": "NVIDIA GeForce RTX 5090",
+      "nodelist": "m4gn1401",
+      "expected_node": "m4gn1401",
+      "lut_build_audit": {
+        "schema": "khz_filament.hybrid_propagation_validation.lut_build_audit.v1",
+        "status": "passed",
+        "passed": true,
+        "required": true,
+        "builder_default_cap": 1e+16,
+        "cap_threshold": 9990000000000000.0,
+        "all_configured_caps_valid": true,
+        "all_builder_caps_consistent": true,
+        "all_finite": true,
+        "all_nondecreasing": false,
+        "all_cap_inactive": true,
+        "species": [
+          {
+            "name": "N2",
+            "W_grid_max": 603777499423360.2,
+            "configured_W_cap": 1e+19,
+            "configured_cap_valid": true,
+            "builder_default_cap": 1e+16,
+            "builder_cap_consistent": true,
+            "finite": true,
+            "nondecreasing": false,
+            "negative_step_count": 1,
+            "max_relative_drop": 0.001820117780753833,
+            "cap_inactive": true
+          },
+          {
+            "name": "O2",
+            "W_grid_max": 1579494750134038.0,
+            "configured_W_cap": 1e+19,
+            "configured_cap_valid": true,
+            "builder_default_cap": 1e+16,
+            "builder_cap_consistent": true,
+            "finite": true,
+            "nondecreasing": false,
+            "negative_step_count": 1,
+            "max_relative_drop": 0.0005355265358164901,
+            "cap_inactive": true
+          }
+        ]
+      },
+      "npz_path": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60/run_5ce3be1_20260823T143958Z/hybrid/hybrid.npz",
+      "npz_sha256": "6b5a14e09d815e8abac4acbd11bdb03e6b476ec422b51c14ff57152e8be880ae",
+      "metadata_path": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60/run_5ce3be1_20260823T143958Z/hybrid/hybrid_job_metadata.json",
+      "case_total_walltime_s": 10739.607226328924,
+      "performance": {
+        "case_total_walltime_s": 10739.607226328924,
+        "step_time_s": 10320.39578706026,
+        "linear_time_s": 2401.073856830597,
+        "nonlinear_time_s": 7812.881349742413,
+        "ionization_time_s": 3468.437013298273,
+        "raman_time_s": 2821.677172958851,
+        "nonlinear_call_count": 9000,
+        "ionization_call_count": 9000,
+        "raman_substep_count": 18000,
+        "raman_convolution_count": 36000,
+        "gpu_peak_allocated_bytes": 15321817600,
+        "gpu_peak_reserved_bytes": 28612113408
+      },
+      "propagation_mode": "hybrid",
+      "z_nl_start_m": 0.6,
+      "z_records": 15000,
+      "finite": true
+    }
+  },
+  "derived_outputs": {
+    "reference_axial_csv": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60/run_5ce3be1_20260823T143958Z/postprocess_222025/reference_axial.csv",
+    "hybrid_axial_csv": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60/run_5ce3be1_20260823T143958Z/postprocess_222025/hybrid_axial.csv",
+    "performance_csv": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60/run_5ce3be1_20260823T143958Z/postprocess_222025/performance.csv"
+  }
+}
