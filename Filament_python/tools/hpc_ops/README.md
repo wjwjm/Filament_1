@@ -89,6 +89,42 @@ production output is created.
 The stdout contract is `filament.hpc_preflight.v1`; `--json` is a compatible
 no-argument flag and does not write a second report or any arbitrary path.
 
+## Batch-entry audit
+
+`audit_batch_entry.py` is a local/read-only gate for production `.sbatch`
+entrypoints. It runs `bash -n`, finds the first `conda activate`, and rejects
+an unqualified `python` or `python3` command before that activation. Fixed
+absolute interpreters and shell variables with `PYTHON` in their name are
+allowed. The JSON schema is `filament.hpc_batch_entry_audit.v1`.
+
+Run it before any run directory, execution/submission lock, receipt, or
+`sbatch` side effect:
+
+```powershell
+python Filament_python/tools/hpc_ops/audit_batch_entry.py `
+  --batch Filament_python/tools/example.sbatch `
+  --fixed-python /data/home/scvi806/.conda/envs/Filament_python/bin/python
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+```
+
+Campaign launchers must call the same audit with the fixed remote interpreter
+before reserving remote state.
+
+## Fixed postprocess sequence
+
+For an already completed run, do not create a replacement transfer or plotting
+framework. Use the campaign's existing tools in this order:
+
+1. use `sacct` to establish `COMPLETED/0:0` and write/read scheduler evidence;
+2. invoke the existing postprocessor in the fixed `Filament_python` environment;
+3. check the process exit code and the declared JSON/CSV/figure/report outputs;
+4. invoke the existing comparison tool when the campaign defines one;
+5. synchronize the completed derived-output directories in one bounded transfer.
+
+Raw NPZ remains in the HPC run directory unless the user explicitly requests
+it. A missing local plotting dependency is not a reason to patch production
+code or reimplement the postprocessor.
+
 ## Protected Git source acquisition
 
 `hpc_git_source.sh` exposes fixed `clone`/`fetch` arguments with explicit

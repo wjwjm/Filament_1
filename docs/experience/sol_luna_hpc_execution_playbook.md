@@ -4,6 +4,27 @@
 它服务于 `Filament_1` 的后续任务，不改变物理模型、坐标定义、归一化、
 冻结基线、PyCAP 比较口径或既有结果 provenance。
 
+## 零、任务分级与最小充分流程
+
+执行前选择不会超过用户验收要求的最低级别：
+
+| 级别 | 典型任务 | 默认流程 |
+| --- | --- | --- |
+| L0 direct execution | 已有脚本的算例提交、监控、同步、后处理、比较 | 一次定位、一次执行链、一次验收；默认不用子 Agent |
+| L1 bounded engineering | 局部 launcher、分析器、配置或测试修复 | 一个 mapper、一个 writer、一次集中 review/test |
+| L2 high assurance | 新物理/数值路径、严格同 SHA 配对、生产基线或新 provenance | 按科学门禁分阶段执行，Sol 保留最终决策 |
+
+L0/L1 不得静默升级为新 campaign framework。只有用户明确要求，或至少两个
+已经确定且现有流程无法安全覆盖的复用场景，才新增通用抽象。已有 runner、
+`hpc_ops`、launcher、postprocess 和 comparison 应优先复用。
+
+quick engineering comparison 可复用满足当前配置、代码、诊断和 provenance
+要求的已验收 reference。最低资格包括：scheduler/运行终态已核验，必要诊断有限，
+字段、坐标和 threshold 定义一致，输入物理配置除候选字段外一致；执行 SHA 应相同，
+或源码差异已证明不影响当前比较且用户接受 quick 模式。strict paired validation
+才要求同 SHA、同节点/同 allocation 配对。选择 strict 前必须报告 reference 是否
+重跑、案例串/并行顺序和依据历史 wall time 得出的预计总时长。
+
 ## 一、角色边界与状态机
 
 Sol（父 Agent）保留任务解释、科学/数值决策、基线接受、外部写入、
@@ -81,6 +102,11 @@ PowerShell 侧使用参数数组和 call operator；不使用 `Invoke-Expression
 最后才考虑 staging 或 scheduler。复杂操作的安全入口和报告 schema 见
 [`hpc_ops/README.md`](../../Filament_python/tools/hpc_ops/README.md)。
 
+新增或修改生产 batch 时，还必须在任何 run/lock/`sbatch` 副作用前执行
+`audit_batch_entry.py`。它运行 `bash -n` 并拒绝 conda 激活前的裸
+`python`/`python3`；固定绝对解释器或明确的 `*PYTHON*` 变量可以用于环境
+激活前的 provenance/manifest 校验。
+
 ## 三、HPC GitHub 连接：代理优先、bundle 回退
 
 默认连接链为：
@@ -141,6 +167,29 @@ HPC preflight 必须显式检查并激活固定 Miniforge 安装下的
 副作用、发现它的门禁、当时修复、永久控制和证据路径。失败发生在 lock
 消耗或 `sbatch` 之前时，必须明确说明“未产生作业”；不能用成功的编译、
 测试或 dry-run 推断物理有效。
+
+### 硬熔断表
+
+| 失败 | 允许动作 | 禁止动作 |
+| --- | --- | --- |
+| 同一工具/阶段/错误签名第二次出现 | 诊断并换执行路径，或报告 blocker | 继续提交等价 payload/命令 |
+| 第一次多层 shell 转义、变量或路径丢失 | 上传固定脚本，使用参数数组/manifest | 继续叠加引号和反斜杠 |
+| papp 认证失败 | 一次 `acct` 权威检查，随后登录/数据库恢复 | 用 SSH/SCP 反复探测 token |
+| batch-entry 审计失败 | 修复入口并重新做本地/远端 preflight | 创建 run/lock 或调用 `sbatch` |
+| postprocess 缺本地依赖 | 使用固定 HPC/项目环境和已有脚本 | 新建替代分析框架或修改传播核心 |
+
+### 监控、后处理与时间报告
+
+提交后只做一次早期健康检查；之后使用用户指定节奏或按预计运行时间设置的稀疏
+查询。未明确要求时不部署后台监控器。终态以 `sacct` 为准。
+
+postprocess-only 固定顺序：`COMPLETED/0:0` → 远端固定环境调用已有
+postprocessor → 检查退出码和必要产物 → 调用已有 comparison → 一次性同步
+派生产物目录。raw NPZ 默认留在 HPC，不因本地 PIL/matplotlib 缺失而复制或
+重建处理链。
+
+最终交付分别报告：本地工程时间、排队时间、实际运行时间、监控/等待时间、
+故障返工时间、后处理与同步时间。串行案例同时列出各 case wall time。
 
 交付前最小检查：
 

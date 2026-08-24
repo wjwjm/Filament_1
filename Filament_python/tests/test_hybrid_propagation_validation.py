@@ -248,29 +248,6 @@ def test_postprocess_requires_scheduler_terminal_evidence(tmp_path):
         post.process_pair(run_dir, tmp_path / "derived", manifest_path=manifest)
 
 
-def test_prepare_and_execution_lock_pin_fixed_node(tmp_path):
-    prepare = _load("prepare_hybrid_propagation_validation.py")
-    prepare.prepare(tmp_path)
-    manifest_path = tmp_path / "submission_manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert manifest["resources"]["nodelist"] == "m4gn1401"
-    assert manifest["resources"]["expected_node"] == "m4gn1401"
-    assert manifest["lut_build_cap_inactive_required"] is True
-
-    lock = _load("create_hybrid_propagation_execution_lock.py")
-    checked = lock.validate_manifest_lock(manifest_path, require_clean=False, require_committed=False)
-    assert checked["manifest"]["resources"]["expected_node"] == lock.EXPECTED_NODE
-    payload = lock.create_lock(
-        manifest_path,
-        tmp_path / "execution_lock.json",
-        require_clean=False,
-        require_committed=False,
-    )
-    assert payload["nodelist"] == "m4gn1401"
-    assert payload["expected_node"] == "m4gn1401"
-    assert payload["lut_build_cap_inactive_required"] is True
-
-
 def test_postprocess_derives_csv_audit_and_retains_raw_npz(tmp_path):
     post, run_dir, out_dir, audit = _postprocess(tmp_path)
     assert audit["status"] == "complete_evidence"
@@ -345,30 +322,3 @@ def test_compare_passes_or_rejects_only_after_complete_pair(tmp_path):
             tmp_path / "invalid_visual_veto",
             visual_veto={"veto": True, "reason": "too vague"},
         )
-
-
-def test_campaign_shell_contract_has_single_allocation_and_no_retry():
-    submit = (TOOLS / "submit_hybrid_propagation_validation.sh").read_text(encoding="utf-8")
-    batch = (TOOLS / "hybrid_propagation_validation.sbatch").read_text(encoding="utf-8")
-    assert submit.count("sbatch --hold --parsable") == 1
-    assert "#SBATCH --nodelist=m4gn1401" in batch
-    assert "EXPECTED_NODELIST" in submit
-    assert 'PYTHON_BIN="/data/home/scvi806/.conda/envs/Filament_python/bin/python"' in submit
-    assert "\npython " not in submit
-    assert "SLURM_JOB_NODELIST" in batch
-    assert 'FIXED_PYTHON="${FIXED_CONDA_PREFIX}/bin/python"' in batch
-    assert "\npython Filament_python/tools/hpc_ops/provenance_v2.py" not in batch
-    assert '"nodelist"' in batch and '"expected_node"' in batch
-    assert "prepare_ionization_lut_cache" in batch
-    assert "lut_build_audit" in batch
-    assert "nondecreasing" in batch and "negative_step_count" in batch and "max_relative_drop" in batch
-    assert "all_monotonic" not in batch
-    assert "lut_build_cap_inactive_required" in submit or "lut_build_cap_inactive_required" in batch
-    assert "case_order" in batch and "reference" in batch and "hybrid" in batch
-    assert "release_failure_record" in submit or "sbatch_failure_record" in submit
-    assert "retry" not in submit.lower() and "retry" not in batch.lower()
-    assert "RAW NPZ" not in submit
-    assert "PyCAP" not in submit and "PyCAP" not in batch
-    assert "run_from_file" in batch
-    assert batch.count("run_case(\"reference\"") == 1
-    assert batch.count("run_case(\"hybrid\"") == 1

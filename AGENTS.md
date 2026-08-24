@@ -317,6 +317,7 @@ For these cases, stop and return the relevant code/data provenance, numerical ev
 
 - [`docs/experience/sol_luna_hpc_execution_playbook.md`](docs/experience/sol_luna_hpc_execution_playbook.md)
 - [`docs/experience/2026-08-22_isaacs_eq27_c2_postmortem.md`](docs/experience/2026-08-22_isaacs_eq27_c2_postmortem.md)
+- [`docs/experience/2026-08-24_hybrid_execution_postmortem.md`](docs/experience/2026-08-24_hybrid_execution_postmortem.md)
 
 强制规则：
 
@@ -325,5 +326,36 @@ For these cases, stop and return the relevant code/data provenance, numerical ev
 - 无变量展开的单条只读 SSH 命令才可内联；遇到中文路径、管道、重定向、正则、命令替换、heredoc 或嵌套引号，必须使用 `Filament_python/tools/hpc_ops/` 的脚本/参数数组入口。第一次转义错误后不得继续堆叠引号。
 - HPC GitHub 连接遵循代理优先、verified bundle 回退；代理值、token、认证 URL 和真实凭据不得进入仓库或日志。preflight 失败不得创建 run/lock 或调用 `sbatch`。
 - 运行时终态和诊断报告分开核验；`PENDING`、`RUNNING`、编译通过或测试通过不能替代科学验收。
+
+<!-- BEGIN FILAMENT LEAN EXECUTION AND FAILURE CIRCUIT BREAKERS -->
+
+## 13. 精简执行与失败熔断
+
+- “创建算例—提交—等待—比较”、已有结果后处理、状态检查和结果同步默认为
+  `L0 direct execution`。若现有 runner、`hpc_ops`、launcher、postprocessor
+  和 comparison 已覆盖任务，不得新建 campaign framework、替代绘图链或重复
+  provenance 系统。
+- quick engineering comparison 可以复用配置、执行 SHA、诊断字段和 provenance
+  均满足当前比较要求的已验收 reference。最低资格是：scheduler/运行终态已核验、
+  必要诊断有限且字段/坐标/threshold 定义一致、输入物理配置除候选字段外一致，且
+  执行 SHA 相同或源码差异已证明不影响当前比较并由用户接受 quick 模式。只有用户或冻结协议明确要求同 SHA、
+  同节点/同 allocation 严格配对时，才允许把 reference 重跑纳入执行计划；提交前
+  必须报告串/并行关系和基于历史 wall time 的预计总时长。
+- postprocess-only 阶段默认禁止修改 `propagate.py`、`linear*.py`、
+  `nonlinear.py`、`ionization/`、`raman.py`、生产配置和冻结结果。必须先在固定
+  `Filament_python` 环境调用已有后处理入口；本地缺少 PIL/matplotlib 不是修改
+  生产后处理代码或重建分析框架的理由。
+- 新增或修改生产 `.sbatch`/launcher 时，必须在任何 run 目录、execution lock、
+  submission lock 或 `sbatch` 副作用之前运行
+  `Filament_python/tools/hpc_ops/audit_batch_entry.py`。`bash -n` 失败或 conda
+  激活前出现裸 `python`/`python3` 时立即停止。
+- 同一工具、阶段和错误签名第二次出现时必须熔断。第一次发生 PowerShell/WSL/
+  SSH/Bash 多层转义或变量丢失后，后续命令必须改用固定脚本、参数数组或 JSON
+  manifest，不得继续加引号重试。工作更新中记录错误签名和 fallback；重读工具
+  契约后实质修正的调用允许执行，只有换行/引号变化的等价 payload 不算新路径。
+- raw NPZ、运行目录、scheduler evidence 和已冻结比较结果保持不可覆盖。技术失败
+  与科学分类分开记录；算例尚未启动时不得给出物理结论。
+
+<!-- END FILAMENT LEAN EXECUTION AND FAILURE CIRCUIT BREAKERS -->
 
 <!-- END FILAMENT SUBAGENT ORCHESTRATION -->

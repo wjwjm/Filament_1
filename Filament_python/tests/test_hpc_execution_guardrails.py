@@ -18,6 +18,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 HPC_OPS = ROOT / "Filament_python" / "tools" / "hpc_ops"
 PROVENANCE_PATH = HPC_OPS / "provenance_v2.py"
+BATCH_ENTRY_AUDIT = HPC_OPS / "audit_batch_entry.py"
 
 
 def _load_provenance_module():
@@ -49,6 +50,131 @@ def _git_repo(tmp_path: Path) -> Path:
     _git(repo, "add", "--", "tracked.md")
     _git(repo, "commit", "-m", "guardrail fixture")
     return repo
+
+
+def _run_batch_entry_audit(batch: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            str(BATCH_ENTRY_AUDIT),
+            "--batch",
+            str(batch),
+            "--fixed-python",
+            "/opt/filament/bin/python",
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+
+def _require_batch_audit_shell() -> None:
+    if os.name == "nt":
+        native_bash = shutil.which("bash")
+        system_bash = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "bash.exe"
+        has_native = bool(native_bash and Path(native_bash).resolve() != system_bash.resolve())
+        if not has_native and not _wsl_executable():
+            pytest.skip("batch-entry audit requires native POSIX bash or WSL")
+    elif not shutil.which("bash"):
+        pytest.skip("batch-entry audit requires bash")
+
+
+def test_batch_entry_audit_rejects_bare_python_before_conda(tmp_path: Path):
+    _require_batch_audit_shell()
+    batch = tmp_path / "bare_python.sbatch"
+    batch.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "python -c 'print(1)'\n"
+        "source /opt/conda.sh\n"
+        "conda activate Filament_python\n",
+        encoding="utf-8",
+    )
+    result = _run_batch_entry_audit(batch)
+    report = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert report["schema"] == "filament.hpc_batch_entry_audit.v1"
+    assert report["status"] == "bare_python_before_activation"
+    assert report["bare_python_commands"] == [{"command": "python", "line": 3}]
+
+
+def test_batch_entry_audit_accepts_fixed_python_and_post_activation_python(tmp_path: Path):
+    _require_batch_audit_shell()
+    batch = tmp_path / "fixed_python.sbatch"
+    batch.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "readonly FIXED_PYTHON=/opt/filament/bin/python\n"
+        '"${FIXED_PYTHON}" -c \'print(1)\'\n'
+        "source /opt/conda.sh\n"
+        "conda activate Filament_python\n"
+        "python -c 'print(2)'\n",
+        encoding="utf-8",
+    )
+    result = _run_batch_entry_audit(batch)
+    report = json.loads(result.stdout)
+    assert result.returncode == 0
+    assert report["status"] == "passed"
+    assert report["activation_line"] == 6
+    assert not report["bare_python_commands"]
+    assert report["qualified_python_commands"] == [
+        {"command": "${FIXED_PYTHON}", "line": 4}
+    ]
+
+
+def test_batch_entry_audit_rejects_bash_syntax_error(tmp_path: Path):
+    _require_batch_audit_shell()
+    batch = tmp_path / "syntax_error.sbatch"
+    batch.write_text("#!/usr/bin/env bash\nif true; then\n", encoding="utf-8")
+    result = _run_batch_entry_audit(batch)
+    report = json.loads(result.stdout)
+    assert result.returncode == 2
+    assert report["status"] == "bash_syntax_failed"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "if python -c 'print(1)'; then true; fi",
+        "env python -c 'print(1)'",
+        "command python -c 'print(1)'",
+        "sudo python -c 'print(1)'",
+    ],
+)
+def test_batch_entry_audit_rejects_wrapped_or_conditional_python(tmp_path: Path, command: str):
+    _require_batch_audit_shell()
+    batch = tmp_path / "wrapped_python.sbatch"
+    batch.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        f"{command}\n"
+        "conda activate Filament_python\n",
+        encoding="utf-8",
+    )
+    result = _run_batch_entry_audit(batch)
+    report = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert report["status"] == "bare_python_before_activation"
+    assert report["bare_python_commands"]
+
+
+def test_batch_entry_audit_does_not_treat_function_definition_as_activation(tmp_path: Path):
+    _require_batch_audit_shell()
+    batch = tmp_path / "function_activation.sbatch"
+    batch.write_text(
+        "#!/usr/bin/env bash\n"
+        "activate_env() {\n"
+        "  conda activate Filament_python\n"
+        "}\n"
+        "python -c 'print(1)'\n",
+        encoding="utf-8",
+    )
+    result = _run_batch_entry_audit(batch)
+    report = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert report["activation_line"] is None
+    assert report["bare_python_commands"] == [{"command": "python", "line": 5}]
 
 
 def _wsl_executable() -> str | None:
@@ -739,9 +865,11 @@ def test_secret_scan_of_new_guardrails():
         HPC_OPS / "hpc_preflight.sh",
         HPC_OPS / "hpc_git_source.sh",
         HPC_OPS / "provenance_v2.py",
+        HPC_OPS / "audit_batch_entry.py",
         HPC_OPS / "README.md",
         ROOT / "docs" / "experience" / "sol_luna_hpc_execution_playbook.md",
         ROOT / "docs" / "experience" / "2026-08-22_isaacs_eq27_c2_postmortem.md",
+        ROOT / "docs" / "experience" / "2026-08-24_hybrid_execution_postmortem.md",
     ]
     text = "\n".join(path.read_text(encoding="utf-8") for path in paths)
     assert "gh" + "p_" not in text
