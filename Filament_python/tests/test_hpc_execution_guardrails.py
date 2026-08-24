@@ -373,6 +373,35 @@ def test_shell_helpers_parse_without_execution():
         assert result.returncode == 0, result.stderr
 
 
+def test_preflight_rejects_non_scvi_account_without_side_effects():
+    fixture = r'''
+set -euo pipefail
+preflight="$1"
+root=$(mktemp -d)
+trap 'rm -rf -- "$root"' EXIT
+mkdir -p -- "$root/repo"
+set +e
+output=$(bash "$preflight" \
+  --account t0s000727 \
+  --remote-root /publicfs01/fs1-t/home/t0s000727 \
+  --repo "$root/repo" \
+  --expected-head 0123456789abcdef0123456789abcdef01234567 \
+  --expected-branch main \
+  --proxy-env "$root/proxy.env" \
+  --github-url https://github.com/example/repo.git \
+  --github-ref refs/heads/main \
+  --json)
+rc=$?
+set -e
+test "$rc" -eq 65
+printf '%s' "$output" | grep -F '"account_root":false' >/dev/null
+printf '%s' "$output" | grep -F 'unsupported account' >/dev/null
+test ! -e "$root/.codex_ops"
+'''
+    result = _run_posix_stdin(fixture, HPC_OPS / "hpc_preflight.sh")
+    assert result.returncode == 0, result.stderr
+
+
 def test_proxy_loader_rejects_unknown_key_without_printing_values(tmp_path: Path):
     bash = shutil.which("bash")
     if not bash or os.name == "nt":
@@ -497,7 +526,11 @@ def test_preflight_uses_verified_bundle_after_proxy_failure(tmp_path: Path):
         (HPC_OPS / "hpc_preflight.sh")
         .read_text(encoding="utf-8")
         .replace("/data/run01/scvi806", str(account_root))
-        .replace("/data/apps/miniforge/25.3.0-3", str(miniforge)),
+        .replace("/data/apps/miniforge/25.3.0-3", str(miniforge))
+        .replace(
+            "/data/home/scvi806/.conda/envs/Filament_python",
+            str(miniforge / "envs" / "Filament_python"),
+        ),
         encoding="utf-8",
     )
     shutil.copy2(HPC_OPS / "hpc_proxy_env.sh", tool_dir / "hpc_proxy_env.sh")
@@ -560,7 +593,7 @@ trap 'rm -rf -- "$root"' EXIT
     mkdir -p -- "$remote_root"
     tool_dir="$root/tool"
     mkdir -- "$tool_dir"
-    sed -e "s#/data/run01/scvi806#$account_root#g" -e "s#/data/apps/miniforge/25.3.0-3#$root/miniforge#g" "$preflight" > "$tool_dir/hpc_preflight.sh"
+    sed -e "s#/data/run01/scvi806#$account_root#g" -e "s#/data/apps/miniforge/25.3.0-3#$root/miniforge#g" -e "s#/data/home/scvi806/.conda/envs/Filament_python#$root/filament-env#g" "$preflight" > "$tool_dir/hpc_preflight.sh"
     cp -- "$2" "$tool_dir/hpc_proxy_env.sh"
     chmod 700 -- "$tool_dir/hpc_preflight.sh"
     preflight="$tool_dir/hpc_preflight.sh"
@@ -593,23 +626,23 @@ for command in sbatch sacct scontrol; do
 done
 miniforge="$root/miniforge"
 mkdir -p "$miniforge/etc/profile.d"
-mkdir -p "$miniforge/envs/Filament_python/bin"
+mkdir -p "$root/filament-env/bin"
 cat > "$miniforge/etc/profile.d/conda.sh" <<'EOF'
 conda() {
     [[ "$1" == activate && "$2" == Filament_python ]] || return 1
-    export CONDA_PREFIX="$MINIFORGE_ROOT_FIXED/envs/Filament_python"
+    export CONDA_PREFIX="$FILAMENT_ENV_PREFIX_FIXED"
     export PATH="$CONDA_PREFIX/bin:$PATH"
 }
 EOF
-cat > "$miniforge/envs/Filament_python/bin/python" <<'EOF'
+cat > "$root/filament-env/bin/python" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
-chmod 700 -- "$miniforge/envs/Filament_python/bin/python"
+chmod 700 -- "$root/filament-env/bin/python"
 proxy="$root/proxy.env"
 printf '%s\n' 'http_proxy=http://proxy.example.invalid:8080' 'https_proxy=https://proxy.example.invalid:8443' > "$proxy"
 chmod 600 -- "$proxy"
-export REAL_GIT="$real_git" MINIFORGE_ROOT_FIXED="$miniforge"
+export REAL_GIT="$real_git" FILAMENT_ENV_PREFIX_FIXED="$root/filament-env"
     PATH="$fakebin:$PATH"
     "$preflight" --account scvi806 --remote-root "$remote_root" --repo "$repo" --expected-head "$head" --expected-branch main --proxy-env "$proxy" --github-url https://github.com/example/repo.git --github-ref refs/heads/main --bundle "$bundle" --bundle-sha "$bundle_sha" --json
 '''
@@ -758,6 +791,36 @@ def test_powershell_wrapper_dry_run_is_argument_array_only(tmp_path: Path):
     assert "hpc_proxy_env.sh" in report["would_upload"]
 
 
+def test_powershell_wrapper_rejects_non_scvi_account_at_parameter_binding():
+    pwsh = shutil.which("pwsh") or shutil.which("powershell")
+    if not pwsh:
+        pytest.skip("PowerShell is not available on this host")
+    wrapper = HPC_OPS / "Invoke-PappRemoteScript.ps1"
+    wrapper_text = wrapper.read_text(encoding="utf-8")
+    assert "[ValidateSet('scvi806')]" in wrapper_text
+    assert "t0s000727" not in wrapper_text
+    result = subprocess.run(
+        [
+            pwsh,
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            str(wrapper),
+            "-Account",
+            "t0s000727",
+            "-RemoteRoot",
+            "/publicfs01/fs1-t/home/t0s000727",
+            "-LocalScript",
+            str(HPC_OPS / "hpc_preflight.sh"),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert result.returncode != 0
+    assert not result.stdout.strip()
+
+
 def test_powershell_wrapper_rejects_mismatched_account_root(tmp_path: Path):
     pwsh = shutil.which("pwsh") or shutil.which("powershell")
     if not pwsh:
@@ -860,3 +923,15 @@ def test_secret_scan_of_new_guardrails():
     assert "https://user:password" + "@" not in text
     assert "Invoke-Expression" not in (HPC_OPS / "Invoke-PappRemoteScript.ps1").read_text(encoding="utf-8")
     assert "cmd /c" not in (HPC_OPS / "Invoke-PappRemoteScript.ps1").read_text(encoding="utf-8")
+
+
+def test_powershell_wrapper_defers_bootstrap_substitutions_to_remote_shell():
+    wrapper = (HPC_OPS / "Invoke-PappRemoteScript.ps1").read_text(encoding="utf-8")
+    mkdir_line = next(line for line in wrapper.splitlines() if "$mkdirCommand =" in line)
+    assert "resolved_root=\\$(realpath" in mkdir_line
+    assert '"\\$resolved_root"' in mkdir_line
+    assert '"\\$(stat -c %u' in mkdir_line
+    assert '"\\$(id -u)' in mkdir_line
+    assert '"\\$(stat -c %a' in mkdir_line
+    assert 'test -d --' not in mkdir_line
+    assert 'test ! -e --' not in mkdir_line

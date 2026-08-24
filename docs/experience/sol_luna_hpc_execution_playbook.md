@@ -83,6 +83,11 @@ parent_decisions
 `Filament_python/tools/hpc_ops/Invoke-PappRemoteScript.ps1` 上传固定脚本
 执行。第一次出现 quote/escape 错误后不得继续堆叠转义。
 
+仓库内 `Invoke-PappRemoteScript.ps1` 与 `hpc_preflight.sh` 只允许
+`scvi806`，固定根目录为 `/data/run01/scvi806`，固定 Python 环境为
+`/data/home/scvi806/.conda/envs/Filament_python`。`t0s000727` 不得复用这两个
+入口；需要该账户时必须建立独立、经审计的路径/环境映射和测试。
+
 PowerShell 侧使用参数数组和 call operator；不使用 `Invoke-Expression`、
 `cmd /c` 或额外 PowerShell 子进程。每次 native 命令调用后检查
 `$LASTEXITCODE`。Bash 侧使用 `set -euo pipefail`、固定脚本参数、显式临时

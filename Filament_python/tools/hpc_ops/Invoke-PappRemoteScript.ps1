@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('scvi806', 't0s000727')]
+    [ValidateSet('scvi806')]
     [string]$Account,
 
     [Parameter(Mandatory = $true)]
@@ -24,8 +24,7 @@ $ErrorActionPreference = 'Stop'
 $global:LASTEXITCODE = 0
 
 $AccountRoots = @{
-    scvi806   = '/data/run01/scvi806'
-    t0s000727 = '/publicfs01/fs1-t/home/t0s000727'
+    scvi806 = '/data/run01/scvi806'
 }
 
 function New-StatusJson {
@@ -220,7 +219,9 @@ $scriptItem = $null
 $remoteStagingCreated = $false
 $target = $null
 $remoteDir = $null
+$failureStage = 'initialization'
 try {
+    $failureStage = 'validate-inputs'
     $Account = $Account.ToLowerInvariant()
     if ($Mode -eq 'Write' -and -not $AllowRemoteWrite) {
         throw 'Write mode requires -AllowRemoteWrite'
@@ -292,12 +293,21 @@ try {
         $wslDispatcher = Convert-ToWslPath -WindowsPath $dispatcherPath
         $target = "$Account@nc-n50r5"
 
-        $mkdirCommand = 'set -eu; resolved_root=$(realpath -e -- ''{0}''); test "$resolved_root" = ''{0}''; test -d -- "$resolved_root"; test ! -L ''{0}''; umask 077; if test ! -e -- ''{0}/.codex_ops''; then mkdir -m 700 -- ''{0}/.codex_ops''; fi; test -d -- ''{0}/.codex_ops''; test ! -L ''{0}/.codex_ops''; test "$(stat -c %u -- ''{0}/.codex_ops'')" = "$(id -u)"; test "$(stat -c %a -- ''{0}/.codex_ops'')" = 700; mkdir -m 700 -- ''{1}''' -f $validatedRemoteRoot, $remoteDir
+        # papp_cloud forwards this argument through a local WSL shell before
+        # the remote shell sees it. Escape every dollar expansion once so
+        # command substitutions and variable references are evaluated only on
+        # the remote host, never against the local WSL filesystem or identity.
+        $mkdirCommand = 'set -eu; resolved_root=\$(realpath -e -- ''{0}''); test "\$resolved_root" = ''{0}''; test -d "\$resolved_root"; test ! -L ''{0}''; umask 077; if test ! -e ''{0}/.codex_ops''; then mkdir -m 700 -- ''{0}/.codex_ops''; fi; test -d ''{0}/.codex_ops''; test ! -L ''{0}/.codex_ops''; test "\$(stat -c %u -- ''{0}/.codex_ops'')" = "\$(id -u)"; test "\$(stat -c %a -- ''{0}/.codex_ops'')" = 700; mkdir -m 700 -- ''{1}''' -f $validatedRemoteRoot, $remoteDir
+        $failureStage = 'remote-mkdir'
         Invoke-PappTransport -Operation ssh -OperationArgumentList @($target, $mkdirCommand)
         $remoteStagingCreated = $true
+        $failureStage = 'upload-script'
         Invoke-PappTransport -Operation scp -OperationArgumentList @($wslScript, "$target`:$remoteScript")
+        $failureStage = 'upload-proxy-helper'
         Invoke-PappTransport -Operation scp -OperationArgumentList @($wslProxyScript, "$target`:$remoteProxyScript")
+        $failureStage = 'upload-argument-manifest'
         Invoke-PappTransport -Operation scp -OperationArgumentList @($wslManifest, "$target`:$remoteManifest")
+        $failureStage = 'upload-dispatcher'
         Invoke-PappTransport -Operation scp -OperationArgumentList @($wslDispatcher, "$target`:$remoteDispatcher")
 
         # The uploaded dispatcher performs all raw SHA checks before it runs
@@ -307,6 +317,7 @@ try {
         $remoteReport = $null
         $remoteExitCode = 0
         if ($Mode -eq 'ReadOnly') {
+            $failureStage = 'execute-readonly-dispatcher'
             $remoteResult = Invoke-PappTransport -Operation ssh -OperationArgumentList @($target, $remoteCommand) -CaptureOutput
             $remoteExitCode = $remoteResult.exit_code
             $remoteReport = Convert-RemotePreflightReport -CapturedOutput $remoteResult.output
@@ -333,6 +344,7 @@ try {
             }
         }
         else {
+            $failureStage = 'execute-write-dispatcher'
             Invoke-PappTransport -Operation ssh -OperationArgumentList @($target, $remoteCommand)
             New-StatusJson -Ok $true -State 'completed' -Extra @{
                 account = $Account
@@ -369,7 +381,9 @@ try {
 catch {
     # Do not echo exception text: transport errors can contain remote URLs or
     # command fragments. The stable schema remains safe for automation.
-    New-StatusJson -Ok $false -State 'rejected_or_failed' -Message 'remote operation was rejected or failed'
+    New-StatusJson -Ok $false -State 'rejected_or_failed' -Message 'remote operation was rejected or failed' -Extra @{
+        failure_stage = $failureStage
+    }
     $global:LASTEXITCODE = 1
     exit 1
 }

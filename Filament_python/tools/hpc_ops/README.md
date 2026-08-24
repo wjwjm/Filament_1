@@ -4,6 +4,11 @@ This directory contains low-level, non-physical execution helpers for the
 Filament_1 HPC workflow. They do not submit jobs, create campaign locks, or
 modify simulation results.
 
+`Invoke-PappRemoteScript.ps1` and `hpc_preflight.sh` are intentionally scoped
+to the `scvi806` account and `/data/run01/scvi806` root. They reject
+`t0s000727` locally; that account requires a separately reviewed wrapper,
+environment path, and tests rather than inheriting the `scvi806` contract.
+
 ## Remote script wrapper
 
 `Invoke-PappRemoteScript.ps1` accepts only an account enum, a mapped remote
@@ -66,10 +71,11 @@ URL or in this repository.
 
 ## Read-only preflight
 
-`hpc_preflight.sh` checks the account/root mapping, requires the repository to
-resolve inside that non-symlinked remote root, verifies repository HEAD/branch
-and clean state, and requires the exact configured Miniforge
-`Filament_python` prefix and interpreter with NumPy/CuPy. It also checks
+`hpc_preflight.sh` checks the fixed `scvi806` account/root mapping, requires
+the repository to resolve inside that non-symlinked remote root, verifies
+repository HEAD/branch and clean state, and requires the exact configured Miniforge
+`/data/home/scvi806/.conda/envs/Filament_python` prefix and interpreter with
+NumPy/CuPy. It also checks
 required Git/SHA256/Slurm tools and a proxy `git ls-remote`
 probe. If the proxy path fails, an explicitly supplied Git bundle is accepted
 only after its raw SHA256, `git bundle verify`, expected ref, and expected

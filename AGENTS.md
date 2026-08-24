@@ -326,6 +326,7 @@ For these cases, stop and return the relevant code/data provenance, numerical ev
 - 模型/连接失败后，先读 Agent 状态并审计共享工作树；确认已有写入和文件所有权前，不得重启第二个 writer。
 - 无变量展开的单条只读 SSH 命令才可内联；遇到中文路径、管道、重定向、正则、命令替换、heredoc 或嵌套引号，必须使用 `Filament_python/tools/hpc_ops/` 的脚本/参数数组入口。第一次转义错误后不得继续堆叠引号。
 - HPC GitHub 连接遵循代理优先、verified bundle 回退；代理值、token、认证 URL 和真实凭据不得进入仓库或日志。preflight 失败不得创建 run/lock 或调用 `sbatch`。
+- 仓库内 `Invoke-PappRemoteScript.ps1` 和 `hpc_preflight.sh` 仅允许 `scvi806`；不得把其固定根目录或 `Filament_python` 环境套用于 `t0s000727`。其他账户必须使用独立审计的入口。
 - 运行时终态和诊断报告分开核验；`PENDING`、`RUNNING`、编译通过或测试通过不能替代科学验收。
 
 <!-- BEGIN FILAMENT LEAN EXECUTION AND FAILURE CIRCUIT BREAKERS -->

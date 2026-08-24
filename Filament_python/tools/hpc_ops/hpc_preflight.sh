@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Read-only HPC preflight. It never creates a run directory, lock, receipt,
-# scheduler job, or production result. Its only stdout is the JSON report.
+# Read-only scvi806 HPC preflight. It never creates a run directory, lock,
+# receipt, scheduler job, or production result. Its only stdout is the JSON
+# report. Other accounts require a separately reviewed account workflow.
 
 set -o pipefail
 
@@ -31,6 +32,7 @@ GITHUB_REF=""
 BUNDLE=""
 BUNDLE_SHA=""
 MINIFORGE_ROOT="/data/apps/miniforge/25.3.0-3"
+FILAMENT_ENV_PREFIX="/data/home/scvi806/.conda/envs/Filament_python"
 
 FAIL=0
 FAIL_RC=0
@@ -80,7 +82,6 @@ check_remote_root() {
     local expected="" root_real
     case "$ACCOUNT" in
         scvi806) expected="/data/run01/scvi806" ;;
-        t0s000727) expected="/publicfs01/fs1-t/home/t0s000727" ;;
         *) add_error "unsupported account" "$RC_ACCOUNT_ROOT"; return ;;
     esac
     if [[ "$REMOTE_ROOT" == *".."* || "$REMOTE_ROOT" == *'\'* || "$REMOTE_ROOT" =~ [[:cntrl:]] ]]; then
@@ -172,7 +173,7 @@ check_tools() {
 }
 
 check_python_env() {
-    local conda_script="$MINIFORGE_ROOT/etc/profile.d/conda.sh" expected_prefix="$MINIFORGE_ROOT/envs/Filament_python"
+    local conda_script="$MINIFORGE_ROOT/etc/profile.d/conda.sh" expected_prefix="$FILAMENT_ENV_PREFIX"
     local conda_rc numpy_rc cupy_rc python_bin python_real prefix_real
     if [[ ! -f "$conda_script" ]]; then
         add_error "configured Miniforge conda hook is missing" "$RC_PYTHON"
