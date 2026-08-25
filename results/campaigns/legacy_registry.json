@@ -574,6 +574,47 @@
       "job_count": 42,
       "mat_result_count": 26,
       "status": "relocated_to_project_namespace"
+    },
+    {
+      "batch_receipt_sha256": "6d8710140c38ad15116559517738b2251273512d4e04de8f85297cf29a5dfa21",
+      "campaign_id": "20260401_ion_lut_validation_diagnostic_v01",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260401_ion_lut_validation_diagnostic_v01",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/runs/ion_lut_check_138890",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件"
+      ],
+      "status": "relocated_to_project_namespace"
+    },
+    {
+      "batch_receipt_sha256": "6d8710140c38ad15116559517738b2251273512d4e04de8f85297cf29a5dfa21",
+      "component": "legacy_cache_snapshot",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/cache/rate_tables",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/cache/rate_tables"
+      ],
+      "file_count": 6,
+      "status": "relocated_reusable_cache"
+    },
+    {
+      "batch_receipt_sha256": "6d8710140c38ad15116559517738b2251273512d4e04de8f85297cf29a5dfa21",
+      "component": "matlab_analysis_tools_reference",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/references/matlab_analysis_tools_bb592ef",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/matlab"
+      ],
+      "file_count": 3,
+      "status": "archived_reference_only"
+    },
+    {
+      "batch_receipt_sha256": "6d8710140c38ad15116559517738b2251273512d4e04de8f85297cf29a5dfa21",
+      "component": "legacy_repository_snapshot",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/repository/Filament_1_dirty_bb592ef",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1"
+      ],
+      "head": "bb592ef1c16ee9c9572f041b2ba31db4d53b4582",
+      "future_execution_allowed": false,
+      "status": "relocated_legacy_reference_only"
     }
   ],
   "repository_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",

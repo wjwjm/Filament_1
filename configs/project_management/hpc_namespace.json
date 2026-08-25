@@ -26,7 +26,12 @@
   "project": "Filament_1",
   "project_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1",
   "protected_legacy_paths": {
-    "legacy_repository": "/data/run01/scvi806/user_Wangjimin/Filament_1",
+    "legacy_repository": {
+      "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/repository/Filament_1_dirty_bb592ef",
+      "active_execution_repository": false,
+      "replacement_source_policy": "clean checkout from GitHub main or immutable tag"
+    },
     "operations_staging": "/data/run01/scvi806/user_Wangjimin/.codex_ops",
     "secrets": "/data/run01/scvi806/user_Wangjimin/.secrets"
   },

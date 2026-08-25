@@ -1,0 +1,67 @@
+{
+  "artifact_manifest_path": null,
+  "artifact_manifest_sha256": null,
+  "attempts": [],
+  "campaign_id": "20260401_ion_lut_validation_diagnostic_v01",
+  "execution_git_sha": null,
+  "execution_ref": null,
+  "github_manifest_path": null,
+  "github_manifest_sha256": null,
+  "legacy": {
+    "components": [
+      {
+        "role": "diagnostics",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/runs/ion_lut_check_138890",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260401_ion_lut_validation_diagnostic_v01/diagnostics",
+        "file_count": 19,
+        "total_bytes": 1097505,
+        "source_manifest_sha256": "33e8e4335bd39f26b49ee8aed432d49e878a668f560d0af784160a646e885a6d",
+        "destination_manifest_sha256": "f2cebdc7227b9b587831f05c64c9e59f14fbb85556f2dbfa7db5217b61c1c741"
+      },
+      {
+        "role": "build_logs",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260401_ion_lut_validation_diagnostic_v01/logs",
+        "file_count": 2,
+        "total_bytes": 2014,
+        "source_manifest_sha256": "d2968d70fb60a86c4432ba88c3457a73ea6b8aa60fc5c3e6e08ae061b66b8909",
+        "destination_manifest_sha256": "f2cebdc7227b9b587831f05c64c9e59f14fbb85556f2dbfa7db5217b61c1c741"
+      }
+    ],
+    "evidence_nature": "lut_diagnostic_and_build_logs",
+    "remote_campaign_sha256": "6cdd848478e76e543e7d66689b6dc80fface9e4b5676a997851715a02861874e",
+    "scientific_acceptance": {
+      "reclassified": false,
+      "status": "not_assessed"
+    },
+    "scientific_reclassification_performed": false,
+    "source_deleted": false,
+    "status": "converted_formal_legacy_campaign",
+    "symlink_created": false
+  },
+  "lifecycle": "archived",
+  "paths": {
+    "hpc_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260401_ion_lut_validation_diagnostic_v01",
+    "legacy_run_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260401_ion_lut_validation_diagnostic_v01",
+    "local_artifacts": "D:/Filament_1/.artifacts/20260401_ion_lut_validation_diagnostic_v01"
+  },
+  "publication": {
+    "status": "not_published"
+  },
+  "raw_manifest_path": null,
+  "raw_manifest_sha256": null,
+  "relocation": {
+    "archive_receipt_sha256": "2778b688a53597cbca223b282d71d866b06d40c0bfd21df62acb98596981baa9",
+    "batch": "legacy_repository_relocation_20260825",
+    "batch_receipt_sha256": "6d8710140c38ad15116559517738b2251273512d4e04de8f85297cf29a5dfa21",
+    "schema": "filament.campaign_relocation_reference.v1"
+  },
+  "repository_url": null,
+  "requested_config_path": null,
+  "requested_config_sha256": null,
+  "resolved_config_path": null,
+  "resolved_config_sha256": null,
+  "schema": "filament.campaign.v1",
+  "scientific_purpose": "Mechanical preservation of the historical ionization LUT diagnostic outputs and build logs without scientific reclassification.",
+  "title": "Legacy ionization LUT diagnostic"
+}

@@ -74,4 +74,15 @@ separate `attempts/<job_id>/` directory containing its scheduler log and, for
 failed or cancelled jobs remain explicit in the registry; archive acceptance
 does not select a final result or establish scientific validity. The legacy
 LUT diagnostics, reusable rate-table cache, two LUT build logs and three MATLAB
-Live Scripts were deliberately excluded and left unchanged.
+Live Scripts were excluded from that campaign and handled by the final
+repository-freeze batch described below.
+
+The final dirty HPC repository has now been frozen at
+`legacy/repository/Filament_1_dirty_bb592ef`. Its complete `.git`, dirty
+worktree, untracked files, `wang-local-wip` branch and two stashes are retained
+for reference only; it is not an execution repository. Before the atomic move,
+the final residuals were separated into the
+`20260401_ion_lut_validation_diagnostic_v01` campaign, the shared legacy
+`cache/rate_tables` snapshot and the archived MATLAB Live Script reference
+set. Future HPC execution must use a clean checkout from GitHub `main` at an
+explicit commit or immutable tag.

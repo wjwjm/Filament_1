@@ -1,0 +1,50 @@
+{
+  "schema": "filament.hpc_legacy_repository_snapshot.v1",
+  "batch_id": "legacy_repository_relocation_20260825",
+  "status": "completed",
+  "batch_receipt_sha256": "6d8710140c38ad15116559517738b2251273512d4e04de8f85297cf29a5dfa21",
+  "repository": {
+    "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1",
+    "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/repository/Filament_1_dirty_bb592ef",
+    "head": "bb592ef1c16ee9c9572f041b2ba31db4d53b4582",
+    "current_branch": "main",
+    "local_branches": ["main", "wang-local-wip"],
+    "stash_count": 2,
+    "file_count": 812,
+    "directory_count": 281,
+    "symlink_count": 0,
+    "total_bytes": 38774171,
+    "source_manifest_sha256": "3393b1f9bcd82c2ea229a238645cc89a3c6118938fe4f03505d1741d0fe11ee1",
+    "repository_state_sha256": "b9c8586e524ac0118e3a739657391c1321dd8f176af92a9f14791e2803704e48",
+    "launcher_index_sha256": "97a5383046de076ac859431b7d57cef1eea13e5ada7f77293d117cdbdb97efdb",
+    "relocation_receipt_sha256": "8eb0f8ce3d4228e31e82c27dd754a9166a0761adcbdcea303a38a5e7f8318a2f",
+    "active_execution_repository": false,
+    "replacement_source_policy": "clean checkout from GitHub main or immutable tag"
+  },
+  "residuals": {
+    "lut_diagnostic_campaign": {
+      "campaign_id": "20260401_ion_lut_validation_diagnostic_v01",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260401_ion_lut_validation_diagnostic_v01",
+      "archive_receipt_sha256": "2778b688a53597cbca223b282d71d866b06d40c0bfd21df62acb98596981baa9"
+    },
+    "legacy_cache_snapshot": {
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/cache/rate_tables",
+      "file_count": 6,
+      "total_bytes": 294156,
+      "snapshot_sha256": "d26f1d2b00708120cb9605c72a238c4306e703548053451318deb4d14b640c68",
+      "future_reuse_allowed": true
+    },
+    "matlab_reference_snapshot": {
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/references/matlab_analysis_tools_bb592ef",
+      "file_count": 3,
+      "total_bytes": 555055,
+      "snapshot_sha256": "84801b553ddccd37e9b58fbc8078ef559a7bd5fa7daab0c93ef2ffe544954713",
+      "future_execution_allowed": false
+    }
+  },
+  "path_map_sha256": "c3e7fbf5c6d6ca4c6943ebea0a79f2fcb6232b3e3c618bb3d8ac232dc7bd6ad9",
+  "source_deleted": false,
+  "symlink_created": false,
+  "slurm_actions_performed": false,
+  "scientific_reclassification_performed": false
+}
