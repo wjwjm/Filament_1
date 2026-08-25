@@ -94,6 +94,11 @@ cache、archive 和 quarantine 均从该命名空间解析；账号根下的旧
 [`configs/project_management/hpc_namespace.json`](configs/project_management/hpc_namespace.json)，
 阶段一证据摘要见
 [`docs/project_management/2026-08-25_hpc_namespace_phase1_cutover.md`](docs/project_management/2026-08-25_hpc_namespace_phase1_cutover.md)。
+第二阶段第一批的四个正式 legacy 运行已进入 `legacy/runs/<campaign_id>/`；迁移
+路径、manifest SHA256 和 quarantine 状态见
+[`configs/project_management/hpc_legacy_relocation_batch1.json`](configs/project_management/hpc_legacy_relocation_batch1.json)
+及
+[`第二阶段第一批迁移报告`](docs/project_management/2026-08-25_hpc_legacy_relocation_batch1.md)。
 
 详细入口：
 

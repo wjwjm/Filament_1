@@ -15,8 +15,11 @@
   大规模迁移不在本轮范围，按 §5 冻结为 `deferred_until_architecture_requires_it`。
 - 已完成 HPC 项目命名空间阶段一：新管理根固定为
   `/data/run01/scvi806/user_Wangjimin/projects/Filament_1`；账号根下五个旧管理
-  目录已进入项目 quarantine 观察区。旧 `Filament_1`、19 个旧运行目录、
-  `.secrets`、`.codex_ops` 和 NPZ/MAT 均保持原位。阶段二尚未开始。
+  目录已进入项目 quarantine 观察区。
+- 已完成阶段二第一批：4 个正式 legacy campaign 已复制并验哈希至
+  `legacy/runs/<campaign_id>/`，对应旧顶层源目录进入 dated quarantine。旧 dirty
+  `Filament_1`、Phase 8B/8C、`.secrets` 和 `.codex_ops` 保持原位；未永久删除
+  NPZ/MAT 或 quarantine 内容。
 
 ## 1. 五个分类
 

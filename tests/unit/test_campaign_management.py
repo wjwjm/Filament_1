@@ -148,9 +148,40 @@ def test_hpc_namespace_config_keeps_new_and_legacy_roots_separate() -> None:
     assert namespace["policies"] == {
         "new_jobs_from_legacy_repository": False,
         "permanent_deletion_authorized": False,
-        "phase2_started": False,
+        "phase2_started": True,
         "symlinks_allowed": False,
     }
     assert namespace["cutover"]["receipt_sha256"] == (
         "51c805bc14fc9e27bc63437ce15639ae058e0e01107c24b1e3f5525340efd700"
     )
+
+
+def test_hpc_legacy_relocation_batch1_paths_are_explicit_and_non_destructive() -> None:
+    root = Path(__file__).resolve().parents[2]
+    metadata = json.loads(
+        (root / "configs" / "project_management" / "hpc_legacy_relocation_batch1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    project_root = "/data/run01/scvi806/user_Wangjimin/projects/Filament_1"
+    assert metadata["schema"] == "filament.hpc_legacy_relocation_batch.v1"
+    assert metadata["status"] == "completed"
+    assert metadata["permanent_deletion_authorized"] is False
+    assert metadata["symlink_created"] is False
+    assert len(metadata["campaigns"]) == 4
+    assert len({campaign["campaign_id"] for campaign in metadata["campaigns"]}) == 4
+    for campaign in metadata["campaigns"]:
+        assert campaign["current_path"] == f"{project_root}/legacy/runs/{campaign['campaign_id']}"
+        assert campaign["original_path"].startswith("/data/run01/scvi806/user_Wangjimin/")
+        assert campaign["quarantine_source_path"].startswith(
+            f"{project_root}/quarantine/relocated_legacy_sources_20260825/"
+        )
+        assert campaign["file_count"] > 0
+        assert campaign["total_bytes"] > 0
+        for field in (
+            "source_manifest_sha256",
+            "destination_manifest_sha256",
+            "relocation_receipt_sha256",
+            "archive_receipt_sha256",
+        ):
+            assert len(campaign[field]) == 64

@@ -1,0 +1,61 @@
+{
+  "batch_id": "legacy_relocation_batch1_20260825",
+  "batch_receipt_sha256": "0095137fe36ba375c6723a94b09cf3f02b3779d0f39aa340aca82465ce457401",
+  "campaigns": [
+    {
+      "archive_receipt_sha256": "d380ceb6b6be8b52a060621697256c8cb48f79b597038a5f9f41acd1e4c74bb6",
+      "campaign_id": "20260820_historical_fr_mixture_final_v01",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260820_historical_fr_mixture_final_v01",
+      "destination_manifest_sha256": "2955e3f2eded7e56773d113a3a2e40deed905f3b0c6c3847d99f8e4cb9e9ebfd",
+      "file_count": 2003,
+      "original_path": "/data/run01/scvi806/user_Wangjimin/historical_fr_mixture_20260820T155855Z",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_sources_20260825/historical_fr_mixture_20260820T155855Z",
+      "relocation_receipt_sha256": "587287c97b99dc9fdea8a9e4f5d0a3e8ce811751aaa92c48d6c591d307bad398",
+      "source_manifest_sha256": "5afbe710cb62bb7ec9b1b40bd7f4097978e3989156545f1facab4e4b87a26f52",
+      "total_bytes": 222589452
+    },
+    {
+      "archive_receipt_sha256": "d84c2e101816d1f72fbacc135d6c1f6db51868227c07fb9d905bf3cf5eae5805",
+      "campaign_id": "20260821_raman_off_kerr085_final_v01",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260821_raman_off_kerr085_final_v01",
+      "destination_manifest_sha256": "79e33be05b575e6001d40ac8f571491a485e5b905fbc3e8cf1c971b365788a38",
+      "file_count": 2047,
+      "original_path": "/data/run01/scvi806/user_Wangjimin/raman_off_kerr085_20260821T073259Z",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_sources_20260825/raman_off_kerr085_20260821T073259Z",
+      "relocation_receipt_sha256": "c4bd5509f7c9ad9669e6863c8d7b228c98a1f7a3fad8fb72b3a5651eaf917dc3",
+      "source_manifest_sha256": "cb932e812e578fb7f4546a2cff2d3cb1224111f55e565d1c48168172f3b06242",
+      "total_bytes": 241795212
+    },
+    {
+      "archive_receipt_sha256": "797d47037797fc629bb8bbca7768f38bdfdb43f761ca607b54b21682cfb5b593",
+      "campaign_id": "20260822_isaacs_complete_eq27_c2_v01",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260822_isaacs_complete_eq27_c2_v01",
+      "destination_manifest_sha256": "12c107636314683d0cee15b6578dc47dbc6fce2d47e63fb04201b1d74285f798",
+      "file_count": 3707,
+      "original_path": "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_sources_20260825/isaacs_complete_eq27_c2",
+      "relocation_receipt_sha256": "02e155c4f7a1e3d7568a0177536bc8cbcbc512b1816f94a7bd3c9740c6913f3b",
+      "source_manifest_sha256": "4987b09fca83bdaaf6ae14414f04086b1c36ba62a0d81e06cc964c9e2d215f08",
+      "total_bytes": 674099910
+    },
+    {
+      "archive_receipt_sha256": "dbde5883d5da157d50b1e9d18aa8cc256cc1ba19d0cfe6c40edbef9434b5488b",
+      "campaign_id": "20260824_hybrid_propagation_0p60_v01",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260824_hybrid_propagation_0p60_v01",
+      "destination_manifest_sha256": "1fbcfc921b7a53c671313b2938f03b7948a1eb1c63a6b3f618e9f3934325cb41",
+      "file_count": 5535,
+      "original_path": "/data/run01/scvi806/user_Wangjimin/hybrid_propagation_validation_0p60",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_sources_20260825/hybrid_propagation_validation_0p60",
+      "relocation_receipt_sha256": "f9dcdd6de339375d02add4abfc7498e432b2d4c240edc93641a06fd14a522d12",
+      "source_manifest_sha256": "ccc2cf795a98ae0f998a87d036d975ad98217a3d147f7cb5cfc9bb7d0c56c8f3",
+      "total_bytes": 1068790480
+    }
+  ],
+  "evidence_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/archive/inventories/legacy_relocation_batch1_20260825",
+  "permanent_deletion_authorized": false,
+  "project_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1",
+  "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_sources_20260825",
+  "schema": "filament.hpc_legacy_relocation_batch.v1",
+  "status": "completed",
+  "symlink_created": false
+}

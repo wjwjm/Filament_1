@@ -35,10 +35,16 @@ allowlist 调用 `publish-plan --apply`，目标为
 ```
 
 账号根下旧 `/data/run01/scvi806/user_Wangjimin/Filament_1` 保持
-`legacy_compatibility_root` 身份，不 pull、不 reset，也不再启动新任务。19 个旧运行
-目录继续原位冻结。原账号根 `staging/campaigns/cache/archive/quarantine` 已移入
+`legacy_compatibility_root` 身份，不 pull、不 reset，也不再启动新任务。原账号根
+`staging/campaigns/cache/archive/quarantine` 已移入
 `projects/Filament_1/quarantine/namespace_cutover_20260825/account_root_management/`
 观察区；这不是永久删除授权。
+
+第二阶段第一批已将四个正式 legacy campaign 复制并逐文件验哈希至
+`projects/Filament_1/legacy/runs/<campaign_id>/`，旧顶层源目录随后原子移动至
+`projects/Filament_1/quarantine/relocated_legacy_sources_20260825/`。Phase 8B、
+Phase 8C 和旧 dirty `Filament_1` 不在该批范围。具体路径与 receipt 哈希见
+`configs/project_management/hpc_legacy_relocation_batch1.json`。
 
 机器或脚本不得自行拼接 HPC 路径，应读取
 `configs/project_management/hpc_namespace.json`。历史 campaign 中已经冻结的绝对

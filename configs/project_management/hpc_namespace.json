@@ -5,6 +5,7 @@
     "cache": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/cache",
     "campaigns": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns",
     "legacy": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy",
+    "legacy_runs": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs",
     "quarantine": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine",
     "source_staging": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/source/staging"
   },
@@ -19,7 +20,7 @@
   "policies": {
     "new_jobs_from_legacy_repository": false,
     "permanent_deletion_authorized": false,
-    "phase2_started": false,
+    "phase2_started": true,
     "symlinks_allowed": false
   },
   "project": "Filament_1",
@@ -30,5 +31,15 @@
     "secrets": "/data/run01/scvi806/user_Wangjimin/.secrets"
   },
   "quarantine_observation_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/namespace_cutover_20260825/account_root_management",
+  "relocation_batches": [
+    {
+      "batch_id": "legacy_relocation_batch1_20260825",
+      "campaign_count": 4,
+      "evidence_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/archive/inventories/legacy_relocation_batch1_20260825",
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_sources_20260825",
+      "receipt_sha256": "0095137fe36ba375c6723a94b09cf3f02b3779d0f39aa340aca82465ce457401",
+      "status": "completed"
+    }
+  ],
   "schema": "filament.hpc_project_namespace.v1"
 }
