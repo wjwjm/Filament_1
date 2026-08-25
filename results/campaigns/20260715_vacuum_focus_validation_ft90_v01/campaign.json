@@ -19,6 +19,20 @@
         "source_manifest_sha256": "2c841b7705fcc8eff0c7e905ef0bf34c3d180b5b540193fa216ea11164d3317d",
         "destination_manifest_sha256": "f18e995a0dccdf45eb5a909f30c4a1b951fe4d909d1cbed641d8c201c38585c6",
         "source_deleted": false
+      },
+      {
+        "role": "legacy_source_packages",
+        "original_root": "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260715_vacuum_focus_validation_ft90_v01/provenance/source_packages",
+        "quarantine_source_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_dirty_repository_stage_bundles_20260825/.codex_stage_bundles",
+        "files": [
+          "vacuum_focus_validation_ft90_b655d5e.tar.gz",
+          "vacuum_focus_validation_ft90_b655d5e.zip"
+        ],
+        "file_count": 2,
+        "total_bytes": 14618,
+        "source_manifest_sha256": "9f06d24d584ac147c87fdf0fa32f15573dc8ff307ba66dadca5aeffcfab457dc",
+        "destination_manifest_sha256": "58497c2038d34cfa1dfd6cc107b21c18f1d8637119bf540b4fc0b3d857d1facd"
       }
     ],
     "config_inventory": {
@@ -42,7 +56,7 @@
     "internal_subdomains": [
       "vacuum_focus_validation_ft90_20260715T152950Z"
     ],
-    "remote_campaign_sha256": "8ae38e30c60c834c34ba1fc3e2ed46360de840093f04d3cdc38d71397d8fc488",
+    "remote_campaign_sha256": "cab42be2c8bfb0973bc6f3919ba117f6618ac7cc51d6aa611152d39f5abdbcd4",
     "remote_raw_manifest": {
       "path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260715_vacuum_focus_validation_ft90_v01/raw_manifest_legacy_outputs_relocation_20260825.json",
       "sha256": "400d8e4ca6889bce394f23d2baafe802683689626b1df7bf8bd884f08d78b611"
@@ -58,6 +72,7 @@
   "lifecycle": "archived",
   "paths": {
     "hpc_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260715_vacuum_focus_validation_ft90_v01",
+    "legacy_source_packages_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260715_vacuum_focus_validation_ft90_v01/provenance/source_packages",
     "legacy_run_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260715_vacuum_focus_validation_ft90_v01",
     "local_artifacts": "D:/Filament_1/.artifacts/20260715_vacuum_focus_validation_ft90_v01"
   },
@@ -67,6 +82,16 @@
   "raw_manifest_path": null,
   "raw_manifest_sha256": null,
   "relocation": {
+    "append_history": [
+      {
+        "batch": "dirty_repo_stage_bundles_relocation_20260825",
+        "role": "legacy_source_packages",
+        "source_manifest_sha256": "9f06d24d584ac147c87fdf0fa32f15573dc8ff307ba66dadca5aeffcfab457dc",
+        "destination_manifest_sha256": "58497c2038d34cfa1dfd6cc107b21c18f1d8637119bf540b4fc0b3d857d1facd",
+        "archive_receipt_sha256": "62e40bde53ca9a75a964bb9b2ab3ff4985f7473260f58de9356049aacc5f37c1",
+        "relocation_receipt_sha256": "3a567106cc3f0606812f298000366fd9e42dfdcf1f399abe9081bc5094be20f8"
+      }
+    ],
     "archive_receipt_sha256": "f3c3f7b61f1ece30735a80fc21fef9297ae55dc6dee2ec5d64a5dfdd845988fa",
     "batch": "legacy_repository_outputs_relocation_batch5_20260825",
     "batch_receipt_sha256": "aaf318e63326838537c2c89ed1644de0a8efed793ab603b723310bcf404cf3dd",

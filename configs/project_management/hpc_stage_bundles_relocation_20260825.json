@@ -1,0 +1,31 @@
+{
+  "schema": "filament.hpc_stage_bundles_relocation.v1",
+  "batch_id": "dirty_repo_stage_bundles_relocation_20260825",
+  "status": "completed",
+  "batch_receipt_sha256": "1b42bacf4c9959c63212b6ff5e0e3308aa1f5f44c97cb03133dcd73933143a11",
+  "source_manifest_sha256": "9f06d24d584ac147c87fdf0fa32f15573dc8ff307ba66dadca5aeffcfab457dc",
+  "path_map_sha256": "a35dd8d4454182dbd181797700f9a162877ab60fe7996428e84d58d0cda40b8c",
+  "evidence_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/archive/inventories/dirty_repo_stage_bundles_relocation_20260825",
+  "source_root": "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles",
+  "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_dirty_repository_stage_bundles_20260825/.codex_stage_bundles",
+  "campaigns": [
+    {
+      "campaign_id": "20260716_vacuum_focus_profile_scan_attempts_v01",
+      "role": "diagnostic_or_development_attempts",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260716_vacuum_focus_profile_scan_attempts_v01/attempts",
+      "destination_manifest_sha256": "cce5b671fe40cfc9d837fad63671702c150aa1ce082e80353c682ed5fbf929ef"
+    },
+    {
+      "campaign_id": "20260715_vacuum_focus_validation_ft90_v01",
+      "role": "legacy_source_packages",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260715_vacuum_focus_validation_ft90_v01/provenance/source_packages",
+      "destination_manifest_sha256": "58497c2038d34cfa1dfd6cc107b21c18f1d8637119bf540b4fc0b3d857d1facd"
+    }
+  ],
+  "file_count": 554,
+  "total_bytes": 26186364,
+  "permanent_deletion_authorized": false,
+  "symlink_created": false,
+  "slurm_actions_performed": false,
+  "scientific_reclassification_performed": false
+}

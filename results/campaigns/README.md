@@ -56,3 +56,13 @@ records. Each complete domain is preserved as an `outputs` component, including
 NPZ, MAT, source tar files, logs, embedded source copies and failed-preflight
 evidence. Archive acceptance records management completeness only and does not
 revise the scientific conclusions contained in the legacy reports.
+
+The former dirty-repository `.codex_stage_bundles` root is represented by the
+diagnostic/development campaign
+`20260716_vacuum_focus_profile_scan_attempts_v01` plus a
+`legacy_source_packages` component appended to
+`20260715_vacuum_focus_validation_ft90_v01`. The four scan directories retain
+their attempt ordering without selecting a final scientific result; the FT90
+tar/zip packages are provenance only. Full small manifests and receipts remain
+in the corresponding ignored `.artifacts/<campaign_id>/hpc_relocation/`
+directories.

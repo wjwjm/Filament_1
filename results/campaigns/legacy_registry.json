@@ -535,6 +535,31 @@
       ],
       "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_repository_outputs_20260825",
       "status": "relocated_to_project_namespace"
+    },
+    {
+      "batch_receipt_sha256": "1b42bacf4c9959c63212b6ff5e0e3308aa1f5f44c97cb03133dcd73933143a11",
+      "campaign_id": "20260716_vacuum_focus_profile_scan_attempts_v01",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260716_vacuum_focus_profile_scan_attempts_v01",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles/vacuum_focus_profile_scan_20260715_001",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles/vacuum_focus_profile_scan_20260716_002",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles/vacuum_focus_profile_scan_20260716_002_padded",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles/vacuum_focus_profile_scan_20260716_padprobe"
+      ],
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_dirty_repository_stage_bundles_20260825/.codex_stage_bundles",
+      "status": "relocated_to_project_namespace"
+    },
+    {
+      "batch_receipt_sha256": "1b42bacf4c9959c63212b6ff5e0e3308aa1f5f44c97cb03133dcd73933143a11",
+      "campaign_id": "20260715_vacuum_focus_validation_ft90_v01",
+      "component_role": "legacy_source_packages",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260715_vacuum_focus_validation_ft90_v01/provenance/source_packages",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles/vacuum_focus_validation_ft90_b655d5e.tar.gz",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles/vacuum_focus_validation_ft90_b655d5e.zip"
+      ],
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_dirty_repository_stage_bundles_20260825/.codex_stage_bundles",
+      "status": "component_appended_to_existing_campaign"
     }
   ],
   "repository_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",

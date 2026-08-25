@@ -1,0 +1,92 @@
+{
+  "artifact_manifest_path": null,
+  "artifact_manifest_sha256": null,
+  "attempts": [
+    {"role": "initial_20260715_001", "original_directory": "vacuum_focus_profile_scan_20260715_001", "status": "unknown_not_inferred"},
+    {"role": "expanded_20260716_002", "original_directory": "vacuum_focus_profile_scan_20260716_002", "status": "unknown_not_inferred"},
+    {"role": "expanded_padded_20260716_002", "original_directory": "vacuum_focus_profile_scan_20260716_002_padded", "status": "unknown_not_inferred"},
+    {"role": "padding_probe_20260716", "original_directory": "vacuum_focus_profile_scan_20260716_padprobe", "status": "unknown_not_inferred"}
+  ],
+  "campaign_id": "20260716_vacuum_focus_profile_scan_attempts_v01",
+  "execution_git_sha": null,
+  "execution_ref": null,
+  "github_manifest_path": null,
+  "github_manifest_sha256": null,
+  "legacy": {
+    "components": [
+      {
+        "role": "initial_20260715_001",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles/vacuum_focus_profile_scan_20260715_001",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260716_vacuum_focus_profile_scan_attempts_v01/attempts/initial_20260715_001",
+        "quarantine_source_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_dirty_repository_stage_bundles_20260825/.codex_stage_bundles",
+        "file_count": 104,
+        "total_bytes": 4831614,
+        "source_manifest_sha256": "9f06d24d584ac147c87fdf0fa32f15573dc8ff307ba66dadca5aeffcfab457dc",
+        "destination_manifest_sha256": "cce5b671fe40cfc9d837fad63671702c150aa1ce082e80353c682ed5fbf929ef"
+      },
+      {
+        "role": "expanded_20260716_002",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles/vacuum_focus_profile_scan_20260716_002",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260716_vacuum_focus_profile_scan_attempts_v01/attempts/expanded_20260716_002",
+        "quarantine_source_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_dirty_repository_stage_bundles_20260825/.codex_stage_bundles",
+        "file_count": 168,
+        "total_bytes": 9632049,
+        "source_manifest_sha256": "9f06d24d584ac147c87fdf0fa32f15573dc8ff307ba66dadca5aeffcfab457dc",
+        "destination_manifest_sha256": "cce5b671fe40cfc9d837fad63671702c150aa1ce082e80353c682ed5fbf929ef"
+      },
+      {
+        "role": "expanded_padded_20260716_002",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles/vacuum_focus_profile_scan_20260716_002_padded",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260716_vacuum_focus_profile_scan_attempts_v01/attempts/expanded_padded_20260716_002",
+        "quarantine_source_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_dirty_repository_stage_bundles_20260825/.codex_stage_bundles",
+        "file_count": 168,
+        "total_bytes": 9408928,
+        "source_manifest_sha256": "9f06d24d584ac147c87fdf0fa32f15573dc8ff307ba66dadca5aeffcfab457dc",
+        "destination_manifest_sha256": "cce5b671fe40cfc9d837fad63671702c150aa1ce082e80353c682ed5fbf929ef"
+      },
+      {
+        "role": "padding_probe_20260716",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles/vacuum_focus_profile_scan_20260716_padprobe",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260716_vacuum_focus_profile_scan_attempts_v01/attempts/padding_probe_20260716",
+        "quarantine_source_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_dirty_repository_stage_bundles_20260825/.codex_stage_bundles",
+        "file_count": 112,
+        "total_bytes": 2299155,
+        "source_manifest_sha256": "9f06d24d584ac147c87fdf0fa32f15573dc8ff307ba66dadca5aeffcfab457dc",
+        "destination_manifest_sha256": "cce5b671fe40cfc9d837fad63671702c150aa1ce082e80353c682ed5fbf929ef"
+      }
+    ],
+    "evidence_nature": "diagnostic_or_development",
+    "original_root": "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles",
+    "quarantine_source_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_dirty_repository_stage_bundles_20260825/.codex_stage_bundles",
+    "remote_campaign_sha256": "8cc5831f29573de9cb5fd4bd484f54b335b861a2a63480017a413f0e1d70fb34",
+    "scientific_acceptance": {"reclassified": false, "status": "unknown_not_inferred"},
+    "scientific_reclassification_performed": false,
+    "source_deleted": false,
+    "status": "legacy",
+    "symlink_created": false
+  },
+  "lifecycle": "archived",
+  "paths": {
+    "hpc_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260716_vacuum_focus_profile_scan_attempts_v01",
+    "legacy_run_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260716_vacuum_focus_profile_scan_attempts_v01",
+    "local_artifacts": "D:/Filament_1/.artifacts/20260716_vacuum_focus_profile_scan_attempts_v01"
+  },
+  "publication": {"status": "not_published"},
+  "raw_manifest_path": null,
+  "raw_manifest_sha256": null,
+  "relocation": {
+    "archive_receipt_sha256": "806d9953a34be87350717a222919ef3763541ef03f17f6d93f16b184f3fd7d80",
+    "batch": "dirty_repo_stage_bundles_relocation_20260825",
+    "batch_receipt_sha256": "1b42bacf4c9959c63212b6ff5e0e3308aa1f5f44c97cb03133dcd73933143a11",
+    "relocation_receipt_sha256": "5c0f2911e5dfefd5b5b6614443c67c5c972d395a820e19f366940944e53b184c",
+    "schema": "filament.campaign_relocation_reference.v1"
+  },
+  "repository_url": null,
+  "requested_config_path": null,
+  "requested_config_sha256": null,
+  "resolved_config_path": null,
+  "resolved_config_sha256": null,
+  "schema": "filament.campaign.v1",
+  "scientific_purpose": "Mechanical preservation of diagnostic or development profile-scan attempts without selecting a final result.",
+  "title": "Vacuum focus profile scan legacy attempts"
+}
