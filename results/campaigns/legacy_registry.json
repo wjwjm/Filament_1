@@ -398,6 +398,30 @@
       "total_bytes": 567316
     }
   ],
+  "hpc_relocations": [
+    {
+      "batch_receipt_sha256": "dd6f0c30ca2e25f38e9dbb7c9b4d3225fae780c35f7f143e12e4accc01fd8cc4",
+      "campaign_id": "20260723_phase8c_a3_enablement_v01",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260723_phase8c_a3_enablement_v01",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/phase8c_a3_runs",
+        "/data/run01/scvi806/user_Wangjimin/phase8c_a3_staging"
+      ],
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8c_sources_20260825",
+      "status": "relocated_to_project_namespace"
+    },
+    {
+      "batch_receipt_sha256": "dd6f0c30ca2e25f38e9dbb7c9b4d3225fae780c35f7f143e12e4accc01fd8cc4",
+      "campaign_id": "20260723_phase8c_b_full_raman_v01",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260723_phase8c_b_full_raman_v01",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/phase8c_b_runs",
+        "/data/run01/scvi806/user_Wangjimin/phase8c_b_staging"
+      ],
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8c_sources_20260825",
+      "status": "relocated_to_project_namespace"
+    }
+  ],
   "repository_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
   "schema": "filament.legacy_registry.v1",
   "source_inventory": "docs/repo_layout/repository_inventory.json",

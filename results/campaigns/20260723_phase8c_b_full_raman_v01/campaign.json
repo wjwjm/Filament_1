@@ -1,0 +1,112 @@
+{
+  "artifact_manifest_path": null,
+  "artifact_manifest_sha256": null,
+  "attempts": [],
+  "campaign_id": "20260723_phase8c_b_full_raman_v01",
+  "execution_git_sha": null,
+  "execution_ref": null,
+  "github_manifest_path": null,
+  "github_manifest_sha256": null,
+  "legacy": {
+    "attempt_evidence_markers": {
+      "fallback": 2639,
+      "test_a_4be3b1a0da89": 2196,
+      "test_a_c4edd8d399f2": 2639,
+      "test_a_f0a7b5d5ac10_fallback": 2636
+    },
+    "components": [
+      {
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260723_phase8c_b_full_raman_v01/runs",
+        "destination_manifest_sha256": "9753c0d18d8f75c0810a74709eddb7af0b0d4944bd5838a8635927189a768364",
+        "file_count": 7471,
+        "original_path": "/data/run01/scvi806/user_Wangjimin/phase8c_b_runs",
+        "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8c_sources_20260825/phase8c_b_runs",
+        "role": "legacy_runs",
+        "source_deleted": false,
+        "source_manifest_sha256": "32593022bf1b17717d5ad2c0852be9c9bc06341d795a038be8ea6bf40949cf87",
+        "total_bytes": 219778863
+      },
+      {
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260723_phase8c_b_full_raman_v01/staging",
+        "destination_manifest_sha256": "9f2381cce1649a23a70058764009ba5d38035e540f6af3fe15f9932da6d3c3c7",
+        "file_count": 172,
+        "original_path": "/data/run01/scvi806/user_Wangjimin/phase8c_b_staging",
+        "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8c_sources_20260825/phase8c_b_staging",
+        "role": "legacy_staging",
+        "source_deleted": false,
+        "source_manifest_sha256": "327b42b70622611b4812e2d79146ec0ba0e1415e316c456e6e2b82996a73afa0",
+        "total_bytes": 1755906
+      }
+    ],
+    "config_inventory": {
+      "full_remote_record_count": 6,
+      "primary_evidence": [
+        {
+          "path": "Filament_1_4be3b1a0da89_attempt3_proxy/Filament_python/results/phase8c_full_raman_causality/test_a_config_diff.json",
+          "role": "legacy_staging",
+          "sha256": "cc4dc143108b1cbd189398137155f783c02428ece71e280b18d1242f62542577"
+        },
+        {
+          "path": "Filament_1_4be3b1a0da89_attempt3_proxy/Filament_python/results/phase8c_full_raman_causality/test_a_off_config.json",
+          "role": "legacy_staging",
+          "sha256": "1c1415941d4497a6caaf6a37ee8559bbd8b8b20a9eeee6377a8dbbc7d28f41ef"
+        },
+        {
+          "path": "Filament_1_4be3b1a0da89_attempt3_proxy/Filament_python/results/phase8c_full_raman_causality/test_a_on_config.json",
+          "role": "legacy_staging",
+          "sha256": "aafec917d06c252617e5bfdd2ce3a73dd276401c271c33380d59e0172055cf78"
+        }
+      ]
+    },
+    "execution_git_evidence": [
+      {
+        "head": "4be3b1a0da891732f31c65331b05a24bf6a23f88",
+        "role": "legacy_staging"
+      },
+      {
+        "head": "f0a7b5d5ac103546bd693378e8f8efb4f07c6c27",
+        "role": "legacy_staging"
+      }
+    ],
+    "fallback_reinterpreted_as_strict": false,
+    "files_moved": true,
+    "remote_campaign_sha256": "3652214a9420e5f4a7aa664dbba9079823b5beb790afe519e3f1218d2456a84e",
+    "remote_raw_manifest": {
+      "path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260723_phase8c_b_full_raman_v01/raw_manifest_phase8c_relocation_20260825.json",
+      "sha256": "589f41ff24db8ecdaf27263a6b1bd24f96b72eb8cb0db47397a30245b5a89c19"
+    },
+    "scientific_acceptance": {
+      "reclassified": false,
+      "status": "unknown_preserved"
+    },
+    "scientific_reclassification_performed": false,
+    "source_deleted": false,
+    "symlink_created": false
+  },
+  "lifecycle": "archived",
+  "paths": {
+    "hpc_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260723_phase8c_b_full_raman_v01",
+    "legacy_run_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260723_phase8c_b_full_raman_v01",
+    "local_artifacts": "D:/Filament_1/.artifacts/20260723_phase8c_b_full_raman_v01"
+  },
+  "publication": {
+    "status": "unknown"
+  },
+  "raw_manifest_path": null,
+  "raw_manifest_sha256": null,
+  "relocation": {
+    "archive_receipt_sha256": "f751f26dae94834be2e2fa8acd9ccff7215b6198317ceb7e2027f6cbefc99962",
+    "batch": "phase8c_relocation_batch2_20260825",
+    "batch_receipt_sha256": "dd6f0c30ca2e25f38e9dbb7c9b4d3225fae780c35f7f143e12e4accc01fd8cc4",
+    "relocation_receipt_sha256": "a30601744e651e1bf1b173403f6a40dbe32d4182bfa763a9ccf29937a6a37373",
+    "schema": "filament.campaign_relocation_reference.v1"
+  },
+  "repository_url": null,
+  "requested_config_path": null,
+  "requested_config_sha256": null,
+  "resolved_config_path": null,
+  "resolved_config_sha256": null,
+  "schema": "filament.campaign.v1",
+  "scientific_purpose": "Mechanical preservation of Phase 8C B legacy evidence without scientific reclassification.",
+  "title": "Phase 8C B full Raman legacy evidence"
+}

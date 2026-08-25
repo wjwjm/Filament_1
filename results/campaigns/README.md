@@ -19,3 +19,13 @@ requested/resolved configuration SHA256 values, and artifact-manifest SHA256.
 Historical `Filament_python/results/*` directories remain in place and are
 mechanically listed in `legacy_registry.json` with status
 `legacy_unclassified`.
+
+Phase 8C HPC legacy evidence is represented by two compact campaign records:
+
+- `20260723_phase8c_a3_enablement_v01`
+- `20260723_phase8c_b_full_raman_v01`
+
+Each record preserves separate `legacy_runs` and `legacy_staging` path mappings,
+manifest/receipt hashes and execution/config evidence without publishing raw
+NPZ, staging checkouts or scientific reclassification. Full small receipts and
+manifests remain in `.artifacts/<campaign_id>/hpc_relocation/`.

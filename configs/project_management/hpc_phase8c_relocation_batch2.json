@@ -1,0 +1,44 @@
+{
+  "batch_id": "phase8c_relocation_batch2_20260825",
+  "batch_receipt_sha256": "dd6f0c30ca2e25f38e9dbb7c9b4d3225fae780c35f7f143e12e4accc01fd8cc4",
+  "campaign_ids": [
+    "20260723_phase8c_a3_enablement_v01",
+    "20260723_phase8c_b_full_raman_v01"
+  ],
+  "evidence_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/archive/inventories/phase8c_relocation_batch2_20260825",
+  "path_map_sha256": "69318c49caeb030822876c952cea01a40c199add89d9b5198c242ecfa84079af",
+  "paths": [
+    {
+      "campaign_id": "20260723_phase8c_a3_enablement_v01",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260723_phase8c_a3_enablement_v01/runs",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/phase8c_a3_runs",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8c_sources_20260825/phase8c_a3_runs",
+      "role": "legacy_runs"
+    },
+    {
+      "campaign_id": "20260723_phase8c_a3_enablement_v01",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260723_phase8c_a3_enablement_v01/staging",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/phase8c_a3_staging",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8c_sources_20260825/phase8c_a3_staging",
+      "role": "legacy_staging"
+    },
+    {
+      "campaign_id": "20260723_phase8c_b_full_raman_v01",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260723_phase8c_b_full_raman_v01/runs",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/phase8c_b_runs",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8c_sources_20260825/phase8c_b_runs",
+      "role": "legacy_runs"
+    },
+    {
+      "campaign_id": "20260723_phase8c_b_full_raman_v01",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260723_phase8c_b_full_raman_v01/staging",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/phase8c_b_staging",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8c_sources_20260825/phase8c_b_staging",
+      "role": "legacy_staging"
+    }
+  ],
+  "permanent_deletion_authorized": false,
+  "schema": "filament.hpc_phase8c_relocation_batch.v1",
+  "status": "completed",
+  "symlink_created": false
+}

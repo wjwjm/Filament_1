@@ -1,0 +1,108 @@
+{
+  "artifact_manifest_path": null,
+  "artifact_manifest_sha256": null,
+  "attempts": [],
+  "campaign_id": "20260723_phase8c_a3_enablement_v01",
+  "execution_git_sha": "4fdedbc4d7a7fb1970d026a56ca27ec297d5ec0c",
+  "execution_ref": null,
+  "github_manifest_path": null,
+  "github_manifest_sha256": null,
+  "legacy": {
+    "attempt_evidence_markers": {
+      "_control": 69,
+      "attempt2": 765,
+      "attempt3": 1468,
+      "profile_off": 6,
+      "profile_on": 6
+    },
+    "components": [
+      {
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260723_phase8c_a3_enablement_v01/runs",
+        "destination_manifest_sha256": "0172e26d265a09c71e508b0be326b1cb76cdfe205ebc14dbc842138355472c5c",
+        "file_count": 1400,
+        "original_path": "/data/run01/scvi806/user_Wangjimin/phase8c_a3_runs",
+        "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8c_sources_20260825/phase8c_a3_runs",
+        "role": "legacy_runs",
+        "source_deleted": false,
+        "source_manifest_sha256": "1d2c18b450ac0f8e2256b913b9056e75c1352646ca7c0b6bc8076934a241c536",
+        "total_bytes": 27789370
+      },
+      {
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260723_phase8c_a3_enablement_v01/staging",
+        "destination_manifest_sha256": "2d09190b93ecb0ceb0fb6eeda5080a25999612a6e60cd963272843c4cd4c6921",
+        "file_count": 834,
+        "original_path": "/data/run01/scvi806/user_Wangjimin/phase8c_a3_staging",
+        "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8c_sources_20260825/phase8c_a3_staging",
+        "role": "legacy_staging",
+        "source_deleted": false,
+        "source_manifest_sha256": "44dffae72820de0928c2769a63f16a41f64cfbc1e7622fcce24b26cff843a2ad",
+        "total_bytes": 104648064
+      }
+    ],
+    "config_inventory": {
+      "full_remote_record_count": 44,
+      "primary_evidence": [
+        {
+          "path": "a3_4fdedbc4d7a7_attempt3/a3_config_pair_manifest.json",
+          "role": "legacy_runs",
+          "sha256": "a41b4b6f74d6ee2afbb4e52e3a881ff07b0a8cf07bd0080d9c5f1c0e12416f7d"
+        },
+        {
+          "path": "a3_4fdedbc4d7a7_attempt3/a3_profile_off_config.json",
+          "role": "legacy_runs",
+          "sha256": "ca0117ba709f302dfa9eec4b7f36d8a35ea205b3982903e49630a37672b90694"
+        },
+        {
+          "path": "a3_4fdedbc4d7a7_attempt3/a3_profile_on_config.json",
+          "role": "legacy_runs",
+          "sha256": "cad1d333936736ec3d199596dacf9428033c241bbee3ea8a40031d29feee36c4"
+        }
+      ]
+    },
+    "execution_git_evidence": [
+      {
+        "head": "4fdedbc4d7a7fb1970d026a56ca27ec297d5ec0c",
+        "role": "legacy_staging"
+      }
+    ],
+    "files_moved": true,
+    "remote_campaign_sha256": "af964f76a3d40a2143ac98b118828b64e8a952c8534e6ce4aef9f376cdc05ac2",
+    "remote_raw_manifest": {
+      "path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260723_phase8c_a3_enablement_v01/raw_manifest_phase8c_relocation_20260825.json",
+      "sha256": "f8a43032c5a3c19c693b5b10b41b38ac6a4cabef968186dda314661d5ece8bf1"
+    },
+    "scientific_acceptance": {
+      "reclassified": false,
+      "status": "unknown_preserved"
+    },
+    "scientific_reclassification_performed": false,
+    "source_deleted": false,
+    "symlink_created": false
+  },
+  "lifecycle": "archived",
+  "paths": {
+    "hpc_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260723_phase8c_a3_enablement_v01",
+    "legacy_run_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260723_phase8c_a3_enablement_v01",
+    "local_artifacts": "D:/Filament_1/.artifacts/20260723_phase8c_a3_enablement_v01"
+  },
+  "publication": {
+    "status": "unknown"
+  },
+  "raw_manifest_path": null,
+  "raw_manifest_sha256": null,
+  "relocation": {
+    "archive_receipt_sha256": "3366f5c09fe565b7f0c35c21c9dc2465c9ae2a13e2acaca344cc82178024afcf",
+    "batch": "phase8c_relocation_batch2_20260825",
+    "batch_receipt_sha256": "dd6f0c30ca2e25f38e9dbb7c9b4d3225fae780c35f7f143e12e4accc01fd8cc4",
+    "relocation_receipt_sha256": "852a444bc131fef27cdf3ef91e6c36092a25200caf6b3e49968ffb83f8c75826",
+    "schema": "filament.campaign_relocation_reference.v1"
+  },
+  "repository_url": null,
+  "requested_config_path": null,
+  "requested_config_sha256": null,
+  "resolved_config_path": null,
+  "resolved_config_sha256": null,
+  "schema": "filament.campaign.v1",
+  "scientific_purpose": "Mechanical preservation of Phase 8C A3 legacy evidence without scientific reclassification.",
+  "title": "Phase 8C A3 enablement legacy evidence"
+}
