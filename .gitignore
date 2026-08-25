@@ -9,3 +9,7 @@ figures/
 matlab保存数据/
 outputs/
 Filament_python/tmp/
+
+# Local complete derived-artifact mirror; publish only explicit evidence under
+# results/campaigns/<campaign_id>/.
+.artifacts/

@@ -1,0 +1,56 @@
+# 三端 campaign 管理规则
+
+本规则只管理项目证据和路径，不改变传播公式、默认参数、配置解析或
+数值策略。三端不要求保存同一套文件，而是通过不可变引用建立对应关系：
+
+```text
+campaign_id + execution_git_sha + config_sha256 + artifact_sha256
+```
+
+## 三端职责
+
+| 端 | 权威内容 | 允许的工作 |
+| --- | --- | --- |
+| 本地 `D:\Filament_1` | 开发代码、测试、精选证据准备 | 编辑代码、审阅 HPC 派生结果 |
+| GitHub `main` | 代码、去环境化配置、精选小型证据 | 版本历史和可审阅发布 |
+| HPC | 具体 requested/resolved 配置、原始数据、完整日志和调度证据 | 按固定 SHA 执行与后处理 |
+
+本地完整派生结果放在 `.artifacts/<campaign_id>/`，该目录被 Git 忽略，
+因此不会覆盖代码，也不会自动进入 GitHub。需要发布的文件必须使用显式
+allowlist 调用 `publish-plan --apply`，目标为
+`results/campaigns/<campaign_id>/artifacts/`。
+
+## Campaign 与普通任务
+
+普通代码、文档和单元测试不必创建 campaign。已有结果的轻量后处理可关联
+已有 campaign 并使用 `check --level lite`。新 HPC 运行、正式结果发布和归档
+才需要完整 campaign 记录。
+
+## 配置与安全
+
+`init` 在 `configs/experiments/<campaign_id>/requested|resolved/` 建立工作配置
+目录；`publish-config` 将审核后的 requested/resolved 快照写入
+`results/campaigns/<campaign_id>/configs/`，同时登记文件 SHA256。输入文件保持
+不变。token、password、credential、proxy 等 secret-like key、
+带认证信息的 URL、Windows/HPC 绝对路径均拒绝进入可发布配置；完整原始
+配置可留在 HPC，但不得把凭据写入仓库。
+
+## 分级检查和缓存
+
+```powershell
+python tools/campaign/manage.py check <campaign_id> --level lite
+python tools/campaign/manage.py check <campaign_id> --level submit
+python tools/campaign/manage.py check <campaign_id> --level publish
+python tools/campaign/manage.py check <campaign_id> --level archive
+```
+
+检查只在对应边界执行，不重新运行仿真或后处理。receipt 的指纹包含检查
+级别、campaign JSON、配置/manifest、manifest所指文件、实时staging状态、batch
+audit receipt和已发布evidence的实际哈希；输入不变时复用
+`.artifacts/<campaign_id>/.validation/` 中的结果。
+
+## 历史结果
+
+旧的 `Filament_python/results/*` 不移动、不重命名、不重新解释科学结论。
+`register-legacy` 根据冻结 inventory 机械登记全部 18 个顶层目录，状态统一为
+`legacy_unclassified`。后续若要迁移，必须另行审计路径引用和冻结 provenance。
