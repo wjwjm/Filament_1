@@ -1,0 +1,166 @@
+{
+  "artifact_manifest_path": null,
+  "artifact_manifest_sha256": null,
+  "attempts": [
+    {
+      "role": "attempt_1200",
+      "original_directory": "historical_fr_mixture_20260820T1200Z",
+      "job_id": null,
+      "scheduler_state": "unknown",
+      "evidence_state": "empty_directory"
+    },
+    {
+      "role": "attempt_1220",
+      "original_directory": "historical_fr_mixture_20260820T1220Z",
+      "job_id": null,
+      "scheduler_state": "unknown",
+      "execution_git_sha": "2232f2eb1cea8cdf3baa48d08756e935fdb05708"
+    },
+    {
+      "role": "attempt_1350",
+      "original_directory": "historical_fr_mixture_20260820T1350Z",
+      "job_id": null,
+      "scheduler_state": "unknown",
+      "execution_git_sha": "9edd1a562031b8d97f65a2f4710699faa6d22d75"
+    }
+  ],
+  "campaign_id": "20260820_historical_fr_mixture_precursor_attempts_v01",
+  "execution_git_sha": null,
+  "execution_ref": null,
+  "github_manifest_path": null,
+  "github_manifest_sha256": null,
+  "legacy": {
+    "components": [
+      {
+        "role": "attempt_1200",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/historical_fr_mixture_20260820T1200Z",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260820_historical_fr_mixture_precursor_attempts_v01/attempt_1200",
+        "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_historical_fr_sources_20260825/historical_fr_mixture_20260820T1200Z",
+        "file_count": 0,
+        "total_bytes": 0,
+        "source_manifest_sha256": "d234498b9317b6078e25183af193ede49585ff949bf3d619d3b6255859d4dcaf",
+        "destination_manifest_sha256": "e732da021e7c156bc9ecf1e5f952af8e4236f2826d341497d6fe2509d237dc18",
+        "source_deleted": false
+      },
+      {
+        "role": "attempt_1220",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/historical_fr_mixture_20260820T1220Z",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260820_historical_fr_mixture_precursor_attempts_v01/attempt_1220",
+        "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_historical_fr_sources_20260825/historical_fr_mixture_20260820T1220Z",
+        "file_count": 698,
+        "total_bytes": 110688848,
+        "source_manifest_sha256": "018ce0110df8a13c2cd5879e59adaa0e08ba810ba89fa1935194c2cc57c44956",
+        "destination_manifest_sha256": "f915f57394afc3ec377968d7ce2bc57e8c0815129cd2484bf7f9f898cb33c9d6",
+        "source_deleted": false
+      },
+      {
+        "role": "attempt_1350",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/historical_fr_mixture_20260820T1350Z",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260820_historical_fr_mixture_precursor_attempts_v01/attempt_1350",
+        "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_historical_fr_sources_20260825/historical_fr_mixture_20260820T1350Z",
+        "file_count": 699,
+        "total_bytes": 110689511,
+        "source_manifest_sha256": "8a4e1521737dd41b45419c5c95efea460200d5c3904dc083e3a9f6795baf30ca",
+        "destination_manifest_sha256": "ef801667f80f8f89a93d7c0e586c74ef985acbc1d6d6cc6ff6724c07af13e0ef",
+        "source_deleted": false
+      }
+    ],
+    "config_inventory": {
+      "full_remote_record_count": 92,
+      "primary_evidence": [
+        {
+          "path": "Filament_1/.codex/config.toml",
+          "role": "attempt_1220",
+          "sha256": "5dd50cc26dfa68eb40814d5baf10f7851f7e4a531802c6e2d0cb0caaf2957638"
+        },
+        {
+          "path": "Filament_1/Filament_python/config_ref.json",
+          "role": "attempt_1220",
+          "sha256": "b7c9a8675afe423d5e4251cd3d98c6f2ae727a8bd39fd93e64829eea0f8abe86"
+        },
+        {
+          "path": "Filament_1/Filament_python/configs/ionization_model_propagation/120fs_talebpour_full_model.json",
+          "role": "attempt_1220",
+          "sha256": "ffb1cb8753d1371992698c6bf5146c16b8cd38b6a4d76061162f0a6fcac3c549"
+        }
+      ]
+    },
+    "evidence_nature": "precursor_attempt_sequence_with_empty_initial_root",
+    "execution_git_evidence": [
+      {
+        "role": "attempt_1220",
+        "checkout_relative_path": "Filament_1",
+        "head": "2232f2eb1cea8cdf3baa48d08756e935fdb05708",
+        "read_status": "read"
+      },
+      {
+        "role": "attempt_1350",
+        "checkout_relative_path": "Filament_1",
+        "head": "9edd1a562031b8d97f65a2f4710699faa6d22d75",
+        "read_status": "read"
+      }
+    ],
+    "files_moved": true,
+    "remote_campaign_sha256": "3c41d31f4c189e07997885c4accc17830c773582a5afc90f115362629ce51a9d",
+    "remote_raw_manifest": {
+      "path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260820_historical_fr_mixture_precursor_attempts_v01/raw_manifest_historical_fr_relocation_20260825.json",
+      "sha256": "d84cc2e92de8d2e68300fd07d8b3f55e2d3fbbde5715075ede9a125bcfe69e45"
+    },
+    "relocation_attempt_relationship": [
+      {
+        "role": "attempt_1200",
+        "original_directory": "historical_fr_mixture_20260820T1200Z",
+        "job_id": null,
+        "scheduler_state": "unknown",
+        "evidence_state": "empty_directory"
+      },
+      {
+        "role": "attempt_1220",
+        "original_directory": "historical_fr_mixture_20260820T1220Z",
+        "job_id": null,
+        "scheduler_state": "unknown",
+        "execution_git_sha": "2232f2eb1cea8cdf3baa48d08756e935fdb05708"
+      },
+      {
+        "role": "attempt_1350",
+        "original_directory": "historical_fr_mixture_20260820T1350Z",
+        "job_id": null,
+        "scheduler_state": "unknown",
+        "execution_git_sha": "9edd1a562031b8d97f65a2f4710699faa6d22d75"
+      }
+    ],
+    "scientific_acceptance": {
+      "reclassified": false,
+      "status": "unknown_preserved"
+    },
+    "scientific_reclassification_performed": false,
+    "source_deleted": false,
+    "symlink_created": false
+  },
+  "lifecycle": "archived",
+  "paths": {
+    "hpc_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260820_historical_fr_mixture_precursor_attempts_v01",
+    "legacy_run_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260820_historical_fr_mixture_precursor_attempts_v01",
+    "local_artifacts": "D:/Filament_1/.artifacts/20260820_historical_fr_mixture_precursor_attempts_v01"
+  },
+  "publication": {
+    "status": "unknown"
+  },
+  "raw_manifest_path": null,
+  "raw_manifest_sha256": null,
+  "relocation": {
+    "archive_receipt_sha256": "119028b81aca5f845c0812b83f4c1c6bd440ef2132a31255898098a8979d9c4f",
+    "batch": "historical_fr_precursor_relocation_batch4_20260825",
+    "batch_receipt_sha256": "cb985eee04fac6f8bcf4154ce9a48767e06326401b68f6e9f24b412dd5f67064",
+    "relocation_receipt_sha256": "c9614477e602543a13c32005ee881fd857dbbd8b324431cd4257dbd339993774",
+    "schema": "filament.campaign_relocation_reference.v1"
+  },
+  "repository_url": null,
+  "requested_config_path": null,
+  "requested_config_sha256": null,
+  "resolved_config_path": null,
+  "resolved_config_sha256": null,
+  "schema": "filament.campaign.v1",
+  "scientific_purpose": "Mechanical preservation of three pre-final historical FR roots without merging them into the accepted final campaign or selecting a scientific result.",
+  "title": "Historical FR mixture precursor attempts legacy evidence"
+}

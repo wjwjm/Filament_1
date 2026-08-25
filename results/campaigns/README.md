@@ -43,3 +43,9 @@ sequence and the R2 original/replacement/replacement-retry sequence. Archive
 acceptance records management completeness only: smoke, audit, diagnostic and
 precision evidence is not promoted to a new scientific conclusion. Full small
 receipts and manifests remain in `.artifacts/<campaign_id>/hpc_relocation/`.
+
+The three pre-final historical FR roots are represented by one precursor
+campaign, `20260820_historical_fr_mixture_precursor_attempts_v01`. It preserves
+the empty `1200Z` root and the separate `1220Z` and `1350Z` checkouts with
+their distinct Git HEAD values. This record is not merged into or interpreted
+as replacing `20260820_historical_fr_mixture_final_v01`.

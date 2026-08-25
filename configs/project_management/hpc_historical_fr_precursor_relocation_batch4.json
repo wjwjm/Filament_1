@@ -1,0 +1,36 @@
+{
+  "batch_id": "historical_fr_precursor_relocation_batch4_20260825",
+  "batch_receipt_sha256": "cb985eee04fac6f8bcf4154ce9a48767e06326401b68f6e9f24b412dd5f67064",
+  "campaign_ids": [
+    "20260820_historical_fr_mixture_precursor_attempts_v01"
+  ],
+  "evidence_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/archive/inventories/historical_fr_precursor_relocation_batch4_20260825",
+  "path_map_sha256": "c8a81c05b2872a6e267ee5762704ed6927ae49e59310f3e2f545c2afa941284f",
+  "paths": [
+    {
+      "campaign_id": "20260820_historical_fr_mixture_precursor_attempts_v01",
+      "role": "attempt_1200",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/historical_fr_mixture_20260820T1200Z",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260820_historical_fr_mixture_precursor_attempts_v01/attempt_1200",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_historical_fr_sources_20260825/historical_fr_mixture_20260820T1200Z"
+    },
+    {
+      "campaign_id": "20260820_historical_fr_mixture_precursor_attempts_v01",
+      "role": "attempt_1220",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/historical_fr_mixture_20260820T1220Z",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260820_historical_fr_mixture_precursor_attempts_v01/attempt_1220",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_historical_fr_sources_20260825/historical_fr_mixture_20260820T1220Z"
+    },
+    {
+      "campaign_id": "20260820_historical_fr_mixture_precursor_attempts_v01",
+      "role": "attempt_1350",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/historical_fr_mixture_20260820T1350Z",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260820_historical_fr_mixture_precursor_attempts_v01/attempt_1350",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_historical_fr_sources_20260825/historical_fr_mixture_20260820T1350Z"
+    }
+  ],
+  "permanent_deletion_authorized": false,
+  "schema": "filament.hpc_historical_fr_precursor_relocation_batch.v1",
+  "status": "completed",
+  "symlink_created": false
+}
