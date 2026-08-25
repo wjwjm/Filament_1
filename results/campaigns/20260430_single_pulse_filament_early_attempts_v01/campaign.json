@@ -1,0 +1,758 @@
+{
+  "artifact_manifest_path": null,
+  "artifact_manifest_sha256": null,
+  "attempts": [
+    {
+      "classification": "failed_or_cancelled",
+      "job_id": "128533",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/128533/logs/slurm-128533.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-128533.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "00:00:00",
+        "end": "2026-03-05T19:52:28",
+        "exit_code": "3:0",
+        "start": "2026-03-05T19:52:28",
+        "state": "FAILED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_missing_result",
+      "job_id": "128604",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/128604/logs/slurm-128604.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-128604.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "03:12:30",
+        "end": "2026-03-06T03:40:58",
+        "exit_code": "0:0",
+        "start": "2026-03-06T00:28:28",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_missing_result",
+      "job_id": "128717",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/128717/logs/slurm-128717.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-128717.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "03:12:00",
+        "end": "2026-03-06T18:14:58",
+        "exit_code": "0:0",
+        "start": "2026-03-06T15:02:58",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "failed_or_cancelled",
+      "job_id": "129303",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/129303/logs/slurm-129303.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-129303.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "03:12:26",
+        "end": "2026-03-08T17:29:54",
+        "exit_code": "1:0",
+        "start": "2026-03-08T14:17:28",
+        "state": "FAILED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_missing_result",
+      "job_id": "129565",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/129565/logs/slurm-129565.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-129565.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "03:12:26",
+        "end": "2026-03-09T03:56:54",
+        "exit_code": "0:0",
+        "start": "2026-03-09T00:44:28",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "130812",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/130812/logs/slurm-130812.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-130812.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-130812.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/130812/results/slurm-130812.mat",
+      "scheduler": {
+        "elapsed": "02:43:32",
+        "end": "2026-03-11T18:40:03",
+        "exit_code": "0:0",
+        "start": "2026-03-11T15:56:31",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "131112",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/131112/logs/slurm-131112.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-131112.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-131112.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/131112/results/slurm-131112.mat",
+      "scheduler": {
+        "elapsed": "02:43:28",
+        "end": "2026-03-12T12:58:17",
+        "exit_code": "0:0",
+        "start": "2026-03-12T10:14:49",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "131619",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/131619/logs/slurm-131619.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-131619.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-131619.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/131619/results/slurm-131619.mat",
+      "scheduler": {
+        "elapsed": "02:59:02",
+        "end": "2026-03-13T19:49:33",
+        "exit_code": "0:0",
+        "start": "2026-03-13T16:50:31",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "132721",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/132721/logs/slurm-132721.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-132721.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-132721.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/132721/results/slurm-132721.mat",
+      "scheduler": {
+        "elapsed": "02:13:12",
+        "end": "2026-03-16T17:38:47",
+        "exit_code": "0:0",
+        "start": "2026-03-16T15:25:35",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "132804",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/132804/logs/slurm-132804.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-132804.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-132804.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/132804/results/slurm-132804.mat",
+      "scheduler": {
+        "elapsed": "02:13:16",
+        "end": "2026-03-16T21:32:23",
+        "exit_code": "0:0",
+        "start": "2026-03-16T19:19:07",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "133007",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/133007/logs/slurm-133007.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-133007.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-133007.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/133007/results/slurm-133007.mat",
+      "scheduler": {
+        "elapsed": "02:13:00",
+        "end": "2026-03-17T12:14:00",
+        "exit_code": "0:0",
+        "start": "2026-03-17T10:01:00",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "failed_or_cancelled",
+      "job_id": "133259",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/133259/logs/slurm-133259.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-133259.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "00:00:17",
+        "end": "2026-03-17T21:30:19",
+        "exit_code": "1:0",
+        "start": "2026-03-17T21:30:02",
+        "state": "FAILED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "failed_or_cancelled",
+      "job_id": "133278",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/133278/logs/slurm-133278.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-133278.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "10:41:09",
+        "end": "2026-03-18T09:10:11",
+        "exit_code": "0:0",
+        "start": "2026-03-17T22:29:02",
+        "state": "CANCELLED by 1812"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_missing_result",
+      "job_id": "133388",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/133388/logs/slurm-133388.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-133388.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "02:12:36",
+        "end": "2026-03-18T11:27:08",
+        "exit_code": "0:0",
+        "start": "2026-03-18T09:14:32",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "failed_or_cancelled",
+      "job_id": "133492",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/133492/logs/slurm-133492.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-133492.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "03:37:07",
+        "end": "2026-03-18T15:36:10",
+        "exit_code": "0:0",
+        "start": "2026-03-18T11:59:03",
+        "state": "CANCELLED by 1812"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "failed_or_cancelled",
+      "job_id": "133611",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/133611/logs/slurm-133611.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-133611.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "00:18:37",
+        "end": "2026-03-18T16:47:09",
+        "exit_code": "0:0",
+        "start": "2026-03-18T16:28:32",
+        "state": "CANCELLED by 1812"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_missing_result",
+      "job_id": "133613",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/133613/logs/slurm-133613.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-133613.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "02:22:41",
+        "end": "2026-03-18T18:56:43",
+        "exit_code": "0:0",
+        "start": "2026-03-18T16:34:02",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "133836",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/133836/logs/slurm-133836.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-133836.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-133836.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/133836/results/slurm-133836.mat",
+      "scheduler": {
+        "elapsed": "00:30:53",
+        "end": "2026-03-19T09:34:55",
+        "exit_code": "0:0",
+        "start": "2026-03-19T09:04:02",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "134040",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/134040/logs/slurm-134040.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-134040.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-134040.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/134040/results/slurm-134040.mat",
+      "scheduler": {
+        "elapsed": "00:30:37",
+        "end": "2026-03-19T16:46:13",
+        "exit_code": "0:0",
+        "start": "2026-03-19T16:15:36",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "138920",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/138920/logs/slurm-138920.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-138920.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-138920.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/138920/results/slurm-138920.mat",
+      "scheduler": {
+        "elapsed": "00:30:58",
+        "end": "2026-04-01T22:53:39",
+        "exit_code": "0:0",
+        "start": "2026-04-01T22:22:41",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "138951",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/138951/logs/slurm-138951.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-138951.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-138951.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/138951/results/slurm-138951.mat",
+      "scheduler": {
+        "elapsed": "00:31:16",
+        "end": "2026-04-02T00:00:59",
+        "exit_code": "0:0",
+        "start": "2026-04-01T23:29:43",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "138989",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/138989/logs/slurm-138989.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-138989.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-138989.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/138989/results/slurm-138989.mat",
+      "scheduler": {
+        "elapsed": "00:41:02",
+        "end": "2026-04-02T11:10:36",
+        "exit_code": "0:0",
+        "start": "2026-04-02T10:29:34",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "139050",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139050/logs/slurm-139050.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-139050.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-139050.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139050/results/slurm-139050.mat",
+      "scheduler": {
+        "elapsed": "00:30:48",
+        "end": "2026-04-02T15:46:52",
+        "exit_code": "0:0",
+        "start": "2026-04-02T15:16:04",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "139056",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139056/logs/slurm-139056.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-139056.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-139056.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139056/results/slurm-139056.mat",
+      "scheduler": {
+        "elapsed": "00:30:15",
+        "end": "2026-04-02T16:22:49",
+        "exit_code": "0:0",
+        "start": "2026-04-02T15:52:34",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "139066",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139066/logs/slurm-139066.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-139066.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-139066.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139066/results/slurm-139066.mat",
+      "scheduler": {
+        "elapsed": "00:54:33",
+        "end": "2026-04-02T17:31:07",
+        "exit_code": "0:0",
+        "start": "2026-04-02T16:36:34",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "139080",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139080/logs/slurm-139080.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-139080.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-139080.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139080/results/slurm-139080.mat",
+      "scheduler": {
+        "elapsed": "00:53:46",
+        "end": "2026-04-02T19:59:52",
+        "exit_code": "0:0",
+        "start": "2026-04-02T19:06:06",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "139113",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139113/logs/slurm-139113.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-139113.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-139113.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139113/results/slurm-139113.mat",
+      "scheduler": {
+        "elapsed": "00:54:00",
+        "end": "2026-04-02T23:24:35",
+        "exit_code": "0:0",
+        "start": "2026-04-02T22:30:35",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "139221",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139221/logs/slurm-139221.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-139221.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-139221.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139221/results/slurm-139221.mat",
+      "scheduler": {
+        "elapsed": "01:10:38",
+        "end": "2026-04-03T16:06:15",
+        "exit_code": "0:0",
+        "start": "2026-04-03T14:55:37",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "139526",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139526/logs/slurm-139526.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-139526.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-139526.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139526/results/slurm-139526.mat",
+      "scheduler": {
+        "elapsed": "02:54:41",
+        "end": "2026-04-05T14:44:17",
+        "exit_code": "0:0",
+        "start": "2026-04-05T11:49:36",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "139614",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139614/logs/slurm-139614.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-139614.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-139614.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139614/results/slurm-139614.mat",
+      "scheduler": {
+        "elapsed": "01:25:42",
+        "end": "2026-04-05T18:12:49",
+        "exit_code": "0:0",
+        "start": "2026-04-05T16:47:07",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "failed_or_cancelled",
+      "job_id": "139689",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139689/logs/slurm-139689.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-139689.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "00:00:08",
+        "end": "2026-04-05T21:42:19",
+        "exit_code": "1:0",
+        "start": "2026-04-05T21:42:11",
+        "state": "FAILED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "139825",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139825/logs/slurm-139825.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-139825.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-139825.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/139825/results/slurm-139825.mat",
+      "scheduler": {
+        "elapsed": "02:00:37",
+        "end": "2026-04-06T12:21:39",
+        "exit_code": "0:0",
+        "start": "2026-04-06T10:21:02",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "140027",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/140027/logs/slurm-140027.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-140027.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-140027.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/140027/results/slurm-140027.mat",
+      "scheduler": {
+        "elapsed": "03:08:34",
+        "end": "2026-04-06T22:24:13",
+        "exit_code": "0:0",
+        "start": "2026-04-06T19:15:39",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "failed_or_cancelled",
+      "job_id": "140204",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/140204/logs/slurm-140204.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-140204.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "00:00:12",
+        "end": "2026-04-07T14:13:56",
+        "exit_code": "1:0",
+        "start": "2026-04-07T14:13:44",
+        "state": "FAILED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "140251",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/140251/logs/slurm-140251.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-140251.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-140251.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/140251/results/slurm-140251.mat",
+      "scheduler": {
+        "elapsed": "01:12:29",
+        "end": "2026-04-07T17:42:37",
+        "exit_code": "0:0",
+        "start": "2026-04-07T16:30:08",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "140482",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/140482/logs/slurm-140482.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-140482.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-140482.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/140482/results/slurm-140482.mat",
+      "scheduler": {
+        "elapsed": "02:39:23",
+        "end": "2026-04-08T20:43:30",
+        "exit_code": "0:0",
+        "start": "2026-04-08T18:04:07",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "140964",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/140964/logs/slurm-140964.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-140964.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-140964.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/140964/results/slurm-140964.mat",
+      "scheduler": {
+        "elapsed": "02:40:11",
+        "end": "2026-04-13T05:19:14",
+        "exit_code": "0:0",
+        "start": "2026-04-13T02:39:03",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_missing_result",
+      "job_id": "141040",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/141040/logs/slurm-141040.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-141040.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "02:38:48",
+        "end": "2026-04-14T05:49:55",
+        "exit_code": "0:0",
+        "start": "2026-04-14T03:11:07",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "failed_or_cancelled",
+      "job_id": "141803",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/141803/logs/slurm-141803.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-141803.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "00:00:00",
+        "end": "2026-04-21T22:27:40",
+        "exit_code": "127:0",
+        "start": "2026-04-21T22:27:40",
+        "state": "FAILED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "failed_or_cancelled",
+      "job_id": "141998",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/141998/logs/slurm-141998.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-141998.out",
+      "original_result_path": null,
+      "result_path": null,
+      "scheduler": {
+        "elapsed": "00:00:00",
+        "end": "2026-04-22T21:03:09",
+        "exit_code": "1:0",
+        "start": "2026-04-22T21:03:09",
+        "state": "FAILED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "142001",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/142001/logs/slurm-142001.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件/slurm-142001.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-142001.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/142001/results/slurm-142001.mat",
+      "scheduler": {
+        "elapsed": "02:38:08",
+        "end": "2026-04-22T23:42:47",
+        "exit_code": "0:0",
+        "start": "2026-04-22T21:04:39",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    },
+    {
+      "classification": "completed_with_mat",
+      "job_id": "143289",
+      "log_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/143289/logs/slurm-143289.out",
+      "original_log_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/slurm-143289.out",
+      "original_result_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据/slurm-143289.mat",
+      "result_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01/attempts/143289/results/slurm-143289.mat",
+      "scheduler": {
+        "elapsed": "02:38:02",
+        "end": "2026-04-30T05:01:00",
+        "exit_code": "0:0",
+        "start": "2026-04-30T02:22:58",
+        "state": "COMPLETED"
+      },
+      "scientific_status": "not_inferred"
+    }
+  ],
+  "campaign_id": "20260430_single_pulse_filament_early_attempts_v01",
+  "execution_git_sha": null,
+  "execution_ref": null,
+  "github_manifest_path": null,
+  "github_manifest_sha256": null,
+  "legacy": {
+    "components": [
+      {
+        "destination_manifest_sha256": "c60cbc7b0ce0326dbee1a5c1e07156f33aa42b2f69dda18238a9215b45464c7e",
+        "file_count": 42,
+        "role": "scheduler_logs",
+        "source_manifest_sha256": "ba97f2122ff5963d0127536c2fed01325d1f7f05d9edf2dc04522175ffb2bfbe",
+        "total_bytes": 1181760
+      },
+      {
+        "destination_manifest_sha256": "c60cbc7b0ce0326dbee1a5c1e07156f33aa42b2f69dda18238a9215b45464c7e",
+        "file_count": 26,
+        "role": "mat_results",
+        "source_manifest_sha256": "3ddbb8ed6010b2c39c227ca583b210787dcf4da239baa4577e255133af153145",
+        "total_bytes": 377021800
+      }
+    ],
+    "evidence_nature": "early_repeated_single_pulse_test_attempts",
+    "job_classification_counts": {
+      "completed_missing_result": 6,
+      "completed_with_mat": 26,
+      "failed_or_cancelled": 10
+    },
+    "job_registry_sha256": "7394c896b855e963434111f8f65862a8e0ac220bbc43489c88d7e76446b1a232",
+    "remote_campaign_sha256": "d29aa180cc8065b95e38a9e498b15925be854cb6711f98ea5b43da15d3146c89",
+    "remote_raw_manifest": {
+      "path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260430_single_pulse_filament_early_attempts_v01/raw_manifest_single_pulse_early_attempts_relocation_20260825.json",
+      "sha256": "f87884a0be542c9849785249d171d2761656b5f2d272eeb1f7ae8c13edb1e5e5"
+    },
+    "scientific_acceptance": {
+      "reason": "archive gate proves management completeness only",
+      "reclassified": false,
+      "status": "not_assessed"
+    },
+    "scientific_reclassification_performed": false,
+    "source_deleted": false,
+    "status": "converted_formal_legacy_campaign",
+    "symlink_created": false
+  },
+  "lifecycle": "archived",
+  "paths": {
+    "hpc_campaign_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260430_single_pulse_filament_early_attempts_v01",
+    "hpc_project_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1",
+    "hpc_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260430_single_pulse_filament_early_attempts_v01",
+    "legacy_run_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01",
+    "local_artifacts": "D:/Filament_1/.artifacts/20260430_single_pulse_filament_early_attempts_v01",
+    "original_log_root": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件",
+    "original_mat_root": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据",
+    "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_dirty_repository_single_pulse_attempts_20260825",
+    "reserved_future_lut_diagnostic_campaign": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260401_ion_lut_validation_diagnostic_v01",
+    "reserved_shared_lut_cache": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/cache/rate_tables"
+  },
+  "publication": {
+    "reason": "early legacy test attempts are retained as management evidence only",
+    "status": "not_published"
+  },
+  "raw_manifest_path": null,
+  "raw_manifest_sha256": null,
+  "relocation": {
+    "archive_receipt_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260430_single_pulse_filament_early_attempts_v01/validation_receipts/archive_relocation_20260825.json",
+    "batch": "single_pulse_early_attempts_relocation_20260825",
+    "destination_manifest_sha256": "c60cbc7b0ce0326dbee1a5c1e07156f33aa42b2f69dda18238a9215b45464c7e",
+    "mat_source_manifest_sha256": "3ddbb8ed6010b2c39c227ca583b210787dcf4da239baa4577e255133af153145",
+    "relocation_receipt_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260430_single_pulse_filament_early_attempts_v01/relocation/relocation_receipt.json",
+    "scheduler_source_manifest_sha256": "ba97f2122ff5963d0127536c2fed01325d1f7f05d9edf2dc04522175ffb2bfbe",
+    "schema": "filament.campaign_relocation_reference.v1"
+  },
+  "repository_url": null,
+  "requested_config_path": null,
+  "requested_config_sha256": null,
+  "resolved_config_path": null,
+  "resolved_config_sha256": null,
+  "schema": "filament.campaign.v1",
+  "scientific_purpose": "Mechanical preservation of early repeated single-pulse filament test attempts without selecting a final result or making a scientific reclassification.",
+  "title": "Early single-pulse filament repeated test attempts"
+}

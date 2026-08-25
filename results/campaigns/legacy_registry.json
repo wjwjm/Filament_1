@@ -560,6 +560,20 @@
       ],
       "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_dirty_repository_stage_bundles_20260825/.codex_stage_bundles",
       "status": "component_appended_to_existing_campaign"
+    },
+    {
+      "batch_receipt_sha256": "85f8fabe3393527459722f31c02635d35348522f0692030aed1aefc07120fc93",
+      "campaign_id": "20260430_single_pulse_filament_early_attempts_v01",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/A_运行out文件",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/slurm-143289.out",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/matlab保存数据"
+      ],
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_dirty_repository_single_pulse_attempts_20260825",
+      "job_count": 42,
+      "mat_result_count": 26,
+      "status": "relocated_to_project_namespace"
     }
   ],
   "repository_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",

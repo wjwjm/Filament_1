@@ -66,3 +66,12 @@ their attempt ordering without selecting a final scientific result; the FT90
 tar/zip packages are provenance only. Full small manifests and receipts remain
 in the corresponding ignored `.artifacts/<campaign_id>/hpc_relocation/`
 directories.
+
+The 42 earliest registered single-pulse filament jobs are grouped mechanically
+under `20260430_single_pulse_filament_early_attempts_v01`. Each job has a
+separate `attempts/<job_id>/` directory containing its scheduler log and, for
+26 jobs, the associated MAT result. Six completed jobs with no MAT and ten
+failed or cancelled jobs remain explicit in the registry; archive acceptance
+does not select a final result or establish scientific validity. The legacy
+LUT diagnostics, reusable rate-table cache, two LUT build logs and three MATLAB
+Live Scripts were deliberately excluded and left unchanged.

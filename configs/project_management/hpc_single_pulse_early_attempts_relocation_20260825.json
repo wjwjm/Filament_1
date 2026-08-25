@@ -1,0 +1,42 @@
+{
+  "schema": "filament.hpc_single_pulse_legacy_relocation.v1",
+  "batch_id": "single_pulse_early_attempts_relocation_20260825",
+  "status": "completed",
+  "campaign_id": "20260430_single_pulse_filament_early_attempts_v01",
+  "batch_receipt_sha256": "85f8fabe3393527459722f31c02635d35348522f0692030aed1aefc07120fc93",
+  "scheduler_source_manifest_sha256": "ba97f2122ff5963d0127536c2fed01325d1f7f05d9edf2dc04522175ffb2bfbe",
+  "mat_source_manifest_sha256": "3ddbb8ed6010b2c39c227ca583b210787dcf4da239baa4577e255133af153145",
+  "destination_manifest_sha256": "c60cbc7b0ce0326dbee1a5c1e07156f33aa42b2f69dda18238a9215b45464c7e",
+  "path_map_sha256": "1ec0c45e7bba72aee5212d39d22b288588d7c4795e976b9e62c0acf09b0dbc4a",
+  "job_registry_sha256": "7394c896b855e963434111f8f65862a8e0ac220bbc43489c88d7e76446b1a232",
+  "archive_receipt_sha256": "524acaf1a0a9c212685cbd90f42d231c2960c1ca7ef9a82f0ee6059aa6980032",
+  "relocation_receipt_sha256": "1c0ef9c513780019bcda4ed8815aa76fe1dd6904f8448d03ea2b81d83a0c6c73",
+  "quarantine_manifest_sha256": "43105db8b20ccdb2b1c62311bd92a664ac1e9fab65eec12d9839fcef7599daf3",
+  "evidence_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/archive/inventories/single_pulse_early_attempts_relocation_20260825",
+  "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260430_single_pulse_filament_early_attempts_v01",
+  "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_dirty_repository_single_pulse_attempts_20260825",
+  "source_file_count": 68,
+  "source_total_bytes": 378203560,
+  "scheduler_log_count": 42,
+  "mat_result_count": 26,
+  "classification_counts": {
+    "completed_missing_result": 6,
+    "completed_with_mat": 26,
+    "failed_or_cancelled": 10
+  },
+  "reserved_paths": {
+    "shared_lut_cache": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/cache/rate_tables",
+    "future_lut_diagnostic_campaign": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260401_ion_lut_validation_diagnostic_v01"
+  },
+  "protected_legacy_content": {
+    "lut_build_logs": 2,
+    "matlab_live_scripts": 3,
+    "rate_table_cache_files": 6,
+    "lut_diagnostic_files": 19,
+    "unchanged": true
+  },
+  "permanent_deletion_authorized": false,
+  "symlink_created": false,
+  "slurm_actions_performed": false,
+  "scientific_reclassification_performed": false
+}
