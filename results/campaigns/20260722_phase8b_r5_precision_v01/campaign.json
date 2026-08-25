@@ -1,0 +1,87 @@
+{
+  "artifact_manifest_path": null,
+  "artifact_manifest_sha256": null,
+  "attempts": [],
+  "campaign_id": "20260722_phase8b_r5_precision_v01",
+  "execution_git_sha": null,
+  "execution_ref": null,
+  "github_manifest_path": null,
+  "github_manifest_sha256": null,
+  "legacy": {
+    "components": [
+      {
+        "role": "run",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/phase8b_r5_precision_20260722T124000Z",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260722_phase8b_r5_precision_v01/run",
+        "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825/phase8b_r5_precision_20260722T124000Z",
+        "file_count": 660,
+        "total_bytes": 99644586,
+        "source_manifest_sha256": "8bdd076db9e4eda573c0cdda5bc517b1fbad9e527cf7bd0381aaea02558e4866",
+        "destination_manifest_sha256": "dcc12cceb25ed0ad20b9bc1186a37437770f13958e959d0e6d346277319c669d",
+        "source_deleted": false
+      }
+    ],
+    "config_inventory": {
+      "full_remote_record_count": 38,
+      "primary_evidence": [
+        {
+          "path": "source/.codex/config.toml",
+          "role": "run",
+          "sha256": "5dd50cc26dfa68eb40814d5baf10f7851f7e4a531802c6e2d0cb0caaf2957638"
+        },
+        {
+          "path": "source/Filament_python/config_ref.json",
+          "role": "run",
+          "sha256": "b7c9a8675afe423d5e4251cd3d98c6f2ae727a8bd39fd93e64829eea0f8abe86"
+        },
+        {
+          "path": "source/Filament_python/configs/ionization_model_propagation/120fs_talebpour_full_model.json",
+          "role": "run",
+          "sha256": "ffb1cb8753d1371992698c6bf5146c16b8cd38b6a4d76061162f0a6fcac3c549"
+        }
+      ]
+    },
+    "evidence_nature": "precision_audit",
+    "execution_git_evidence": [],
+    "files_moved": true,
+    "remote_campaign_sha256": "395b17a6f90f28803a2c0eabb894b58cd6f1161f10e0fbc727e11f991f7bd2f7",
+    "remote_raw_manifest": {
+      "path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260722_phase8b_r5_precision_v01/raw_manifest_phase8b_relocation_20260825.json",
+      "sha256": "cd61c49f7862f7d390674bcf44ee8b23e9941218911193fd9eeff5c390c7d4f1"
+    },
+    "relocation_attempt_relationship": [],
+    "scientific_acceptance": {
+      "reclassified": false,
+      "status": "unknown_preserved"
+    },
+    "scientific_reclassification_performed": false,
+    "source_deleted": false,
+    "symlink_created": false
+  },
+  "lifecycle": "archived",
+  "paths": {
+    "hpc_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260722_phase8b_r5_precision_v01",
+    "legacy_run_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260722_phase8b_r5_precision_v01",
+    "local_artifacts": "D:/Filament_1/.artifacts/20260722_phase8b_r5_precision_v01"
+  },
+  "publication": {
+    "status": "unknown"
+  },
+  "raw_manifest_path": null,
+  "raw_manifest_sha256": null,
+  "relocation": {
+    "archive_receipt_sha256": "3c29070354f5ad78a4b2161a70234872f2b8fa373104f647eccbf7c92a32fca3",
+    "batch": "phase8b_relocation_batch3_20260825",
+    "batch_receipt_sha256": "22729560aa2a6fd412babaf07fd342d5dca762d9301d1e9a658aa3ca4979b5d6",
+    "relocation_receipt_sha256": "db4f21189d7a15619ab7a7a1acc08937f4b1e58b1959addd943639b100ca3b66",
+    "schema": "filament.campaign_relocation_reference.v1"
+  },
+  "repository_url": null,
+  "requested_config_path": null,
+  "requested_config_sha256": null,
+  "resolved_config_path": null,
+  "resolved_config_sha256": null,
+  "schema": "filament.campaign.v1",
+  "scientific_purpose": "Mechanical preservation of precision-audit evidence and its existing scope without new numerical conclusions.",
+  "title": "Phase 8B R5 precision legacy evidence"
+}

@@ -1,0 +1,75 @@
+{
+  "batch_id": "phase8b_relocation_batch3_20260825",
+  "batch_receipt_sha256": "22729560aa2a6fd412babaf07fd342d5dca762d9301d1e9a658aa3ca4979b5d6",
+  "campaign_ids": [
+    "20260721_phase8b_preflight_smoke_v01",
+    "20260721_phase8b_r1_job1_audit_v01",
+    "20260721_phase8b_r2_job1_attempts_v01",
+    "20260722_phase8b_r4_linear_smoke_v01",
+    "20260722_phase8b_r5_precision_v01"
+  ],
+  "evidence_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/archive/inventories/phase8b_relocation_batch3_20260825",
+  "path_map_sha256": "221a8d63d1cf81a3e99f2b2cae6fdf10641bfdd5fd0bd9dd1343f1bc3f2f788c",
+  "paths": [
+    {
+      "campaign_id": "20260721_phase8b_preflight_smoke_v01",
+      "role": "run",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/phase8b_preflight_smoke_20260721T041145Z",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260721_phase8b_preflight_smoke_v01/run",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825/phase8b_preflight_smoke_20260721T041145Z"
+    },
+    {
+      "campaign_id": "20260721_phase8b_r1_job1_audit_v01",
+      "role": "initial",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/phase8b_r1_job1_audit_20260721T144656",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260721_phase8b_r1_job1_audit_v01/initial",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825/phase8b_r1_job1_audit_20260721T144656"
+    },
+    {
+      "campaign_id": "20260721_phase8b_r1_job1_audit_v01",
+      "role": "v2",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/phase8b_r1_job1_audit_v2_20260721T150200",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260721_phase8b_r1_job1_audit_v01/v2",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825/phase8b_r1_job1_audit_v2_20260721T150200"
+    },
+    {
+      "campaign_id": "20260721_phase8b_r2_job1_attempts_v01",
+      "role": "original",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/phase8b_r2_job1_20260721T090147Z",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260721_phase8b_r2_job1_attempts_v01/original",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825/phase8b_r2_job1_20260721T090147Z"
+    },
+    {
+      "campaign_id": "20260721_phase8b_r2_job1_attempts_v01",
+      "role": "replacement",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/phase8b_r2_replacement_job1_20260721T164308Z",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260721_phase8b_r2_job1_attempts_v01/replacement",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825/phase8b_r2_replacement_job1_20260721T164308Z"
+    },
+    {
+      "campaign_id": "20260721_phase8b_r2_job1_attempts_v01",
+      "role": "replacement_retry",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/phase8b_r2_replacement_job1_retry_20260721T165000Z",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260721_phase8b_r2_job1_attempts_v01/replacement_retry",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825/phase8b_r2_replacement_job1_retry_20260721T165000Z"
+    },
+    {
+      "campaign_id": "20260722_phase8b_r4_linear_smoke_v01",
+      "role": "run",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/phase8b_r4_linear_smoke_20260722T011500Z",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260722_phase8b_r4_linear_smoke_v01/run",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825/phase8b_r4_linear_smoke_20260722T011500Z"
+    },
+    {
+      "campaign_id": "20260722_phase8b_r5_precision_v01",
+      "role": "run",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/phase8b_r5_precision_20260722T124000Z",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260722_phase8b_r5_precision_v01/run",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825/phase8b_r5_precision_20260722T124000Z"
+    }
+  ],
+  "permanent_deletion_authorized": false,
+  "schema": "filament.hpc_phase8b_relocation_batch.v1",
+  "status": "completed",
+  "symlink_created": false
+}

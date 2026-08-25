@@ -29,3 +29,17 @@ Each record preserves separate `legacy_runs` and `legacy_staging` path mappings,
 manifest/receipt hashes and execution/config evidence without publishing raw
 NPZ, staging checkouts or scientific reclassification. Full small receipts and
 manifests remain in `.artifacts/<campaign_id>/hpc_relocation/`.
+
+Phase 8B HPC legacy evidence is represented by five compact campaign records:
+
+- `20260721_phase8b_preflight_smoke_v01`
+- `20260721_phase8b_r1_job1_audit_v01`
+- `20260721_phase8b_r2_job1_attempts_v01`
+- `20260722_phase8b_r4_linear_smoke_v01`
+- `20260722_phase8b_r5_precision_v01`
+
+The records preserve all eight source components, including the R1 initial/v2
+sequence and the R2 original/replacement/replacement-retry sequence. Archive
+acceptance records management completeness only: smoke, audit, diagnostic and
+precision evidence is not promoted to a new scientific conclusion. Full small
+receipts and manifests remain in `.artifacts/<campaign_id>/hpc_relocation/`.

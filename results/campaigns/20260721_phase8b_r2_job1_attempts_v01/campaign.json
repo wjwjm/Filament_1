@@ -1,0 +1,147 @@
+{
+  "artifact_manifest_path": null,
+  "artifact_manifest_sha256": null,
+  "attempts": [
+    {
+      "role": "original",
+      "original_directory": "phase8b_r2_job1_20260721T090147Z",
+      "job_id": null,
+      "scheduler_state": "unknown"
+    },
+    {
+      "role": "replacement",
+      "original_directory": "phase8b_r2_replacement_job1_20260721T164308Z",
+      "job_id": null,
+      "scheduler_state": "unknown"
+    },
+    {
+      "role": "replacement_retry",
+      "original_directory": "phase8b_r2_replacement_job1_retry_20260721T165000Z",
+      "job_id": null,
+      "scheduler_state": "unknown"
+    }
+  ],
+  "campaign_id": "20260721_phase8b_r2_job1_attempts_v01",
+  "execution_git_sha": null,
+  "execution_ref": null,
+  "github_manifest_path": null,
+  "github_manifest_sha256": null,
+  "legacy": {
+    "components": [
+      {
+        "role": "original",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/phase8b_r2_job1_20260721T090147Z",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260721_phase8b_r2_job1_attempts_v01/original",
+        "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825/phase8b_r2_job1_20260721T090147Z",
+        "file_count": 583,
+        "total_bytes": 157448081,
+        "source_manifest_sha256": "d938b1efac729fae067e8c8b23f46697c32a821ae33152421ba10f25d9b88e03",
+        "destination_manifest_sha256": "c693ac3d16203b17c1dab8ad4fa5bf7d8ae13cb9b5932a50a6a0389374370000",
+        "source_deleted": false
+      },
+      {
+        "role": "replacement",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/phase8b_r2_replacement_job1_20260721T164308Z",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260721_phase8b_r2_job1_attempts_v01/replacement",
+        "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825/phase8b_r2_replacement_job1_20260721T164308Z",
+        "file_count": 572,
+        "total_bytes": 85537225,
+        "source_manifest_sha256": "12256cd6faef7158cd781f8261b61721e4b8203b0c2a6bf507db3cfdbc2f2cf1",
+        "destination_manifest_sha256": "85e5b7b31bf8c9dfca36530d73b76b128fccecbdf973eb2daf41824ec162b4ae",
+        "source_deleted": false
+      },
+      {
+        "role": "replacement_retry",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/phase8b_r2_replacement_job1_retry_20260721T165000Z",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260721_phase8b_r2_job1_attempts_v01/replacement_retry",
+        "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825/phase8b_r2_replacement_job1_retry_20260721T165000Z",
+        "file_count": 608,
+        "total_bytes": 116797333,
+        "source_manifest_sha256": "239130a3e40584483ddc00651b94c9172f8305a66837857818da8071e49e5617",
+        "destination_manifest_sha256": "eb8794610eb8fa213557ac86fa9f27465268b56cb7913b0880a4bd6c9c8016a3",
+        "source_deleted": false
+      }
+    ],
+    "config_inventory": {
+      "full_remote_record_count": 110,
+      "primary_evidence": [
+        {
+          "path": "metadata/job1_config_diff.json",
+          "role": "original",
+          "sha256": "7035d924424fba6ad1e6680ca4f427cdb5cd98dd36aa3f6dd7fef225f7c8474a"
+        },
+        {
+          "path": "source/.codex/config.toml",
+          "role": "original",
+          "sha256": "5dd50cc26dfa68eb40814d5baf10f7851f7e4a531802c6e2d0cb0caaf2957638"
+        },
+        {
+          "path": "source/Filament_python/config_ref.json",
+          "role": "original",
+          "sha256": "b7c9a8675afe423d5e4251cd3d98c6f2ae727a8bd39fd93e64829eea0f8abe86"
+        }
+      ]
+    },
+    "evidence_nature": "replacement_retry_attempt_sequence",
+    "execution_git_evidence": [],
+    "files_moved": true,
+    "remote_campaign_sha256": "20c0f771b507bab3c53fc7969775150d6fb14cc39b7bceee3c47f8c56850a0cf",
+    "remote_raw_manifest": {
+      "path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260721_phase8b_r2_job1_attempts_v01/raw_manifest_phase8b_relocation_20260825.json",
+      "sha256": "b4d30eb4ac1314683340ce6a490bc52dd75a27ecfdf8b3e8b05e162e0439f3a0"
+    },
+    "relocation_attempt_relationship": [
+      {
+        "role": "original",
+        "original_directory": "phase8b_r2_job1_20260721T090147Z",
+        "job_id": null,
+        "scheduler_state": "unknown"
+      },
+      {
+        "role": "replacement",
+        "original_directory": "phase8b_r2_replacement_job1_20260721T164308Z",
+        "job_id": null,
+        "scheduler_state": "unknown"
+      },
+      {
+        "role": "replacement_retry",
+        "original_directory": "phase8b_r2_replacement_job1_retry_20260721T165000Z",
+        "job_id": null,
+        "scheduler_state": "unknown"
+      }
+    ],
+    "scientific_acceptance": {
+      "reclassified": false,
+      "status": "unknown_preserved"
+    },
+    "scientific_reclassification_performed": false,
+    "source_deleted": false,
+    "symlink_created": false
+  },
+  "lifecycle": "archived",
+  "paths": {
+    "hpc_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260721_phase8b_r2_job1_attempts_v01",
+    "legacy_run_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260721_phase8b_r2_job1_attempts_v01",
+    "local_artifacts": "D:/Filament_1/.artifacts/20260721_phase8b_r2_job1_attempts_v01"
+  },
+  "publication": {
+    "status": "unknown"
+  },
+  "raw_manifest_path": null,
+  "raw_manifest_sha256": null,
+  "relocation": {
+    "archive_receipt_sha256": "4f07f608fed05ae300bb62a3c4d435a85d4ba5df442a7a14f146674082bc4b83",
+    "batch": "phase8b_relocation_batch3_20260825",
+    "batch_receipt_sha256": "22729560aa2a6fd412babaf07fd342d5dca762d9301d1e9a658aa3ca4979b5d6",
+    "relocation_receipt_sha256": "e95f336f0a66afbaf5a39c71541072e185282a3d2bd3fb54d5332856cbbb5c62",
+    "schema": "filament.campaign_relocation_reference.v1"
+  },
+  "repository_url": null,
+  "requested_config_path": null,
+  "requested_config_sha256": null,
+  "resolved_config_path": null,
+  "resolved_config_sha256": null,
+  "schema": "filament.campaign.v1",
+  "scientific_purpose": "Mechanical preservation of original, replacement, and replacement-retry evidence without selecting a final attempt.",
+  "title": "Phase 8B R2 job1 attempts legacy evidence"
+}

@@ -420,6 +420,59 @@
       ],
       "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8c_sources_20260825",
       "status": "relocated_to_project_namespace"
+    },
+    {
+      "batch_receipt_sha256": "22729560aa2a6fd412babaf07fd342d5dca762d9301d1e9a658aa3ca4979b5d6",
+      "campaign_id": "20260721_phase8b_preflight_smoke_v01",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260721_phase8b_preflight_smoke_v01",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/phase8b_preflight_smoke_20260721T041145Z"
+      ],
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825",
+      "status": "relocated_to_project_namespace"
+    },
+    {
+      "batch_receipt_sha256": "22729560aa2a6fd412babaf07fd342d5dca762d9301d1e9a658aa3ca4979b5d6",
+      "campaign_id": "20260721_phase8b_r1_job1_audit_v01",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260721_phase8b_r1_job1_audit_v01",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/phase8b_r1_job1_audit_20260721T144656",
+        "/data/run01/scvi806/user_Wangjimin/phase8b_r1_job1_audit_v2_20260721T150200"
+      ],
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825",
+      "status": "relocated_to_project_namespace"
+    },
+    {
+      "batch_receipt_sha256": "22729560aa2a6fd412babaf07fd342d5dca762d9301d1e9a658aa3ca4979b5d6",
+      "campaign_id": "20260721_phase8b_r2_job1_attempts_v01",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260721_phase8b_r2_job1_attempts_v01",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/phase8b_r2_job1_20260721T090147Z",
+        "/data/run01/scvi806/user_Wangjimin/phase8b_r2_replacement_job1_20260721T164308Z",
+        "/data/run01/scvi806/user_Wangjimin/phase8b_r2_replacement_job1_retry_20260721T165000Z"
+      ],
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825",
+      "status": "relocated_to_project_namespace"
+    },
+    {
+      "batch_receipt_sha256": "22729560aa2a6fd412babaf07fd342d5dca762d9301d1e9a658aa3ca4979b5d6",
+      "campaign_id": "20260722_phase8b_r4_linear_smoke_v01",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260722_phase8b_r4_linear_smoke_v01",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/phase8b_r4_linear_smoke_20260722T011500Z"
+      ],
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825",
+      "status": "relocated_to_project_namespace"
+    },
+    {
+      "batch_receipt_sha256": "22729560aa2a6fd412babaf07fd342d5dca762d9301d1e9a658aa3ca4979b5d6",
+      "campaign_id": "20260722_phase8b_r5_precision_v01",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260722_phase8b_r5_precision_v01",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/phase8b_r5_precision_20260722T124000Z"
+      ],
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_phase8b_sources_20260825",
+      "status": "relocated_to_project_namespace"
     }
   ],
   "repository_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
