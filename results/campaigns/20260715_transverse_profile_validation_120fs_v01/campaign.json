@@ -1,0 +1,90 @@
+{
+  "artifact_manifest_path": null,
+  "artifact_manifest_sha256": null,
+  "attempts": [],
+  "campaign_id": "20260715_transverse_profile_validation_120fs_v01",
+  "execution_git_sha": null,
+  "execution_ref": null,
+  "github_manifest_path": null,
+  "github_manifest_sha256": null,
+  "legacy": {
+    "components": [
+      {
+        "role": "outputs",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260715_transverse_profile_validation_120fs_v01/outputs",
+        "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_repository_outputs_20260825/transverse_profile_validation",
+        "file_count": 42,
+        "total_bytes": 102734599,
+        "source_manifest_sha256": "8ec410075dd4de15f2854a53703114722548624ff1520911c604a2b6a21e607e",
+        "destination_manifest_sha256": "57f4e1357088903cffec01874180f8fc1e3c3a14bec81aba545fc500dd63f5f5",
+        "source_deleted": false
+      }
+    ],
+    "config_inventory": {
+      "full_remote_record_count": 3,
+      "primary_evidence": [
+        {
+          "path": "profile_validation_20260715_004/configs/profile_ft90_120.json",
+          "role": "outputs",
+          "sha256": "d841949e39f3bda71a8f0bda013c89c5a9b20ee612c1007a4cdf11333ecfbd46"
+        },
+        {
+          "path": "profile_validation_20260715_004/configs/profile_g_120.json",
+          "role": "outputs",
+          "sha256": "8f1f83d76fa16c31c9d6bf1d0ed552c73db73e8215b9b162a41fa4596cfbcf8c"
+        },
+        {
+          "path": "profile_validation_20260715_004/stage_spec_snapshot.json",
+          "role": "outputs",
+          "sha256": "6b669cbad4a240228f23b8bada05a39466290ba56940bc495a8a57202e9073d9"
+        }
+      ]
+    },
+    "evidence_nature": "legacy_transverse_profile_validation_120fs_output_domain",
+    "execution_git_evidence": [],
+    "files_moved": true,
+    "internal_subdomains": [
+      "profile_validation_20260715_004",
+      "failed_preflight_cleanup_20260715.json"
+    ],
+    "remote_campaign_sha256": "2125c510f037383c6e15eb04f7ec546c71d5b50cef4f9d5ea04e4b540ab7c3ba",
+    "remote_raw_manifest": {
+      "path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260715_transverse_profile_validation_120fs_v01/raw_manifest_legacy_outputs_relocation_20260825.json",
+      "sha256": "a830fa7c35132917d67c795c26c6fbfd759c59a74dbfbcd84110c551448644df"
+    },
+    "scientific_acceptance": {
+      "reclassified": false,
+      "status": "unknown_preserved"
+    },
+    "scientific_reclassification_performed": false,
+    "source_deleted": false,
+    "symlink_created": false
+  },
+  "lifecycle": "archived",
+  "paths": {
+    "hpc_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260715_transverse_profile_validation_120fs_v01",
+    "legacy_run_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260715_transverse_profile_validation_120fs_v01",
+    "local_artifacts": "D:/Filament_1/.artifacts/20260715_transverse_profile_validation_120fs_v01"
+  },
+  "publication": {
+    "status": "unknown"
+  },
+  "raw_manifest_path": null,
+  "raw_manifest_sha256": null,
+  "relocation": {
+    "archive_receipt_sha256": "5b17833b3518a54f480aa2854830df897618a8b4d76b03f0bb2e2eeee9e0443b",
+    "batch": "legacy_repository_outputs_relocation_batch5_20260825",
+    "batch_receipt_sha256": "aaf318e63326838537c2c89ed1644de0a8efed793ab603b723310bcf404cf3dd",
+    "relocation_receipt_sha256": "c97dd831e8678663dc85de2b5253c7b43ac5af009e24d8c76d3d42200e6ad47f",
+    "schema": "filament.campaign_relocation_reference.v1"
+  },
+  "repository_url": null,
+  "requested_config_path": null,
+  "requested_config_sha256": null,
+  "resolved_config_path": null,
+  "resolved_config_sha256": null,
+  "schema": "filament.campaign.v1",
+  "scientific_purpose": "Mechanical preservation of 120 fs transverse-profile validation outputs and failed-preflight cleanup evidence.",
+  "title": "Transverse profile validation 120 fs legacy outputs"
+}

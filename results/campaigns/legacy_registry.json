@@ -485,6 +485,56 @@
       ],
       "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_historical_fr_sources_20260825",
       "status": "relocated_to_project_namespace"
+    },
+    {
+      "batch_receipt_sha256": "aaf318e63326838537c2c89ed1644de0a8efed793ab603b723310bcf404cf3dd",
+      "campaign_id": "20260717_ionization_model_propagation_legacy_v01",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260717_ionization_model_propagation_legacy_v01",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation"
+      ],
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_repository_outputs_20260825",
+      "status": "relocated_to_project_namespace"
+    },
+    {
+      "batch_receipt_sha256": "aaf318e63326838537c2c89ed1644de0a8efed793ab603b723310bcf404cf3dd",
+      "campaign_id": "20260718_raman_phase_causality_legacy_v01",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260718_raman_phase_causality_legacy_v01",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/raman_phase_causality"
+      ],
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_repository_outputs_20260825",
+      "status": "relocated_to_project_namespace"
+    },
+    {
+      "batch_receipt_sha256": "aaf318e63326838537c2c89ed1644de0a8efed793ab603b723310bcf404cf3dd",
+      "campaign_id": "20260715_transverse_profile_validation_120fs_v01",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260715_transverse_profile_validation_120fs_v01",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation"
+      ],
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_repository_outputs_20260825",
+      "status": "relocated_to_project_namespace"
+    },
+    {
+      "batch_receipt_sha256": "aaf318e63326838537c2c89ed1644de0a8efed793ab603b723310bcf404cf3dd",
+      "campaign_id": "20260715_transverse_profile_validation_40fs_v01",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260715_transverse_profile_validation_40fs_v01",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation_40fs"
+      ],
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_repository_outputs_20260825",
+      "status": "relocated_to_project_namespace"
+    },
+    {
+      "batch_receipt_sha256": "aaf318e63326838537c2c89ed1644de0a8efed793ab603b723310bcf404cf3dd",
+      "campaign_id": "20260715_vacuum_focus_validation_ft90_v01",
+      "current_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260715_vacuum_focus_validation_ft90_v01",
+      "original_roots": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/vacuum_focus_validation_ft90"
+      ],
+      "quarantine_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_repository_outputs_20260825",
+      "status": "relocated_to_project_namespace"
     }
   ],
   "repository_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",

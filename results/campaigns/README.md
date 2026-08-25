@@ -49,3 +49,10 @@ campaign, `20260820_historical_fr_mixture_precursor_attempts_v01`. It preserves
 the empty `1200Z` root and the separate `1220Z` and `1350Z` checkouts with
 their distinct Git HEAD values. This record is not merged into or interpreted
 as replacing `20260820_historical_fr_mixture_final_v01`.
+
+The five top-level domains formerly under the dirty legacy repository's
+`Filament_python/outputs/` directory are represented by five compact campaign
+records. Each complete domain is preserved as an `outputs` component, including
+NPZ, MAT, source tar files, logs, embedded source copies and failed-preflight
+evidence. Archive acceptance records management completeness only and does not
+revise the scientific conclusions contained in the legacy reports.

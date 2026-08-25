@@ -1,0 +1,96 @@
+{
+  "artifact_manifest_path": null,
+  "artifact_manifest_sha256": null,
+  "attempts": [],
+  "campaign_id": "20260718_raman_phase_causality_legacy_v01",
+  "execution_git_sha": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
+  "execution_ref": null,
+  "github_manifest_path": null,
+  "github_manifest_sha256": null,
+  "legacy": {
+    "components": [
+      {
+        "role": "outputs",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/raman_phase_causality",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260718_raman_phase_causality_legacy_v01/outputs",
+        "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_repository_outputs_20260825/raman_phase_causality",
+        "file_count": 317,
+        "total_bytes": 70540036,
+        "source_manifest_sha256": "fddbfe2b986181abe5b0671eceef6b924f1477d0d2966afa0de08290225fc38e",
+        "destination_manifest_sha256": "707d5434015585fa1a74295d17a2de0034cd20ee50e3c082603ff49d7a0d7f28",
+        "source_deleted": false
+      }
+    ],
+    "config_inventory": {
+      "full_remote_record_count": 18,
+      "primary_evidence": [
+        {
+          "path": "raman_phase_off_120fs_20260718T201000Z/configs/120fs_talebpour_full_model_raman_phase_off.json",
+          "role": "outputs",
+          "sha256": "d57aadda4c75999722f63919ac92d6a7a42c743d9c3ae2837d502e98176a49b5"
+        },
+        {
+          "path": "raman_phase_off_120fs_20260718T201000Z/source/.codex/config.toml",
+          "role": "outputs",
+          "sha256": "5dd50cc26dfa68eb40814d5baf10f7851f7e4a531802c6e2d0cb0caaf2957638"
+        },
+        {
+          "path": "raman_phase_off_120fs_20260718T201000Z/source/Filament_python/config_ref.json",
+          "role": "outputs",
+          "sha256": "b7c9a8675afe423d5e4251cd3d98c6f2ae727a8bd39fd93e64829eea0f8abe86"
+        }
+      ]
+    },
+    "evidence_nature": "legacy_raman_phase_causality_output_domain",
+    "execution_git_evidence": [
+      {
+        "role": "outputs",
+        "checkout_relative_path": "raman_phase_off_120fs_20260718T201000Z",
+        "head": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
+        "source": "EXECUTION_GIT_SHA"
+      }
+    ],
+    "files_moved": true,
+    "internal_subdomains": [
+      "raman_phase_off_120fs_20260718T201000Z"
+    ],
+    "remote_campaign_sha256": "cac72b8e227634641d31e37fd9e683da09390cec7eaa3f2d886f9cb37a6093fe",
+    "remote_raw_manifest": {
+      "path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260718_raman_phase_causality_legacy_v01/raw_manifest_legacy_outputs_relocation_20260825.json",
+      "sha256": "bc974dae3b0b2f18a52523c9a083fea1c230f7d7edf16715311ea7b17e6ce289"
+    },
+    "scientific_acceptance": {
+      "reclassified": false,
+      "status": "unknown_preserved"
+    },
+    "scientific_reclassification_performed": false,
+    "source_deleted": false,
+    "symlink_created": false
+  },
+  "lifecycle": "archived",
+  "paths": {
+    "hpc_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260718_raman_phase_causality_legacy_v01",
+    "legacy_run_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260718_raman_phase_causality_legacy_v01",
+    "local_artifacts": "D:/Filament_1/.artifacts/20260718_raman_phase_causality_legacy_v01"
+  },
+  "publication": {
+    "status": "unknown"
+  },
+  "raw_manifest_path": null,
+  "raw_manifest_sha256": null,
+  "relocation": {
+    "archive_receipt_sha256": "a24fd272f7d76251e6800cd3273719bae2467a03ac5f307574cdcff27505d791",
+    "batch": "legacy_repository_outputs_relocation_batch5_20260825",
+    "batch_receipt_sha256": "aaf318e63326838537c2c89ed1644de0a8efed793ab603b723310bcf404cf3dd",
+    "relocation_receipt_sha256": "b1b9c5e22de3e6b0f4e9d0b9faeb1c7a41cb9a7f1ad9dcfcae5fb93c73b6dc54",
+    "schema": "filament.campaign_relocation_reference.v1"
+  },
+  "repository_url": null,
+  "requested_config_path": null,
+  "requested_config_sha256": null,
+  "resolved_config_path": null,
+  "resolved_config_sha256": null,
+  "schema": "filament.campaign.v1",
+  "scientific_purpose": "Mechanical preservation of legacy Raman phase-off propagation outputs without scientific reclassification.",
+  "title": "Raman phase causality legacy outputs"
+}

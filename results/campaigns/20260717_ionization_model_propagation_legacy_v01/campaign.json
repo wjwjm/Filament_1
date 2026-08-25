@@ -1,0 +1,111 @@
+{
+  "artifact_manifest_path": null,
+  "artifact_manifest_sha256": null,
+  "attempts": [],
+  "campaign_id": "20260717_ionization_model_propagation_legacy_v01",
+  "execution_git_sha": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
+  "execution_ref": null,
+  "github_manifest_path": null,
+  "github_manifest_sha256": null,
+  "legacy": {
+    "components": [
+      {
+        "role": "outputs",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260717_ionization_model_propagation_legacy_v01/outputs",
+        "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_repository_outputs_20260825/ionization_model_propagation",
+        "file_count": 935,
+        "total_bytes": 192858708,
+        "source_manifest_sha256": "d3f61370ced20ab023e936680726a8c24afbed3ea2326bf003c7bd44aa8b1eb4",
+        "destination_manifest_sha256": "13c56490abb9f4fa9105dfb4fbbb1e892ddf2b1d561c4f6ff944a5aeb0c50dec",
+        "source_deleted": false
+      }
+    ],
+    "config_inventory": {
+      "full_remote_record_count": 54,
+      "primary_evidence": [
+        {
+          "path": "popruzhenko_120_current_observability_20260717T055731Z/configs/120fs_popruzhenko_full_model_current_observability.json",
+          "role": "outputs",
+          "sha256": "9c2ce3786eff4ff30ee201f939a5a3430b7d1d6517b27be68af898b2367d1f37"
+        },
+        {
+          "path": "popruzhenko_120_current_observability_20260717T055731Z/source/.codex/config.toml",
+          "role": "outputs",
+          "sha256": "5dd50cc26dfa68eb40814d5baf10f7851f7e4a531802c6e2d0cb0caaf2957638"
+        },
+        {
+          "path": "popruzhenko_120_current_observability_20260717T055731Z/source/Filament_python/config_ref.json",
+          "role": "outputs",
+          "sha256": "b7c9a8675afe423d5e4251cd3d98c6f2ae727a8bd39fd93e64829eea0f8abe86"
+        }
+      ]
+    },
+    "evidence_nature": "legacy_output_domain_with_three_runs_and_phase6_feedback",
+    "execution_git_evidence": [
+      {
+        "role": "outputs",
+        "checkout_relative_path": "popruzhenko_120_current_observability_20260717T055731Z",
+        "head": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
+        "source": "EXECUTION_GIT_SHA"
+      },
+      {
+        "role": "outputs",
+        "checkout_relative_path": "talebpour_120fs_20260717T114321Z",
+        "head": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
+        "source": "EXECUTION_GIT_SHA"
+      },
+      {
+        "role": "outputs",
+        "checkout_relative_path": "talebpour_40fs_20260717T151324Z",
+        "head": "8dcd01ee38adf2167a2fd6083ae4785e94de89a0",
+        "source": "EXECUTION_GIT_SHA"
+      }
+    ],
+    "files_moved": true,
+    "internal_subdomains": [
+      "phase6_feedback_20260718T120000Z",
+      "popruzhenko_120_current_observability_20260717T055731Z",
+      "talebpour_120fs_20260717T114321Z",
+      "talebpour_40fs_20260717T151324Z"
+    ],
+    "remote_campaign_sha256": "a89deeacae472118aff2a86269aa10d74874c2bb00bc81319cb0e686f7f0b691",
+    "remote_raw_manifest": {
+      "path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260717_ionization_model_propagation_legacy_v01/raw_manifest_legacy_outputs_relocation_20260825.json",
+      "sha256": "ef1e43e45e5550ac15ae405d92e96a167baad438c068f20335ab8b4da5908a6e"
+    },
+    "scientific_acceptance": {
+      "reclassified": false,
+      "status": "unknown_preserved"
+    },
+    "scientific_reclassification_performed": false,
+    "source_deleted": false,
+    "symlink_created": false
+  },
+  "lifecycle": "archived",
+  "paths": {
+    "hpc_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260717_ionization_model_propagation_legacy_v01",
+    "legacy_run_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260717_ionization_model_propagation_legacy_v01",
+    "local_artifacts": "D:/Filament_1/.artifacts/20260717_ionization_model_propagation_legacy_v01"
+  },
+  "publication": {
+    "status": "unknown"
+  },
+  "raw_manifest_path": null,
+  "raw_manifest_sha256": null,
+  "relocation": {
+    "archive_receipt_sha256": "c398ff5d7aa6b16d6330456aaf78d1add7fad775edf5ab862c4891259b77b424",
+    "batch": "legacy_repository_outputs_relocation_batch5_20260825",
+    "batch_receipt_sha256": "aaf318e63326838537c2c89ed1644de0a8efed793ab603b723310bcf404cf3dd",
+    "relocation_receipt_sha256": "939741d48dc8bfd25222cbaab99d7378470fd7e4383f145390141710b7908a29",
+    "schema": "filament.campaign_relocation_reference.v1"
+  },
+  "repository_url": null,
+  "requested_config_path": null,
+  "requested_config_sha256": null,
+  "resolved_config_path": null,
+  "resolved_config_sha256": null,
+  "schema": "filament.campaign.v1",
+  "scientific_purpose": "Mechanical preservation of legacy ionization propagation outputs without selecting or revising a scientific conclusion.",
+  "title": "Ionization model propagation legacy outputs"
+}

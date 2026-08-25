@@ -1,0 +1,84 @@
+{
+  "artifact_manifest_path": null,
+  "artifact_manifest_sha256": null,
+  "attempts": [],
+  "campaign_id": "20260715_vacuum_focus_validation_ft90_v01",
+  "execution_git_sha": null,
+  "execution_ref": null,
+  "github_manifest_path": null,
+  "github_manifest_sha256": null,
+  "legacy": {
+    "components": [
+      {
+        "role": "outputs",
+        "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/vacuum_focus_validation_ft90",
+        "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260715_vacuum_focus_validation_ft90_v01/outputs",
+        "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_repository_outputs_20260825/vacuum_focus_validation_ft90",
+        "file_count": 8,
+        "total_bytes": 1610420,
+        "source_manifest_sha256": "2c841b7705fcc8eff0c7e905ef0bf34c3d180b5b540193fa216ea11164d3317d",
+        "destination_manifest_sha256": "f18e995a0dccdf45eb5a909f30c4a1b951fe4d909d1cbed641d8c201c38585c6",
+        "source_deleted": false
+      }
+    ],
+    "config_inventory": {
+      "full_remote_record_count": 2,
+      "primary_evidence": [
+        {
+          "path": "vacuum_focus_validation_ft90_20260715T152950Z/config_snapshot.json",
+          "role": "outputs",
+          "sha256": "4e5786db6f5adf3f57114a5d023a657e96f3aedc9c19ee4340ea03580d7a979c"
+        },
+        {
+          "path": "vacuum_focus_validation_ft90_20260715T152950Z/stage_spec_snapshot.json",
+          "role": "outputs",
+          "sha256": "c62d326893e6f299ee2dd3f25dcfb1b5f11c3d6f8893c99d8e10db1f038b589b"
+        }
+      ]
+    },
+    "evidence_nature": "legacy_vacuum_focus_validation_ft90_output_domain",
+    "execution_git_evidence": [],
+    "files_moved": true,
+    "internal_subdomains": [
+      "vacuum_focus_validation_ft90_20260715T152950Z"
+    ],
+    "remote_campaign_sha256": "8ae38e30c60c834c34ba1fc3e2ed46360de840093f04d3cdc38d71397d8fc488",
+    "remote_raw_manifest": {
+      "path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260715_vacuum_focus_validation_ft90_v01/raw_manifest_legacy_outputs_relocation_20260825.json",
+      "sha256": "400d8e4ca6889bce394f23d2baafe802683689626b1df7bf8bd884f08d78b611"
+    },
+    "scientific_acceptance": {
+      "reclassified": false,
+      "status": "unknown_preserved"
+    },
+    "scientific_reclassification_performed": false,
+    "source_deleted": false,
+    "symlink_created": false
+  },
+  "lifecycle": "archived",
+  "paths": {
+    "hpc_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/20260715_vacuum_focus_validation_ft90_v01",
+    "legacy_run_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260715_vacuum_focus_validation_ft90_v01",
+    "local_artifacts": "D:/Filament_1/.artifacts/20260715_vacuum_focus_validation_ft90_v01"
+  },
+  "publication": {
+    "status": "unknown"
+  },
+  "raw_manifest_path": null,
+  "raw_manifest_sha256": null,
+  "relocation": {
+    "archive_receipt_sha256": "f3c3f7b61f1ece30735a80fc21fef9297ae55dc6dee2ec5d64a5dfdd845988fa",
+    "batch": "legacy_repository_outputs_relocation_batch5_20260825",
+    "batch_receipt_sha256": "aaf318e63326838537c2c89ed1644de0a8efed793ab603b723310bcf404cf3dd",
+    "relocation_receipt_sha256": "2a83c0b7746776dea2fa9e249e857993a17aec6c0463d672975b9f9ec32dbff3",
+    "schema": "filament.campaign_relocation_reference.v1"
+  },
+  "repository_url": null,
+  "requested_config_path": null,
+  "requested_config_sha256": null,
+  "resolved_config_path": null,
+  "resolved_config_sha256": null,
+  "schema": "filament.campaign.v1",
+  "scientific_purpose": "Mechanical preservation of FT90 vacuum-focus validation outputs without scientific reclassification.",
+  "title": "Vacuum focus validation FT90 legacy outputs"
+}

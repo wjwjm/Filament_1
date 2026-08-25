@@ -1,0 +1,60 @@
+{
+  "batch_id": "legacy_repository_outputs_relocation_batch5_20260825",
+  "batch_receipt_sha256": "aaf318e63326838537c2c89ed1644de0a8efed793ab603b723310bcf404cf3dd",
+  "campaign_ids": [
+    "20260717_ionization_model_propagation_legacy_v01",
+    "20260718_raman_phase_causality_legacy_v01",
+    "20260715_transverse_profile_validation_120fs_v01",
+    "20260715_transverse_profile_validation_40fs_v01",
+    "20260715_vacuum_focus_validation_ft90_v01"
+  ],
+  "evidence_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/archive/inventories/legacy_repository_outputs_relocation_batch5_20260825",
+  "path_map_sha256": "20aa19285e782628ec456c33d4174310b7e7c3dd2f869d4220b31214808a51f7",
+  "paths": [
+    {
+      "campaign_id": "20260717_ionization_model_propagation_legacy_v01",
+      "role": "outputs",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260717_ionization_model_propagation_legacy_v01/outputs",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_repository_outputs_20260825/ionization_model_propagation"
+    },
+    {
+      "campaign_id": "20260718_raman_phase_causality_legacy_v01",
+      "role": "outputs",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/raman_phase_causality",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260718_raman_phase_causality_legacy_v01/outputs",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_repository_outputs_20260825/raman_phase_causality"
+    },
+    {
+      "campaign_id": "20260715_transverse_profile_validation_120fs_v01",
+      "role": "outputs",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260715_transverse_profile_validation_120fs_v01/outputs",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_repository_outputs_20260825/transverse_profile_validation"
+    },
+    {
+      "campaign_id": "20260715_transverse_profile_validation_40fs_v01",
+      "role": "outputs",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation_40fs",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260715_transverse_profile_validation_40fs_v01/outputs",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_repository_outputs_20260825/transverse_profile_validation_40fs"
+    },
+    {
+      "campaign_id": "20260715_vacuum_focus_validation_ft90_v01",
+      "role": "outputs",
+      "original_path": "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/vacuum_focus_validation_ft90",
+      "current_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy/runs/20260715_vacuum_focus_validation_ft90_v01/outputs",
+      "quarantine_source_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/relocated_legacy_repository_outputs_20260825/vacuum_focus_validation_ft90"
+    }
+  ],
+  "permanent_deletion_authorized": false,
+  "protected_extension_counts": {
+    "npz": 17,
+    "mat": 4,
+    "tar": 4
+  },
+  "recovery_receipt_sha256": "01f4116e212b6a6715b6d5aed44ac2e9ae57d2551a6985f32042077132cb70d3",
+  "schema": "filament.hpc_legacy_outputs_relocation_batch.v1",
+  "status": "completed",
+  "symlink_created": false
+}
