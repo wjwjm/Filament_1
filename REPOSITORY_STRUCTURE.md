@@ -3,7 +3,7 @@
 > 第一轮整理范围：只做分类、inventory、低风险移动与文档化；**不新增多脉冲物理，
 > 不改变任何公式、默认参数、operator、precision 策略或数值顺序。**
 
-## 0. 当前状态（2026-08-23，branch `main`）
+## 0. 当前状态（2026-08-25，branch `main`）
 
 - 已完成：第一轮结构基线的完整五类 inventory + machine-readable manifest；
   4 个 phase 文档从 `Filament_python/docs/` 归档到目标 `docs/`；
@@ -13,6 +13,10 @@
 - 已**冻结**：`Filament_python/configs|stages|results|tests|tools` 的物理移动，
   因为现有脚本/测试以 `ROOT/"..."` 硬编码引用它们（约 40+ 处）。这些路径的
   大规模迁移不在本轮范围，按 §5 冻结为 `deferred_until_architecture_requires_it`。
+- 已完成 HPC 项目命名空间阶段一：新管理根固定为
+  `/data/run01/scvi806/user_Wangjimin/projects/Filament_1`；账号根下五个旧管理
+  目录已进入项目 quarantine 观察区。旧 `Filament_1`、19 个旧运行目录、
+  `.secrets`、`.codex_ops` 和 NPZ/MAT 均保持原位。阶段二尚未开始。
 
 ## 1. 五个分类
 
@@ -71,6 +75,23 @@ GitHub 管理代码、去环境化 requested/resolved 配置、工具和精选�
 通过 `campaign_id`、execution SHA、config SHA256 和 artifact manifest SHA256
 对应。旧 `Filament_python/results/*` 保持原位，由
 `results/campaigns/legacy_registry.json` 机械登记，不在本轮迁移。
+
+HPC 新任务只使用以下命名空间：
+
+```text
+/data/run01/scvi806/user_Wangjimin/projects/Filament_1/
+├── source/staging/<campaign_id>/Filament_1_<short_sha>/
+├── campaigns/<campaign_id>/
+├── cache/
+├── archive/
+├── quarantine/
+└── legacy/
+```
+
+旧 `/data/run01/scvi806/user_Wangjimin/Filament_1` 是冻结的
+`legacy_compatibility_root`，不是新任务 checkout。阶段一配置和 receipt 摘要分别见
+`configs/project_management/hpc_namespace.json` 与
+`docs/project_management/2026-08-25_hpc_namespace_phase1_cutover.md`。
 
 ## 3. 以后“新东西放哪里”
 

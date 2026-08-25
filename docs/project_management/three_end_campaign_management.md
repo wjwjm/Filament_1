@@ -20,6 +20,31 @@ campaign_id + execution_git_sha + config_sha256 + artifact_sha256
 allowlist 调用 `publish-plan --apply`，目标为
 `results/campaigns/<campaign_id>/artifacts/`。
 
+## HPC 项目命名空间
+
+2026-08-25 阶段一 cutover 后，新任务的规范根为：
+
+```text
+/data/run01/scvi806/user_Wangjimin/projects/Filament_1/
+├── source/staging/<campaign_id>/Filament_1_<short_sha>/
+├── campaigns/<campaign_id>/
+├── cache/
+├── archive/
+├── quarantine/
+└── legacy/
+```
+
+账号根下旧 `/data/run01/scvi806/user_Wangjimin/Filament_1` 保持
+`legacy_compatibility_root` 身份，不 pull、不 reset，也不再启动新任务。19 个旧运行
+目录继续原位冻结。原账号根 `staging/campaigns/cache/archive/quarantine` 已移入
+`projects/Filament_1/quarantine/namespace_cutover_20260825/account_root_management/`
+观察区；这不是永久删除授权。
+
+机器或脚本不得自行拼接 HPC 路径，应读取
+`configs/project_management/hpc_namespace.json`。历史 campaign 中已经冻结的绝对
+路径和 `legacy.source_root` 不回写；新 campaign 的 `paths.hpc_root` 必须位于
+`projects/Filament_1/campaigns/<campaign_id>/`。
+
 ## Campaign 与普通任务
 
 普通代码、文档和单元测试不必创建 campaign。已有结果的轻量后处理可关联
@@ -54,3 +79,9 @@ audit receipt和已发布evidence的实际哈希；输入不变时复用
 旧的 `Filament_python/results/*` 不移动、不重命名、不重新解释科学结论。
 `register-legacy` 根据冻结 inventory 机械登记全部 18 个顶层目录，状态统一为
 `legacy_unclassified`。后续若要迁移，必须另行审计路径引用和冻结 provenance。
+
+## 阶段二门禁
+
+阶段二本次未执行。剩余旧目录必须逐个登记为 legacy campaign，并分别通过
+archive 门禁后才能复制、验哈希和进入 quarantine。迁移授权不包含永久删除；每个
+删除目标都必须单独报告路径、manifest 和预计释放空间，并单独获得人工授权。

@@ -130,3 +130,27 @@ def test_forged_validation_receipt_is_not_reused(tmp_path: Path) -> None:
 def test_repository_url_with_credentials_is_rejected() -> None:
     with pytest.raises(CampaignError):
         manage._safe_repository_url("https://token@example.invalid/repo.git")
+
+
+def test_hpc_namespace_config_keeps_new_and_legacy_roots_separate() -> None:
+    root = Path(__file__).resolve().parents[2]
+    namespace = json.loads(
+        (root / "configs" / "project_management" / "hpc_namespace.json").read_text(encoding="utf-8")
+    )
+    project_root = namespace["project_root"]
+    assert namespace["schema"] == "filament.hpc_project_namespace.v1"
+    assert project_root == "/data/run01/scvi806/user_Wangjimin/projects/Filament_1"
+    assert namespace["account"] == "scvi806"
+    assert all(path.startswith(project_root + "/") for path in namespace["canonical_paths"].values())
+    assert namespace["new_campaign_path_template"].startswith(project_root + "/campaigns/")
+    assert namespace["new_staging_path_template"].startswith(project_root + "/source/staging/")
+    assert namespace["protected_legacy_paths"]["legacy_repository"] != project_root
+    assert namespace["policies"] == {
+        "new_jobs_from_legacy_repository": False,
+        "permanent_deletion_authorized": False,
+        "phase2_started": False,
+        "symlinks_allowed": False,
+    }
+    assert namespace["cutover"]["receipt_sha256"] == (
+        "51c805bc14fc9e27bc63437ce15639ae058e0e01107c24b1e3f5525340efd700"
+    )

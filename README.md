@@ -86,6 +86,15 @@ python tools/campaign/manage.py publish-plan 20260825_demo_case_v01 --allow metr
 和 [campaign 工具说明](tools/campaign/README.md)。HPC 原始数据和完整运行
 证据仍由 HPC 保留；GitHub 只接收去环境化配置和精选证据。
 
+自 2026-08-25 起，HPC 新任务的唯一项目管理根为
+`/data/run01/scvi806/user_Wangjimin/projects/Filament_1`。新 staging、campaign、
+cache、archive 和 quarantine 均从该命名空间解析；账号根下的旧
+`Filament_1` 仅作为 `legacy_compatibility_root` 保留，不得再用于启动新任务。
+机器可读路径见
+[`configs/project_management/hpc_namespace.json`](configs/project_management/hpc_namespace.json)，
+阶段一证据摘要见
+[`docs/project_management/2026-08-25_hpc_namespace_phase1_cutover.md`](docs/project_management/2026-08-25_hpc_namespace_phase1_cutover.md)。
+
 详细入口：
 
 - [运行与参数指南](Filament_python/README.md)
@@ -117,7 +126,11 @@ python Filament_python/test_run.py --cfg Filament_python/config_ref.json --out F
 
 ## 本地—超算版本核验（只读）
 
-GPU 成丝任务使用 `scvi806@nc-n50r5`；远端项目根目录为 `/data/run01/scvi806/user_Wangjimin/Filament_1`。先在本地检查当前提交和 GitHub 分支：
+GPU 成丝任务使用 `scvi806@nc-n50r5`；远端新任务源码位于
+`/data/run01/scvi806/user_Wangjimin/projects/Filament_1/source/staging/<campaign_id>/Filament_1_<short_sha>/`，
+运行证据位于
+`/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/<campaign_id>/`。
+先在本地检查当前提交和 GitHub 分支：
 
 ```powershell
 git rev-parse HEAD
@@ -137,7 +150,7 @@ wsl bash -c "~/papp_cloud/papp_cloud_linux_amd64 ssh scvi806@nc-n50r5"
 ```
 
 ```bash
-cd /data/run01/scvi806/user_Wangjimin/Filament_1
+cd /data/run01/scvi806/user_Wangjimin/projects/Filament_1/source/staging/<campaign_id>/Filament_1_<short_sha>
 git rev-parse HEAD
 git branch --show-current
 git status --short
@@ -146,6 +159,8 @@ exit
 ```
 
 若任一工作区存在未提交改动或未跟踪运行产物，仅记录状态并先审查差异；不要直接执行 `git pull`、`git reset`、覆盖上传或清理命令。
+旧路径 `/data/run01/scvi806/user_Wangjimin/Filament_1` 的绝对路径引用保持冻结，
+只用于历史读取和路径兼容。
 
 ## 工作区边界
 

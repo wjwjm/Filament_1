@@ -1,0 +1,34 @@
+{
+  "account": "scvi806",
+  "canonical_paths": {
+    "archive": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/archive",
+    "cache": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/cache",
+    "campaigns": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns",
+    "legacy": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/legacy",
+    "quarantine": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine",
+    "source_staging": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/source/staging"
+  },
+  "cutover": {
+    "date": "2026-08-25",
+    "phase": 1,
+    "receipt_sha256": "51c805bc14fc9e27bc63437ce15639ae058e0e01107c24b1e3f5525340efd700",
+    "status": "completed"
+  },
+  "new_campaign_path_template": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/{campaign_id}",
+  "new_staging_path_template": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/source/staging/{campaign_id}/Filament_1_{short_sha}",
+  "policies": {
+    "new_jobs_from_legacy_repository": false,
+    "permanent_deletion_authorized": false,
+    "phase2_started": false,
+    "symlinks_allowed": false
+  },
+  "project": "Filament_1",
+  "project_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1",
+  "protected_legacy_paths": {
+    "legacy_repository": "/data/run01/scvi806/user_Wangjimin/Filament_1",
+    "operations_staging": "/data/run01/scvi806/user_Wangjimin/.codex_ops",
+    "secrets": "/data/run01/scvi806/user_Wangjimin/.secrets"
+  },
+  "quarantine_observation_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/quarantine/namespace_cutover_20260825/account_root_management",
+  "schema": "filament.hpc_project_namespace.v1"
+}
