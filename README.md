@@ -67,6 +67,25 @@ Filament_1/
    └─ papers/                        # 参考文献 PDF；不自动改动
 ```
 
+## 三端 campaign 管理
+
+新运行的跨端身份由 `campaign_id`、执行 Git SHA、配置 SHA256 和产物清单
+SHA256 组成。代码仍在 `D:\Filament_1` 中开发；完整本地派生结果放在被 Git
+忽略的 `.artifacts/<campaign_id>/`，不会覆盖仓库内容。只有显式 allowlist
+发布的 JSON/CSV/Markdown/图片等小型证据进入
+`results/campaigns/<campaign_id>/`。
+
+```powershell
+python tools/campaign/manage.py init 20260825_demo_case_v01
+python tools/campaign/manage.py check 20260825_demo_case_v01 --level lite
+python tools/campaign/manage.py publish-plan 20260825_demo_case_v01 --allow metrics/*.csv
+```
+
+工具和分级检查说明见
+[三端 campaign 管理规则](docs/project_management/three_end_campaign_management.md)
+和 [campaign 工具说明](tools/campaign/README.md)。HPC 原始数据和完整运行
+证据仍由 HPC 保留；GitHub 只接收去环境化配置和精选证据。
+
 详细入口：
 
 - [运行与参数指南](Filament_python/README.md)

@@ -1,0 +1,405 @@
+{
+  "entries": [
+    {
+      "acceptance_evidence_candidates": [],
+      "config_paths": [],
+      "file_count": 20,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [],
+      "legacy_id": "legacy_filament_python_results_density_translation_width",
+      "legacy_path": "Filament_python/results/density_translation_width",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 2321798
+    },
+    {
+      "acceptance_evidence_candidates": [],
+      "config_paths": [],
+      "file_count": 2,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [],
+      "legacy_id": "legacy_filament_python_results_ft90_cause_closure",
+      "legacy_path": "Filament_python/results/ft90_cause_closure",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 5464
+    },
+    {
+      "acceptance_evidence_candidates": [
+        "Filament_python/results/historical_fr_mixture_causality/PROJECT_STATE.md"
+      ],
+      "config_paths": [],
+      "file_count": 22,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [
+        "/data/run01/scvi806/user_Wangjimin/historical_fr_mixture_20260820T155855Z/Filament_1",
+        "/data/run01/scvi806/user_Wangjimin/historical_fr_mixture_20260820T155855Z/Filament_1/Filament_python/results/historical_fr_mixture_causality/historical_fr_mixture_120fs_config.json",
+        "/data/run01/scvi806/user_Wangjimin/historical_fr_mixture_20260820T155855Z/run/historical_fr_mixture_historical_fr_mixture.npz"
+      ],
+      "legacy_id": "legacy_filament_python_results_historical_fr_mixture_causality",
+      "legacy_path": "Filament_python/results/historical_fr_mixture_causality",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 9121309
+    },
+    {
+      "acceptance_evidence_candidates": [],
+      "config_paths": [],
+      "file_count": 5,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [],
+      "legacy_id": "legacy_filament_python_results_ionization_integrator_validation",
+      "legacy_path": "Filament_python/results/ionization_integrator_validation",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 90527
+    },
+    {
+      "acceptance_evidence_candidates": [
+        "Filament_python/results/ionization_model_propagation/phase5_final_report.md",
+        "Filament_python/results/ionization_model_propagation/phase5_final_summary.json"
+      ],
+      "config_paths": [
+        "Filament_python/configs/ionization_model_propagation/120fs_talebpour_full_model.json",
+        "Filament_python/configs/ionization_model_propagation/40fs_talebpour_full_model.json",
+        "Filament_python/configs/ionization_model_propagation/ionization_model_propagation_config_manifest.json"
+      ],
+      "file_count": 42,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/popruzhenko_120_current_observability_20260717T055731Z",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/popruzhenko_120_current_observability_20260717T055731Z/cases/120fs_popruzhenko_full_model_current_observability/figures",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/popruzhenko_120_current_observability_20260717T055731Z/cases/120fs_popruzhenko_full_model_current_observability/result.npz",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/popruzhenko_120_current_observability_20260717T055731Z/configs/120fs_popruzhenko_full_model_current_observability.json",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/talebpour_120fs_20260717T114321Z",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/talebpour_120fs_20260717T114321Z/cases/120fs_talebpour_full_model/figures",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/talebpour_120fs_20260717T114321Z/cases/120fs_talebpour_full_model/result.npz",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/talebpour_120fs_20260717T114321Z/configs/120fs_talebpour_full_model.json",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/talebpour_40fs_20260717T151324Z",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/talebpour_40fs_20260717T151324Z/cases/40fs_talebpour_full_model/figures",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/talebpour_40fs_20260717T151324Z/cases/40fs_talebpour_full_model/result.npz",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/ionization_model_propagation/talebpour_40fs_20260717T151324Z/configs/40fs_talebpour_full_model.json",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_ft90_120",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/configs/profile_ft90_120.json",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation_40fs/profile_validation_40fs_20260715_001/cases/profile_ft90_40",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation_40fs/profile_validation_40fs_20260715_001/configs/profile_ft90_40.json"
+      ],
+      "legacy_id": "legacy_filament_python_results_ionization_model_propagation",
+      "legacy_path": "Filament_python/results/ionization_model_propagation",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 17291808
+    },
+    {
+      "acceptance_evidence_candidates": [],
+      "config_paths": [],
+      "file_count": 13,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [],
+      "legacy_id": "legacy_filament_python_results_ionization_rate_model_validation",
+      "legacy_path": "Filament_python/results/ionization_rate_model_validation",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 487313
+    },
+    {
+      "acceptance_evidence_candidates": [
+        "Filament_python/results/isaacs_complete_eq27/PROJECT_STATE.md"
+      ],
+      "config_paths": [],
+      "file_count": 27,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/.consumed.lock",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/.consumed.lock/submission_record.txt",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/candidate_43ac6b4",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/candidate_43ac6b4/SUBMISSION_LOCK",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/candidate_43ac6b4/complete_eq27.npz",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/candidate_43ac6b4/complete_eq27_job_metadata.json",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/candidate_43ac6b4/job_receipt.json",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/comparator_audits_43ac6b4/current_full_eq27_fallback_audit.json",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/comparator_audits_43ac6b4/current_full_eq27_fallback_axial_diagnostics.csv",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/comparator_audits_43ac6b4/raman_off_fallback_audit.json",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/comparator_audits_43ac6b4/raman_off_fallback_axial_diagnostics.csv",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/postprocess_221822/isaacs_complete_eq27_axial_diagnostics.csv",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/postprocess_221822/isaacs_complete_eq27_raman_extras.csv",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/postprocess_221822/isaacs_complete_eq27_reaudit.json",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/Filament_1_43ac6b4_bundle",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/Filament_1_43ac6b4_bundle/Filament_python/results/density_translation_width/density_translation_width_20260715_002/paper_pycap_120fs.csv",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/Filament_1_43ac6b4_bundle/Filament_python/results/isaacs_complete_eq27/120fs_talebpour_isaacs_complete_eq27.json",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/Filament_1_43ac6b4_bundle/Filament_python/results/isaacs_complete_eq27/submission_manifest.json",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/execution_lock_43ac6b4.json",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/fetch_76418313dba3.log",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/fetch_shallow_76418313dba3.log",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/isaacs_complete_eq27_c2_43ac6b4.bundle",
+        "/data/run01/scvi806/user_Wangjimin/isaacs_complete_eq27_c2/staging/staging_provenance_43ac6b4.json",
+        "/data/run01/scvi806/user_Wangjimin/phase8c_b_runs/test_a_f0a7b5d5ac10_fallback/off/test_a_off.npz",
+        "/data/run01/scvi806/user_Wangjimin/phase8c_b_runs/test_a_f0a7b5d5ac10_fallback/off/test_a_off_job_metadata.json",
+        "/data/run01/scvi806/user_Wangjimin/phase8c_b_runs/test_a_f0a7b5d5ac10_fallback/on/test_a_on.npz",
+        "/data/run01/scvi806/user_Wangjimin/phase8c_b_runs/test_a_f0a7b5d5ac10_fallback/on/test_a_on_job_metadata.json"
+      ],
+      "legacy_id": "legacy_filament_python_results_isaacs_complete_eq27",
+      "legacy_path": "Filament_python/results/isaacs_complete_eq27",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 12938685
+    },
+    {
+      "acceptance_evidence_candidates": [
+        "Filament_python/results/isaacs_raman_closure/phase8a1_production_closure/phase8a1_final_report.md",
+        "Filament_python/results/isaacs_raman_closure/phase8a_static_closure/phase8a_final_report.md",
+        "Filament_python/results/isaacs_raman_closure/phase8b_controlled_propagation/linear_halfstep_audit/phase8b_r_task_r4_final_report.md",
+        "Filament_python/results/isaacs_raman_closure/phase8b_controlled_propagation/linear_halfstep_audit/phase8b_r_task_r4_final_summary.json",
+        "Filament_python/results/isaacs_raman_closure/phase8b_controlled_propagation/linear_halfstep_audit/phase8b_r_task_r5_final_report.md",
+        "Filament_python/results/isaacs_raman_closure/phase8b_controlled_propagation/linear_halfstep_audit/phase8b_r_task_r5_final_summary.json"
+      ],
+      "config_paths": [
+        "Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_feedback_off.json",
+        "Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+        "Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on_energy_audit.json",
+        "Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_raman_candidate.json"
+      ],
+      "file_count": 135,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [
+        "/data/run01/scvi806/user_Wangjimin/phase8b_preflight_smoke_20260721T041145Z/cases/off/phase8b_full_size_smoke_off.json",
+        "/data/run01/scvi806/user_Wangjimin/phase8b_preflight_smoke_20260721T041145Z/source/Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_feedback_off.json",
+        "/data/run01/scvi806/user_Wangjimin/phase8b_r1_job1_audit_20260721T144656/cases/on/phase8b_full_size_smoke_on.json",
+        "/data/run01/scvi806/user_Wangjimin/phase8b_r1_job1_audit_20260721T144656/source/Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+        "/data/run01/scvi806/user_Wangjimin/phase8b_r1_job1_audit_v2_20260721T150200/cases/on/phase8b_full_size_smoke_on.json",
+        "/data/run01/scvi806/user_Wangjimin/phase8b_r1_job1_audit_v2_20260721T150200/source/Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on.json",
+        "/data/run01/scvi806/user_Wangjimin/phase8b_r2_job1_20260721T090147Z",
+        "/data/run01/scvi806/user_Wangjimin/phase8b_r2_job1_20260721T090147Z/outputs/job1_full_operator_on.npz",
+        "/data/run01/scvi806/user_Wangjimin/phase8b_r2_replacement_job1_retry_20260721T165000Z/outputs/job1_full_operator_on_energy_audit.npz",
+        "/data/run01/scvi806/user_Wangjimin/phase8b_r4_linear_smoke_20260722T011500Z"
+      ],
+      "legacy_id": "legacy_filament_python_results_isaacs_raman_closure",
+      "legacy_path": "Filament_python/results/isaacs_raman_closure",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 8222415
+    },
+    {
+      "acceptance_evidence_candidates": [],
+      "config_paths": [],
+      "file_count": 10,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [],
+      "legacy_id": "legacy_filament_python_results_isaacs_raman_reclosure",
+      "legacy_path": "Filament_python/results/isaacs_raman_reclosure",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 480938
+    },
+    {
+      "acceptance_evidence_candidates": [
+        "Filament_python/results/phase8c_effect_ledger/phase8c_effect_chain_final_report.md",
+        "Filament_python/results/phase8c_effect_ledger/phase8c_effect_chain_final_summary.json"
+      ],
+      "config_paths": [],
+      "file_count": 23,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [],
+      "legacy_id": "legacy_filament_python_results_phase8c_effect_ledger",
+      "legacy_path": "Filament_python/results/phase8c_effect_ledger",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 535735
+    },
+    {
+      "acceptance_evidence_candidates": [
+        "Filament_python/results/phase8c_full_raman_causality/PROJECT_STATE.md",
+        "Filament_python/results/phase8c_full_raman_causality/test_a_fallback_f0a7b5d5ac10/analysis/phase8c_b_final_report.md"
+      ],
+      "config_paths": [],
+      "file_count": 12,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [],
+      "legacy_id": "legacy_filament_python_results_phase8c_full_raman_causality",
+      "legacy_path": "Filament_python/results/phase8c_full_raman_causality",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 17226
+    },
+    {
+      "acceptance_evidence_candidates": [
+        "Filament_python/results/phase8c_test_a_enablement/PROJECT_STATE.md"
+      ],
+      "config_paths": [],
+      "file_count": 13,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [
+        "/data/run01/scvi806/user_Wangjimin/phase8c_a3_runs/a3_4fdedbc4d7a7_attempt3",
+        "/data/run01/scvi806/user_Wangjimin/phase8c_a3_runs/a3_4fdedbc4d7a7_attempt3/a3_profile_off_config.json",
+        "/data/run01/scvi806/user_Wangjimin/phase8c_a3_runs/a3_4fdedbc4d7a7_attempt3/a3_profile_on_config.json",
+        "/data/run01/scvi806/user_Wangjimin/phase8c_a3_runs/a3_4fdedbc4d7a7_attempt3/profile_off/phase8b_full_size_smoke_on.json",
+        "/data/run01/scvi806/user_Wangjimin/phase8c_a3_runs/a3_4fdedbc4d7a7_attempt3/profile_off/phase8b_full_size_smoke_on.npz",
+        "/data/run01/scvi806/user_Wangjimin/phase8c_a3_runs/a3_4fdedbc4d7a7_attempt3/profile_on/phase8b_full_size_smoke_on.json",
+        "/data/run01/scvi806/user_Wangjimin/phase8c_a3_runs/a3_4fdedbc4d7a7_attempt3/profile_on/phase8b_full_size_smoke_on.npz",
+        "/data/run01/scvi806/user_Wangjimin/phase8c_a3_staging/Filament_1_4fdedbc4d7a7_attempt3_sparse",
+        "/data/run01/scvi806/user_Wangjimin/phase8c_a3_staging/Filament_1_4fdedbc4d7a7_attempt3_sparse/Filament_python/configs/isaacs_raman_closure/120fs_talebpour_isaacs_full_operator_on_energy_audit.json"
+      ],
+      "legacy_id": "legacy_filament_python_results_phase8c_test_a_enablement",
+      "legacy_path": "Filament_python/results/phase8c_test_a_enablement",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 66545
+    },
+    {
+      "acceptance_evidence_candidates": [
+        "Filament_python/results/raman_off_kerr085_causality/PROJECT_STATE.md"
+      ],
+      "config_paths": [],
+      "file_count": 23,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [
+        "/data/run01/scvi806/user_Wangjimin/raman_off_kerr085_20260821T073259Z/Filament_1/Filament_python/results/raman_off_kerr085_causality/raman_off_kerr085_120fs_config.json",
+        "/data/run01/scvi806/user_Wangjimin/raman_off_kerr085_20260821T073259Z/run",
+        "/data/run01/scvi806/user_Wangjimin/raman_off_kerr085_20260821T073259Z/run/raman_off_kerr085.npz"
+      ],
+      "legacy_id": "legacy_filament_python_results_raman_off_kerr085_causality",
+      "legacy_path": "Filament_python/results/raman_off_kerr085_causality",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 8580347
+    },
+    {
+      "acceptance_evidence_candidates": [
+        "Filament_python/results/raman_phase_causality/phase6_final_report.md",
+        "Filament_python/results/raman_phase_causality/phase6_final_summary.json"
+      ],
+      "config_paths": [
+        "Filament_python/configs/raman_phase_causality/120fs_talebpour_full_model_raman_phase_off.json",
+        "Filament_python/configs/raman_phase_causality/raman_phase_ablation_config_manifest.json"
+      ],
+      "file_count": 77,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/raman_phase_causality/raman_phase_off_120fs_20260718T201000Z",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/raman_phase_causality/raman_phase_off_120fs_20260718T201000Z/cases/120fs_talebpour_full_model_raman_phase_off/figures",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/raman_phase_causality/raman_phase_off_120fs_20260718T201000Z/cases/120fs_talebpour_full_model_raman_phase_off/result.npz",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/raman_phase_causality/raman_phase_off_120fs_20260718T201000Z/configs/120fs_talebpour_full_model_raman_phase_off.json"
+      ],
+      "legacy_id": "legacy_filament_python_results_raman_phase_causality",
+      "legacy_path": "Filament_python/results/raman_phase_causality",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 19518001
+    },
+    {
+      "acceptance_evidence_candidates": [],
+      "config_paths": [],
+      "file_count": 17,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [],
+      "legacy_id": "legacy_filament_python_results_raman_static_audit",
+      "legacy_path": "Filament_python/results/raman_static_audit",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 345325
+    },
+    {
+      "acceptance_evidence_candidates": [],
+      "config_paths": [],
+      "file_count": 57,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_ft90_120/figures",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_ft90_120/result.mat",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_ft90_120/result.npz",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_g_120/figures",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_g_120/result.mat",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/cases/profile_g_120/result.npz",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/configs/profile_ft90_120.json",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation/profile_validation_20260715_004/configs/profile_g_120.json",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation_40fs/profile_validation_40fs_20260715_001/cases/profile_ft90_40/figures",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation_40fs/profile_validation_40fs_20260715_001/cases/profile_ft90_40/result.mat",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation_40fs/profile_validation_40fs_20260715_001/cases/profile_ft90_40/result.npz",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation_40fs/profile_validation_40fs_20260715_001/cases/profile_g_40/figures",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation_40fs/profile_validation_40fs_20260715_001/cases/profile_g_40/result.mat",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation_40fs/profile_validation_40fs_20260715_001/cases/profile_g_40/result.npz",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation_40fs/profile_validation_40fs_20260715_001/configs/profile_ft90_40.json",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/transverse_profile_validation_40fs/profile_validation_40fs_20260715_001/configs/profile_g_40.json"
+      ],
+      "legacy_id": "legacy_filament_python_results_transverse_profile_validation",
+      "legacy_path": "Filament_python/results/transverse_profile_validation",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 5930438
+    },
+    {
+      "acceptance_evidence_candidates": [],
+      "config_paths": [],
+      "file_count": 21,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles/vacuum_focus_profile_scan_20260715_001",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/.codex_stage_bundles/vacuum_focus_profile_scan_20260716_002_padded"
+      ],
+      "legacy_id": "legacy_filament_python_results_vacuum_focus_profile_scan",
+      "legacy_path": "Filament_python/results/vacuum_focus_profile_scan",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 563227
+    },
+    {
+      "acceptance_evidence_candidates": [],
+      "config_paths": [],
+      "file_count": 8,
+      "inventory_generated_at": "2026-08-23T06:38:55.771047+00:00",
+      "inventory_repo_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+      "inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2",
+      "known_hpc_paths": [
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/configs/vacuum_focus_validation/flat_top_90_vacuum.json",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/vacuum_focus_validation_ft90/vacuum_focus_validation_ft90_20260715T152950Z",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/vacuum_focus_validation_ft90/vacuum_focus_validation_ft90_20260715T152950Z/vacuum_focus_metrics.csv",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/outputs/vacuum_focus_validation_ft90/vacuum_focus_validation_ft90_20260715T152950Z/vacuum_focus_plane.npz",
+        "/data/run01/scvi806/user_Wangjimin/Filament_1/Filament_python/stages/vacuum_focus_validation_ft90.json"
+      ],
+      "legacy_id": "legacy_filament_python_results_vacuum_focus_validation_ft90",
+      "legacy_path": "Filament_python/results/vacuum_focus_validation_ft90",
+      "scientific_acceptance": null,
+      "status": "legacy_unclassified",
+      "total_bytes": 567316
+    }
+  ],
+  "repository_head_sha": "87996fe9a259d7e010f1af6c7874b76986ef69c5",
+  "schema": "filament.legacy_registry.v1",
+  "source_inventory": "docs/repo_layout/repository_inventory.json",
+  "source_inventory_sha256": "786b143c51b857bc970e98d92f62325dc1d165cb08cb5e77a45d157c38c3ebd2"
+}

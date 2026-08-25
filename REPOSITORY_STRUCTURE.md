@@ -5,7 +5,7 @@
 
 ## 0. 当前状态（2026-08-23，branch `main`）
 
-- 已完成：完整五类 inventory + machine-readable manifest；
+- 已完成：第一轮结构基线的完整五类 inventory + machine-readable manifest；
   4 个 phase 文档从 `Filament_python/docs/` 归档到目标 `docs/`；
   `修改记录/` 证据归档到 `results/reference_evidence/`；
   `configs/production/` 建立字节一致的默认配置副本（权威原件仍为唯一权威），
@@ -24,8 +24,10 @@
 | `historical_experiments_audits` | 历史因果实验与审计 | 文件名带 phase / model-审计 / frozen-stage 标志，且只在某一冻结阶段有意义 |
 | `results_documentation_evidence` | 结果/文档证据 | 冻结结果、reference、论文 PDF、修改记录、项目文档 |
 
-机器可读清单：`docs/repo_layout/repository_inventory.json`（含 path / size / class / git_tracked / SHA256）。
-人类可读清单：`docs/repo_layout/repository_inventory.md`。
+第一轮冻结基线清单：`docs/repo_layout/repository_inventory.json`（含 path / size /
+class / git_tracked / SHA256）；人类可读版本为
+`docs/repo_layout/repository_inventory.md`。后续新增内容由 campaign registry 和Git
+历史补充，不把该冻结基线描述为实时工作树扫描结果。
 
 ## 2. 目标目录职责
 
@@ -51,9 +53,24 @@ D:\Filament_1\
 │   ├── physics_decisions\   # 物理决策与因果实验结论
 │   ├── known_residuals\     # 已知残余/未闭合项
 │   └── repo_layout\         # inventory/manifest/path_map
-└── results\                 # 目标6：只放小型可追溯证据（json/csv/md/小图）
+└── results\                 # 小型可追溯证据（json/csv/md/小图）
+    ├── campaigns\           # 显式发布的 campaign 证据与 legacy registry
     └── reference_evidence\
 ```
+
+## 2.1 三端 campaign 目录边界
+
+本地 `D:\Filament_1` 是代码和项目管理工具的连续工作区。完整派生结果放在
+`.artifacts/<campaign_id>/`，该目录被 `.gitignore` 忽略，且不会自动反向
+覆盖任何源码、配置或文档。`tools/campaign/manage.py publish-plan` 默认只
+生成 dry-run 计划，只有显式的、非全局 `--allow` 模式配合 `--apply` 才能将
+选定文件复制到 `results/campaigns/<campaign_id>/artifacts/`。
+
+GitHub 管理代码、去环境化 requested/resolved 配置、工具和精选小型证据；HPC
+管理具体运行配置、原始 NPZ/MAT/HDF5、完整后处理和 scheduler evidence。三端
+通过 `campaign_id`、execution SHA、config SHA256 和 artifact manifest SHA256
+对应。旧 `Filament_python/results/*` 保持原位，由
+`results/campaigns/legacy_registry.json` 机械登记，不在本轮迁移。
 
 ## 3. 以后“新东西放哪里”
 
