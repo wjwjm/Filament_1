@@ -6,6 +6,10 @@ set -euo pipefail
 # 进入提交目录（Slurm 批处理推荐），兜底到脚本目录
 cd "${SLURM_SUBMIT_DIR:-$(dirname "$0")}"
 
+# Use cluster miniforge directly, no module required
+source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
+conda activate Filament_python
+
 # 可按需覆盖：CFG/OUT/DTYPE
 CFG="${CFG:-khz_config.json}"
 OUT="${OUT:-khzfil_out.npz}"
@@ -91,10 +95,6 @@ if [[ "$REMOVE_NPZ" == "1" && "$CONVERT_TO_MAT" != "1" ]]; then
   echo "[fatal] REMOVE_NPZ=1 requires CONVERT_TO_MAT=1; the raw NPZ must not be deleted when no MAT exists."
   exit 3
 fi
-
-# Use cluster miniforge directly, no module required
-source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
-conda activate Filament_python
 
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export UPPE_USE_GPU=1
