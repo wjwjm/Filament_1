@@ -299,15 +299,25 @@ def run_demo(
             focus_center_m=focus_center_local_m,
         )
 
+    # The pulse-independent source is defined at the exact input plane of
+    # propagate_one_pulse: after the lens and optional linear pre-advance.
+    # It is never passed to propagation directly, so every pulse receives an
+    # independent working copy while only the slow medium persists.
+    E_source = E
+
     dn_gas = xp.zeros((grid.Ny, grid.Nx), dtype=rtype)
     delta_t_pulse = 1.0 / heat.f_rep
 
     t_all = time.perf_counter()
     last_diag = None
+    pulse_index_list = []
+    pulse_dn_gas_min_list = []
+    pulse_dn_gas_max_list = []
     for i in range(run.Npulses):
         t_p = time.perf_counter()
+        E_pulse = E_source.copy()
         E, Q2D, diag = propagate_one_pulse(
-            E,
+            E_pulse,
             kperp2=axes.kperp2,
             k0=k0, omega0=omega0,
             dz=prop_for_pulse.dz, z_max=prop_for_pulse.z_max,
@@ -320,6 +330,9 @@ def run_demo(
         )
         dn_gas = diffuse_dn_gas(dn_gas, Q2D, heat.D_gas, delta_t_pulse, axes.kperp2, heat.gamma_heat)
         mn, mx = float(xp.min(dn_gas)), float(xp.max(dn_gas))
+        pulse_index_list.append(i + 1)
+        pulse_dn_gas_min_list.append(mn)
+        pulse_dn_gas_max_list.append(mx)
         print(f"Pulse {i + 1}/{run.Npulses}: Δn_gas min/max = {mn:.3e}/{mx:.3e}  (elapsed {time.perf_counter() - t_p:.1f}s)")
         last_diag = diag
 
@@ -344,6 +357,9 @@ def run_demo(
         "x": to_cpu(axes.x), "y": to_cpu(axes.y), "t": to_cpu(axes.t), "t_axis": to_cpu(axes.t),
         "I_out_center_t": to_cpu(I_out[:, grid.Ny // 2, grid.Nx // 2]),
         "dn_gas": to_cpu(dn_gas),
+        "pulse_index": _np.asarray(pulse_index_list, dtype=_np.int64),
+        "pulse_dn_gas_min": _np.asarray(pulse_dn_gas_min_list, dtype=float),
+        "pulse_dn_gas_max": _np.asarray(pulse_dn_gas_max_list, dtype=float),
     }
     out.update(input_profile)
     if last_diag:
@@ -368,6 +384,11 @@ def run_demo(
             "E_final": to_cpu(E),
             "I_final": to_cpu(I_out),
             "diagnostics": {key: to_cpu(value) for key, value in (last_diag or {}).items()},
+            "pulse_summary": {
+                "pulse_index": _np.asarray(pulse_index_list, dtype=_np.int64),
+                "dn_gas_min": _np.asarray(pulse_dn_gas_min_list, dtype=float),
+                "dn_gas_max": _np.asarray(pulse_dn_gas_max_list, dtype=float),
+            },
             "axes": {"x": to_cpu(axes.x), "y": to_cpu(axes.y), "t": to_cpu(axes.t)},
         }
 
