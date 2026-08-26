@@ -34,6 +34,13 @@ from .diagnostics import (
     _fwhm_diameter_xy_center,
     validate_nonlinear_diagnostics,
 )
+from .longitudinal import (
+    build_deposition_contract,
+    build_longitudinal_schedule,
+    build_transverse_grid_metadata,
+    LongitudinalSchedule,
+    DepositionContract,
+)
 
 def _linear_phase_per_meter(linear_model, k0, axes, K02_w=None, omega0=None, nee_denom_floor=1e-4):
     """返回线性传播子对应的 |kz| (rad/m) 的 max 值，用于估计 Δφ_linear = kz_max * dz"""
@@ -223,6 +230,8 @@ def propagate_one_pulse(
     axes=None, prop_conf=None, raman_conf=None,
     record_onaxis_rho_time: bool = True,
     record_every_z: int = 1,
+    longitudinal_schedule: LongitudinalSchedule | None = None,
+    deposition_contract: DepositionContract | None = None,
 ):
     """极简稳定版：固定一步只做一次安全缩步（可选近焦加密），标准 Strang 分裂。
        产出统一的 diag 契约（见函数尾部）。"""
@@ -234,7 +243,7 @@ def propagate_one_pulse(
     rdtype = xp.float32 if ctype == xp.complex64 else xp.float64
     rdtype_np = _np.float32 if ctype == xp.complex64 else _np.float64
 
-    # ---------- 近焦缩步 ----------
+    # ---------- 显式、可重放的纵向 schedule ----------
     p = prop_conf
     switches = resolve_nonlinear_switches(p, raman_conf, ion_conf)
     measure_performance = bool(getattr(p, "measure_performance", False))
@@ -243,6 +252,25 @@ def propagate_one_pulse(
     z_center = getattr(p, "focus_center_m", None) or getattr(p, "z_focus_hint", None)
     z_half = float(getattr(p, "focus_halfwidth_m", 0.0))
     dz_focus = float(getattr(p, "dz_focus", dz_base))
+    if longitudinal_schedule is None:
+        longitudinal_schedule = build_longitudinal_schedule(
+            dz_base,
+            float(z_max),
+            z_start=0.0,
+            focus_window_step=use_focus_win,
+            focus_center_m=z_center,
+            focus_halfwidth_m=z_half,
+            dz_focus=dz_focus,
+        )
+    else:
+        if not isinstance(longitudinal_schedule, LongitudinalSchedule):
+            raise TypeError("longitudinal_schedule must be a LongitudinalSchedule")
+        longitudinal_schedule.validate()
+        local_span = longitudinal_schedule.z_edges[-1] - longitudinal_schedule.z_edges[0]
+        if not _np.isclose(local_span, float(z_max), rtol=1e-12, atol=1e-12):
+            raise ValueError(
+                "longitudinal_schedule span must match the local propagation z_max"
+            )
     print(
         f"[focus-step] focus_center_m(local)={z_center if z_center is not None else 'None'}, "
         f"focus_halfwidth_m={z_half:.4e}, dz_base={dz_base:.4e}, dz_focus={dz_focus:.4e}"
@@ -250,6 +278,15 @@ def propagate_one_pulse(
 
     # ---------- 索引/几何 ----------
     Ny, Nx = E.shape[-2], E.shape[-1]
+    transverse_grid = build_transverse_grid_metadata(axes)
+    if deposition_contract is None:
+        deposition_contract = build_deposition_contract(
+            longitudinal_schedule, transverse_grid=transverse_grid
+        )
+    elif not isinstance(deposition_contract, DepositionContract):
+        raise TypeError("deposition_contract must be a DepositionContract")
+    elif deposition_contract.schedule is not longitudinal_schedule:
+        raise ValueError("deposition_contract must reference longitudinal_schedule")
     y0, x0 = Ny // 2, Nx // 2
     t_arr = axes.t
     t0_idx = int(xp.argmin(xp.abs(t_arr)))
@@ -506,16 +543,13 @@ def propagate_one_pulse(
         diagnostics["operator_walltime_s"] += first_stage["walltime_s"]
         return updated, diagnostics
 
-    while z < z_max - 1e-16:
+    for interval_index, interval in enumerate(longitudinal_schedule.intervals):
         _performance_sync(measure_performance)
         step_started = time.perf_counter()
         linear_walltime_step = 0.0
-        dz_remain = z_max - z
-        if use_focus_win and (z_center is not None) and (z_half > 0.0):
-            z_mid = z + 0.5 * dz_base
-            dz_try = min(dz_focus if abs(z_mid - float(z_center)) <= z_half else dz_base, dz_remain)
-        else:
-            dz_try = min(dz_base, dz_remain)
+        # The interval was built once by the schedule builder.  Do not make a
+        # pulse-dependent/live focus or remainder decision here.
+        dz_try = float(interval.dz)
 
         operator_energy_start = _operator_energy(E) if diag_operator_energy else _np.nan
 
@@ -931,7 +965,11 @@ def propagate_one_pulse(
         operator_energy_after_linear_half2 = _operator_energy(E) if diag_operator_energy else _np.nan
 
         save_count += 1
-        if (save_count % save_every) == 0 or (z + dz_try >= z_max - 1e-16):
+        if (
+            (save_count % save_every) == 0
+            or interval_index == longitudinal_schedule.n_intervals - 1
+            or (z + dz_try >= z_max - 1e-16)
+        ):
             z_now = float(z + dz_try)
             z_axis_list.append(z_now)
 
@@ -1153,6 +1191,39 @@ def propagate_one_pulse(
 
     # ---------- 打包 ----------
     diag = {
+        # Canonical schedule metadata is complete and absolute.  Legacy
+        # z_axis/dz_used_z below intentionally retain their local/sparse
+        # propagation semantics.
+        "longitudinal_schedule_schema": _np.asarray(
+            "khz_filament.longitudinal_schedule.v1"
+        ),
+        "z_edges": _np.asarray(longitudinal_schedule.z_edges, dtype=_np.float64),
+        "dz_intervals": _np.asarray(longitudinal_schedule.dz_intervals, dtype=_np.float64),
+        "n_intervals": _np.int64(longitudinal_schedule.n_intervals),
+        "longitudinal_z_start": float(longitudinal_schedule.z_start),
+        "longitudinal_z_end": float(longitudinal_schedule.z_end),
+        "deposition_contract_schema": _np.asarray(
+            "khz_filament.deposition_contract.v1"
+        ),
+        "deposition_channels": _np.asarray(
+            deposition_contract.channels, dtype="U64"
+        ),
+        "deposition_channel_names": _np.asarray(
+            deposition_contract.channels, dtype="U64"
+        ),
+        "deposition_channel_count": _np.int64(len(deposition_contract.channels)),
+        "deposition_value_name": _np.asarray(deposition_contract.value_name),
+        "deposition_value_unit": _np.asarray(deposition_contract.value_unit),
+        "deposition_representation": _np.asarray(deposition_contract.representation),
+        "deposition_payload_allocated": _np.bool_(deposition_contract.payload_allocated),
+        "deposition_q_shape": _np.asarray(deposition_contract.q_shape, dtype=_np.int64),
+        "deposition_n_intervals": _np.int64(deposition_contract.n_intervals),
+        "thermal_grid_matches_optical": _np.bool_(
+            deposition_contract.transverse_grid.same_grid
+        ),
+        "transverse_remapping": _np.asarray(
+            "none" if deposition_contract.transverse_grid.same_grid else "external"
+        ),
         "z_axis":                   _np.asarray(z_axis_list,              dtype=rdtype_np),
         "U_z":                      _np.asarray(U_z_list,                 dtype=rdtype_np),
         "I_max_z":                  _np.asarray(I_max_z_list,             dtype=rdtype_np),
@@ -1298,6 +1369,16 @@ def propagate_one_pulse(
         "nonlinear_use_self_steepening": bool(switches.use_self_steepening),
         "nonlinear_use_ionization_solver": bool(switches.use_ionization_solver),
     }
+    for prefix, grid_metadata in (
+        ("optical_grid_", deposition_contract.transverse_grid.optical_grid),
+        ("thermal_grid_", deposition_contract.transverse_grid.thermal_grid),
+    ):
+        diag[f"{prefix}Nx"] = _np.int64(grid_metadata.Nx)
+        diag[f"{prefix}Ny"] = _np.int64(grid_metadata.Ny)
+        diag[f"{prefix}dx"] = float(grid_metadata.dx)
+        diag[f"{prefix}dy"] = float(grid_metadata.dy)
+        diag[f"{prefix}Lx"] = float(grid_metadata.Lx)
+        diag[f"{prefix}Ly"] = float(grid_metadata.Ly)
     if diag_linear_halfstep_energy:
         diag["linear_halfstep_energy_diagnostics_enabled"] = _np.bool_(True)
         diag["linear_halfstep_energy_sign_convention"] = _np.asarray(

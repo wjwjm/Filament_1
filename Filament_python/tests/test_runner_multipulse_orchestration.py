@@ -59,6 +59,8 @@ def test_runner_multipulse_uses_fresh_source_and_inherits_medium_state(monkeypat
     field_objects = []
     field_input_ids = []
     medium_inputs = []
+    schedule_inputs = []
+    contract_inputs = []
 
     def fake_propagate_one_pulse(E, **kwargs):
         pulse_number = len(field_inputs) + 1
@@ -66,6 +68,8 @@ def test_runner_multipulse_uses_fresh_source_and_inherits_medium_state(monkeypat
         field_objects.append(E)
         field_input_ids.append(id(E))
         medium_inputs.append(np.array(kwargs["dn_gas"], copy=True))
+        schedule_inputs.append(kwargs["longitudinal_schedule"])
+        contract_inputs.append(kwargs["deposition_contract"])
         E[...] = E * 10.0 + pulse_number
         return E, np.ones(E.shape[-2:], dtype=np.float32), {}
 
@@ -88,6 +92,9 @@ def test_runner_multipulse_uses_fresh_source_and_inherits_medium_state(monkeypat
     assert not np.shares_memory(field_objects[1], field_objects[2])
     for field_input in field_inputs[1:]:
         np.testing.assert_array_equal(field_input, field_inputs[0])
+    assert len({id(schedule) for schedule in schedule_inputs}) == 1
+    assert len({id(contract) for contract in contract_inputs}) == 1
+    assert contract_inputs[0].schedule is schedule_inputs[0]
 
     expected_medium = [0.0, 1.0, 2.0]
     for actual, expected in zip(medium_inputs, expected_medium, strict=True):
@@ -161,7 +168,12 @@ def test_runner_npulses_one_matches_direct_single_pulse_propagation(tmp_path):
         "E_dep_z",
         "E_dep_rot_z",
         "E_dep_total_z",
+        "z_edges",
+        "dz_intervals",
+        "deposition_channels",
+        "deposition_q_shape",
     ):
         np.testing.assert_array_equal(result["diagnostics"][key], np.asarray(diag_direct[key]))
+    assert int(result["diagnostics"]["n_intervals"]) == int(diag_direct["n_intervals"])
 
     assert RunConfig().Npulses == 1

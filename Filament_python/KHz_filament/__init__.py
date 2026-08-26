@@ -22,6 +22,7 @@ __all__ = [
     "air_dispersion",
     "linear_full",
     "raman",
+    "longitudinal",
 ]
 
 # Expose module names without eagerly importing submodules.

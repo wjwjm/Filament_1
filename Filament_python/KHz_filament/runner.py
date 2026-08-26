@@ -27,6 +27,7 @@ from .diagnostics import (
 )
 from .grids import make_axes
 from .heat import diffuse_dn_gas
+from .longitudinal import build_deposition_contract, build_longitudinal_schedule
 from .propagate import propagate_one_pulse
 from .summary import print_sim_summary
 from .utils import gaussian_pulse_t, transverse_intensity_profile
@@ -274,11 +275,13 @@ def run_demo(
 
     z_start = 0.0
     prop_for_pulse = prop
+    schedule_z_end = float(prop_for_pulse.z_max)
     if limit_win and win_half > 0.0:
         if z_focus_hint is None:
             z_focus_hint = _predict_focus_linear(E, axes)
         z_start = max(0.0, float(z_focus_hint) - win_half)
         z_end = float(z_focus_hint) + win_half
+        schedule_z_end = z_end
         focus_center_local_m = float(z_focus_hint) - z_start
         if z_start > 0.0:
             E = _linear_advance(E, z_start, axes=axes, kperp2=axes.kperp2, k0=k0, prop=prop, beam=beam)
@@ -298,6 +301,22 @@ def run_demo(
             z_max=max(1e-9, z_end - z_start),
             focus_center_m=focus_center_local_m,
         )
+
+    # Build one absolute, deterministic schedule and one metadata-only
+    # deposition contract after the propagation window is finalized.  Every
+    # pulse receives these exact objects; no pulse-dependent z grid is built.
+    longitudinal_schedule = build_longitudinal_schedule(
+        dz=float(prop_for_pulse.dz),
+        z_max=float(schedule_z_end),
+        z_start=float(z_start),
+        focus_window_step=bool(getattr(prop_for_pulse, "focus_window_step", False)),
+        focus_center_m=(None if z_focus_hint is None else float(z_focus_hint)),
+        focus_halfwidth_m=float(getattr(prop_for_pulse, "focus_halfwidth_m", 0.0)),
+        dz_focus=float(getattr(prop_for_pulse, "dz_focus", prop_for_pulse.dz)),
+    )
+    deposition_contract = build_deposition_contract(
+        longitudinal_schedule, axes=axes
+    )
 
     # The pulse-independent source is defined at the exact input plane of
     # propagate_one_pulse: after the lens and optional linear pre-advance.
@@ -327,6 +346,8 @@ def run_demo(
             dt=axes.dt, axes=axes, prop_conf=prop_for_pulse, raman_conf=raman,
             record_onaxis_rho_time=True,
             record_every_z=1,
+            longitudinal_schedule=longitudinal_schedule,
+            deposition_contract=deposition_contract,
         )
         dn_gas = diffuse_dn_gas(dn_gas, Q2D, heat.D_gas, delta_t_pulse, axes.kperp2, heat.gamma_heat)
         mn, mx = float(xp.min(dn_gas)), float(xp.max(dn_gas))
