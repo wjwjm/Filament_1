@@ -4,7 +4,6 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 # N50 assigns 126 GB host memory per requested GPU; do not override it.
-#SBATCH --nodelist=g0609
 #SBATCH --time=15:00:00
 
 set -euo pipefail
