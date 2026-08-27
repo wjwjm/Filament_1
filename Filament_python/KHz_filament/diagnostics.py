@@ -169,22 +169,22 @@ NONLINEAR_DIAGNOSTIC_METADATA = {
         "use": "verify Raman-absorption switch isolation",
     },
     "E_dep_z": {
-        "meaning": "ionization plus inverse-Bremsstrahlung energy deposited in each recorded z step",
-        "source": "propagate.py: heat_Q_per_z",
+        "meaning": "legacy sparse z-history for ionization plus inverse-Bremsstrahlung compatibility diagnostics",
+        "source": "propagate.py: heat_Q_per_z compatibility path",
         "unit": "J",
-        "use": "ionization/plasma heat-deposition history",
+        "use": "legacy visualization only; not the canonical HR-2 interval ledger",
     },
     "E_dep_rot_z": {
-        "meaning": "rotational-Raman energy deposited in each recorded z step",
-        "source": "propagate.py: Raman absorption model",
+        "meaning": "legacy sparse z-history for rotational-Raman compatibility diagnostics",
+        "source": "propagate.py: legacy Raman diagnostic path",
         "unit": "J",
-        "use": "Raman energy-transfer history",
+        "use": "not an authoritative HR-2 Raman deposition source",
     },
     "E_dep_total_z": {
-        "meaning": "sum of ionization/IB and Raman deposited energy for each recorded z step",
+        "meaning": "legacy sparse sum of E_dep_z and E_dep_rot_z",
         "source": "propagate.py: E_dep_z + E_dep_rot_z",
         "unit": "J",
-        "use": "total nonlinear deposition budget",
+        "use": "compatibility diagnostic only; not authoritative total deposition",
     },
     "E_dep_cumulative_z": {
         "meaning": "cumulative nonlinear deposited energy",
@@ -370,6 +370,39 @@ NONLINEAR_DIAGNOSTIC_METADATA.update({
         "use": "separate Eq.27 closure from complex64 storage error",
     },
 })
+
+# HR-2D scalar canonical-ledger metadata.  These values do not share the
+# sparse z_axis alignment, so they must stay out of NONLINEAR_TRACE_KEYS.
+DEPOSITION_LEDGER_METADATA = {
+    "E_dep_ion_interval_J": {
+        "meaning": "canonical interval-aligned authoritative ionization deposition",
+        "unit": "J",
+    },
+    "E_dep_ib_interval_J": {
+        "meaning": "canonical interval-aligned authoritative inverse-Bremsstrahlung deposition",
+        "unit": "J",
+    },
+    "E_dep_raman_interval_J": {
+        "meaning": "canonical interval-aligned Raman deposition from actual full-operator field fluence loss when available",
+        "unit": "J",
+    },
+    "E_dep_total_interval_J": {
+        "meaning": "canonical total deposition only when all active mechanisms are authoritative; NaN otherwise",
+        "unit": "J",
+    },
+    "E_dep_total_pulse_J": {
+        "meaning": "sum of canonical total interval deposition only when authoritative; NaN otherwise",
+        "unit": "J",
+    },
+    "E_dep_accounted_authoritative_J": {
+        "meaning": "sum of available authoritative mechanism pulse ledgers for field bookkeeping; not a heat source",
+        "unit": "J",
+    },
+    "E_field_energy_bookkeeping_residual_J": {
+        "meaning": "signed field_loss minus accounted_authoritative_deposition; positive means unaccounted field loss",
+        "unit": "J",
+    },
+}
 
 # Scalar semantic tags are stored alongside a run as text fields.  They are
 # deliberately kept out of ``NONLINEAR_TRACE_KEYS``: unlike z histories they
@@ -578,6 +611,7 @@ def write_nonlinear_diagnostic_report(path: str | Path, diag: dict, *, npz_path:
         "validation": validation,
         "effective_nonlinear_switches": effective_switches,
         "variables": NONLINEAR_DIAGNOSTIC_METADATA,
+        "deposition_ledger_variables": DEPOSITION_LEDGER_METADATA,
         "semantic_fields": NONLINEAR_DIAGNOSTIC_SEMANTICS,
     }
     path = Path(path)

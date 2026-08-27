@@ -11,6 +11,7 @@ from .ionization import (
 from .nonlinear import kerr_phase_from_deltan, plasma_phase, ib_alpha, apply_nonlinear, shock_intensity, operator_correct_scalar
 from .heat import heat_Q_per_z
 from .deposition import (
+    build_unified_deposition_ledger,
     direct_interval_energy,
     interval_energy_from_q,
     q_ib_from_power,
@@ -448,6 +449,18 @@ def propagate_one_pulse(
 
 
     ion_off = not switches.use_ionization_solver
+    ion_deposition_configured = bool(not ion_off)
+    nu_ei_configured = getattr(ion_conf, "nu_ei_const", None)
+    ib_deposition_configured = bool(
+        not ion_off
+        and (
+            float(getattr(ion_conf, "sigma_ib", 0.0)) != 0.0
+            or (
+                nu_ei_configured is not None
+                and float(nu_ei_configured) != 0.0
+            )
+        )
+    )
     if ion_off:
         Wfunc, ion_input = None, "none"
     else:
@@ -1351,6 +1364,35 @@ def propagate_one_pulse(
             eta = elapsed / max(frac, 1e-9) * (1.0 - frac)
             print(f"[z] {z:.3f}/{z_max:.3f} m ({frac*100:6.2f}%)  elapsed {elapsed:6.1f}s  ETA {eta:6.1f}s")
 
+    # ---------- HR-2D unified scalar ledger ----------
+    # This consumes only the canonical interval scalars accumulated above.
+    # It deliberately does not consult sparse legacy E_dep*_z diagnostics,
+    # legacy Raman estimates, or the field-loss diagnostic as a deposition
+    # source.
+    unified_deposition = build_unified_deposition_ledger(
+        ion_interval_J=E_dep_ion_interval_J_list,
+        ib_interval_J=E_dep_ib_interval_J_list,
+        raman_interval_J=E_dep_raman_interval_J_list,
+        ion_interval_reference_J=E_dep_ion_interval_direct_J_list,
+        ib_interval_reference_J=E_dep_ib_interval_direct_J_list,
+        raman_interval_reference_J=E_dep_raman_interval_operator_J_list,
+        ion_pulse_J=E_dep_ion_pulse,
+        ib_pulse_J=E_dep_ib_pulse,
+        raman_pulse_J=E_dep_raman_pulse,
+        ion_configured=ion_deposition_configured,
+        ib_configured=ib_deposition_configured,
+        raman_configured=bool(use_raman),
+        raman_authoritative=raman_deposition_authoritative,
+        raman_source=raman_deposition_source,
+        ionization_feedback_enabled=bool(switches.use_ionization_loss),
+        raman_feedback_enabled=bool(switches.use_raman_full_operator),
+        field_in_J=U0_baseline,
+        field_out_J=(U_z_list[-1] if U_z_list else _np.nan),
+    )
+    mechanism_status_json = json.dumps(
+        unified_deposition["mechanisms"], sort_keys=True, separators=(",", ":")
+    )
+
     # ---------- 打包 ----------
     diag = {
         # Canonical schedule metadata is complete and absolute.  Legacy
@@ -1446,6 +1488,129 @@ def propagate_one_pulse(
         "E_dep_raman_operator_pulse_J": float(E_dep_raman_operator_pulse),
         "E_dep_raman_pulse_closure_residual_J": float(
             E_dep_raman_pulse_closure_residual
+        ),
+        # HR-2D unified deposition bookkeeping.  The mechanism-resolved
+        # interval arrays above remain the canonical source; the total is
+        # populated only when every active mechanism is authoritative.
+        "unified_deposition_ledger_schema": _np.asarray(
+            "khz_filament.unified_deposition_ledger.v1"
+        ),
+        "deposition_mechanism_status_json": _np.asarray(mechanism_status_json),
+        "deposition_ion_configured": bool(
+            unified_deposition["mechanisms"]["ion"]["configured"]
+        ),
+        "deposition_ion_active": bool(
+            unified_deposition["mechanisms"]["ion"]["active"]
+        ),
+        "deposition_ion_authoritative": bool(
+            unified_deposition["mechanisms"]["ion"]["authoritative"]
+        ),
+        "deposition_ion_source": _np.asarray(
+            unified_deposition["mechanisms"]["ion"]["source"]
+        ),
+        "deposition_ion_feedback_applied": bool(
+            unified_deposition["mechanisms"]["ion"]["feedback_applied"]
+        ),
+        "deposition_ib_configured": bool(
+            unified_deposition["mechanisms"]["ib"]["configured"]
+        ),
+        "deposition_ib_active": bool(
+            unified_deposition["mechanisms"]["ib"]["active"]
+        ),
+        "deposition_ib_authoritative": bool(
+            unified_deposition["mechanisms"]["ib"]["authoritative"]
+        ),
+        "deposition_ib_source": _np.asarray(
+            unified_deposition["mechanisms"]["ib"]["source"]
+        ),
+        "deposition_raman_configured": bool(
+            unified_deposition["mechanisms"]["raman"]["configured"]
+        ),
+        "deposition_raman_active": bool(
+            unified_deposition["mechanisms"]["raman"]["active"]
+        ),
+        "deposition_raman_authoritative": bool(
+            unified_deposition["mechanisms"]["raman"]["authoritative"]
+        ),
+        "deposition_raman_source": _np.asarray(
+            unified_deposition["mechanisms"]["raman"]["source"]
+        ),
+        "deposition_raman_feedback_applied": bool(
+            unified_deposition["mechanisms"]["raman"]["feedback_applied"]
+        ),
+        "deposition_ion_level1_closure_status": _np.asarray(
+            unified_deposition["level1"]["ion"]
+        ),
+        "deposition_ib_level1_closure_status": _np.asarray(
+            unified_deposition["level1"]["ib"]
+        ),
+        "deposition_raman_level1_closure_status": _np.asarray(
+            unified_deposition["level1"]["raman"]
+        ),
+        "deposition_level1_all_available_mechanism_closure_pass": bool(
+            unified_deposition["level1_all_available_pass"]
+        ),
+        "deposition_ion_level2_closure_status": _np.asarray(
+            unified_deposition["level2"]["ion"]
+        ),
+        "deposition_ib_level2_closure_status": _np.asarray(
+            unified_deposition["level2"]["ib"]
+        ),
+        "deposition_raman_level2_closure_status": _np.asarray(
+            unified_deposition["level2"]["raman"]
+        ),
+        "deposition_level2_all_available_mechanism_closure_pass": bool(
+            unified_deposition["level2_all_available_pass"]
+        ),
+        "total_deposition_authoritative": bool(
+            unified_deposition["total_authoritative"]
+        ),
+        "total_deposition_unavailable_reason": _np.asarray(
+            unified_deposition["total_unavailable_reason"]
+        ),
+        "E_dep_total_interval_J": _np.asarray(
+            unified_deposition["total_interval_J"], dtype=_np.float64
+        ),
+        "E_dep_total_pulse_J": float(unified_deposition["total_pulse_J"]),
+        "E_dep_total_level2_closure_status": _np.asarray(
+            unified_deposition["total_level2_status"]
+        ),
+        "deposition_closure_relative_tolerance": float(
+            unified_deposition["closure_relative_tolerance"]
+        ),
+        # Level-3 is a signed optical-field bookkeeping diagnostic only.
+        # Positive residual means field loss not covered by authoritative
+        # deposition; it is never promoted to a deposition or heat source.
+        "E_field_in_J": float(unified_deposition["field_in_J"]),
+        "E_field_out_J": float(unified_deposition["field_out_J"]),
+        "E_field_loss_J": float(unified_deposition["field_loss_J"]),
+        "E_dep_accounted_authoritative_J": float(
+            unified_deposition["accounted_authoritative_J"]
+        ),
+        "E_field_energy_bookkeeping_residual_J": float(
+            unified_deposition["field_residual_J"]
+        ),
+        "E_field_energy_bookkeeping_relative_residual": float(
+            unified_deposition["field_relative_residual"]
+        ),
+        "field_energy_bookkeeping_authoritative": bool(
+            unified_deposition["field_bookkeeping_authoritative"]
+        ),
+        "field_energy_bookkeeping_status": _np.asarray(
+            "available"
+            if unified_deposition["field_bookkeeping_authoritative"]
+            else "unavailable"
+        ),
+        # These z-history values are retained for downstream compatibility,
+        # but none is a canonical HR-2 total-deposition ledger.
+        "legacy_E_dep_z_semantics": _np.asarray(
+            "compatibility_z_history_ion_ib_noncanonical"
+        ),
+        "legacy_E_dep_rot_z_semantics": _np.asarray(
+            "compatibility_z_history_raman_non_authoritative"
+        ),
+        "legacy_E_dep_total_z_semantics": _np.asarray(
+            "compatibility_z_history_non_authoritative"
         ),
         "raman_actual_local_negative_min_J_m2": _np.asarray(
             raman_actual_local_negative_min_J_m2_list, dtype=_np.float64

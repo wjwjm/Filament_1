@@ -101,8 +101,207 @@ def direct_interval_energy(power, dt: float, dx: float, dy: float, dz: float) ->
     return float(xp.sum(source) * dt_value * cell_volume)
 
 
+def build_unified_deposition_ledger(
+    *,
+    ion_interval_J,
+    ib_interval_J,
+    raman_interval_J,
+    ion_interval_reference_J,
+    ib_interval_reference_J,
+    raman_interval_reference_J,
+    ion_pulse_J: float,
+    ib_pulse_J: float,
+    raman_pulse_J: float,
+    ion_configured: bool,
+    ib_configured: bool,
+    raman_configured: bool,
+    raman_authoritative: bool,
+    raman_source: str,
+    ionization_feedback_enabled: bool,
+    raman_feedback_enabled: bool,
+    field_in_J: float,
+    field_out_J: float,
+):
+    """Build the HR-2D scalar unified deposition and field-bookkeeping ledger.
+
+    Inputs are already-reduced canonical interval energies.  This helper is
+    deliberately scalar-only: it never creates a longitudinal q/map payload
+    and never derives deposition from the optical field-energy difference.
+    """
+    rtol = 2.0e-5
+    atol = 1.0e-30
+
+    def _ledger(values, name):
+        result = tuple(float(value) for value in values)
+        if not all(math.isfinite(value) for value in result):
+            raise ValueError(f"{name} must contain only finite scalar energies")
+        return result
+
+    def _same_length(*ledgers):
+        lengths = {len(ledger) for ledger in ledgers}
+        if len(lengths) != 1:
+            raise ValueError("canonical deposition interval ledgers must share one length")
+
+    def _allclose(observed, reference):
+        return all(
+            abs(value - target) <= atol + rtol * max(abs(value), abs(target))
+            for value, target in zip(observed, reference)
+        )
+
+    def _scalar_close(observed, reference):
+        return abs(observed - reference) <= atol + rtol * max(
+            abs(observed), abs(reference)
+        )
+
+    ion = _ledger(ion_interval_J, "ion interval ledger")
+    ib = _ledger(ib_interval_J, "IB interval ledger")
+    raman = _ledger(raman_interval_J, "Raman interval ledger")
+    ion_reference = _ledger(ion_interval_reference_J, "ion interval reference")
+    ib_reference = _ledger(ib_interval_reference_J, "IB interval reference")
+    raman_reference = _ledger(
+        raman_interval_reference_J, "Raman interval reference"
+    )
+    _same_length(ion, ib, raman, ion_reference, ib_reference, raman_reference)
+
+    mechanisms = {
+        "ion": {
+            "configured": bool(ion_configured),
+            "active": bool(ion_configured),
+            "authoritative": True,
+            "source": (
+                "positive_photoionization_energy_rate"
+                if ion_configured else "off"
+            ),
+            "feedback_applied": bool(ionization_feedback_enabled),
+        },
+        "ib": {
+            "configured": bool(ib_configured),
+            "active": bool(ib_configured),
+            "authoritative": True,
+            "source": "alpha_ib_times_intensity" if ib_configured else "off",
+            "feedback_applied": True,
+        },
+        "raman": {
+            "configured": bool(raman_configured),
+            "active": bool(raman_configured),
+            "authoritative": bool(raman_authoritative),
+            "source": str(raman_source),
+            "feedback_applied": bool(raman_feedback_enabled),
+        },
+    }
+
+    for status in mechanisms.values():
+        status["interval_ledger_available"] = True
+        status["pulse_scalar_available"] = True
+
+    def _level1_status(name, observed, reference):
+        status = mechanisms[name]
+        if not status["active"]:
+            return "not_applicable"
+        if not status["authoritative"]:
+            return "unavailable"
+        return "pass" if _allclose(observed, reference) else "failed"
+
+    def _level2_status(name, observed, interval):
+        status = mechanisms[name]
+        if not status["active"]:
+            return "not_applicable"
+        if not status["authoritative"]:
+            return "unavailable"
+        return "pass" if _scalar_close(observed, sum(interval)) else "failed"
+
+    level1 = {
+        "ion": _level1_status("ion", ion, ion_reference),
+        "ib": _level1_status("ib", ib, ib_reference),
+        "raman": _level1_status("raman", raman, raman_reference),
+    }
+    level2 = {
+        "ion": _level2_status("ion", float(ion_pulse_J), ion),
+        "ib": _level2_status("ib", float(ib_pulse_J), ib),
+        "raman": _level2_status("raman", float(raman_pulse_J), raman),
+    }
+    for name in mechanisms:
+        mechanisms[name]["level1_closure_status"] = level1[name]
+        mechanisms[name]["level2_closure_status"] = level2[name]
+
+    required = [
+        status for status in mechanisms.values() if status["active"]
+    ]
+    total_authoritative = all(status["authoritative"] for status in required)
+    unavailable = [
+        f"{name}:{status['source']}"
+        for name, status in mechanisms.items()
+        if status["active"] and not status["authoritative"]
+    ]
+    if total_authoritative:
+        total_interval = tuple(
+            ion_value + ib_value + raman_value
+            for ion_value, ib_value, raman_value in zip(ion, ib, raman)
+        )
+        total_pulse = sum(total_interval)
+        total_level2_status = "pass" if _scalar_close(
+            total_pulse,
+            float(ion_pulse_J) + float(ib_pulse_J) + float(raman_pulse_J),
+        ) else "failed"
+    else:
+        total_interval = tuple(math.nan for _ in ion)
+        total_pulse = math.nan
+        total_level2_status = "unavailable"
+
+    all_available_level1_pass = all(
+        value in {"pass", "not_applicable", "unavailable"}
+        for value in level1.values()
+    ) and not any(value == "failed" for value in level1.values())
+    all_available_level2_pass = all(
+        value in {"pass", "not_applicable", "unavailable"}
+        for value in level2.values()
+    ) and not any(value == "failed" for value in level2.values())
+
+    accounted_authoritative = (
+        float(ion_pulse_J)
+        + float(ib_pulse_J)
+        + (float(raman_pulse_J) if raman_authoritative else 0.0)
+    )
+    field_in = float(field_in_J)
+    field_out = float(field_out_J)
+    field_values_finite = math.isfinite(field_in) and math.isfinite(field_out)
+    field_loss = field_in - field_out if field_values_finite else math.nan
+    residual = field_loss - accounted_authoritative if field_values_finite else math.nan
+    denominator = max(
+        abs(field_loss) if field_values_finite else 0.0,
+        abs(accounted_authoritative),
+        abs(field_in) * 1.0e-15 if field_values_finite else 0.0,
+        1.0e-300,
+    )
+    relative_residual = residual / denominator if field_values_finite else math.nan
+
+    return {
+        "mechanisms": mechanisms,
+        "level1": level1,
+        "level2": level2,
+        "level1_all_available_pass": bool(all_available_level1_pass),
+        "level2_all_available_pass": bool(all_available_level2_pass),
+        "total_authoritative": bool(total_authoritative),
+        "total_unavailable_reason": ";".join(unavailable) if unavailable else "",
+        "total_interval_J": total_interval,
+        "total_pulse_J": float(total_pulse),
+        "total_level2_status": total_level2_status,
+        "accounted_authoritative_J": float(accounted_authoritative),
+        "field_in_J": field_in,
+        "field_out_J": field_out,
+        "field_loss_J": float(field_loss),
+        "field_residual_J": float(residual),
+        "field_relative_residual": float(relative_residual),
+        "field_bookkeeping_authoritative": bool(
+            total_authoritative and field_values_finite
+        ),
+        "closure_relative_tolerance": rtol,
+    }
+
+
 __all__ = [
     "direct_interval_energy",
+    "build_unified_deposition_ledger",
     "integrate_power_to_q",
     "interval_energy_from_q",
     "q_ib_from_power",
