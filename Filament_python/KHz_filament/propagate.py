@@ -10,6 +10,12 @@ from .ionization import (
 )
 from .nonlinear import kerr_phase_from_deltan, plasma_phase, ib_alpha, apply_nonlinear, shock_intensity, operator_correct_scalar
 from .heat import heat_Q_per_z
+from .deposition import (
+    direct_interval_energy,
+    interval_energy_from_q,
+    q_ib_from_power,
+    q_ion_from_power,
+)
 from .linear_full import step_linear_full_factorized, step_linear_full_3d
 from .air_dispersion import n_of_omega
 from .constants import c0, eps0
@@ -458,6 +464,17 @@ def propagate_one_pulse(
 
     E_dep_z_list, E_dep_rot_z_list = [], []  # 电离+IB、拉曼沉积
     E_dep_total_z_list, E_dep_cumulative_z_list = [], []
+    # HR-2B canonical interval ledger.  These lists are populated for every
+    # schedule interval, independently of sparse legacy z-axis recording.
+    E_dep_ion_interval_J_list = []
+    E_dep_ib_interval_J_list = []
+    E_dep_plasma_interval_J_list = []
+    E_dep_ion_interval_direct_J_list = []
+    E_dep_ib_interval_direct_J_list = []
+    E_dep_plasma_interval_direct_J_list = []
+    E_dep_ion_interval_closure_residual_J_list = []
+    E_dep_ib_interval_closure_residual_J_list = []
+    E_dep_plasma_interval_closure_residual_J_list = []
     U_rel_change_z_list, U_step_change_z_list, E_loss_from_input_z_list = [], [], []
     fwhm_plasma_z_list, fwhm_fluence_z_list, fwhm_time_z_list = [], [], []
     rho_onaxis_time_list = [] if record_onaxis_rho_time else None
@@ -499,6 +516,9 @@ def propagate_one_pulse(
     linear_halfstep_1_z_list, linear_halfstep_2_z_list = [], []
     linear_profile_halfstep_1_z_list, linear_profile_halfstep_2_z_list = [], []
     E_dep_cumulative = 0.0
+    E_dep_ion_pulse = 0.0
+    E_dep_ib_pulse = 0.0
+    E_dep_plasma_pulse = 0.0
     raman_target_loss_cumulative = 0.0
     raman_actual_loss_cumulative = 0.0
     U_previous = U0_baseline
@@ -508,7 +528,9 @@ def propagate_one_pulse(
     safety_mode_trigger_count = 0
     # ---------- 主循环 ----------
     z = 0.0
-    # Qacc 累积到面密度 J/m^2（把体功率密度在 t,z 两方向积分）
+    # Qacc/Q2D is the legacy slow-heat compatibility path (surface density
+    # J/m^2), not the HR-2B thermal truth.  HR-2B keeps only scalar interval
+    # ledger values after releasing each temporary q map.
     Qacc = xp.zeros((Ny, Nx), dtype=rdtype)
     Qacc_raman = xp.zeros((Ny, Nx), dtype=rdtype)
     t0 = time.perf_counter()
@@ -679,7 +701,8 @@ def propagate_one_pulse(
             rho = xp.zeros_like(I, dtype=rdtype)
             Wt  = xp.zeros_like(I, dtype=rdtype)
             alpha_ib = xp.zeros_like(I, dtype=rdtype)
-            ion_source_raw = xp.zeros_like(I, dtype=rdtype)
+            net_density_energy_rate = xp.zeros_like(I, dtype=rdtype)
+            photoionization_energy_rate = xp.zeros_like(I, dtype=rdtype)
         else:
             X = field_amplitude_from_intensity(I, n0) if ion_input == "E" else I
             rho_out = evolve_rho_time(
@@ -696,11 +719,29 @@ def propagate_one_pulse(
                 species_terms = {}
             xp.maximum(rho, 0.0, out=rho)
             xp.minimum(rho, N0, out=rho)
-            ion_source_raw = species_terms.get("drho_dt_u_sum", None)
+            # The legacy field is the energy-weighted net density derivative
+            # and may include recombination.  HR-2B deposition and raw
+            # ionization absorption use the separate positive photo-creation
+            # source below.
+            net_density_energy_rate = species_terms.get("drho_dt_u_sum", None)
+            photoionization_energy_rate = species_terms.get(
+                "photoionization_energy_rate", None
+            )
             rho_by_species = species_terms.get("rho_by_species", {})
-            if ion_source_raw is None:
+            if photoionization_energy_rate is None:
+                # Compatibility fallback for a non-species return path.
                 d_rho_dt = Wt * xp.clip(N0 - rho, 0.0, N0)
-                ion_source_raw = Ui * d_rho_dt
+                photoionization_energy_rate = Ui * d_rho_dt
+            photoionization_energy_rate = xp.asarray(
+                photoionization_energy_rate, dtype=rdtype
+            )
+            photoionization_energy_rate = xp.nan_to_num(
+                photoionization_energy_rate,
+                nan=0.0,
+                posinf=0.0,
+                neginf=0.0,
+            )
+            xp.maximum(photoionization_energy_rate, 0.0, out=photoionization_energy_rate)
 
         if ion_off:
             rho_by_species = {}
@@ -716,13 +757,17 @@ def propagate_one_pulse(
 
         # 电离吸收 α_ion（只参与传播与热，避免在 Q 中重复计 IB）
         I_floor = 1e-6 * float(getattr(ion_conf, "I_cap", 1e19))
-        alpha_ion_raw = ion_source_raw / (I + I_floor)
+        alpha_ion_raw = photoionization_energy_rate / (I + I_floor)
         if use_ion_op_corr and (not ion_off):
             ion_source_prop = operator_correct_scalar(
-                ion_source_raw, axes.Omega, omega0, dt=dt, method=ion_op_method
+                photoionization_energy_rate,
+                axes.Omega,
+                omega0,
+                dt=dt,
+                method=ion_op_method,
             )
         else:
-            ion_source_prop = ion_source_raw
+            ion_source_prop = photoionization_energy_rate
         ion_source_prop = xp.nan_to_num(ion_source_prop, nan=0.0, posinf=0.0, neginf=0.0)
         alpha_ion = ion_source_prop / (I + I_floor)
         alpha_ion = xp.nan_to_num(alpha_ion, nan=0.0, posinf=0.0, neginf=0.0)
@@ -907,11 +952,61 @@ def propagate_one_pulse(
             raman_target_loss_cumulative += float(raman_step_diag["target_global_energy_loss_J"])
             raman_actual_loss_cumulative += float(raman_step_diag["actual_global_energy_loss_J"])
 
-        # —— 热沉积：分量分别记账 ——
-        # 电离 + IB：Qslice (J/m^3)；电离源优先使用逐组分 Σ_j U_j * ∂ρ_j/∂t
+        # —— HR-2B plasma deposition: mechanism-resolved, one interval only ——
+        # q maps are interval-average volume energy densities [J/m^3].  The
+        # direct 3-D reductions are kept separately for the Level-1 closure;
+        # neither path stores a longitudinal payload.
         operator_energy_after_raman_post = _operator_energy(E) if diag_operator_energy else _np.nan
 
-        Qslice = heat_Q_per_z(I, alpha_ib, dt, ion_source=ion_source_raw, Wt=Wt, rho=rho, Ui=Ui, N0=N0)
+        q_ion = q_ion_from_power(photoionization_energy_rate, dt)
+        ib_power = alpha_ib * I
+        q_ib = q_ib_from_power(alpha_ib, I, dt)
+        E_dep_ion_interval = interval_energy_from_q(
+            q_ion, axes.dx, axes.dy, dz_try
+        )
+        E_dep_ib_interval = interval_energy_from_q(
+            q_ib, axes.dx, axes.dy, dz_try
+        )
+        E_dep_plasma_interval = E_dep_ion_interval + E_dep_ib_interval
+        E_dep_ion_direct = direct_interval_energy(
+            photoionization_energy_rate, dt, axes.dx, axes.dy, dz_try
+        )
+        E_dep_ib_direct = direct_interval_energy(
+            ib_power, dt, axes.dx, axes.dy, dz_try
+        )
+        E_dep_plasma_direct = E_dep_ion_direct + E_dep_ib_direct
+        E_dep_ion_interval_J_list.append(E_dep_ion_interval)
+        E_dep_ib_interval_J_list.append(E_dep_ib_interval)
+        E_dep_plasma_interval_J_list.append(E_dep_plasma_interval)
+        E_dep_ion_interval_direct_J_list.append(E_dep_ion_direct)
+        E_dep_ib_interval_direct_J_list.append(E_dep_ib_direct)
+        E_dep_plasma_interval_direct_J_list.append(E_dep_plasma_direct)
+        E_dep_ion_interval_closure_residual_J_list.append(
+            E_dep_ion_interval - E_dep_ion_direct
+        )
+        E_dep_ib_interval_closure_residual_J_list.append(
+            E_dep_ib_interval - E_dep_ib_direct
+        )
+        E_dep_plasma_interval_closure_residual_J_list.append(
+            E_dep_plasma_interval - E_dep_plasma_direct
+        )
+        E_dep_ion_pulse += E_dep_ion_interval
+        E_dep_ib_pulse += E_dep_ib_interval
+        E_dep_plasma_pulse += E_dep_plasma_interval
+
+        # Keep the legacy heat helper as the Q_CAP compatibility guard.  For
+        # normal finite production sources this equals q_ion + q_ib exactly;
+        # Qacc/Q2D remains the legacy slow-heat path, not thermal truth.
+        Qslice = heat_Q_per_z(
+            I,
+            alpha_ib,
+            dt,
+            ion_source=photoionization_energy_rate,
+            Wt=Wt,
+            rho=rho,
+            Ui=Ui,
+            N0=N0,
+        )
         Qacc += xp.asarray(Qslice, dtype=Qacc.dtype) * dz_try
         # Poynting 模式：如需把拉曼也积入慢时间面密度（J/m^2），可把体能量密度乘 dz_try 累起来
         if use_raman and raman_absorb_on and (absorption_model == "poynting") and (Q_rot_vol is not None):
@@ -1235,6 +1330,39 @@ def propagate_one_pulse(
         "E_dep_z":                  _np.asarray(E_dep_z_list,             dtype=rdtype_np),   # 电离+IB
         "E_dep_total_z":            _np.asarray(E_dep_total_z_list,       dtype=rdtype_np),
         "E_dep_cumulative_z":       _np.asarray(E_dep_cumulative_z_list,  dtype=rdtype_np),
+        # HR-2B authoritative plasma deposition ledger.  These arrays are
+        # canonical-interval aligned and intentionally independent of the
+        # legacy sparse z_axis records above.
+        "E_dep_ion_interval_J": _np.asarray(
+            E_dep_ion_interval_J_list, dtype=_np.float64
+        ),
+        "E_dep_ib_interval_J": _np.asarray(
+            E_dep_ib_interval_J_list, dtype=_np.float64
+        ),
+        "E_dep_plasma_interval_J": _np.asarray(
+            E_dep_plasma_interval_J_list, dtype=_np.float64
+        ),
+        "E_dep_ion_interval_direct_J": _np.asarray(
+            E_dep_ion_interval_direct_J_list, dtype=_np.float64
+        ),
+        "E_dep_ib_interval_direct_J": _np.asarray(
+            E_dep_ib_interval_direct_J_list, dtype=_np.float64
+        ),
+        "E_dep_plasma_interval_direct_J": _np.asarray(
+            E_dep_plasma_interval_direct_J_list, dtype=_np.float64
+        ),
+        "E_dep_ion_interval_closure_residual_J": _np.asarray(
+            E_dep_ion_interval_closure_residual_J_list, dtype=_np.float64
+        ),
+        "E_dep_ib_interval_closure_residual_J": _np.asarray(
+            E_dep_ib_interval_closure_residual_J_list, dtype=_np.float64
+        ),
+        "E_dep_plasma_interval_closure_residual_J": _np.asarray(
+            E_dep_plasma_interval_closure_residual_J_list, dtype=_np.float64
+        ),
+        "E_dep_ion_pulse_J": float(E_dep_ion_pulse),
+        "E_dep_ib_pulse_J": float(E_dep_ib_pulse),
+        "E_dep_plasma_pulse_J": float(E_dep_plasma_pulse),
         "U_rel_change_z":           _np.asarray(U_rel_change_z_list,      dtype=rdtype_np),
         "U_step_change_z":          _np.asarray(U_step_change_z_list,     dtype=rdtype_np),
         "E_loss_from_input_z":      _np.asarray(E_loss_from_input_z_list, dtype=rdtype_np),
@@ -1404,5 +1532,5 @@ def propagate_one_pulse(
     diag["diagnostic_all_zero_traces"] = _np.asarray(validation["all_zero_traces"], dtype="U64")
 
 
-    # Qacc 是 2D（J/m^2）：用于慢时间热扩散
+    # Qacc/Q2D is legacy 2-D slow-heat compatibility output [J/m^2].
     return E, to_cpu(Qacc).astype(rdtype_np, copy=False), diag
