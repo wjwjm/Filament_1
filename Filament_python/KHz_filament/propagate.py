@@ -15,6 +15,7 @@ from .deposition import (
     interval_energy_from_q,
     q_ib_from_power,
     q_ion_from_power,
+    q_raman_from_actual_fluence_loss,
 )
 from .linear_full import step_linear_full_factorized, step_linear_full_3d
 from .air_dispersion import n_of_omega
@@ -410,6 +411,18 @@ def propagate_one_pulse(
     full_isaacs_mode = bool(
         full_isaacs_rotational_mode or full_isaacs_complete_mode
     )
+    if not use_raman:
+        raman_deposition_authoritative = True
+        raman_deposition_source = "off"
+    elif full_isaacs_mode:
+        raman_deposition_authoritative = True
+        raman_deposition_source = (
+            "actual_field_fluence_loss"
+            if switches.use_raman_full_operator else "operator_not_applied"
+        )
+    else:
+        raman_deposition_authoritative = False
+        raman_deposition_source = "legacy_unavailable"
     complete_operator_enabled = bool(
         full_isaacs_complete_mode and switches.use_raman_full_operator
     )
@@ -475,6 +488,10 @@ def propagate_one_pulse(
     E_dep_ion_interval_closure_residual_J_list = []
     E_dep_ib_interval_closure_residual_J_list = []
     E_dep_plasma_interval_closure_residual_J_list = []
+    E_dep_raman_interval_J_list = []
+    E_dep_raman_interval_operator_J_list = []
+    E_dep_raman_interval_closure_residual_J_list = []
+    raman_actual_local_negative_min_J_m2_list = []
     U_rel_change_z_list, U_step_change_z_list, E_loss_from_input_z_list = [], [], []
     fwhm_plasma_z_list, fwhm_fluence_z_list, fwhm_time_z_list = [], [], []
     rho_onaxis_time_list = [] if record_onaxis_rho_time else None
@@ -519,6 +536,9 @@ def propagate_one_pulse(
     E_dep_ion_pulse = 0.0
     E_dep_ib_pulse = 0.0
     E_dep_plasma_pulse = 0.0
+    E_dep_raman_pulse = 0.0
+    E_dep_raman_operator_pulse = 0.0
+    E_dep_raman_pulse_closure_residual = 0.0
     raman_target_loss_cumulative = 0.0
     raman_actual_loss_cumulative = 0.0
     U_previous = U0_baseline
@@ -782,6 +802,10 @@ def propagate_one_pulse(
         alpha_R_eff = 0.0                    # 标量/2D 等效吸收，用于传播
         alpha_R_closed = 0.0                 # 仅 closed_form 模型保留其等效系数
         E_dep_rot_step = 0.0                 # 本 z 步旋转拉曼总沉积能量 [J]
+        E_dep_raman_interval = 0.0
+        E_dep_raman_operator_interval = 0.0
+        E_dep_raman_interval_closure_residual = 0.0
+        raman_actual_local_negative_min_J_m2 = 0.0
         IR_max = 0.0
         Q_rot_vol = None
 
@@ -900,6 +924,40 @@ def propagate_one_pulse(
                     raman_diag_parts, reference_energy=U0_baseline)
                 IR = raman_step_diag["I_R_stage1"]
                 E_dep_rot_step = float(raman_step_diag["actual_global_energy_loss_J"])
+                actual_local_fluence_loss = raman_step_diag["actual_local_fluence_loss"]
+                q_raman = q_raman_from_actual_fluence_loss(
+                    actual_local_fluence_loss, dz_try
+                )
+                E_dep_raman_interval = interval_energy_from_q(
+                    q_raman, axes.dx, axes.dy, dz_try
+                )
+                E_dep_raman_operator_interval = E_dep_rot_step
+                E_dep_raman_interval_closure_residual = (
+                    E_dep_raman_interval - E_dep_raman_operator_interval
+                )
+                actual_local_fluence_loss_finite = xp.nan_to_num(
+                    xp.asarray(actual_local_fluence_loss),
+                    nan=0.0, posinf=0.0, neginf=0.0,
+                )
+                raman_actual_local_negative_min_J_m2 = float(
+                    xp.min(xp.minimum(actual_local_fluence_loss_finite, 0.0))
+                )
+                del q_raman, actual_local_fluence_loss_finite
+                E_dep_raman_interval_J_list.append(E_dep_raman_interval)
+                E_dep_raman_interval_operator_J_list.append(
+                    E_dep_raman_operator_interval
+                )
+                E_dep_raman_interval_closure_residual_J_list.append(
+                    E_dep_raman_interval_closure_residual
+                )
+                raman_actual_local_negative_min_J_m2_list.append(
+                    raman_actual_local_negative_min_J_m2
+                )
+                E_dep_raman_pulse += E_dep_raman_interval
+                E_dep_raman_operator_pulse += E_dep_raman_operator_interval
+                E_dep_raman_pulse_closure_residual += (
+                    E_dep_raman_interval_closure_residual
+                )
                 Qacc_raman += xp.maximum(
                     xp.asarray(raman_step_diag["actual_local_fluence_loss"], dtype=Qacc_raman.dtype), 0.0)
                 # The complete 3-D Raman response and local closure maps are
@@ -951,6 +1009,15 @@ def propagate_one_pulse(
                 }
             raman_target_loss_cumulative += float(raman_step_diag["target_global_energy_loss_J"])
             raman_actual_loss_cumulative += float(raman_step_diag["actual_global_energy_loss_J"])
+
+        if not full_isaacs_on:
+            # No authoritative actual field-loss map exists for disabled or
+            # legacy Raman paths.  Keep the canonical interval ledger aligned
+            # without promoting Q_rot_vol, w_R, or another inferred estimate.
+            E_dep_raman_interval_J_list.append(0.0)
+            E_dep_raman_interval_operator_J_list.append(0.0)
+            E_dep_raman_interval_closure_residual_J_list.append(0.0)
+            raman_actual_local_negative_min_J_m2_list.append(0.0)
 
         # —— HR-2B plasma deposition: mechanism-resolved, one interval only ——
         # q maps are interval-average volume energy densities [J/m^3].  The
@@ -1363,6 +1430,26 @@ def propagate_one_pulse(
         "E_dep_ion_pulse_J": float(E_dep_ion_pulse),
         "E_dep_ib_pulse_J": float(E_dep_ib_pulse),
         "E_dep_plasma_pulse_J": float(E_dep_plasma_pulse),
+        # HR-2C authoritative Raman deposition is available only from the
+        # actual local field-fluence loss of the full operator.  These scalar
+        # arrays are canonical-interval aligned; no q/map stack is retained.
+        "E_dep_raman_interval_J": _np.asarray(
+            E_dep_raman_interval_J_list, dtype=_np.float64
+        ),
+        "E_dep_raman_interval_operator_J": _np.asarray(
+            E_dep_raman_interval_operator_J_list, dtype=_np.float64
+        ),
+        "E_dep_raman_interval_closure_residual_J": _np.asarray(
+            E_dep_raman_interval_closure_residual_J_list, dtype=_np.float64
+        ),
+        "E_dep_raman_pulse_J": float(E_dep_raman_pulse),
+        "E_dep_raman_operator_pulse_J": float(E_dep_raman_operator_pulse),
+        "E_dep_raman_pulse_closure_residual_J": float(
+            E_dep_raman_pulse_closure_residual
+        ),
+        "raman_actual_local_negative_min_J_m2": _np.asarray(
+            raman_actual_local_negative_min_J_m2_list, dtype=_np.float64
+        ),
         "U_rel_change_z":           _np.asarray(U_rel_change_z_list,      dtype=rdtype_np),
         "U_step_change_z":          _np.asarray(U_step_change_z_list,     dtype=rdtype_np),
         "E_loss_from_input_z":      _np.asarray(E_loss_from_input_z_list, dtype=rdtype_np),
@@ -1389,6 +1476,8 @@ def propagate_one_pulse(
         "raman_absorption_on":      bool(use_raman and raman_absorb_on),
         "raman_absorption_calculated": bool(use_raman and raman_absorption_compute),
         "raman_operator_mode": _np.asarray(r_operator_mode),
+        "raman_deposition_authoritative": bool(raman_deposition_authoritative),
+        "raman_deposition_source": _np.asarray(raman_deposition_source),
         "raman_operator_feedback_enabled": bool(switches.use_raman_full_operator),
         "raman_operator_applied": _np.asarray(raman_operator_applied_z_list, dtype=_np.bool_),
         "raman_rhs_l2_norm": _np.asarray(raman_rhs_l2_norm_z_list, dtype=rdtype_np),

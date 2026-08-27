@@ -58,6 +58,24 @@ def q_ib_from_power(alpha_ib, intensity, dt: float):
     return integrate_power_to_q(source, dt)
 
 
+def q_raman_from_actual_fluence_loss(actual_local_fluence_loss, dz: float):
+    """Convert one actual Raman fluence-loss map to ``q_raman``.
+
+    ``actual_local_fluence_loss`` is the field-difference result for one
+    longitudinal interval and has units J/m^2.  Raman deposition represents a
+    positive medium energy gain, so non-finite values are cleared and only the
+    positive part is retained before dividing by the interval length.
+    """
+    dz_value = float(dz)
+    if not math.isfinite(dz_value) or dz_value <= 0.0:
+        raise ValueError("dz must be a finite positive number")
+    loss = xp.asarray(actual_local_fluence_loss)
+    if loss.ndim != 2:
+        raise ValueError("actual Raman fluence-loss map must have shape [Ny, Nx]")
+    loss = xp.nan_to_num(loss, nan=0.0, posinf=0.0, neginf=0.0)
+    return xp.maximum(loss, 0.0) / dz_value
+
+
 def interval_energy_from_q(q, dx: float, dy: float, dz: float) -> float:
     """Convert one ``q`` map to interval energy using ``sum(q)*dx*dy*dz``."""
     q_map = xp.asarray(q)
@@ -89,4 +107,5 @@ __all__ = [
     "interval_energy_from_q",
     "q_ib_from_power",
     "q_ion_from_power",
+    "q_raman_from_actual_fluence_loss",
 ]
