@@ -13,9 +13,17 @@
 最低检查：
 
 ```powershell
-python -m compileall Filament_python/KHz_filament
-pytest -q Filament_python/tests/test_sanity.py
+D:\Filament_1\Filament_python\tools\run_local_tests.ps1 -Mode import
+D:\Filament_1\Filament_python\tools\run_local_tests.ps1 -Mode backend
+D:\Filament_1\Filament_python\tools\run_local_tests.ps1 -Mode sanity
+D:\Filament_1\Filament_python\tools\run_local_tests.ps1 -Mode targeted
+$py = 'C:\Users\wangj\.conda\envs\filament-local-test\python.exe'
+& $py -s -B -m compileall D:\Filament_1\Filament_python\KHz_filament
 ```
+
+上述入口默认使用仓库外的 `filament-local-test` Conda 环境，并隔离用户级
+site-packages。不要用裸 `python` 或 `pytest` 替代入口；先通过 `backend` 和 `sanity`
+后再运行 targeted。targeted 仅包含明确指定的轻量测试，不等价于 full pytest。
 
 电离手动自检需要以 `Filament_python` 为工作目录：
 

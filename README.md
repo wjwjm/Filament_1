@@ -112,9 +112,24 @@ cache、archive 和 quarantine 均从该命名空间解析；账号根下的旧
 
 ## 最小检查
 
+本地测试必须使用仓库外的专用 Conda 环境
+`C:\Users\wangj\.conda\envs\filament-local-test`，不要直接调用裸 `python` 或 `pytest`。
+统一入口会自动固定模块路径并隔离用户级 site-packages：
+
 ```powershell
-python -m compileall Filament_python/KHz_filament
-pytest -q Filament_python/tests/test_sanity.py
+D:\Filament_1\Filament_python\tools\run_local_tests.ps1 -Mode import
+D:\Filament_1\Filament_python\tools\run_local_tests.ps1 -Mode backend
+D:\Filament_1\Filament_python\tools\run_local_tests.ps1 -Mode sanity
+D:\Filament_1\Filament_python\tools\run_local_tests.ps1 -Mode targeted
+```
+
+先运行 `backend`；若 backend、import 或 sanity 失败，不要继续 targeted 或真实 Raman 传播。
+`targeted` 只运行指定的轻量测试，不是 full pytest。CuPy/GPU 与真实传播仍只能由 HPC
+`scvi806` 环境验证。
+
+```powershell
+$py = 'C:\Users\wangj\.conda\envs\filament-local-test\python.exe'
+& $py -s -B -m compileall Filament_python/KHz_filament
 ```
 
 进行一次轻量运行时，建议显式给出临时输出文件；验证后删除该文件：
@@ -131,7 +146,7 @@ python Filament_python/test_run.py --cfg Filament_python/config_ref.json --out F
 
 ## 本地—超算版本核验（只读）
 
-GPU 成丝任务使用 `scvi806@nc-n50r5`；远端新任务源码位于
+GPU 成丝任务使用 SSH target `scvi-hpc`（远端身份 `scvi806@NC-N50R5`）；远端新任务源码位于
 `/data/run01/scvi806/user_Wangjimin/projects/Filament_1/source/staging/<campaign_id>/Filament_1_<short_sha>/`，
 运行证据位于
 `/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/<campaign_id>/`。
@@ -144,14 +159,15 @@ git status --short
 git ls-remote origin refs/heads/main
 ```
 
-随后通过已有 papp_cloud 会话交互登录，再在远端执行只读 Git 查询。包含
-中文路径、管道、重定向、正则、命令替换或多层引号的操作必须改用
-`Filament_python/tools/hpc_ops/Invoke-PappRemoteScript.ps1` 的参数数组和
-脚本上传方式；先使用 `-DryRun`，再运行只读 `hpc_preflight.sh`。简单、无
-变量展开的只读查询仍可直接执行：
+随后通过配置好的 SSH alias 执行远端只读查询。先用 `ssh -G scvi-hpc` 检查
+本机映射，再核验远端身份；包含中文路径、管道、重定向、正则、命令替换或多层
+引号的操作必须改用 `Filament_python/tools/hpc_ops/Invoke-SshRemoteScript.ps1`
+的参数数组和脚本上传方式；先使用 `-DryRun`，再运行只读 `hpc_preflight.sh`。
+简单、无变量展开的只读查询仍可直接执行：
 
 ```powershell
-wsl bash -c "~/papp_cloud/papp_cloud_linux_amd64 ssh scvi806@nc-n50r5"
+ssh -G scvi-hpc
+ssh -o BatchMode=yes scvi-hpc "whoami; pwd; hostname"
 ```
 
 ```bash

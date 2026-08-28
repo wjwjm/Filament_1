@@ -7,20 +7,49 @@
 #SBATCH --time=15:00:00
 
 set -euo pipefail
+readonly FIXED_PYTHON=/data/home/scvi806/.conda/envs/Filament_python/bin/python
 : "${EXPECTED_GIT_SHA:?missing EXPECTED_GIT_SHA}"
 : "${REPO_DIR:?missing REPO_DIR}"
 : "${RUN_DIR:?missing RUN_DIR}"
 : "${CASE_ID:?missing CASE_ID}"
 : "${CONFIG_PATH:?missing CONFIG_PATH}"
-: "${EXPECTED_CONFIG_SHA256:?missing EXPECTED_CONFIG_SHA256}"
+: "${PROVENANCE_MANIFEST:?missing PROVENANCE_MANIFEST}"
+: "${CONFIG_PROVENANCE_PATH:?missing CONFIG_PROVENANCE_PATH}"
+: "${CONFIG_GIT_BLOB_OID:?missing CONFIG_GIT_BLOB_OID}"
+: "${CONFIG_CANONICAL_LF_SHA256:?missing CONFIG_CANONICAL_LF_SHA256}"
 : "${EXPECTED_GPU_MODEL:?missing EXPECTED_GPU_MODEL}"
 
 cd "${REPO_DIR}"
 actual_sha="$(git rev-parse HEAD)"
 test "${actual_sha}" = "${EXPECTED_GIT_SHA}" || { echo "FATAL: Git SHA mismatch" >&2; exit 21; }
 test -z "$(git status --porcelain=v1)" || { echo "FATAL: staging worktree is not clean" >&2; exit 22; }
-actual_config_sha="$(sha256sum "${CONFIG_PATH}" | awk '{print $1}')"
-test "${actual_config_sha}" = "${EXPECTED_CONFIG_SHA256}" || { echo "FATAL: config SHA mismatch" >&2; exit 23; }
+test -f "${PROVENANCE_MANIFEST}" && test ! -L "${PROVENANCE_MANIFEST}" || { echo "FATAL: provenance manifest unavailable" >&2; exit 23; }
+test -f "${CONFIG_PATH}" && test ! -L "${CONFIG_PATH}" || { echo "FATAL: config unavailable" >&2; exit 23; }
+test "$(realpath -e -- "${CONFIG_PATH}")" = "$(realpath -e -- "${REPO_DIR}/${CONFIG_PROVENANCE_PATH}")" || { echo "FATAL: config path mismatch" >&2; exit 23; }
+"${FIXED_PYTHON}" "${REPO_DIR}/Filament_python/tools/hpc_ops/provenance_v2.py" validate \
+    --repo "${REPO_DIR}" --manifest "${PROVENANCE_MANIFEST}" --require-hash-scope >/dev/null
+"${FIXED_PYTHON}" - <<'PY'
+import json
+import os
+import pathlib
+import sys
+
+repo = pathlib.Path(os.environ["REPO_DIR"])
+sys.path.insert(0, str(repo / "Filament_python" / "tools" / "hpc_ops"))
+import provenance_v2
+
+manifest = json.loads(pathlib.Path(os.environ["PROVENANCE_MANIFEST"]).read_text(encoding="utf-8"))
+record = provenance_v2.lookup_record(
+    manifest,
+    os.environ["CONFIG_PROVENANCE_PATH"],
+    classification="tracked_text",
+    require_hash_scope=True,
+)
+if record["git_blob_oid"] != os.environ["CONFIG_GIT_BLOB_OID"]:
+    raise SystemExit("FATAL: config Git blob mismatch")
+if record["canonical_lf_sha256"] != os.environ["CONFIG_CANONICAL_LF_SHA256"]:
+    raise SystemExit("FATAL: config canonical-LF SHA256 mismatch")
+PY
 
 mkdir -p "${RUN_DIR}"
 export PYTHONPYCACHEPREFIX="${RUN_DIR}/pycache"
@@ -51,12 +80,18 @@ name = props["name"].decode() if isinstance(props["name"], bytes) else str(props
 if name != os.environ["EXPECTED_GPU_MODEL"]:
     raise SystemExit(f"FATAL: GPU model mismatch expected={os.environ['EXPECTED_GPU_MODEL']!r} actual={name!r}")
 payload = {
-    "schema": "khz_filament.hr2e.job_metadata.v1",
+    "schema": "khz_filament.hr2e.job_metadata.v2",
+    "hash_scope": "classified_by_record",
     "case_id": os.environ["CASE_ID"],
     "slurm_job_id": os.environ.get("SLURM_JOB_ID", ""),
     "git_sha": subprocess.check_output(["git", "-C", os.environ["REPO_DIR"], "rev-parse", "HEAD"], text=True).strip(),
     "config_path": os.environ["CONFIG_PATH"],
-    "config_sha256": os.environ["EXPECTED_CONFIG_SHA256"],
+    "config_provenance_path": os.environ["CONFIG_PROVENANCE_PATH"],
+    "config_classification": "tracked_text",
+    "config_hash_scope": "git_blob_oid+canonical_lf_sha256",
+    "config_git_blob_oid": os.environ["CONFIG_GIT_BLOB_OID"],
+    "config_canonical_lf_sha256": os.environ["CONFIG_CANONICAL_LF_SHA256"],
+    "provenance_manifest_path": os.environ["PROVENANCE_MANIFEST"],
     "gpu_model": name,
     "cpu_threads": int(os.environ["SLURM_CPUS_PER_TASK"]),
     "dtype": "fp32",

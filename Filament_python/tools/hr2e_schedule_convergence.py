@@ -8,13 +8,20 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import json
 import math
 from pathlib import Path
+import sys
 from typing import Any, Iterable, Mapping
 
 import numpy as np
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+HPC_OPS = Path(__file__).resolve().parent / "hpc_ops"
+if str(HPC_OPS) not in sys.path:
+    sys.path.insert(0, str(HPC_OPS))
+import provenance_v2  # noqa: E402
 
 
 CHANNEL_KEYS = {
@@ -308,20 +315,32 @@ def load_case_with_provenance(
     npz_path: str | Path,
     metadata_path: str | Path,
     manifest_path: str | Path,
+    provenance_manifest_path: str | Path | None = None,
     *,
     case_id: str,
 ) -> dict[str, Any]:
     run = load_canonical_npz(npz_path, label=case_id)
     metadata = json.loads(Path(metadata_path).read_text(encoding="utf-8"))
     manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
-    if metadata.get("schema") != "khz_filament.hr2e.job_metadata.v1":
+    metadata_schema = metadata.get("schema")
+    planning_schema = manifest.get("schema")
+    if metadata_schema not in {
+        "khz_filament.hr2e.job_metadata.v1",
+        "khz_filament.hr2e.job_metadata.v2",
+    }:
         raise ValueError(f"{case_id}: invalid job metadata schema")
-    if manifest.get("schema") != "khz_filament.hr2e.stage1_preflight.v1":
+    if planning_schema not in {
+        "khz_filament.hr2e.stage1_preflight.v1",
+        "khz_filament.hr2e.stage1_preflight.v2",
+    }:
         raise ValueError(f"{case_id}: invalid preflight manifest schema")
+    classified = planning_schema.endswith(".v2") or metadata_schema.endswith(".v2")
+    if classified != (planning_schema.endswith(".v2") and metadata_schema.endswith(".v2")):
+        raise ValueError(f"{case_id}: legacy and classified provenance schemas are mixed")
     expected = next((case for case in manifest.get("cases", []) if case.get("case_id") == case_id), None)
     if expected is None:
         raise ValueError(f"{case_id}: case is absent from preflight manifest")
-    for key in ("case_id", "config_sha256", "dtype"):
+    for key in ("case_id", "dtype"):
         if str(metadata.get(key)) != str(expected.get(key)):
             raise ValueError(f"{case_id}: metadata mismatch for {key}")
     git_sha = str(metadata.get("git_sha", ""))
@@ -334,13 +353,55 @@ def load_case_with_provenance(
     actual_config_path = Path(actual_config)
     if not actual_config_path.is_file():
         raise ValueError(f"{case_id}: bound config file is unavailable")
-    actual_config_sha = hashlib.sha256(actual_config_path.read_bytes()).hexdigest()
-    if actual_config_sha != str(expected["config_sha256"]):
-        raise ValueError(f"{case_id}: bound config file hash mismatch")
+    if classified:
+        if provenance_manifest_path is None:
+            raise ValueError(f"{case_id}: classified provenance manifest is required")
+        provenance_path = Path(provenance_manifest_path)
+        provenance = provenance_v2.validate_manifest(
+            REPO_ROOT,
+            provenance_path,
+            require_hash_scope=True,
+        )
+        provenance_relative = str(expected.get("config_provenance_path", ""))
+        if not provenance_relative:
+            raise ValueError(f"{case_id}: planning manifest lacks config provenance path")
+        record = provenance_v2.lookup_record(
+            provenance,
+            provenance_relative,
+            classification="tracked_text",
+            require_hash_scope=True,
+        )
+        metadata_binding = {
+            "path": metadata.get("config_provenance_path"),
+            "classification": metadata.get("config_classification"),
+            "hash_scope": metadata.get("config_hash_scope"),
+            "git_blob_oid": metadata.get("config_git_blob_oid"),
+            "canonical_lf_sha256": metadata.get("config_canonical_lf_sha256"),
+        }
+        if metadata_binding != record:
+            raise ValueError(f"{case_id}: job metadata config provenance mismatch")
+        if git_sha != str(provenance.get("head", "")):
+            raise ValueError(f"{case_id}: job Git SHA does not match provenance manifest")
+        expected_config_path = (REPO_ROOT / provenance_relative).resolve()
+        if actual_config_path.resolve() != expected_config_path:
+            raise ValueError(f"{case_id}: bound config path is not canonical")
+        config_binding = dict(record)
+    else:
+        if str(metadata.get("config_sha256")) != str(expected.get("config_sha256")):
+            raise ValueError(f"{case_id}: metadata mismatch for config_sha256")
+        actual_config_sha = provenance_v2.raw_sha256_file(actual_config_path)
+        if actual_config_sha != str(expected["config_sha256"]):
+            raise ValueError(f"{case_id}: bound config file hash mismatch")
+        config_binding = {
+            "path": actual_config,
+            "classification": "legacy_raw_tracked_text",
+            "hash_scope": "legacy_raw_bytes",
+            "raw_sha256": actual_config_sha,
+        }
     run.update({
         "case_id": case_id,
         "git_sha": git_sha,
-        "config_sha256": str(metadata["config_sha256"]),
+        "config_binding": config_binding,
         "dtype": str(metadata["dtype"]),
         "pulse_width": str(expected["pulse_width"]),
         "schedule": str(expected["schedule"]),
@@ -368,14 +429,80 @@ def validate_execution_manifest(
     runs: Mapping[str, Mapping[str, Any]],
     preflight_manifest_path: str | Path,
     execution_manifest_path: str | Path,
+    provenance_manifest_path: str | Path | None = None,
 ) -> None:
     preflight_path = Path(preflight_manifest_path)
     execution = json.loads(Path(execution_manifest_path).read_text(encoding="utf-8"))
-    if execution.get("schema") != "khz_filament.hr2e.execution_manifest.v1":
+    execution_schema = execution.get("schema")
+    if execution_schema not in {
+        "khz_filament.hr2e.execution_manifest.v1",
+        "khz_filament.hr2e.execution_manifest.v2",
+    }:
         raise ValueError("invalid HR-2E execution manifest schema")
-    expected_manifest_sha = hashlib.sha256(preflight_path.read_bytes()).hexdigest()
-    if execution.get("preflight_manifest_sha256") != expected_manifest_sha:
-        raise ValueError("execution manifest does not bind the preflight manifest")
+    if execution_schema.endswith(".v1"):
+        expected_manifest_sha = provenance_v2.raw_sha256_file(preflight_path)
+        if execution.get("preflight_manifest_sha256") != expected_manifest_sha:
+            raise ValueError("execution manifest does not bind the preflight manifest")
+    else:
+        if provenance_manifest_path is None:
+            raise ValueError("classified execution manifest requires provenance manifest")
+        provenance_path = Path(provenance_manifest_path)
+        provenance = provenance_v2.validate_manifest(
+            REPO_ROOT,
+            provenance_path,
+            require_hash_scope=True,
+        )
+        if execution.get("hash_scope") != "classified_by_record":
+            raise ValueError("execution manifest hash_scope is invalid")
+        if execution.get("provenance_manifest_hash_scope") != "raw_bytes":
+            raise ValueError("execution manifest provenance hash_scope is invalid")
+        if Path(str(execution.get("provenance_manifest_path", ""))).resolve() != provenance_path.resolve():
+            raise ValueError("execution manifest provenance path mismatch")
+        provenance_raw = provenance_v2.raw_sha256_file(provenance_path)
+        if execution.get("provenance_manifest_sha256") != provenance_raw:
+            raise ValueError("execution manifest does not bind provenance bytes")
+        planning = json.loads(preflight_path.read_text(encoding="utf-8"))
+        preflight_record = provenance_v2.lookup_record(
+            provenance,
+            str(planning.get("manifest_provenance_path", "")),
+            classification="tracked_text",
+            require_hash_scope=True,
+        )
+        if execution.get("preflight_manifest_record") != preflight_record:
+            raise ValueError("execution manifest does not bind tracked preflight content")
+        provenance_external = {
+            "path": str(provenance_path),
+            "classification": "external",
+            "hash_scope": "raw_bytes",
+            "raw_sha256": provenance_raw,
+        }
+        records = execution.get("records")
+        if not isinstance(records, list) or provenance_external not in records:
+            raise ValueError("execution manifest lacks external provenance record")
+        expected_tracked = [
+            provenance_v2.lookup_record(
+                provenance,
+                tracked_path,
+                classification="tracked_text",
+                require_hash_scope=True,
+            )
+            for tracked_path in planning.get("tracked_paths", [])
+        ]
+        for record in expected_tracked:
+            if record not in records:
+                raise ValueError("execution manifest lacks a tracked provenance record")
+        by_case = {
+            str(record.get("case_id")): record
+            for record in execution.get("config_records", [])
+            if isinstance(record, dict)
+        }
+        for run in runs.values():
+            record = dict(by_case.get(str(run["case_id"]), {}))
+            record.pop("case_id", None)
+            if record != run["config_binding"]:
+                raise ValueError("execution manifest config record mismatch")
+        if execution.get("expected_git_sha") != provenance.get("head"):
+            raise ValueError("execution manifest Git SHA does not match provenance manifest")
     git_values = {str(run["git_sha"]) for run in runs.values()}
     if git_values != {str(execution.get("expected_git_sha", ""))}:
         raise ValueError("execution manifest Git SHA does not match job metadata")
@@ -657,6 +784,7 @@ def main(argv: list[str] | None = None) -> int:
     compare.add_argument("--fine-metadata", required=True, type=Path)
     compare.add_argument("--manifest", required=True, type=Path)
     compare.add_argument("--execution-manifest", required=True, type=Path)
+    compare.add_argument("--provenance-manifest", type=Path)
     compare.add_argument("--output-dir", required=True, type=Path)
     args = parser.parse_args(argv)
 
@@ -679,19 +807,36 @@ def main(argv: list[str] | None = None) -> int:
     if pulse is None:
         raise ValueError("candidate filename must identify 40fs or 120fs")
     coarse = None if args.coarse is None else load_case_with_provenance(
-        args.coarse, args.coarse_metadata, args.manifest, case_id=f"hr2e_{pulse}_coarse"
+        args.coarse,
+        args.coarse_metadata,
+        args.manifest,
+        args.provenance_manifest,
+        case_id=f"hr2e_{pulse}_coarse",
     )
     candidate = load_case_with_provenance(
-        args.candidate, args.candidate_metadata, args.manifest, case_id=f"hr2e_{pulse}_candidate"
+        args.candidate,
+        args.candidate_metadata,
+        args.manifest,
+        args.provenance_manifest,
+        case_id=f"hr2e_{pulse}_candidate",
     )
     fine = load_case_with_provenance(
-        args.fine, args.fine_metadata, args.manifest, case_id=f"hr2e_{pulse}_fine"
+        args.fine,
+        args.fine_metadata,
+        args.manifest,
+        args.provenance_manifest,
+        case_id=f"hr2e_{pulse}_fine",
     )
     provenance_runs = {
         key: value for key, value in (("coarse", coarse), ("candidate", candidate), ("fine", fine)) if value is not None
     }
     validate_comparison_provenance(provenance_runs)
-    validate_execution_manifest(provenance_runs, args.manifest, args.execution_manifest)
+    validate_execution_manifest(
+        provenance_runs,
+        args.manifest,
+        args.execution_manifest,
+        args.provenance_manifest,
+    )
     result = compare_triplet(coarse, candidate, fine)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     result["plots"] = _write_plots(

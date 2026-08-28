@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
+import subprocess
 
 import numpy as np
 import pytest
@@ -190,3 +192,126 @@ def test_compare_triplet_returns_both_comparisons_and_trend():
     assert result["candidate_vs_fine"] is not None
     assert result["primary_pass"]
     assert set(result["convergence_trend"]) == {"ion", "ib", "raman", "total"}
+
+
+def test_classified_hr2e_metadata_and_execution_manifest_are_bound(tmp_path: Path, monkeypatch):
+    repo = tmp_path / "repo"
+    config = repo / "Filament_python" / "configs" / "case.json"
+    planning_path = (
+        repo
+        / "Filament_python"
+        / "results"
+        / "hr2e_schedule_convergence"
+        / "stage1_preflight"
+        / "hr2e_stage1_preflight_manifest.json"
+    )
+    config.parent.mkdir(parents=True)
+    planning_path.parent.mkdir(parents=True)
+    config.write_text('{"case": "candidate"}\n', encoding="utf-8")
+    config_rel = config.relative_to(repo).as_posix()
+    planning_rel = planning_path.relative_to(repo).as_posix()
+    planning = {
+        "schema": "khz_filament.hr2e.stage1_preflight.v2",
+        "hash_scope": "classified_by_record",
+        "provenance_manifest_required": True,
+        "provenance_manifest_schema": "filament.provenance.v2",
+        "manifest_provenance_path": planning_rel,
+        "tracked_paths": sorted([config_rel, planning_rel]),
+        "cases": [{
+            "case_id": "hr2e_120fs_candidate",
+            "config_path": "configs/case.json",
+            "config_provenance_path": config_rel,
+            "dtype": "fp32",
+            "pulse_width": "120fs",
+            "schedule": "candidate",
+            "raman_mode": "full_isaacs_eq27",
+        }],
+    }
+    planning_path.write_text(json.dumps(planning) + "\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "init", "-b", "main"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "test@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test"], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-m", "fixture"], check=True, capture_output=True)
+    head = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip()
+    provenance_path = tmp_path / "provenance.json"
+    provenance = hr2e.provenance_v2.create_manifest(
+        repo,
+        provenance_path,
+        planning["tracked_paths"],
+        [],
+    )
+    config_record = hr2e.provenance_v2.lookup_record(
+        provenance,
+        config_rel,
+        classification="tracked_text",
+        require_hash_scope=True,
+    )
+    preflight_record = hr2e.provenance_v2.lookup_record(
+        provenance,
+        planning_rel,
+        classification="tracked_text",
+        require_hash_scope=True,
+    )
+
+    npz_path = tmp_path / "hr2e_120fs_candidate.npz"
+    np.savez(npz_path, **_canonical_mapping())
+    metadata_path = tmp_path / "metadata.json"
+    metadata_path.write_text(json.dumps({
+        "schema": "khz_filament.hr2e.job_metadata.v2",
+        "hash_scope": "classified_by_record",
+        "case_id": "hr2e_120fs_candidate",
+        "git_sha": head,
+        "config_path": str(config),
+        "config_provenance_path": config_record["path"],
+        "config_classification": config_record["classification"],
+        "config_hash_scope": config_record["hash_scope"],
+        "config_git_blob_oid": config_record["git_blob_oid"],
+        "config_canonical_lf_sha256": config_record["canonical_lf_sha256"],
+        "dtype": "fp32",
+    }) + "\n", encoding="utf-8")
+
+    monkeypatch.setattr(hr2e, "REPO_ROOT", repo)
+    run = hr2e.load_case_with_provenance(
+        npz_path,
+        metadata_path,
+        planning_path,
+        provenance_path,
+        case_id="hr2e_120fs_candidate",
+    )
+    assert run["config_binding"] == config_record
+
+    provenance_raw = hr2e.provenance_v2.raw_sha256_file(provenance_path)
+    execution_path = tmp_path / "execution.json"
+    execution = {
+        "schema": "khz_filament.hr2e.execution_manifest.v2",
+        "hash_scope": "classified_by_record",
+        "expected_git_sha": head,
+        "preflight_manifest_path": str(planning_path),
+        "preflight_manifest_record": preflight_record,
+        "provenance_manifest_path": str(provenance_path),
+        "provenance_manifest_sha256": provenance_raw,
+        "provenance_manifest_hash_scope": "raw_bytes",
+        "records": [{
+            "path": str(provenance_path),
+            "classification": "external",
+            "hash_scope": "raw_bytes",
+            "raw_sha256": provenance_raw,
+        }, *provenance["records"]],
+        "config_records": [{"case_id": run["case_id"], **config_record}],
+        "case_ids": [run["case_id"]],
+    }
+    execution_path.write_text(json.dumps(execution) + "\n", encoding="utf-8")
+    hr2e.validate_execution_manifest(
+        {"candidate": run},
+        planning_path,
+        execution_path,
+        provenance_path,
+    )
+
+    execution["config_records"][0]["canonical_lf_sha256"] = "0" * 64
+    execution_path.write_text(json.dumps(execution) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="config record mismatch"):
+        hr2e.validate_execution_manifest(
+            {"candidate": run}, planning_path, execution_path, provenance_path
+        )

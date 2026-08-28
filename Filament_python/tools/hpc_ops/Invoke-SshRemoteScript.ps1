@@ -1,8 +1,8 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('scvi806')]
-    [string]$Account,
+    [ValidateSet('scvi-hpc')]
+    [string]$Target,
 
     [Parameter(Mandatory = $true)]
     [string]$RemoteRoot,
@@ -23,8 +23,13 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $global:LASTEXITCODE = 0
 
-$AccountRoots = @{
-    scvi806 = '/data/run01/scvi806'
+# This project wrapper intentionally remains scvi806-only. The global SSH skill
+# owns account-home routing; Filament separately authorizes this project root.
+$TargetProfiles = @{
+    'scvi-hpc' = @{
+        account = 'scvi806'
+        root = '/data/run01/scvi806'
+    }
 }
 
 function New-StatusJson {
@@ -60,7 +65,7 @@ function Assert-SafeRemoteRoot {
         }
     }
     if ($normalized -ne $ExpectedRoot -and -not $normalized.StartsWith($ExpectedRoot + '/', [StringComparison]::Ordinal)) {
-        throw 'remote root does not match account mapping'
+        throw 'remote root does not match target mapping'
     }
     return $normalized.TrimEnd('/')
 }
@@ -74,39 +79,35 @@ function Assert-LocalScript {
     throw 'local script must be a regular file'
 }
 
-function Convert-ToWslPath {
-    param([string]$WindowsPath)
-    $forwardSlash = $WindowsPath.Replace('\', '/')
-    $converted = & wsl.exe -- wslpath -a -u -- $forwardSlash 2>$null
-    if ($LASTEXITCODE -ne 0 -or -not $converted) { throw 'Windows to WSL path conversion failed' }
-    return ([string]$converted).Trim()
-}
-
-function Invoke-PappTransport {
+function Invoke-SshTransport {
     param(
         [ValidateSet('scp', 'ssh')]
         [string]$Operation,
         [string[]]$OperationArgumentList,
         [switch]$CaptureOutput
     )
-    $pappBinary = $env:PAPP_CLOUD_BIN
-    if (-not $pappBinary) { throw 'PAPP_CLOUD_BIN is not configured' }
-    if ($pappBinary -match '[\x00-\x1F\x7F]' -or -not $pappBinary.StartsWith('/') -or $pappBinary.StartsWith('~')) {
-        throw 'PAPP_CLOUD_BIN must be an absolute WSL POSIX path'
-    }
-    $transportArguments = @($pappBinary, $Operation) + @($OperationArgumentList)
+    $transportArguments = @('-o', 'BatchMode=yes') + @($OperationArgumentList)
     if ($CaptureOutput) {
-        # ReadOnly preflight stdout is a schema-checked JSON contract.  Drop
-        # transport stderr because SSH/client diagnostics can contain remote
-        # endpoint details and must not be mixed into that contract.
-        $captured = @(& wsl.exe -- @transportArguments 2>$null)
+        # ReadOnly stdout is a schema-checked JSON contract. Drop transport
+        # stderr so endpoint diagnostics are never mixed into that contract.
+        $captured = if ($Operation -eq 'ssh') {
+            @(& ssh.exe @transportArguments 2>$null)
+        }
+        else {
+            @(& scp.exe @transportArguments 2>$null)
+        }
         $exitCode = $LASTEXITCODE
         return [pscustomobject]@{
             exit_code = $exitCode
             output = $captured
         }
     }
-    & wsl.exe -- @transportArguments *> $null
+    if ($Operation -eq 'ssh') {
+        & ssh.exe @transportArguments *> $null
+    }
+    else {
+        & scp.exe @transportArguments *> $null
+    }
     if ($LASTEXITCODE -ne 0) { throw "remote transport operation failed: $Operation" }
 }
 
@@ -234,17 +235,17 @@ function Get-Sha256Text {
 $validatedRemoteRoot = $null
 $scriptItem = $null
 $remoteStagingCreated = $false
-$target = $null
 $remoteDir = $null
+$temporaryDirectory = $null
 $failureStage = 'initialization'
 try {
     $failureStage = 'validate-inputs'
-    $Account = $Account.ToLowerInvariant()
     if ($Mode -eq 'Write' -and -not $AllowRemoteWrite) {
         throw 'Write mode requires -AllowRemoteWrite'
     }
-    $expectedRoot = $AccountRoots[$Account]
-    $validatedRemoteRoot = Assert-SafeRemoteRoot -Value $RemoteRoot -ExpectedRoot $expectedRoot
+    $profile = $TargetProfiles[$Target]
+    $expectedAccount = [string]$profile.account
+    $validatedRemoteRoot = Assert-SafeRemoteRoot -Value $RemoteRoot -ExpectedRoot ([string]$profile.root)
     $resolvedLocalScript = (Resolve-Path -LiteralPath $LocalScript -ErrorAction Stop).ProviderPath
     $scriptItem = Assert-LocalScript -Value $resolvedLocalScript
     $fixedReadOnlyScript = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot 'hpc_preflight.sh') -ErrorAction Stop).ProviderPath
@@ -278,8 +279,9 @@ try {
     $manifestHash = Get-Sha256Text -Text $manifestText
 
     if ($DryRun) {
-        $extra = @{
-            account = $Account
+        New-StatusJson -Ok $true -State 'dry_run' -Extra @{
+            target = $Target
+            account = $expectedAccount
             mode = $Mode
             dry_run = $true
             remote_root = $validatedRemoteRoot
@@ -290,10 +292,17 @@ try {
             would_upload = @('script', 'hpc_proxy_env.sh', 'args_manifest', 'dispatcher')
             would_execute = $true
         }
-        New-StatusJson -Ok $true -State 'dry_run' -Extra $extra
         $global:LASTEXITCODE = 0
         return
     }
+
+    $failureStage = 'ssh-alias-check'
+    & ssh.exe -G $Target *> $null
+    if ($LASTEXITCODE -ne 0) { throw 'configured SSH target could not be resolved' }
+
+    $failureStage = 'ssh-identity-preflight'
+    $identityCommand = 'set -eu; test "$(whoami)" = ''{0}''; test -d ''{1}''' -f $expectedAccount, $validatedRemoteRoot
+    Invoke-SshTransport -Operation ssh -OperationArgumentList @($Target, $identityCommand)
 
     $temporaryDirectory = Join-Path ([IO.Path]::GetTempPath()) "filament_hpc_ops_$runId"
     New-Item -ItemType Directory -Path $temporaryDirectory -Force | Out-Null
@@ -304,38 +313,23 @@ try {
         Write-Utf8NoBomFile -Path $dispatcherPath -Text (New-DispatcherScript)
         $manifestHash = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
 
-        $wslScript = Convert-ToWslPath -WindowsPath $scriptItem.FullName
-        $wslProxyScript = Convert-ToWslPath -WindowsPath $proxyScriptItem.FullName
-        $wslManifest = Convert-ToWslPath -WindowsPath $manifestPath
-        $wslDispatcher = Convert-ToWslPath -WindowsPath $dispatcherPath
-        $target = "$Account@nc-n50r5"
-
-        # papp_cloud forwards this argument through a local WSL shell before
-        # the remote shell sees it. Escape every dollar expansion once so
-        # command substitutions and variable references are evaluated only on
-        # the remote host, never against the local WSL filesystem or identity.
-        $mkdirCommand = 'set -eu; resolved_root=\$(realpath -e -- ''{0}''); test "\$resolved_root" = ''{0}''; test -d "\$resolved_root"; test ! -L ''{0}''; umask 077; if test ! -e ''{0}/.codex_ops''; then mkdir -m 700 -- ''{0}/.codex_ops''; fi; test -d ''{0}/.codex_ops''; test ! -L ''{0}/.codex_ops''; test "\$(stat -c %u -- ''{0}/.codex_ops'')" = "\$(id -u)"; test "\$(stat -c %a -- ''{0}/.codex_ops'')" = 700; mkdir -m 700 -- ''{1}''' -f $validatedRemoteRoot, $remoteDir
+        $mkdirCommand = 'set -eu; resolved_root=$(realpath -e -- ''{0}''); test "$resolved_root" = ''{0}''; test -d "$resolved_root"; test ! -L ''{0}''; umask 077; if test ! -e ''{0}/.codex_ops''; then mkdir -m 700 -- ''{0}/.codex_ops''; fi; test -d ''{0}/.codex_ops''; test ! -L ''{0}/.codex_ops''; test "$(stat -c %u -- ''{0}/.codex_ops'')" = "$(id -u)"; test "$(stat -c %a -- ''{0}/.codex_ops'')" = 700; mkdir -m 700 -- ''{1}''' -f $validatedRemoteRoot, $remoteDir
         $failureStage = 'remote-mkdir'
-        Invoke-PappTransport -Operation ssh -OperationArgumentList @($target, $mkdirCommand)
+        Invoke-SshTransport -Operation ssh -OperationArgumentList @($Target, $mkdirCommand)
         $remoteStagingCreated = $true
         $failureStage = 'upload-script'
-        Invoke-PappTransport -Operation scp -OperationArgumentList @($wslScript, "$target`:$remoteScript")
+        Invoke-SshTransport -Operation scp -OperationArgumentList @($scriptItem.FullName, "$Target`:$remoteScript")
         $failureStage = 'upload-proxy-helper'
-        Invoke-PappTransport -Operation scp -OperationArgumentList @($wslProxyScript, "$target`:$remoteProxyScript")
+        Invoke-SshTransport -Operation scp -OperationArgumentList @($proxyScriptItem.FullName, "$Target`:$remoteProxyScript")
         $failureStage = 'upload-argument-manifest'
-        Invoke-PappTransport -Operation scp -OperationArgumentList @($wslManifest, "$target`:$remoteManifest")
+        Invoke-SshTransport -Operation scp -OperationArgumentList @($manifestPath, "$Target`:$remoteManifest")
         $failureStage = 'upload-dispatcher'
-        Invoke-PappTransport -Operation scp -OperationArgumentList @($wslDispatcher, "$target`:$remoteDispatcher")
+        Invoke-SshTransport -Operation scp -OperationArgumentList @($dispatcherPath, "$Target`:$remoteDispatcher")
 
-        # The uploaded dispatcher performs all raw SHA checks before it runs
-        # the user script. RemoteRoot and generated names contain no shell
-        # metacharacters; user arguments remain in the JSON manifest.
         $remoteCommand = "umask 077; chmod 700 -- '$remoteDir'; chmod 600 -- '$remoteScript' '$remoteProxyScript' '$remoteManifest'; chmod 700 -- '$remoteDispatcher'; bash -- '$remoteDispatcher' '$remoteManifest' '$remoteScript' '$remoteProxyScript' '$scriptHash' '$proxyScriptHash' '$manifestHash'"
-        $remoteReport = $null
-        $remoteExitCode = 0
         if ($Mode -eq 'ReadOnly') {
             $failureStage = 'execute-readonly-dispatcher'
-            $remoteResult = Invoke-PappTransport -Operation ssh -OperationArgumentList @($target, $remoteCommand) -CaptureOutput
+            $remoteResult = Invoke-SshTransport -Operation ssh -OperationArgumentList @($Target, $remoteCommand) -CaptureOutput
             $remoteExitCode = $remoteResult.exit_code
             $remoteReport = Convert-RemotePreflightReport -CapturedOutput $remoteResult.output
             if ($remoteExitCode -ne 0 -and [bool]$remoteReport.ok) {
@@ -344,7 +338,8 @@ try {
             $statusOk = ($remoteExitCode -eq 0 -and [bool]$remoteReport.ok)
             $statusState = if ($statusOk) { 'completed' } else { 'remote_report' }
             New-StatusJson -Ok $statusOk -State $statusState -Extra @{
-                account = $Account
+                target = $Target
+                account = $expectedAccount
                 mode = $Mode
                 dry_run = $false
                 remote_root = $validatedRemoteRoot
@@ -362,15 +357,13 @@ try {
         }
         else {
             $failureStage = 'execute-write-dispatcher'
-            $remoteResult = Invoke-PappTransport -Operation ssh -OperationArgumentList @($target, $remoteCommand) -CaptureOutput
+            $remoteResult = Invoke-SshTransport -Operation ssh -OperationArgumentList @($Target, $remoteCommand) -CaptureOutput
             $remoteExitCode = $remoteResult.exit_code
             $remoteReport = Convert-RemoteWriteReceipt -CapturedOutput $remoteResult.output
             if ($null -eq $remoteReport) {
-                # A transport timeout or lost stdout receipt is not evidence of
-                # remote failure. Preserve the distinction for state-file
-                # inspection by the caller.
                 New-StatusJson -Ok $false -State 'unknown_no_receipt' -Extra @{
-                    account = $Account
+                    target = $Target
+                    account = $expectedAccount
                     mode = $Mode
                     dry_run = $false
                     remote_root = $validatedRemoteRoot
@@ -387,7 +380,8 @@ try {
             $statusOk = ($remoteExitCode -eq 0 -and [bool]$remoteReport.ok -and [string]$remoteReport.state -eq 'completed')
             $statusState = if ($statusOk) { 'completed' } else { 'rejected_or_failed' }
             New-StatusJson -Ok $statusOk -State $statusState -Extra @{
-                account = $Account
+                target = $Target
+                account = $expectedAccount
                 mode = $Mode
                 dry_run = $false
                 remote_root = $validatedRemoteRoot
@@ -406,27 +400,26 @@ try {
         $global:LASTEXITCODE = 0
     }
     finally {
-        if ($remoteStagingCreated -and $target -and $remoteDir) {
-            # The dispatcher normally removes its own files.  This fixed,
-            # best-effort cleanup also handles SCP or dispatcher-start failure
-            # without ever deleting outside the generated mode-700 directory.
+        if ($remoteStagingCreated -and $remoteDir) {
+            # The dispatcher normally removes its own files. This best-effort
+            # cleanup is confined to the generated mode-700 directory.
             $remoteCleanup = "rm -f -- '$remoteScript' '$remoteProxyScript' '$remoteManifest' '$remoteDispatcher'; rmdir -- '$remoteDir' 2>/dev/null || true"
             try {
-                Invoke-PappTransport -Operation ssh -OperationArgumentList @($target, $remoteCleanup)
+                Invoke-SshTransport -Operation ssh -OperationArgumentList @($Target, $remoteCleanup)
             }
             catch {
-                # Preserve the primary operation result; a later inventory can
-                # detect an unreachable private staging directory.
+                # Preserve the primary result; later inventory can detect a
+                # private staging directory that was not reachable for cleanup.
             }
         }
-        if (Test-Path -LiteralPath $temporaryDirectory) {
+        if ($temporaryDirectory -and (Test-Path -LiteralPath $temporaryDirectory)) {
             Remove-Item -LiteralPath $temporaryDirectory -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 }
 catch {
-    # Do not echo exception text: transport errors can contain remote URLs or
-    # command fragments. The stable schema remains safe for automation.
+    # Do not echo exception text: SSH diagnostics can contain endpoint details
+    # or command fragments. The stable schema remains safe for automation.
     New-StatusJson -Ok $false -State 'rejected_or_failed' -Message 'remote operation was rejected or failed' -Extra @{
         failure_stage = $failureStage
     }

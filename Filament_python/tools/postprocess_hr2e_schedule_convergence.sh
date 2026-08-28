@@ -33,6 +33,11 @@ manifest="$REPO/Filament_python/results/hr2e_schedule_convergence/stage1_preflig
 test -f "$manifest"
 execution_manifest="$RUN_ROOT/execution_manifest.json"
 test -f "$execution_manifest"
+provenance_args=()
+provenance_manifest="$RUN_ROOT/provenance_manifest.json"
+if [[ -f "$provenance_manifest" && ! -L "$provenance_manifest" ]]; then
+    provenance_args=(--provenance-manifest "$provenance_manifest")
+fi
 coarse="$RUN_ROOT/hr2e_${PULSE}_coarse/hr2e_${PULSE}_coarse.npz"
 coarse_metadata="$RUN_ROOT/hr2e_${PULSE}_coarse/hr2e_${PULSE}_coarse_job_metadata.json"
 if [[ -f "$coarse" ]]; then
@@ -41,10 +46,12 @@ if [[ -f "$coarse" ]]; then
         --coarse "$coarse" --coarse-metadata "$coarse_metadata" \
         --candidate "$candidate" --candidate-metadata "$candidate_metadata" \
         --fine "$fine" --fine-metadata "$fine_metadata" \
-        --manifest "$manifest" --execution-manifest "$execution_manifest" --output-dir "$output_dir"
+        --manifest "$manifest" --execution-manifest "$execution_manifest" \
+        "${provenance_args[@]}" --output-dir "$output_dir"
 else
     python "$REPO/Filament_python/tools/hr2e_schedule_convergence.py" compare \
         --candidate "$candidate" --candidate-metadata "$candidate_metadata" \
         --fine "$fine" --fine-metadata "$fine_metadata" \
-        --manifest "$manifest" --execution-manifest "$execution_manifest" --output-dir "$output_dir"
+        --manifest "$manifest" --execution-manifest "$execution_manifest" \
+        "${provenance_args[@]}" --output-dir "$output_dir"
 fi

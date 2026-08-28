@@ -240,27 +240,48 @@ def test_provenance_v2_canonical_and_raw_hashes(tmp_path: Path):
     assert module.canonical_lf_sha256(b"a\r\nb\n") == module.canonical_lf_sha256(b"a\nb\n")
     assert module.raw_sha256(b"a\r\nb\n") != module.raw_sha256(b"a\nb\n")
 
-    repo = _git_repo(tmp_path)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "-C", str(repo), "init", "-b", "main"], check=True, capture_output=True)
+    _git(repo, "config", "user.email", "guardrail@example.invalid")
+    _git(repo, "config", "user.name", "Guardrail Test")
+    (repo / ".gitattributes").write_text("tracked.md text eol=crlf\n", encoding="utf-8")
+    (repo / "tracked.md").write_bytes(b"alpha\r\nbeta\r\n")
+    _git(repo, "add", "--", ".gitattributes", "tracked.md")
+    _git(repo, "commit", "-m", "CRLF fixture")
+    assert _git(repo, "status", "--porcelain=v1") == ""
     external = tmp_path / "external.bin"
     external.write_bytes(b"binary\r\n")
     manifest_path = tmp_path / "manifest.json"
 
     manifest = module.create_manifest(repo, manifest_path, ["tracked.md"], [str(external)])
     assert manifest["schema"] == "filament.provenance.v2"
-    assert manifest["tracked_text"][0]["path"] == "tracked.md"
-    assert len(manifest["tracked_text"][0]["git_blob_oid"]) == 40
-    module.validate_manifest(repo, manifest_path)
+    assert manifest["hash_scope"] == "classified_by_record"
+    tracked = module.lookup_record(
+        manifest, "tracked.md", classification="tracked_text", require_hash_scope=True
+    )
+    assert tracked["hash_scope"] == "git_blob_oid+canonical_lf_sha256"
+    assert len(tracked["git_blob_oid"]) == 40
+    assert tracked["canonical_lf_sha256"] == module.canonical_lf_sha256(b"alpha\nbeta\n")
+    external_record = module.lookup_record(
+        manifest, str(external.resolve()), classification="external", require_hash_scope=True
+    )
+    assert external_record["hash_scope"] == "raw_bytes"
+    module.validate_manifest(repo, manifest_path, require_hash_scope=True)
 
-    # Validation is canonical-LF by design: a CRLF checkout retains the same
-    # tracked blob and canonical digest only when non-strict mode is explicit.
-    (repo / "tracked.md").write_bytes(b"alpha\r\nbeta\r\n")
-    with pytest.raises(module.ProvenanceError):
-        module.validate_manifest(repo, manifest_path)
-    module.validate_manifest(repo, manifest_path, require_clean=False)
-    with pytest.raises(module.ProvenanceError):
-        module.create_manifest(repo, tmp_path / "reject-crlf.json", ["tracked.md"], [])
-
+    # LF and CRLF bytes are one tracked-text identity. This manual LF rewrite is
+    # dirty under eol=crlf on Windows, so the clean-worktree gate still rejects
+    # it while explicit non-strict validation confirms the canonical binding.
     (repo / "tracked.md").write_bytes(b"alpha\nbeta\n")
+    assert _git(repo, "status", "--porcelain=v1") == "M tracked.md"
+    with pytest.raises(module.ProvenanceError, match="worktree must be clean"):
+        module.validate_manifest(repo, manifest_path, require_hash_scope=True)
+    module.validate_manifest(
+        repo, manifest_path, require_clean=False, require_hash_scope=True
+    )
+
+    (repo / "tracked.md").write_bytes(b"alpha\r\nbeta\r\n")
+    assert _git(repo, "status", "--porcelain=v1") == ""
     (repo / "untracked.txt").write_text("untracked", encoding="utf-8")
     with pytest.raises(module.ProvenanceError):
         module.create_manifest(repo, tmp_path / "reject-dirty.json", ["tracked.md"], [])
@@ -271,6 +292,70 @@ def test_provenance_v2_canonical_and_raw_hashes(tmp_path: Path):
     external.write_bytes(b"tampered\n")
     with pytest.raises(module.ProvenanceError):
         module.validate_manifest(repo, manifest_path_2)
+
+
+def test_provenance_v2_strict_schema_rejects_wrong_scope_blob_and_hash(tmp_path: Path):
+    module = _load_provenance_module()
+    repo = _git_repo(tmp_path)
+    source = tmp_path / "source.json"
+    module.create_manifest(repo, source, ["tracked.md"], [])
+    original = json.loads(source.read_text(encoding="utf-8"))
+
+    mutations = []
+    top_scope = json.loads(json.dumps(original))
+    top_scope["hash_scope"] = "raw_bytes"
+    mutations.append(top_scope)
+    record_scope = json.loads(json.dumps(original))
+    record_scope["records"][0]["hash_scope"] = "raw_bytes"
+    mutations.append(record_scope)
+    wrong_blob = json.loads(json.dumps(original))
+    wrong_blob["records"][0]["git_blob_oid"] = "0" * 40
+    mutations.append(wrong_blob)
+    wrong_hash = json.loads(json.dumps(original))
+    wrong_hash["records"][0]["canonical_lf_sha256"] = "0" * 64
+    mutations.append(wrong_hash)
+
+    for index, payload in enumerate(mutations):
+        path = tmp_path / f"invalid-{index}.json"
+        path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        with pytest.raises(module.ProvenanceError):
+            module.validate_manifest(repo, path, require_hash_scope=True)
+
+
+def test_provenance_v2_legacy_grouped_shape_is_compatibility_only(tmp_path: Path):
+    module = _load_provenance_module()
+    repo = _git_repo(tmp_path)
+    classified_path = tmp_path / "classified.json"
+    classified = module.create_manifest(repo, classified_path, ["tracked.md"], [])
+    record = classified["records"][0]
+    legacy = {
+        key: value
+        for key, value in classified.items()
+        if key not in {"hash_scope", "records"}
+    }
+    legacy["tracked_text"] = [{
+        "path": record["path"],
+        "git_blob_oid": record["git_blob_oid"],
+        "canonical_lf_sha256": record["canonical_lf_sha256"],
+    }]
+    legacy["external"] = []
+    legacy_path = tmp_path / "legacy.json"
+    legacy_path.write_text(json.dumps(legacy) + "\n", encoding="utf-8")
+    module.validate_manifest(repo, legacy_path)
+    with pytest.raises(module.ProvenanceError):
+        module.validate_manifest(repo, legacy_path, require_hash_scope=True)
+
+
+def test_external_binary_raw_hash_remains_byte_sensitive(tmp_path: Path):
+    module = _load_provenance_module()
+    repo = _git_repo(tmp_path)
+    external = tmp_path / "artifact.bin"
+    external.write_bytes(b"\x00\r\n\xff")
+    manifest_path = tmp_path / "manifest.json"
+    module.create_manifest(repo, manifest_path, [], [str(external)])
+    external.write_bytes(b"\x00\n\xff")
+    with pytest.raises(module.ProvenanceError, match="raw artifact hash mismatch"):
+        module.validate_manifest(repo, manifest_path, require_hash_scope=True)
 
 
 def test_provenance_v2_rejects_external_symlink_on_validate(tmp_path: Path):
@@ -400,6 +485,136 @@ test ! -e "$root/.codex_ops"
 '''
     result = _run_posix_stdin(fixture, HPC_OPS / "hpc_preflight.sh")
     assert result.returncode == 0, result.stderr
+
+
+def test_preflight_rejects_invalid_classified_manifest_without_side_effects():
+    fixture = r'''
+set -euo pipefail
+preflight_source="$1"
+provenance_source="$2"
+proxy_source="$3"
+root=$(mktemp -d)
+trap 'rm -rf -- "$root"' EXIT
+account_root="$root/account"
+remote_root="$account_root/guardrail"
+repo="$remote_root/repo"
+mkdir -p -- "$repo/Filament_python/tools/hpc_ops"
+git -C "$repo" init -b main >/dev/null
+git -C "$repo" config user.email guardrail@example.invalid
+git -C "$repo" config user.name Guardrail
+cp -- "$provenance_source" "$repo/Filament_python/tools/hpc_ops/provenance_v2.py"
+printf 'tracked\n' > "$repo/tracked.txt"
+git -C "$repo" add -- tracked.txt Filament_python/tools/hpc_ops/provenance_v2.py
+git -C "$repo" commit -m fixture >/dev/null
+head=$(git -C "$repo" rev-parse HEAD)
+manifest="$remote_root/invalid-provenance.json"
+python3 "$provenance_source" create --repo "$repo" --output "$manifest" --tracked tracked.txt >/dev/null
+python3 - "$manifest" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["records"][0]["hash_scope"] = "raw_bytes"
+path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+PY
+
+fakebin="$root/bin"
+mkdir -- "$fakebin"
+real_git=$(command -v git)
+cat > "$fakebin/git" <<'EOF'
+#!/usr/bin/env bash
+for arg in "$@"; do
+    if [[ "$arg" == ls-remote ]]; then
+        printf '%s\t%s\n' "$PREFLIGHT_HEAD" refs/heads/main
+        exit 0
+    fi
+done
+exec "$REAL_GIT" "$@"
+EOF
+chmod 700 -- "$fakebin/git"
+for command in sbatch sacct scontrol; do
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$fakebin/$command"
+    chmod 700 -- "$fakebin/$command"
+done
+
+miniforge="$root/miniforge"
+env_prefix="$root/filament-env"
+mkdir -p -- "$miniforge/etc/profile.d" "$env_prefix/bin"
+cat > "$miniforge/etc/profile.d/conda.sh" <<'EOF'
+conda() {
+    [[ "$1" == activate && "$2" == Filament_python ]] || return 1
+    export CONDA_PREFIX="$PREFLIGHT_ENV_PREFIX"
+    export PATH="$CONDA_PREFIX/bin:$PATH"
+}
+EOF
+cat > "$env_prefix/bin/python" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == -c ]]; then exit 0; fi
+exec python3 "$@"
+EOF
+chmod 700 -- "$env_prefix/bin/python"
+
+tool_dir="$root/tool"
+mkdir -- "$tool_dir"
+sed -e "s#/data/run01/scvi806#$account_root#g" \
+    -e "s#/data/apps/miniforge/25.3.0-3#$miniforge#g" \
+    -e "s#/data/home/scvi806/.conda/envs/Filament_python#$env_prefix#g" \
+    "$preflight_source" > "$tool_dir/hpc_preflight.sh"
+cp -- "$proxy_source" "$tool_dir/hpc_proxy_env.sh"
+chmod 700 -- "$tool_dir/hpc_preflight.sh"
+proxy="$root/proxy.env"
+printf '%s\n' 'http_proxy=http://proxy.example.invalid:8080' 'https_proxy=https://proxy.example.invalid:8443' > "$proxy"
+chmod 600 -- "$proxy"
+export REAL_GIT="$real_git" PREFLIGHT_HEAD="$head" PREFLIGHT_ENV_PREFIX="$env_prefix"
+PATH="$fakebin:$PATH"
+set +e
+output=$("$tool_dir/hpc_preflight.sh" \
+    --account scvi806 --remote-root "$remote_root" --repo "$repo" \
+    --expected-head "$head" --expected-branch main \
+    --proxy-env "$proxy" --github-url https://github.com/example/repo.git \
+    --github-ref refs/heads/main --provenance-manifest "$manifest" --json)
+rc=$?
+set -e
+test "$rc" -eq 75
+printf '%s' "$output" | grep -F '"status":"failed"' >/dev/null
+printf '%s' "$output" | grep -F 'provenance manifest strict validation failed' >/dev/null
+test ! -e "$remote_root/run-created"
+test ! -e "$remote_root/.codex_ops"
+'''
+    result = _run_posix_stdin(
+        fixture,
+        HPC_OPS / "hpc_preflight.sh",
+        PROVENANCE_PATH,
+        HPC_OPS / "hpc_proxy_env.sh",
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_hr2e_submission_provenance_gate_precedes_every_side_effect():
+    launcher = (ROOT / "Filament_python" / "tools" / "submit_hr2e_schedule_convergence.sh").read_text(
+        encoding="utf-8"
+    )
+    gate = launcher.index('provenance_v2.py" validate')
+    run_directory = launcher.index('mkdir -p "$RUN_ROOT"')
+    receipt = launcher.index('receipt="$RUN_ROOT/submission_receipt.tsv"')
+    scheduler = launcher.index("sbatch --parsable")
+    assert gate < run_directory < receipt < scheduler
+
+
+def test_new_hr2e_entrypoints_do_not_bind_tracked_config_raw_bytes():
+    tool_root = ROOT / "Filament_python" / "tools"
+    prepare = (tool_root / "prepare_hr2e_schedule_convergence.py").read_text(encoding="utf-8")
+    submit = (tool_root / "submit_hr2e_schedule_convergence.sh").read_text(encoding="utf-8")
+    batch = (tool_root / "hr2e_schedule_convergence.sbatch").read_text(encoding="utf-8")
+    assert "config_sha256" not in prepare
+    assert "full_raman_source_sha256" not in prepare
+    assert "hashlib.sha256" not in submit
+    assert "EXPECTED_CONFIG_SHA256" not in submit
+    assert "EXPECTED_CONFIG_SHA256" not in batch
+    assert 'sha256sum "${CONFIG_PATH}"' not in batch
+    assert '"hash_scope": "classified_by_record"' in prepare
+    assert '"tracked_paths": tracked_paths' in prepare
+    for source in (submit, batch):
+        assert "canonical_lf_sha256" in source
 
 
 def test_proxy_loader_rejects_unknown_key_without_printing_values(tmp_path: Path):
@@ -688,7 +903,8 @@ printf 'fixture\n' > "$repo/tracked.txt"
 git -C "$repo" add -- tracked.txt
 git -C "$repo" commit -m fixture >/dev/null
 head=$(git -C "$repo" rev-parse HEAD)
-bundle="$staging/source.bundle"
+operation_id=33333333-3333-3333-3333-333333333333
+bundle="$staging/source.bundle.verified"
 git -C "$repo" bundle create "$bundle" main >/dev/null
 bundle_sha=$(sha256sum -- "$bundle" | awk '{print $1}')
 proxy="$remote_root/proxy.env"
@@ -711,7 +927,8 @@ export REAL_GIT="$real_git"
 PATH="$fakebin:$PATH"
 
 target="$staging/checkout"
-clone_json=$("$root/tool/hpc_git_source.sh" --account scvi806 --remote-root "$remote_root" --staging-root "$staging" --mode clone --url https://github.com/example/repo.git --ref refs/heads/main --expected-head "$head" --expected-branch main --proxy-env "$proxy" --target "$target" --bundle "$bundle" --bundle-sha "$bundle_sha" --timeout-seconds 1)
+state="$staging/acquisition.json"
+clone_json=$("$root/tool/hpc_git_source.sh" --account scvi806 --remote-root "$remote_root" --staging-root "$staging" --mode clone --url https://github.com/example/repo.git --ref refs/heads/main --expected-head "$head" --expected-branch main --proxy-env "$proxy" --target "$target" --bundle "$bundle" --bundle-sha "$bundle_sha" --operation-id "$operation_id" --state-file "$state" --timeout-seconds 1)
 python3 - "$clone_json" "$head" <<'PY'
 import json, sys
 report = json.loads(sys.argv[1])
@@ -723,7 +940,9 @@ assert report["fetch_head"] == sys.argv[2]
 PY
 test -z "$(git -C "$target" status --porcelain=v1 --untracked-files=all)"
 
-fetch_json=$("$root/tool/hpc_git_source.sh" --account scvi806 --remote-root "$remote_root" --staging-root "$staging" --mode fetch --url https://github.com/example/repo.git --ref refs/heads/main --expected-head "$head" --expected-branch main --proxy-env "$proxy" --target "$target" --bundle "$bundle" --bundle-sha "$bundle_sha" --timeout-seconds 1)
+fetch_operation_id=44444444-4444-4444-4444-444444444444
+fetch_state="$staging/fetch.json"
+fetch_json=$("$root/tool/hpc_git_source.sh" --account scvi806 --remote-root "$remote_root" --staging-root "$staging" --mode fetch --url https://github.com/example/repo.git --ref refs/heads/main --expected-head "$head" --expected-branch main --proxy-env "$proxy" --target "$target" --bundle "$bundle" --bundle-sha "$bundle_sha" --operation-id "$fetch_operation_id" --state-file "$fetch_state" --timeout-seconds 1)
 python3 - "$fetch_json" "$head" <<'PY'
 import json, sys
 report = json.loads(sys.argv[1])
@@ -733,15 +952,16 @@ PY
 
 export FAIL_GIT_STATUS=1
 set +e
-"$root/tool/hpc_git_source.sh" --account scvi806 --remote-root "$remote_root" --staging-root "$staging" --mode fetch --url https://github.com/example/repo.git --ref refs/heads/main --expected-head "$head" --expected-branch main --proxy-env "$proxy" --target "$target" --bundle "$bundle" --bundle-sha "$bundle_sha" --timeout-seconds 1 >/dev/null
+"$root/tool/hpc_git_source.sh" --account scvi806 --remote-root "$remote_root" --staging-root "$staging" --mode fetch --url https://github.com/example/repo.git --ref refs/heads/main --expected-head "$head" --expected-branch main --proxy-env "$proxy" --target "$target" --bundle "$bundle" --bundle-sha "$bundle_sha" --operation-id "$fetch_operation_id" --state-file "$fetch_state" --timeout-seconds 1 >/dev/null
 status_failure_rc=$?
 set -e
 unset FAIL_GIT_STATUS
 test "$status_failure_rc" -ne 0
 
 wrong_target="$staging/wrong"
+wrong_state="$staging/wrong.json"
 set +e
-"$root/tool/hpc_git_source.sh" --account scvi806 --remote-root "$remote_root" --staging-root "$staging" --mode clone --url https://github.com/example/repo.git --ref refs/heads/main --expected-head 0000000000000000000000000000000000000000 --expected-branch main --proxy-env "$proxy" --target "$wrong_target" --bundle "$bundle" --bundle-sha "$bundle_sha" --timeout-seconds 1 >/dev/null
+"$root/tool/hpc_git_source.sh" --account scvi806 --remote-root "$remote_root" --staging-root "$staging" --mode clone --url https://github.com/example/repo.git --ref refs/heads/main --expected-head 0000000000000000000000000000000000000000 --expected-branch main --proxy-env "$proxy" --target "$wrong_target" --bundle "$bundle" --bundle-sha "$bundle_sha" --operation-id "$operation_id" --state-file "$wrong_state" --timeout-seconds 1 >/dev/null
 wrong_rc=$?
 set -e
 test "$wrong_rc" -ne 0
@@ -789,6 +1009,20 @@ def test_powershell_wrapper_dry_run_is_argument_array_only(tmp_path: Path):
     assert len(report["argument_manifest_sha256"]) == 64
     assert len(report["proxy_env_sha256"]) == 64
     assert "hpc_proxy_env.sh" in report["would_upload"]
+
+
+def test_powershell_wrapper_write_receipt_states_distinguish_unknown_from_failure():
+    wrapper = (HPC_OPS / "Invoke-PappRemoteScript.ps1").read_text(encoding="utf-8")
+    assert "function Convert-RemoteWriteReceipt" in wrapper
+    assert "-CaptureOutput" in wrapper
+    assert "unknown_no_receipt" in wrapper
+    assert "rejected_or_failed" in wrapper
+    assert "[string]$remoteReport.state -eq 'completed'" in wrapper
+    assert "remote_receipt_lines" in wrapper
+    # The Write path must not unconditionally report success after transport
+    # returns; completion is gated by a parsed remote final receipt.
+    write_branch = wrapper[wrapper.index("$failureStage = 'execute-write-dispatcher'"):]
+    assert "New-StatusJson -Ok $true -State 'completed'" not in write_branch
 
 
 def test_powershell_wrapper_rejects_non_scvi_account_at_parameter_binding():
@@ -886,6 +1120,67 @@ def test_powershell_readonly_rejects_arbitrary_script(tmp_path: Path):
     assert report["ok"] is False
 
 
+def test_ssh_wrapper_dry_run_uses_native_transport_and_no_papp(tmp_path: Path):
+    pwsh = shutil.which("pwsh") or shutil.which("powershell")
+    if not pwsh:
+        pytest.skip("PowerShell is not available on this host")
+    wrapper = HPC_OPS / "Invoke-SshRemoteScript.ps1"
+    wrapper_ps = str(wrapper).replace("'", "''")
+    script_ps = str(HPC_OPS / "hpc_preflight.sh").replace("'", "''")
+    harness = tmp_path / "invoke-ssh-wrapper.ps1"
+    harness.write_text(
+        f"& '{wrapper_ps}' -Target scvi-hpc "
+        f"-RemoteRoot '/data/run01/scvi806/user_Wangjimin/guardrail' "
+        f"-LocalScript '{script_ps}' "
+        "-ArgumentList @('space arg','中文','$HOME','double\"quote',\"single'quote\") -DryRun\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [pwsh, "-NoProfile", "-NonInteractive", "-File", str(harness)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout.strip().splitlines()[-1])
+    assert report["schema"] == "filament.hpc_ops.remote_exec.v1"
+    assert report["target"] == "scvi-hpc"
+    assert report["account"] == "scvi806"
+    assert report["dry_run"] is True
+    source = wrapper.read_text(encoding="utf-8")
+    assert "function Invoke-SshTransport" in source
+    assert "BatchMode=yes" in source
+    assert "PAPP_CLOUD_BIN" not in source
+    assert "wsl.exe" not in source
+
+
+def test_ssh_wrapper_rejects_non_scvi_target_at_parameter_binding():
+    pwsh = shutil.which("pwsh") or shutil.which("powershell")
+    if not pwsh:
+        pytest.skip("PowerShell is not available on this host")
+    wrapper = HPC_OPS / "Invoke-SshRemoteScript.ps1"
+    result = subprocess.run(
+        [
+            pwsh,
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            str(wrapper),
+            "-Target",
+            "t0-hpc",
+            "-RemoteRoot",
+            "/publicfs01/fs1-t/home/t0s000727",
+            "-LocalScript",
+            str(HPC_OPS / "hpc_preflight.sh"),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert result.returncode != 0
+    assert not result.stdout.strip()
+
+
 def test_job_221822_v1_provenance_remains_tracked_and_unchanged():
     frozen = ROOT / "Filament_python" / "results" / "isaacs_complete_eq27" / "provenance_221822"
     tracked = subprocess.run(
@@ -904,8 +1199,41 @@ def test_job_221822_v1_provenance_remains_tracked_and_unchanged():
     assert unchanged.returncode == 0
 
 
+def test_historical_gitattributes_hash_exceptions_remain_explicit_and_unchanged():
+    binary = "Filament_python/results/isaacs_complete_eq27/provenance_221822/execution_lock_43ac6b4.json"
+    crlf = [
+        "Filament_python/results/isaacs_complete_eq27/c1_closure_summary.json",
+        "Filament_python/results/isaacs_complete_eq27/c1_operator_report.md",
+        "Filament_python/results/isaacs_complete_eq27/submission_manifest.json",
+        "Filament_python/results/density_translation_width/density_translation_width_20260715_002/paper_pycap_120fs.csv",
+    ]
+    explicit_lf = [
+        "Filament_python/results/isaacs_complete_eq27/provenance_221822/SUBMISSION_LOCK",
+        "Filament_python/results/isaacs_complete_eq27/provenance_221822/submission_record.txt",
+    ]
+
+    binary_attrs = _git(ROOT, "check-attr", "text", "eol", "--", binary)
+    assert f"{binary}: text: unset" in binary_attrs
+    for path in crlf:
+        attrs = _git(ROOT, "check-attr", "text", "eol", "--", path)
+        assert f"{path}: text: set" in attrs
+        assert f"{path}: eol: crlf" in attrs
+    for path in explicit_lf:
+        attrs = _git(ROOT, "check-attr", "text", "eol", "--", path)
+        assert f"{path}: text: set" in attrs
+        assert f"{path}: eol: lf" in attrs
+
+    protected = [binary, *crlf, *explicit_lf]
+    unchanged = subprocess.run(
+        ["git", "-C", str(ROOT), "diff", "--quiet", "HEAD", "--", *protected],
+        check=False,
+    )
+    assert unchanged.returncode == 0
+
+
 def test_secret_scan_of_new_guardrails():
     paths = [
+        HPC_OPS / "Invoke-SshRemoteScript.ps1",
         HPC_OPS / "Invoke-PappRemoteScript.ps1",
         HPC_OPS / "hpc_proxy_env.sh",
         HPC_OPS / "hpc_preflight.sh",
@@ -921,6 +1249,7 @@ def test_secret_scan_of_new_guardrails():
     assert "gh" + "p_" not in text
     assert "wjm" + "@2023" not in text
     assert "https://user:password" + "@" not in text
+    assert "PAPP_CLOUD_BIN" not in (HPC_OPS / "Invoke-SshRemoteScript.ps1").read_text(encoding="utf-8")
     assert "Invoke-Expression" not in (HPC_OPS / "Invoke-PappRemoteScript.ps1").read_text(encoding="utf-8")
     assert "cmd /c" not in (HPC_OPS / "Invoke-PappRemoteScript.ps1").read_text(encoding="utf-8")
 

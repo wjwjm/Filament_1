@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import argparse
 import copy
-import hashlib
 import json
 import subprocess
 import sys
@@ -66,14 +65,6 @@ SCHEDULE_PATHS = {
 
 def _load(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def _write_text_lf(path: Path, text: str) -> None:
@@ -155,6 +146,11 @@ def prepare(config_dir: Path, result_dir: Path) -> dict[str, Any]:
     _assert_source_contract(baseline["40fs"], baseline["120fs"], full_source)
     config_dir.mkdir(parents=True, exist_ok=True)
     result_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = result_dir / "hr2e_stage1_preflight_manifest.json"
+    try:
+        manifest_provenance_path = manifest_path.relative_to(REPO_ROOT).as_posix()
+    except ValueError as exc:
+        raise ValueError("HR-2E tracked outputs must stay inside the repository") from exc
 
     historical = {
         pulse: historical_proposal(path)
@@ -199,7 +195,9 @@ def prepare(config_dir: Path, result_dir: Path) -> dict[str, Any]:
                 "pulse_width": pulse,
                 "schedule": schedule_name,
                 "config_path": config_path.relative_to(ROOT).as_posix(),
-                "config_sha256": _sha256(config_path),
+                "config_provenance_path": (
+                    config_path.relative_to(REPO_ROOT).as_posix()
+                ),
                 "dtype": "fp32",
                 "raman_mode": "full_isaacs_eq27",
                 "strict_diff_from_production_baseline": config_diff,
@@ -215,11 +213,23 @@ def prepare(config_dir: Path, result_dir: Path) -> dict[str, Any]:
         case["case_id"] for case in cases
         if case["pulse_width"] == other and case["schedule"] in {"candidate", "fine"}
     ]
+    tracked_paths = sorted({
+        case["config_provenance_path"] for case in cases
+    } | {
+        FULL_RAMAN_SOURCE.relative_to(REPO_ROOT).as_posix(),
+        manifest_provenance_path,
+    })
     manifest = {
-        "schema": "khz_filament.hr2e.stage1_preflight.v1",
+        "schema": "khz_filament.hr2e.stage1_preflight.v2",
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "generation_git_sha": _git("rev-parse", "HEAD"),
         "branch": _git("branch", "--show-current"),
+        "hash_scope": "classified_by_record",
+        "provenance_manifest_required": True,
+        "provenance_manifest_path": "hr2e_provenance_v2.json",
+        "provenance_manifest_schema": "filament.provenance.v2",
+        "manifest_provenance_path": manifest_provenance_path,
+        "tracked_paths": tracked_paths,
         "proposal_evidence_only": True,
         "historical_inputs": historical,
         "candidate_window": {
@@ -228,7 +238,6 @@ def prepare(config_dir: Path, result_dir: Path) -> dict[str, Any]:
             "range_m": [FOCUS_CENTER_M - FOCUS_HALFWIDTH_M, FOCUS_CENTER_M + FOCUS_HALFWIDTH_M],
         },
         "full_raman_source_config": FULL_RAMAN_SOURCE.relative_to(ROOT).as_posix(),
-        "full_raman_source_sha256": _sha256(FULL_RAMAN_SOURCE),
         "full_raman_source_contract": {
             "operator_mode": "full_isaacs_eq27",
             "operator_integrator": "heun",
@@ -248,7 +257,6 @@ def prepare(config_dir: Path, result_dir: Path) -> dict[str, Any]:
         "production_config_changed": False,
         "full_pytest_planned": False,
     }
-    manifest_path = result_dir / "hr2e_stage1_preflight_manifest.json"
     _write_text_lf(manifest_path, json.dumps(manifest, indent=2) + "\n")
     return manifest
 

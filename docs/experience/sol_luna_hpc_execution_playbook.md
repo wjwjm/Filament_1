@@ -80,11 +80,12 @@ parent_decisions
 
 没有变量展开的单条只读命令可以直接通过 SSH。出现中文路径、空格、管道、
 重定向、正则、命令替换、heredoc、嵌套引号或第二层 Shell 时，改用
-`Filament_python/tools/hpc_ops/Invoke-PappRemoteScript.ps1` 上传固定脚本
-执行。第一次出现 quote/escape 错误后不得继续堆叠转义。
+`Filament_python/tools/hpc_ops/Invoke-SshRemoteScript.ps1` 上传固定脚本
+执行。`Invoke-PappRemoteScript.ps1` 只作显式 Papp 回退；第一次出现
+quote/escape 错误后不得继续堆叠转义。
 
-仓库内 `Invoke-PappRemoteScript.ps1` 与 `hpc_preflight.sh` 只允许
-`scvi806`，固定根目录为 `/data/run01/scvi806`，固定 Python 环境为
+仓库内 `Invoke-SshRemoteScript.ps1`、`Invoke-PappRemoteScript.ps1` 与
+`hpc_preflight.sh` 只允许 `scvi806`，固定根目录为 `/data/run01/scvi806`，固定 Python 环境为
 `/data/home/scvi806/.conda/envs/Filament_python`。`t0s000727` 不得复用这两个
 入口；需要该账户时必须建立独立、经审计的路径/环境映射和测试。
 
@@ -179,7 +180,7 @@ HPC preflight 必须显式检查并激活固定 Miniforge 安装下的
 | --- | --- | --- |
 | 同一工具/阶段/错误签名第二次出现 | 诊断并换执行路径，或报告 blocker | 继续提交等价 payload/命令 |
 | 第一次多层 shell 转义、变量或路径丢失 | 上传固定脚本，使用参数数组/manifest | 继续叠加引号和反斜杠 |
-| papp 认证失败 | 一次 `acct` 权威检查，随后登录/数据库恢复 | 用 SSH/SCP 反复探测 token |
+| SSH 认证失败 | 一次 `ssh -G` 检查和一次 `BatchMode=yes` 握手，随后诊断 key/config/host-key/network | 重复 SSH/SCP 或自动回退 Papp |
 | batch-entry 审计失败 | 修复入口并重新做本地/远端 preflight | 创建 run/lock 或调用 `sbatch` |
 | postprocess 缺本地依赖 | 使用固定 HPC/项目环境和已有脚本 | 新建替代分析框架或修改传播核心 |
 

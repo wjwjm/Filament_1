@@ -16,6 +16,7 @@ RC_PYTHON=71
 RC_SCHEDULER=72
 RC_EXPECTED=73
 RC_OUTPUT=74
+RC_PROVENANCE=75
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=hpc_proxy_env.sh
@@ -31,6 +32,7 @@ GITHUB_URL=""
 GITHUB_REF=""
 BUNDLE=""
 BUNDLE_SHA=""
+PROVENANCE_MANIFEST=""
 MINIFORGE_ROOT="/data/apps/miniforge/25.3.0-3"
 FILAMENT_ENV_PREFIX="/data/home/scvi806/.conda/envs/Filament_python"
 
@@ -46,6 +48,8 @@ GITHUB_URL_OK=false
 GITHUB_REF_OK=false
 EXPECTED_HEAD_OK=false
 EXPECTED_BRANCH_OK=false
+PROVENANCE_STATUS="not_requested"
+PROVENANCE_MANIFEST_OK=false
 declare -a ERRORS=()
 
 add_error() {
@@ -123,6 +127,7 @@ parse_args() {
             --github-ref) [[ "$#" -ge 2 ]] || return 1; GITHUB_REF="$2"; shift 2 ;;
             --bundle) [[ "$#" -ge 2 ]] || return 1; BUNDLE="$2"; shift 2 ;;
             --bundle-sha) [[ "$#" -ge 2 ]] || return 1; BUNDLE_SHA="$2"; shift 2 ;;
+            --provenance-manifest) [[ "$#" -ge 2 ]] || return 1; PROVENANCE_MANIFEST="$2"; shift 2 ;;
             --json) shift ;;
             *) return 1 ;;
         esac
@@ -207,6 +212,41 @@ check_python_env() {
     fi
 }
 
+check_provenance_manifest() {
+    local root_real manifest_real python_bin
+    if [[ -z "$PROVENANCE_MANIFEST" ]]; then
+        PROVENANCE_STATUS="not_requested"
+        return
+    fi
+    PROVENANCE_STATUS="failed"
+    if [[ "$PROVENANCE_MANIFEST" != /* || -L "$PROVENANCE_MANIFEST" || ! -f "$PROVENANCE_MANIFEST" ]]; then
+        add_error "provenance manifest must be an absolute regular non-symlink file" "$RC_PROVENANCE"
+        return
+    fi
+    if ! root_real="$(realpath -e -- "$REMOTE_ROOT" 2>/dev/null)" ||
+       ! manifest_real="$(realpath -e -- "$PROVENANCE_MANIFEST" 2>/dev/null)"; then
+        add_error "provenance manifest or remote root could not be resolved" "$RC_PROVENANCE"
+        return
+    fi
+    if [[ "$manifest_real" != "$root_real/"* ]]; then
+        add_error "provenance manifest is outside the remote root" "$RC_PROVENANCE"
+        return
+    fi
+    python_bin="$FILAMENT_ENV_PREFIX/bin/python"
+    if [[ ! -x "$python_bin" ]]; then
+        add_error "configured Filament_python interpreter is unavailable for provenance validation" "$RC_PROVENANCE"
+        return
+    fi
+    if ! "$python_bin" "$REPO/Filament_python/tools/hpc_ops/provenance_v2.py" validate \
+        --repo "$REPO" --manifest "$PROVENANCE_MANIFEST" --require-hash-scope \
+        >/dev/null 2>&1; then
+        add_error "provenance manifest strict validation failed" "$RC_PROVENANCE"
+        return
+    fi
+    PROVENANCE_STATUS="passed"
+    PROVENANCE_MANIFEST_OK=true
+}
+
 check_proxy() {
     local rc
     hpc_proxy_load "$PROXY_ENV"
@@ -274,9 +314,11 @@ check_bundle() {
 build_json() {
     local ok=false
     [[ "$FAIL" == 0 ]] && ok=true
-    printf '{"schema":"filament.hpc_preflight.v1","ok":%s,"account":"%s","remote_root":"%s","source_class":"%s","checks":{"account_root":%s,"repo":%s,"tools":%s,"python_env":%s,"proxy_or_bundle":%s},"errors":' \
+    printf '{"schema":"filament.hpc_preflight.v1","ok":%s,"account":"%s","remote_root":"%s","source_class":"%s","checks":{"account_root":%s,"repo":%s,"tools":%s,"python_env":%s,"proxy_or_bundle":%s,"provenance_manifest":{"requested":%s,"status":"%s","path":"%s"}},"errors":' \
         "$ok" "$(json_escape "$ACCOUNT")" "$(json_escape "$REMOTE_ROOT")" "$(json_escape "$SOURCE_CLASS")" \
-        "$ACCOUNT_ROOT_OK" "$REPO_OK" "$TOOLS_OK" "$PYTHON_OK" "$PROXY_OR_BUNDLE_OK"
+        "$ACCOUNT_ROOT_OK" "$REPO_OK" "$TOOLS_OK" "$PYTHON_OK" "$PROXY_OR_BUNDLE_OK" \
+        "$( [[ -n "$PROVENANCE_MANIFEST" ]] && printf true || printf false )" \
+        "$(json_escape "$PROVENANCE_STATUS")" "$(json_escape "$PROVENANCE_MANIFEST")"
     json_errors
     printf '}\n'
 }
@@ -303,6 +345,7 @@ else
     check_repo
     check_tools
     check_python_env
+    check_provenance_manifest
     if [[ "$GITHUB_URL_OK" == true && "$GITHUB_REF_OK" == true && "$EXPECTED_HEAD_OK" == true ]]; then
         check_proxy
         if [[ "$SOURCE_CLASS" == none ]]; then
