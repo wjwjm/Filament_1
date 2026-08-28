@@ -30,7 +30,7 @@ def _schedule(base: float, focus: float):
     )
 
 
-def _canonical_mapping(*, raman_source="actual_field_fluence_loss", operator=True):
+def _canonical_mapping(*, raman_source="eq10_heun_positive_rotational_energy", operator=True):
     edges = np.array([0.0, 0.4, 1.0], dtype=float)
     ion = np.array([1.0, 2.0])
     ib = np.zeros(2)
@@ -57,6 +57,8 @@ def _canonical_mapping(*, raman_source="actual_field_fluence_loss", operator=Tru
         "raman_deposition_source": raman_source,
         "raman_operator_applied": np.array([operator, operator]),
         "deposition_raman_level1_closure_status": "pass",
+        "deposition_raman_deposition_reduction_closure_status": "pass",
+        "deposition_raman_operator_energy_closure_status": "pass",
         "deposition_raman_level2_closure_status": "pass",
         "field_energy_bookkeeping_authoritative": True,
         "field_energy_bookkeeping_status": "available",
@@ -134,8 +136,25 @@ def test_legacy_total_and_operator_not_applied_are_rejected():
         hr2e.validate_canonical_mapping(legacy, label="legacy")
 
     not_applied = _canonical_mapping(raman_source="operator_not_applied", operator=False)
-    with pytest.raises(ValueError, match="Raman source is not actual_field_fluence_loss"):
+    with pytest.raises(ValueError, match="Raman source is not Eq.10/Heun rotational deposition"):
         hr2e.validate_canonical_mapping(not_applied, label="control")
+
+
+def test_hr2c_r_reconstructs_existing_scalar_target_without_raw_npz_mutation(tmp_path):
+    legacy = _canonical_mapping(raman_source="actual_field_fluence_loss")
+    legacy.update({
+        "deposition_level1_all_available_mechanism_closure_pass": False,
+        "deposition_raman_level1_closure_status": "failed",
+        "raman_target_loss_step_J": np.array([0.5, 0.75]),
+        "raman_actual_loss_step_J": np.array([0.4999, 0.7498]),
+        "raman_closure_residual_step": np.array([2e-4, 3e-4]),
+        "raman_cumulative_closure_residual": np.array([2e-4, 3e-4]),
+    })
+    path = tmp_path / "existing_120fs.npz"
+    np.savez(path, **legacy)
+    reconstructed = hr2e.load_canonical_npz(path, label="existing")
+    assert reconstructed["hr2c_r_contract_reconstructed"]
+    np.testing.assert_allclose(reconstructed["channels"]["raman"], [0.5, 0.75])
 
 
 def test_authoritative_gate_requires_level1_and_level2_closure():

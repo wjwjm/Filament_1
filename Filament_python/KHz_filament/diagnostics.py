@@ -383,8 +383,24 @@ DEPOSITION_LEDGER_METADATA = {
         "unit": "J",
     },
     "E_dep_raman_interval_J": {
-        "meaning": "canonical interval-aligned Raman deposition from actual full-operator field fluence loss when available",
+        "meaning": "canonical interval-aligned Raman medium deposition from positive Eq.10/Heun rotational gain when the full operator is applied",
         "unit": "J",
+    },
+    "E_dep_raman_interval_reduction_reference_J": {
+        "meaning": "direct scalar reduction of the same positive Eq.10/Heun Raman fluence-gain source",
+        "unit": "J",
+    },
+    "E_dep_raman_interval_operator_J": {
+        "meaning": "signed actual global optical-field energy loss across the full Raman operator; diagnostic, not local deposition",
+        "unit": "J",
+    },
+    "E_dep_raman_operator_energy_residual_J": {
+        "meaning": "canonical Raman target deposition minus signed actual Raman field-energy loss",
+        "unit": "J",
+    },
+    "raman_operator_energy_closure_relative_interval": {
+        "meaning": "per-interval Eq.10 target-versus-actual field-energy relative residual using the established field-energy floor",
+        "unit": "1",
     },
     "E_dep_total_interval_J": {
         "meaning": "canonical total deposition only when all active mechanisms are authoritative; NaN otherwise",

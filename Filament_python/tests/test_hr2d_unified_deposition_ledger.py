@@ -82,11 +82,13 @@ def test_unified_helper_sums_all_authoritative_mechanisms_and_closes_level2():
         ib_configured=True,
         raman_configured=True,
         raman_authoritative=True,
-        raman_source="actual_field_fluence_loss",
+        raman_source="eq10_heun_positive_rotational_energy",
         ionization_feedback_enabled=True,
         raman_feedback_enabled=True,
         field_in_J=8.0,
         field_out_J=2.75,
+        raman_operator_relative_residuals=[2e-4, 3e-4],
+        raman_operator_cumulative_relative_residual=4e-4,
     )
     np.testing.assert_allclose(ledger["total_interval_J"], [1.75, 3.5])
     assert ledger["total_authoritative"]
@@ -96,6 +98,7 @@ def test_unified_helper_sums_all_authoritative_mechanisms_and_closes_level2():
     assert ledger["total_level2_status"] == "pass"
     assert ledger["field_loss_J"] == 5.25
     assert ledger["field_residual_J"] == 0.0
+    assert ledger["raman_operator_energy_closure_status"] == "pass"
 
 
 def test_full_operator_unifies_canonical_interval_and_pulse_ledgers(tmp_path):
@@ -124,7 +127,9 @@ def test_full_operator_unifies_canonical_interval_and_pulse_ledgers(tmp_path):
         assert np.isfinite(data[key]).item()
     status = json.loads(data["deposition_mechanism_status_json"].item())
     assert status["raman"]["authoritative"]
-    assert status["raman"]["source"] == "actual_field_fluence_loss"
+    assert status["raman"]["source"] == "eq10_heun_positive_rotational_energy"
+    assert status["raman"]["deposition_reduction_closure_status"] == "pass"
+    assert status["raman"]["operator_energy_closure_status"] == "pass"
 
 
 def test_raman_off_does_not_block_authoritative_total(tmp_path):
@@ -175,6 +180,7 @@ def test_feedback_off_uses_actual_zero_raman_in_unified_total(tmp_path):
     )
     assert data["total_deposition_authoritative"].item()
     assert data["deposition_raman_level1_closure_status"].item() == "pass"
+    assert data["deposition_raman_operator_energy_closure_status"].item() == "not_applicable"
 
 
 def test_unified_output_keeps_only_scalar_longitudinal_ledgers(tmp_path):

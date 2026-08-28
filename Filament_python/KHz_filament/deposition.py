@@ -76,6 +76,36 @@ def q_raman_from_actual_fluence_loss(actual_local_fluence_loss, dz: float):
     return xp.maximum(loss, 0.0) / dz_value
 
 
+def q_raman_from_target_fluence_gain(target_local_fluence_gain, dz: float):
+    """Return local Raman medium deposition from Eq.10/Heun target gain.
+
+    ``target_local_fluence_gain`` is the positive rotational medium-energy
+    gain accumulated by the full Raman operator over one longitudinal
+    interval.  It is deliberately distinct from a signed before/after field
+    difference, which can include conservative local redistribution.
+    """
+    dz_value = float(dz)
+    if not math.isfinite(dz_value) or dz_value <= 0.0:
+        raise ValueError("dz must be a finite positive number")
+    gain = xp.asarray(target_local_fluence_gain)
+    if gain.ndim != 2:
+        raise ValueError("target Raman fluence-gain map must have shape [Ny, Nx]")
+    gain = xp.nan_to_num(gain, nan=0.0, posinf=0.0, neginf=0.0)
+    return xp.maximum(gain, 0.0) / dz_value
+
+
+def interval_energy_from_fluence_gain(fluence_gain, dx: float, dy: float) -> float:
+    """Direct scalar reduction of one positive Raman fluence-gain map."""
+    gain = xp.asarray(fluence_gain)
+    if gain.ndim != 2:
+        raise ValueError("fluence-gain map must have shape [Ny, Nx]")
+    area = float(dx) * float(dy)
+    if not math.isfinite(area) or area < 0.0:
+        raise ValueError("dx and dy must define a finite non-negative area")
+    gain = xp.nan_to_num(gain, nan=0.0, posinf=0.0, neginf=0.0)
+    return float(xp.sum(xp.maximum(gain, 0.0)) * area)
+
+
 def interval_energy_from_q(q, dx: float, dy: float, dz: float) -> float:
     """Convert one ``q`` map to interval energy using ``sum(q)*dx*dy*dz``."""
     q_map = xp.asarray(q)
@@ -121,6 +151,8 @@ def build_unified_deposition_ledger(
     raman_feedback_enabled: bool,
     field_in_J: float,
     field_out_J: float,
+    raman_operator_relative_residuals=(),
+    raman_operator_cumulative_relative_residual: float | None = None,
 ):
     """Build the HR-2D scalar unified deposition and field-bookkeeping ledger.
 
@@ -130,6 +162,8 @@ def build_unified_deposition_ledger(
     """
     rtol = 2.0e-5
     atol = 1.0e-30
+    raman_operator_step_p99_rtol = 1.0e-3
+    raman_operator_cumulative_rtol = 5.0e-3
 
     def _ledger(values, name):
         result = tuple(float(value) for value in values)
@@ -153,6 +187,17 @@ def build_unified_deposition_ledger(
             abs(observed), abs(reference)
         )
 
+    def _p99(values):
+        ordered = sorted(float(value) for value in values)
+        if not ordered:
+            return math.nan
+        index = 0.99 * (len(ordered) - 1)
+        lower = int(math.floor(index))
+        upper = int(math.ceil(index))
+        if lower == upper:
+            return ordered[lower]
+        return ordered[lower] + (ordered[upper] - ordered[lower]) * (index - lower)
+
     ion = _ledger(ion_interval_J, "ion interval ledger")
     ib = _ledger(ib_interval_J, "IB interval ledger")
     raman = _ledger(raman_interval_J, "Raman interval ledger")
@@ -161,7 +206,13 @@ def build_unified_deposition_ledger(
     raman_reference = _ledger(
         raman_interval_reference_J, "Raman interval reference"
     )
+    raman_operator_relative = _ledger(
+        raman_operator_relative_residuals,
+        "Raman operator relative residuals",
+    )
     _same_length(ion, ib, raman, ion_reference, ib_reference, raman_reference)
+    if raman_operator_relative and len(raman_operator_relative) != len(raman):
+        raise ValueError("Raman operator residuals must match the interval ledger")
 
     mechanisms = {
         "ion": {
@@ -220,9 +271,35 @@ def build_unified_deposition_ledger(
         "ib": _level2_status("ib", float(ib_pulse_J), ib),
         "raman": _level2_status("raman", float(raman_pulse_J), raman),
     }
+    raman_operator_step_p99 = _p99(raman_operator_relative)
+    raman_operator_cumulative = (
+        float(raman_operator_cumulative_relative_residual)
+        if raman_operator_cumulative_relative_residual is not None
+        else math.nan
+    )
+    raman_status = mechanisms["raman"]
+    if not raman_status["active"]:
+        raman_operator_status = "not_applicable"
+    elif not raman_status["authoritative"]:
+        raman_operator_status = "unavailable"
+    elif not raman_status["feedback_applied"]:
+        raman_operator_status = "not_applicable"
+    elif not raman_operator_relative or not math.isfinite(raman_operator_cumulative):
+        raman_operator_status = "unavailable"
+    elif (
+        raman_operator_step_p99 <= raman_operator_step_p99_rtol
+        and raman_operator_cumulative <= raman_operator_cumulative_rtol
+    ):
+        raman_operator_status = "pass"
+    else:
+        raman_operator_status = "failed"
     for name in mechanisms:
         mechanisms[name]["level1_closure_status"] = level1[name]
         mechanisms[name]["level2_closure_status"] = level2[name]
+    raman_status["deposition_reduction_closure_status"] = level1["raman"]
+    raman_status["operator_energy_closure_status"] = raman_operator_status
+    raman_status["operator_energy_step_p99"] = raman_operator_step_p99
+    raman_status["operator_energy_cumulative_relative"] = raman_operator_cumulative
 
     required = [
         status for status in mechanisms.values() if status["active"]
@@ -296,15 +373,22 @@ def build_unified_deposition_ledger(
             total_authoritative and field_values_finite
         ),
         "closure_relative_tolerance": rtol,
+        "raman_operator_energy_closure_status": raman_operator_status,
+        "raman_operator_energy_step_p99": raman_operator_step_p99,
+        "raman_operator_energy_cumulative_relative": raman_operator_cumulative,
+        "raman_operator_energy_step_p99_tolerance": raman_operator_step_p99_rtol,
+        "raman_operator_energy_cumulative_tolerance": raman_operator_cumulative_rtol,
     }
 
 
 __all__ = [
     "direct_interval_energy",
     "build_unified_deposition_ledger",
+    "interval_energy_from_fluence_gain",
     "integrate_power_to_q",
     "interval_energy_from_q",
     "q_ib_from_power",
     "q_ion_from_power",
     "q_raman_from_actual_fluence_loss",
+    "q_raman_from_target_fluence_gain",
 ]

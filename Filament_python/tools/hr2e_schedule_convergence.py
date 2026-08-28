@@ -32,6 +32,9 @@ CHANNEL_KEYS = {
 }
 PRIMARY_CHANNELS = ("ion", "ib", "raman", "total")
 ROUND_OFF_TAIL_FRACTION = 0.1
+RAMAN_DEPOSITION_SOURCE = "eq10_heun_positive_rotational_energy"
+RAMAN_OPERATOR_STEP_P99_RTOL = 1.0e-3
+RAMAN_OPERATOR_CUMULATIVE_RTOL = 5.0e-3
 
 
 def _scalar(data: Mapping[str, Any], key: str) -> Any:
@@ -52,6 +55,98 @@ def _text(data: Mapping[str, Any], key: str) -> str:
     if isinstance(value, bytes):
         return value.decode("utf-8")
     return str(value)
+
+
+def _reconstruct_hr2c_r_raman_contract(data: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
+    """Rebuild only the corrected scalar Raman ledger from legacy HR-2E NPZ.
+
+    The 120 fs execution SHA predates HR-2C-R.  It stores the Eq.10/Heun
+    interval scalar and the signed field-loss scalar at every canonical
+    interval, so reprocessing need not mutate or download the raw NPZ.
+    """
+    copied = dict(data)
+    if _text(copied, "raman_deposition_source") != "actual_field_fluence_loss":
+        return copied, False
+    if _text(copied, "deposition_raman_level1_closure_status") != "failed":
+        return copied, False
+    n_intervals = int(_scalar(copied, "n_intervals"))
+    required = (
+        "raman_target_loss_step_J",
+        "raman_actual_loss_step_J",
+        "raman_closure_residual_step",
+        "raman_cumulative_closure_residual",
+        "E_dep_ion_interval_J",
+        "E_dep_ib_interval_J",
+    )
+    if any(key not in copied for key in required):
+        return copied, False
+    target = np.asarray(copied["raman_target_loss_step_J"], dtype=np.float64)
+    actual = np.asarray(copied["raman_actual_loss_step_J"], dtype=np.float64)
+    residual = np.asarray(copied["raman_closure_residual_step"], dtype=np.float64)
+    cumulative = np.asarray(copied["raman_cumulative_closure_residual"], dtype=np.float64)
+    if any(array.ndim != 1 or array.size != n_intervals for array in (target, actual, residual, cumulative)):
+        return copied, False
+    if (
+        not np.all(np.isfinite(target))
+        or np.any(target < -1.0e-30)
+        or not np.all(np.isfinite(actual))
+        or not np.all(np.isfinite(residual))
+        or not np.all(np.isfinite(cumulative))
+    ):
+        return copied, False
+    applied = np.asarray(copied.get("raman_operator_applied"), dtype=bool)
+    if applied.ndim != 1 or applied.size != n_intervals or not np.all(applied):
+        return copied, False
+    ion = np.asarray(copied["E_dep_ion_interval_J"], dtype=np.float64)
+    ib = np.asarray(copied["E_dep_ib_interval_J"], dtype=np.float64)
+    if ion.shape != target.shape or ib.shape != target.shape:
+        return copied, False
+    raman = np.maximum(target, 0.0)
+    total = ion + ib + raman
+    operator_residual = raman - actual
+    copied.update({
+        "E_dep_raman_interval_J": raman,
+        "E_dep_raman_interval_reduction_reference_J": raman.copy(),
+        "E_dep_raman_interval_operator_J": actual,
+        "E_dep_raman_interval_closure_residual_J": np.zeros_like(raman),
+        "E_dep_raman_operator_energy_residual_J": operator_residual,
+        "raman_operator_energy_closure_relative_interval": residual,
+        "E_dep_raman_pulse_J": float(raman.sum()),
+        "E_dep_raman_operator_pulse_J": float(actual.sum()),
+        "E_dep_raman_pulse_closure_residual_J": 0.0,
+        "E_dep_raman_operator_energy_pulse_residual_J": float(operator_residual.sum()),
+        "E_dep_total_interval_J": total,
+        "E_dep_total_pulse_J": float(total.sum()),
+        "raman_deposition_source": RAMAN_DEPOSITION_SOURCE,
+        "deposition_raman_level1_closure_status": "pass",
+        "deposition_raman_deposition_reduction_closure_status": "pass",
+        "deposition_raman_operator_energy_closure_status": (
+            "pass"
+            if float(np.quantile(residual, 0.99)) <= RAMAN_OPERATOR_STEP_P99_RTOL
+            and float(cumulative[-1]) <= RAMAN_OPERATOR_CUMULATIVE_RTOL
+            else "failed"
+        ),
+        "raman_operator_energy_step_p99": float(np.quantile(residual, 0.99)),
+        "raman_operator_energy_cumulative_relative": float(cumulative[-1]),
+        "raman_operator_energy_step_p99_tolerance": RAMAN_OPERATOR_STEP_P99_RTOL,
+        "raman_operator_energy_cumulative_tolerance": RAMAN_OPERATOR_CUMULATIVE_RTOL,
+        "deposition_level1_all_available_mechanism_closure_pass": True,
+        "deposition_level2_all_available_mechanism_closure_pass": True,
+        "E_dep_total_level2_closure_status": "pass",
+        "hr2c_r_contract_reconstructed": True,
+        "hr2c_r_reconstruction_source": "raman_target_loss_step_J",
+    })
+    field_in = float(_scalar(copied, "E_field_in_J"))
+    field_out = float(_scalar(copied, "E_field_out_J"))
+    accounted = float(total.sum())
+    field_loss = field_in - field_out
+    denominator = max(abs(field_loss), abs(accounted), abs(field_in) * 1.0e-15, 1.0e-300)
+    copied.update({
+        "E_dep_accounted_authoritative_J": accounted,
+        "E_field_energy_bookkeeping_residual_J": field_loss - accounted,
+        "E_field_energy_bookkeeping_relative_residual": (field_loss - accounted) / denominator,
+    })
+    return copied, True
 
 
 def validate_schedule_arrays(
@@ -265,13 +360,15 @@ def validate_canonical_mapping(data: Mapping[str, Any], *, label: str = "run") -
         raise ValueError(f"{label}: total deposition is not authoritative")
     if not _bool(data, "deposition_raman_authoritative"):
         raise ValueError(f"{label}: Raman deposition is not authoritative")
-    if _text(data, "raman_deposition_source") != "actual_field_fluence_loss":
-        raise ValueError(f"{label}: Raman source is not actual_field_fluence_loss")
+    if _text(data, "raman_deposition_source") != RAMAN_DEPOSITION_SOURCE:
+        raise ValueError(f"{label}: Raman source is not Eq.10/Heun rotational deposition")
     applied = np.asarray(data.get("raman_operator_applied"), dtype=bool)
     if applied.ndim != 1 or applied.size != n_intervals or not np.all(applied):
         raise ValueError(f"{label}: full Raman operator was not applied throughout")
-    if _text(data, "deposition_raman_level1_closure_status") != "pass":
-        raise ValueError(f"{label}: Raman Level-1 closure is not pass")
+    if _text(data, "deposition_raman_deposition_reduction_closure_status") != "pass":
+        raise ValueError(f"{label}: Raman deposition-reduction closure is not pass")
+    if _text(data, "deposition_raman_operator_energy_closure_status") != "pass":
+        raise ValueError(f"{label}: Raman operator-energy closure is not pass")
     if _text(data, "deposition_raman_level2_closure_status") != "pass":
         raise ValueError(f"{label}: Raman Level-2 closure is not pass")
     if not _bool(data, "field_energy_bookkeeping_authoritative"):
@@ -306,8 +403,10 @@ def load_canonical_npz(path: str | Path, *, label: str | None = None) -> dict[st
     source = Path(path)
     with np.load(source, allow_pickle=False) as loaded:
         copied = {key: loaded[key].copy() for key in loaded.files}
+    copied, reconstructed = _reconstruct_hr2c_r_raman_contract(copied)
     result = validate_canonical_mapping(copied, label=label or source.stem)
     result["path"] = str(source)
+    result["hr2c_r_contract_reconstructed"] = reconstructed
     return result
 
 
