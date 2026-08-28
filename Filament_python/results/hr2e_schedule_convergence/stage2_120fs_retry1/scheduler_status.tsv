@@ -1,0 +1,4 @@
+job_id	pulse_width	schedule	raman_mode	state	exit_code	elapsed	node	output_path
+224730	120fs	coarse	full_isaacs_eq27	COMPLETED	0:0	02:05:15	g0609	/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/hr2e_schedule_convergence_20260827_a11e1f1/stage2_120fs_retry1/hr2e_120fs_coarse/hr2e_120fs_coarse.npz
+224731	120fs	candidate	full_isaacs_eq27	COMPLETED	0:0	04:13:56	g0609	/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/hr2e_schedule_convergence_20260827_a11e1f1/stage2_120fs_retry1/hr2e_120fs_candidate/hr2e_120fs_candidate.npz
+224732	120fs	fine	full_isaacs_eq27	COMPLETED	0:0	10:10:19	m4gn1401	/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/hr2e_schedule_convergence_20260827_a11e1f1/stage2_120fs_retry1/hr2e_120fs_fine/hr2e_120fs_fine.npz

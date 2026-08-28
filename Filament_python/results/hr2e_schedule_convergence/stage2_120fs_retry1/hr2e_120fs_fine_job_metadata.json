@@ -1,0 +1,11 @@
+{
+  "schema": "khz_filament.hr2e.job_metadata.v1",
+  "case_id": "hr2e_120fs_fine",
+  "slurm_job_id": "224732",
+  "git_sha": "a11e1f1b3ad2fc2f95f5effbe231fbec4558a3b7",
+  "config_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/source/staging/Filament_1_a11e1f1_hr2e_retry1_20260827/Filament_python/configs/hr2e_schedule_convergence/120fs_full_isaacs_fine.json",
+  "config_sha256": "c1515bac4e80284e2621a11f5fb71ffb1ee24b617b71ea7e190051fc4d81b67c",
+  "gpu_model": "NVIDIA GeForce RTX 5090",
+  "cpu_threads": 8,
+  "dtype": "fp32"
+}
