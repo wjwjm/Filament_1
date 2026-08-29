@@ -25,7 +25,8 @@ $targetedTests = @(
     (Join-Path $filamentPythonRoot 'tests\test_phase8b_raman_diagnostics.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hpc_execution_guardrails.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hpc_git_source_state.py'),
-    (Join-Path $filamentPythonRoot 'tests\test_hr2e_schedule_convergence.py')
+    (Join-Path $filamentPythonRoot 'tests\test_hr2e_schedule_convergence.py'),
+    (Join-Path $filamentPythonRoot 'tests\test_hr2e_error_localization.py')
 )
 
 $previousPythonPath = $env:PYTHONPATH
