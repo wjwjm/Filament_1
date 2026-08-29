@@ -1,0 +1,57 @@
+{
+  "schema": "khz_filament.hr2e.closure_audit.v1",
+  "audited_utc_date": "2026-08-28",
+  "execution_git_sha": "a11e1f1b3ad2fc2f95f5effbe231fbec4558a3b7",
+  "run_root": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/hr2e_schedule_convergence_20260827_a11e1f1/stage2_120fs_retry1",
+  "postprocess_exit_code": 1,
+  "postprocess_error": "Level-1 deposition closure failed",
+  "classification": "D_authoritative_channel_closure",
+  "closure_relative_tolerance": 2e-05,
+  "closure_absolute_tolerance_J": 1e-30,
+  "cases": {
+    "coarse": {
+      "n_intervals": 8001,
+      "level1_all_pass": false,
+      "level2_all_pass": true,
+      "ion_level1_status": "pass",
+      "ib_level1_status": "not_applicable",
+      "raman_level1_status": "failed",
+      "raman_failed_interval_count": 7545,
+      "raman_max_abs_difference_J": 6.621356697495035e-13,
+      "raman_max_relative_difference": 1.0
+    },
+    "candidate": {
+      "n_intervals": 16000,
+      "level1_all_pass": false,
+      "level2_all_pass": true,
+      "ion_level1_status": "pass",
+      "ib_level1_status": "not_applicable",
+      "raman_level1_status": "failed",
+      "raman_failed_interval_count": 16000,
+      "raman_max_abs_difference_J": 1.1456794689520416e-12,
+      "raman_max_relative_difference": 0.001663755422369242
+    },
+    "fine": {
+      "n_intervals": 32000,
+      "level1_all_pass": false,
+      "level2_all_pass": true,
+      "ion_level1_status": "pass",
+      "ib_level1_status": "not_applicable",
+      "raman_level1_status": "failed",
+      "raman_failed_interval_count": 32000,
+      "raman_max_abs_difference_J": 1.684739872501544e-12,
+      "raman_max_relative_difference": 0.012289275283869883
+    }
+  },
+  "authoritative_flags": {
+    "ion": true,
+    "ib": true,
+    "raman": true,
+    "raman_source": "actual_field_fluence_loss",
+    "total": true,
+    "field_energy_bookkeeping": true
+  },
+  "comparison_outputs_created": false,
+  "stage3_submitted": false,
+  "repeated_identical_jobs": 0
+}

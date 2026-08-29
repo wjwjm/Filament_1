@@ -131,6 +131,23 @@ function Convert-RemotePreflightReport {
     return $report
 }
 
+function Convert-RemoteWriteReceipt {
+    param([object[]]$CapturedOutput)
+    $lines = @($CapturedOutput | ForEach-Object { [string]$_ } | Where-Object { $_.Trim().Length -gt 0 })
+    if ($lines.Count -ne 1) { return $null }
+    try {
+        $report = $lines[0] | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        return $null
+    }
+    if ($null -eq $report -or $report -is [System.Array]) { return $null }
+    foreach ($property in @('schema', 'ok', 'state')) {
+        if ($null -eq $report.PSObject.Properties[$property]) { return $null }
+    }
+    return $report
+}
+
 function New-DispatcherScript {
     @'
 #!/usr/bin/env bash
@@ -345,8 +362,31 @@ try {
         }
         else {
             $failureStage = 'execute-write-dispatcher'
-            Invoke-PappTransport -Operation ssh -OperationArgumentList @($target, $remoteCommand)
-            New-StatusJson -Ok $true -State 'completed' -Extra @{
+            $remoteResult = Invoke-PappTransport -Operation ssh -OperationArgumentList @($target, $remoteCommand) -CaptureOutput
+            $remoteExitCode = $remoteResult.exit_code
+            $remoteReport = Convert-RemoteWriteReceipt -CapturedOutput $remoteResult.output
+            if ($null -eq $remoteReport) {
+                # A transport timeout or lost stdout receipt is not evidence of
+                # remote failure. Preserve the distinction for state-file
+                # inspection by the caller.
+                New-StatusJson -Ok $false -State 'unknown_no_receipt' -Extra @{
+                    account = $Account
+                    mode = $Mode
+                    dry_run = $false
+                    remote_root = $validatedRemoteRoot
+                    argument_count = @($ArgumentList).Count
+                    script_sha256 = $scriptHash
+                    proxy_env_sha256 = $proxyScriptHash
+                    argument_manifest_sha256 = $manifestHash
+                    remote_exit_code = $remoteExitCode
+                    remote_receipt_lines = @($remoteResult.output).Count
+                }
+                $global:LASTEXITCODE = 2
+                exit 2
+            }
+            $statusOk = ($remoteExitCode -eq 0 -and [bool]$remoteReport.ok -and [string]$remoteReport.state -eq 'completed')
+            $statusState = if ($statusOk) { 'completed' } else { 'rejected_or_failed' }
+            New-StatusJson -Ok $statusOk -State $statusState -Extra @{
                 account = $Account
                 mode = $Mode
                 dry_run = $false
@@ -355,6 +395,12 @@ try {
                 script_sha256 = $scriptHash
                 proxy_env_sha256 = $proxyScriptHash
                 argument_manifest_sha256 = $manifestHash
+                remote_report = $remoteReport
+                remote_exit_code = $remoteExitCode
+            }
+            if (-not $statusOk) {
+                $global:LASTEXITCODE = 1
+                exit 1
             }
         }
         $global:LASTEXITCODE = 0

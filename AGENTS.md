@@ -24,11 +24,24 @@
 
 ## 4. 修改后快速检查（最低要求）
 每次代码/配置改动后至少执行以下快速检查：
-1. 语法检查：`python -m compileall Filament_python/KHz_filament`
-2. 基础导入测试：`pytest -q Filament_python/tests/test_sanity.py`
+1. 语法检查：使用专用环境显式解释器执行 `-s -B -m compileall Filament_python/KHz_filament`
+2. 基础导入测试：使用 `Filament_python/tools/run_local_tests.ps1 -Mode sanity`
 3. 若改动了运行入口或配置加载，增加一次最小运行（可用小网格或最短路径）以验证不崩溃。
 
 如环境受限（无 GPU / 无某依赖），需在提交信息中注明限制与替代检查。
+
+### 4.1 本地测试解释器强制规则
+
+- 本地测试必须通过 `Filament_python/tools/run_local_tests.ps1` 执行；其默认解释器为仓库外的
+  `C:\Users\wangj\.conda\envs\filament-local-test\python.exe`。
+- 不得用裸 `python`、裸 `pytest` 或调用者临时设置的 `PYTHONPATH` 代替该入口；入口会固定
+  `Filament_python` 模块路径并设置 `PYTHONNOUSERSITE=1`，隔离用户级 site-packages。
+- 定向测试前必须先运行 `-Mode backend`；backend、import 或 sanity 失败时停止，不继续运行
+  Raman 全算子或 targeted 测试。
+- 允许的本地测试模式为 `import`、`backend`、`sanity`、`targeted`。`targeted` 只包含任务
+ 规定的轻量测试集合，不等价于 full pytest。
+- 该环境仅用于 Windows CPU 软件/配置测试；CuPy、GPU 和真实传播仍以 HPC `scvi806` 环境
+  为唯一权威。环境指纹和兼容性记录位于 `Filament_python/results/local_test_environment/`。
 
 ## 5. 超算（HPC）相关约束
 1. 不在登录节点直接长时间运行大规模仿真。
@@ -324,9 +337,9 @@ For these cases, stop and return the relevant code/data provenance, numerical ev
 
 - Sol 保留科学决策、基线接受、commit/push、HPC staging、Slurm 提交和最终验收；Luna 必须按 `task_boundary`、`evidence`、`files_changed`、`commands_and_exit_codes`、`tests`、`unverified`、`parent_decisions` 返回。
 - 模型/连接失败后，先读 Agent 状态并审计共享工作树；确认已有写入和文件所有权前，不得重启第二个 writer。
-- 无变量展开的单条只读 SSH 命令才可内联；遇到中文路径、管道、重定向、正则、命令替换、heredoc 或嵌套引号，必须使用 `Filament_python/tools/hpc_ops/` 的脚本/参数数组入口。第一次转义错误后不得继续堆叠引号。
+- 无变量展开的单条只读 SSH 命令才可内联；遇到中文路径、管道、重定向、正则、命令替换、heredoc 或嵌套引号，必须使用 `Filament_python/tools/hpc_ops/Invoke-SshRemoteScript.ps1` 的脚本/参数数组入口。第一次转义错误后不得继续堆叠引号。`Invoke-PappRemoteScript.ps1` 仅作为显式 Papp 回退，不得自动切换。
 - HPC GitHub 连接遵循代理优先、verified bundle 回退；代理值、token、认证 URL 和真实凭据不得进入仓库或日志。preflight 失败不得创建 run/lock 或调用 `sbatch`。
-- 仓库内 `Invoke-PappRemoteScript.ps1` 和 `hpc_preflight.sh` 仅允许 `scvi806`；不得把其固定根目录或 `Filament_python` 环境套用于 `t0s000727`。其他账户必须使用独立审计的入口。
+- 仓库内 `Invoke-SshRemoteScript.ps1`、`Invoke-PappRemoteScript.ps1` 和 `hpc_preflight.sh` 仅允许 `scvi806`；不得把其固定根目录或 `Filament_python` 环境套用于 `t0s000727`。其他账户必须使用独立审计的入口。
 - 运行时终态和诊断报告分开核验；`PENDING`、`RUNNING`、编译通过或测试通过不能替代科学验收。
 
 <!-- BEGIN FILAMENT LEAN EXECUTION AND FAILURE CIRCUIT BREAKERS -->
@@ -359,5 +372,13 @@ For these cases, stop and return the relevant code/data provenance, numerical ev
   与科学分类分开记录；算例尚未启动时不得给出物理结论。
 
 <!-- END FILAMENT LEAN EXECUTION AND FAILURE CIRCUIT BREAKERS -->
+
+## 14. 跨平台 provenance 与哈希范围
+
+- 先分类再哈希；`Filament_python/tools/hpc_ops/provenance_v2.py` 是本仓库唯一权威实现，不得复制或另建哈希语义。
+- Git tracked text 必须同时记录 Git blob OID 与 canonical-LF SHA256；不得把 Windows checkout 的 raw-byte SHA256 作为新 HPC 校验值。
+- external 或 binary artifact 必须记录 raw-byte SHA256；新 manifest 顶层和每条 record 都必须声明正确的 `hash_scope`。
+- legacy frozen receipt、lock、manifest 及其 `.gitattributes` CRLF/binary 例外不得迁移、规范化或重写；旧 v1 只保留兼容读取。
+- 新 HPC campaign 必须在创建 run directory、lock、receipt 或调用 `sbatch` 前完成严格 provenance schema、Git blob 与 canonical-LF/raw-byte 校验。
 
 <!-- END FILAMENT SUBAGENT ORCHESTRATION -->

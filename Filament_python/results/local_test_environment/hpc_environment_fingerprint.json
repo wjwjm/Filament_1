@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "collected_at": "2026-08-27T15:50+08:00",
+  "collection_method": "manual read-only inspection via papp_cloud ssh (interactive shell on login node)",
+  "account": "scvi806",
+  "cluster": "NC-N50R5",
+  "host_observed": "ln07",
+  "environment_name": "Filament_python",
+  "environment_path": "/data/home/scvi806/.conda/envs/Filament_python",
+  "platform": "linux-64",
+  "os_family": "Linux",
+  "python": {
+    "version": "3.13.7",
+    "version_short": "3.13",
+    "packager": "conda-forge",
+    "build": "h2b335a9_100_cp313",
+    "compiled_with": "GCC 14.3.0",
+    "executable": "/data/home/scvi806/.conda/envs/Filament_python/bin/python",
+    "which_python": "/data/home/scvi806/.conda/envs/Filament_python/bin/python"
+  },
+  "packages": {
+    "numpy": "2.3.3",
+    "scipy": "1.16.3",
+    "cupy": "13.6.0",
+    "pytest": "unavailable"
+  },
+  "conda_env_export_from_history": {
+    "name": "Filament_python",
+    "channels": ["conda-forge"],
+    "dependencies": [
+      "python=3.13",
+      "numpy",
+      "cupy",
+      "scipy"
+    ]
+  },
+  "conda_list_explicit_summary": {
+    "total_package_count": 46,
+    "channel": "conda-forge",
+    "conda_version_used": "25.7.0",
+    "core_packages": [
+      "python-3.13.7-h2b335a9_100_cp313",
+      "numpy-2.3.3-py313hf6604e3_0",
+      "scipy-1.16.3-py313h4b8bb8b_2",
+      "cupy-13.6.0-py313h727d180_2",
+      "cupy-core-13.6.0-py313h0630d88_2",
+      "libopenblas-0.3.30-pthreads_h94d23a6_2",
+      "liblapack-3.9.0-36_h47877c9_openblas",
+      "pip-25.2-pyh145f28c_0"
+    ],
+    "cuda_stack_note": "cuda-version 13.0 runtime stack present (libcufft/libcublas/libcusparse/libcusolver etc., CPU-visible libs only relevant to CuPy on GPU nodes)",
+    "full_list_file": "full explicit URL list kept out of this fingerprint by design; re-run 'conda list --explicit' remotely if needed"
+  },
+  "command_results": {
+    "python -VV": "Python 3.13.7 | packaged by conda-forge | (main, Sep  3 2025, 14:30:35) [GCC 14.3.0]",
+    "which python": "/data/home/scvi806/.conda/envs/Filament_python/bin/python",
+    "python sys.executable": "/data/home/scvi806/.conda/envs/Filament_python/bin/python",
+    "numpy.__version__": "2.3.3",
+    "cupy.__version__": "13.6.0",
+    "pytest.__version__": "ModuleNotFoundError: No module named 'pytest'",
+    "conda env export --from-history": "success",
+    "conda list --explicit": "success"
+  },
+  "notes": [
+    "All commands executed on login node; read-only inspection only.",
+    "pytest absent on HPC: record as unavailable; do NOT guess a version.",
+    "GPU/CuPy functionality remains authoritative only on HPC GPU nodes.",
+    "No credentials, tokens, proxy or private URLs included."
+  ]
+}

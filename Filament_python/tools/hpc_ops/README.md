@@ -4,12 +4,38 @@ This directory contains low-level, non-physical execution helpers for the
 Filament_1 HPC workflow. They do not submit jobs, create campaign locks, or
 modify simulation results.
 
-`Invoke-PappRemoteScript.ps1` and `hpc_preflight.sh` are intentionally scoped
-to the `scvi806` account and `/data/run01/scvi806` root. They reject
-`t0s000727` locally; that account requires a separately reviewed wrapper,
-environment path, and tests rather than inheriting the `scvi806` contract.
+`Invoke-SshRemoteScript.ps1`, `Invoke-PappRemoteScript.ps1`, and
+`hpc_preflight.sh` are intentionally scoped to the `scvi806` account and
+`/data/run01/scvi806` root. They reject `t0s000727` locally; that account
+requires a separately reviewed wrapper, environment path, and tests rather
+than inheriting the `scvi806` contract.
 
-## Remote script wrapper
+`Invoke-SshRemoteScript.ps1` is the primary native-SSH transport and targets
+the configured `scvi-hpc` alias with `BatchMode=yes`. It preserves the fixed
+script, JSON argument manifest, SHA256, receipt, and private `.codex_ops`
+staging contract. `Invoke-PappRemoteScript.ps1` remains available only as an
+explicit Papp fallback; it is not selected automatically.
+
+## SSH remote script wrapper
+
+`Invoke-SshRemoteScript.ps1` accepts the fixed `scvi-hpc` target, a mapped
+remote root, a local script path, a string-array argument list,
+`ReadOnly`/`Write` mode, `-AllowRemoteWrite`, and `-DryRun`. It checks the SSH
+alias and remote `scvi806` identity before staging. It never changes SSH
+configuration, known-hosts, keys, or proxy settings.
+
+Use a dry run before any network operation:
+
+```powershell
+& .\Filament_python\tools\hpc_ops\Invoke-SshRemoteScript.ps1 `
+  -Target scvi-hpc `
+  -RemoteRoot /data/run01/scvi806/user_Wangjimin/example `
+  -LocalScript .\Filament_python\tools\hpc_ops\hpc_preflight.sh `
+  -ArgumentList @('--help') `
+  -DryRun
+```
+
+## Papp fallback wrapper
 
 `Invoke-PappRemoteScript.ps1` accepts only an account enum, a mapped remote
 root, a local script path, a string-array argument list, `ReadOnly`/`Write`
@@ -38,12 +64,12 @@ Use a dry run before any network operation:
   -DryRun
 ```
 
-An actual run requires `PAPP_CLOUD_BIN` to be an absolute WSL path to the
-approved papp_cloud client. The wrapper uses argument arrays for `wsl.exe`,
-SCP, and SSH. It emits only `filament.hpc_ops.remote_exec.v1` status JSON and
-never prints proxy values, tokens, or authenticated URLs. In ReadOnly mode it
-accepts exactly one schema-valid `filament.hpc_preflight.v1` object from remote
-stdout and nests it as `remote_report`; transport stderr is discarded.
+An actual Papp fallback run requires `PAPP_CLOUD_BIN` to be an absolute WSL
+path to the approved papp_cloud client. The wrapper uses argument arrays for
+`wsl.exe`, SCP, and SSH. It emits only `filament.hpc_ops.remote_exec.v1` status
+JSON and never prints proxy values, tokens, or authenticated URLs. In ReadOnly
+mode it accepts exactly one schema-valid `filament.hpc_preflight.v1` object from
+remote stdout and nests it as `remote_report`; transport stderr is discarded.
 
 ## Proxy loader
 
@@ -82,6 +108,13 @@ only after its raw SHA256, `git bundle verify`, expected ref, and expected
 HEAD pass. In that case the JSON reports
 `verified_bundle_non_strict`. No run directory, lock, receipt, `sbatch`, or
 production output is created.
+
+For a new campaign, pass `--provenance-manifest <absolute-path>`. The preflight
+then invokes the repository copy of `provenance_v2.py` in the fixed
+`Filament_python` environment with `--require-hash-scope`. A wrong schema,
+record classification, `hash_scope`, Git blob OID, canonical-LF digest, or
+external raw digest fails the preflight without creating run state. Omitting
+the option retains read-only compatibility for legacy launchers only.
 
 The stdout contract is `filament.hpc_preflight.v1`; `--json` is a compatible
 no-argument flag and does not write a second report or any arbitrary path.
@@ -126,19 +159,45 @@ code or reimplement the postprocessor.
 
 `hpc_git_source.sh` exposes fixed `clone`/`fetch` arguments with explicit
 account, remote root, and staging root. Targets are restricted to that staging
-root. It validates the GitHub URL, performs the exact proxy probe first, and
-falls back only after copying the bundle to a private mode-600 snapshot and
-checking its raw SHA/ref/HEAD. Clone mode builds a clean expected-branch
-checkout in a private temporary directory and atomically renames it to a
-nonexistent target. Fetch mode requires an already clean target at the expected
-branch/HEAD and only updates `FETCH_HEAD`; it never resets or merges. It cannot
-push or submit a scheduler job and emits `filament.hpc_ops.git_source.v1` JSON.
+root. Each operation requires a UUID `--operation-id` and a persistent
+`--state-file` inside staging-root but outside the checkout target. The state
+receipt uses schema `filament.hpc_git_acquisition.v2` and atomically advances
+`started → acquiring → checkout_verified → completed`; failures are recorded as
+`failed`. `--inspect-state --state-file <path>` is read-only and never retries,
+fetches, clones, deletes, or guesses a missing receipt. A missing receipt is
+`unknown_no_receipt`, not failure; callers must inspect the state file and must
+not automatically retry clone or switch to a bundle.
+
+It validates the GitHub URL, performs the exact proxy probe first, and falls
+back only to a bundle whose caller-supplied path ends in `.verified`. A
+`.part.<operation-id>` file is never accepted. The verified bundle is checked by
+raw SHA256, `git bundle verify`, and expected ref/HEAD before use. Clone mode
+builds a clean expected-branch checkout in a private temporary directory,
+records `checkout_verified`, then atomically renames it to a nonexistent target.
+Fetch mode requires an already clean target at the expected branch/HEAD and
+only updates `FETCH_HEAD`; it never resets or merges. It cannot push or submit
+a scheduler job and emits `filament.hpc_ops.git_source.v1` JSON plus the v2
+state receipt.
+
+For `Invoke-PappRemoteScript.ps1 -Mode Write`, `completed` is emitted only when
+the remote command returns one valid final JSON receipt with `ok=true` and
+`state=completed`. A rejected/failed remote receipt is reported as
+`rejected_or_failed`; missing, malformed, or lost final JSON is reported as
+`unknown_no_receipt`. The wrapper does not infer remote clone status and remains
+a foreground transport, not a background executor.
 
 ## Provenance v2
 
 `provenance_v2.py` provides `create` and `validate` subcommands. Tracked text
 records the committed Git blob OID and a canonical-LF SHA256. External files
-record exact raw-byte SHA256. Creation requires a clean repository, committed
-tracked paths, and LF worktree bytes; validation uses canonical LF so an
-otherwise identical CRLF checkout can be audited. Existing v1 execution
-locks, receipts, and the `221822` result provenance are not rewritten.
+or binary artifacts record exact raw-byte SHA256. Creation requires a clean
+repository and committed tracked paths. The tracked digest is derived from the
+Git blob; an LF or CRLF worktree is accepted only when its canonical-LF bytes
+match that blob. New manifests use `hash_scope=classified_by_record` and a
+single `records` array whose records declare `classification` and
+`hash_scope`. `validate --require-hash-scope` rejects the older grouped v2
+shape, while default validation retains read-only compatibility. Existing v1
+execution locks, receipts, and the `221822` result provenance are not rewritten.
+
+See `docs/standards/cross_platform_provenance.md` for the schema, campaign
+ordering, legacy exceptions, and the project-independent global Agent draft.

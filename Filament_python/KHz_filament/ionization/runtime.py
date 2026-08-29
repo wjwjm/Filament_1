@@ -325,13 +325,29 @@ def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *
             for j in range(1, len(sp_entries)):
                 Wt_total = Wt_total + Wt_list[j] * float(fracs[j])
             if return_species_terms:
+                # ``drho_dt_u_sum`` is a legacy, energy-weighted *net*
+                # electron-density derivative.  It intentionally retains the
+                # recombination term for compatibility and is not the HR-2B
+                # photoionization deposition source.
                 drho_dt_u_sum = xp.zeros_like(inp, dtype=rdtype)
+                photoionization_energy_rate = xp.zeros_like(inp, dtype=rdtype)
                 for j in range(len(sp_entries)):
                     ui_j = _species_ui_joule(sp_entries[j], j)
                     rho_j = rho_list[j]
-                    drho_j_dt = Wt_list[j] * xp.clip(float(N0_j_list[j]) - rho_j, 0.0, float(N0_j_list[j])) - float(beta_rec) * (rho_j * rho_j)
+                    photo_creation_j = Wt_list[j] * xp.clip(
+                        float(N0_j_list[j]) - rho_j, 0.0, float(N0_j_list[j])
+                    )
+                    drho_j_dt = photo_creation_j - float(beta_rec) * (rho_j * rho_j)
                     drho_dt_u_sum = drho_dt_u_sum + float(ui_j) * drho_j_dt
-                species_terms = {"drho_dt_u_sum": drho_dt_u_sum}
+                    photoionization_energy_rate = (
+                        photoionization_energy_rate + float(ui_j) * photo_creation_j
+                    )
+                species_terms = {
+                    "drho_dt_u_sum": drho_dt_u_sum,
+                    "photoionization_energy_rate": xp.maximum(
+                        photoionization_energy_rate, 0.0
+                    ),
+                }
                 if return_species_densities:
                     # These are the exact per-species density arrays already
                     # used to form rho_sum above.  Returning references only
@@ -385,13 +401,29 @@ def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *
             Wt_total = Wt_total + Wc_list[j] * float(fracs[j])
         Wt_total = xp.broadcast_to(Wt_total[None, ...], inp.shape).astype(rdtype, copy=False)
         if return_species_terms:
+            # In quasi-static mode the legacy derivative is the same
+            # energy-weighted creation rate used by this approximation.  Keep
+            # the explicit photoionization key so callers do not have to infer
+            # its semantics from the legacy field.
             drho_dt_u_sum = xp.zeros_like(inp, dtype=rdtype)
+            photoionization_energy_rate = xp.zeros_like(inp, dtype=rdtype)
             for j in range(len(sp_entries)):
                 ui_j = _species_ui_joule(sp_entries[j], j)
                 rho_j = rho_list[j]
-                drho_j_dt = Wc_list[j][None, ...] * xp.clip(float(N0_j_list[j]) - rho_j, 0.0, float(N0_j_list[j]))
+                photo_creation_j = Wc_list[j][None, ...] * xp.clip(
+                    float(N0_j_list[j]) - rho_j, 0.0, float(N0_j_list[j])
+                )
+                drho_j_dt = photo_creation_j
                 drho_dt_u_sum = drho_dt_u_sum + float(ui_j) * drho_j_dt
-            species_terms = {"drho_dt_u_sum": drho_dt_u_sum}
+                photoionization_energy_rate = (
+                    photoionization_energy_rate + float(ui_j) * photo_creation_j
+                )
+            species_terms = {
+                "drho_dt_u_sum": drho_dt_u_sum,
+                "photoionization_energy_rate": xp.maximum(
+                    photoionization_energy_rate, 0.0
+                ),
+            }
             if return_species_densities:
                 species_terms["rho_by_species"] = {
                     str(sp_entries[j].get("name", f"species[{j}]")): rho_list[j]

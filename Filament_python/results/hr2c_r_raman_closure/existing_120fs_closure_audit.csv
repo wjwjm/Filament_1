@@ -1,0 +1,4 @@
+schedule,job_id,n_intervals,old_residual_identity,negative_local_min_J_m2,old_max_relative_difference,target_scalar_matches_interval_count,operator_step_p99_relative,operator_step_count_gt_1e-3,operator_cumulative_relative_max,reuse_eligible
+coarse,224730,8001,true,-6.257266927257396e-06,0.0005194387284789934,true,0.00019894498109351844,1,7.304432074306533e-05,true
+candidate,224731,16000,true,-9.932816546030788e-06,0.001663755422369242,true,0.00020055910979863256,0,3.4615124604897574e-05,true
+fine,224732,32000,true,-1.645405390659346e-05,0.012289275283869883,true,0.0001953543967101719,0,6.715134077239782e-05,true

@@ -1,0 +1,12 @@
+{
+  "schema": "khz_filament.hr2e.execution_manifest.v1",
+  "stage": "stage2",
+  "expected_git_sha": "a11e1f1b3ad2fc2f95f5effbe231fbec4558a3b7",
+  "preflight_manifest_path": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/source/staging/Filament_1_a11e1f1_hr2e_retry1_20260827/Filament_python/results/hr2e_schedule_convergence/stage1_preflight/hr2e_stage1_preflight_manifest.json",
+  "preflight_manifest_sha256": "75f72de574c564e44914cfe4bd4054a37a30a609b8b4c7e3c67eef4d54b9747b",
+  "case_ids": [
+    "hr2e_120fs_coarse",
+    "hr2e_120fs_candidate",
+    "hr2e_120fs_fine"
+  ]
+}

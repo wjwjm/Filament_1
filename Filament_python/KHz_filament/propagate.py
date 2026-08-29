@@ -10,6 +10,15 @@ from .ionization import (
 )
 from .nonlinear import kerr_phase_from_deltan, plasma_phase, ib_alpha, apply_nonlinear, shock_intensity, operator_correct_scalar
 from .heat import heat_Q_per_z
+from .deposition import (
+    build_unified_deposition_ledger,
+    direct_interval_energy,
+    interval_energy_from_fluence_gain,
+    interval_energy_from_q,
+    q_ib_from_power,
+    q_ion_from_power,
+    q_raman_from_target_fluence_gain,
+)
 from .linear_full import step_linear_full_factorized, step_linear_full_3d
 from .air_dispersion import n_of_omega
 from .constants import c0, eps0
@@ -33,6 +42,13 @@ from .diagnostics import (
     parabola_peak,
     _fwhm_diameter_xy_center,
     validate_nonlinear_diagnostics,
+)
+from .longitudinal import (
+    build_deposition_contract,
+    build_longitudinal_schedule,
+    build_transverse_grid_metadata,
+    LongitudinalSchedule,
+    DepositionContract,
 )
 
 def _linear_phase_per_meter(linear_model, k0, axes, K02_w=None, omega0=None, nee_denom_floor=1e-4):
@@ -223,6 +239,8 @@ def propagate_one_pulse(
     axes=None, prop_conf=None, raman_conf=None,
     record_onaxis_rho_time: bool = True,
     record_every_z: int = 1,
+    longitudinal_schedule: LongitudinalSchedule | None = None,
+    deposition_contract: DepositionContract | None = None,
 ):
     """极简稳定版：固定一步只做一次安全缩步（可选近焦加密），标准 Strang 分裂。
        产出统一的 diag 契约（见函数尾部）。"""
@@ -234,7 +252,7 @@ def propagate_one_pulse(
     rdtype = xp.float32 if ctype == xp.complex64 else xp.float64
     rdtype_np = _np.float32 if ctype == xp.complex64 else _np.float64
 
-    # ---------- 近焦缩步 ----------
+    # ---------- 显式、可重放的纵向 schedule ----------
     p = prop_conf
     switches = resolve_nonlinear_switches(p, raman_conf, ion_conf)
     measure_performance = bool(getattr(p, "measure_performance", False))
@@ -243,6 +261,25 @@ def propagate_one_pulse(
     z_center = getattr(p, "focus_center_m", None) or getattr(p, "z_focus_hint", None)
     z_half = float(getattr(p, "focus_halfwidth_m", 0.0))
     dz_focus = float(getattr(p, "dz_focus", dz_base))
+    if longitudinal_schedule is None:
+        longitudinal_schedule = build_longitudinal_schedule(
+            dz_base,
+            float(z_max),
+            z_start=0.0,
+            focus_window_step=use_focus_win,
+            focus_center_m=z_center,
+            focus_halfwidth_m=z_half,
+            dz_focus=dz_focus,
+        )
+    else:
+        if not isinstance(longitudinal_schedule, LongitudinalSchedule):
+            raise TypeError("longitudinal_schedule must be a LongitudinalSchedule")
+        longitudinal_schedule.validate()
+        local_span = longitudinal_schedule.z_edges[-1] - longitudinal_schedule.z_edges[0]
+        if not _np.isclose(local_span, float(z_max), rtol=1e-12, atol=1e-12):
+            raise ValueError(
+                "longitudinal_schedule span must match the local propagation z_max"
+            )
     print(
         f"[focus-step] focus_center_m(local)={z_center if z_center is not None else 'None'}, "
         f"focus_halfwidth_m={z_half:.4e}, dz_base={dz_base:.4e}, dz_focus={dz_focus:.4e}"
@@ -250,6 +287,15 @@ def propagate_one_pulse(
 
     # ---------- 索引/几何 ----------
     Ny, Nx = E.shape[-2], E.shape[-1]
+    transverse_grid = build_transverse_grid_metadata(axes)
+    if deposition_contract is None:
+        deposition_contract = build_deposition_contract(
+            longitudinal_schedule, transverse_grid=transverse_grid
+        )
+    elif not isinstance(deposition_contract, DepositionContract):
+        raise TypeError("deposition_contract must be a DepositionContract")
+    elif deposition_contract.schedule is not longitudinal_schedule:
+        raise ValueError("deposition_contract must reference longitudinal_schedule")
     y0, x0 = Ny // 2, Nx // 2
     t_arr = axes.t
     t0_idx = int(xp.argmin(xp.abs(t_arr)))
@@ -367,6 +413,18 @@ def propagate_one_pulse(
     full_isaacs_mode = bool(
         full_isaacs_rotational_mode or full_isaacs_complete_mode
     )
+    if not use_raman:
+        raman_deposition_authoritative = True
+        raman_deposition_source = "off"
+    elif full_isaacs_mode:
+        raman_deposition_authoritative = True
+        raman_deposition_source = (
+            "eq10_heun_positive_rotational_energy"
+            if switches.use_raman_full_operator else "operator_not_applied"
+        )
+    else:
+        raman_deposition_authoritative = False
+        raman_deposition_source = "legacy_unavailable"
     complete_operator_enabled = bool(
         full_isaacs_complete_mode and switches.use_raman_full_operator
     )
@@ -392,6 +450,18 @@ def propagate_one_pulse(
 
 
     ion_off = not switches.use_ionization_solver
+    ion_deposition_configured = bool(not ion_off)
+    nu_ei_configured = getattr(ion_conf, "nu_ei_const", None)
+    ib_deposition_configured = bool(
+        not ion_off
+        and (
+            float(getattr(ion_conf, "sigma_ib", 0.0)) != 0.0
+            or (
+                nu_ei_configured is not None
+                and float(nu_ei_configured) != 0.0
+            )
+        )
+    )
     if ion_off:
         Wfunc, ion_input = None, "none"
     else:
@@ -421,6 +491,24 @@ def propagate_one_pulse(
 
     E_dep_z_list, E_dep_rot_z_list = [], []  # 电离+IB、拉曼沉积
     E_dep_total_z_list, E_dep_cumulative_z_list = [], []
+    # HR-2B canonical interval ledger.  These lists are populated for every
+    # schedule interval, independently of sparse legacy z-axis recording.
+    E_dep_ion_interval_J_list = []
+    E_dep_ib_interval_J_list = []
+    E_dep_plasma_interval_J_list = []
+    E_dep_ion_interval_direct_J_list = []
+    E_dep_ib_interval_direct_J_list = []
+    E_dep_plasma_interval_direct_J_list = []
+    E_dep_ion_interval_closure_residual_J_list = []
+    E_dep_ib_interval_closure_residual_J_list = []
+    E_dep_plasma_interval_closure_residual_J_list = []
+    E_dep_raman_interval_J_list = []
+    E_dep_raman_interval_reduction_reference_J_list = []
+    E_dep_raman_interval_operator_J_list = []
+    E_dep_raman_interval_closure_residual_J_list = []
+    E_dep_raman_operator_energy_residual_J_list = []
+    raman_operator_energy_relative_residual_list = []
+    raman_actual_local_negative_min_J_m2_list = []
     U_rel_change_z_list, U_step_change_z_list, E_loss_from_input_z_list = [], [], []
     fwhm_plasma_z_list, fwhm_fluence_z_list, fwhm_time_z_list = [], [], []
     rho_onaxis_time_list = [] if record_onaxis_rho_time else None
@@ -462,6 +550,13 @@ def propagate_one_pulse(
     linear_halfstep_1_z_list, linear_halfstep_2_z_list = [], []
     linear_profile_halfstep_1_z_list, linear_profile_halfstep_2_z_list = [], []
     E_dep_cumulative = 0.0
+    E_dep_ion_pulse = 0.0
+    E_dep_ib_pulse = 0.0
+    E_dep_plasma_pulse = 0.0
+    E_dep_raman_pulse = 0.0
+    E_dep_raman_operator_pulse = 0.0
+    E_dep_raman_pulse_closure_residual = 0.0
+    E_dep_raman_operator_energy_pulse_residual = 0.0
     raman_target_loss_cumulative = 0.0
     raman_actual_loss_cumulative = 0.0
     U_previous = U0_baseline
@@ -471,7 +566,9 @@ def propagate_one_pulse(
     safety_mode_trigger_count = 0
     # ---------- 主循环 ----------
     z = 0.0
-    # Qacc 累积到面密度 J/m^2（把体功率密度在 t,z 两方向积分）
+    # Qacc/Q2D is the legacy slow-heat compatibility path (surface density
+    # J/m^2), not the HR-2B thermal truth.  HR-2B keeps only scalar interval
+    # ledger values after releasing each temporary q map.
     Qacc = xp.zeros((Ny, Nx), dtype=rdtype)
     Qacc_raman = xp.zeros((Ny, Nx), dtype=rdtype)
     t0 = time.perf_counter()
@@ -506,16 +603,13 @@ def propagate_one_pulse(
         diagnostics["operator_walltime_s"] += first_stage["walltime_s"]
         return updated, diagnostics
 
-    while z < z_max - 1e-16:
+    for interval_index, interval in enumerate(longitudinal_schedule.intervals):
         _performance_sync(measure_performance)
         step_started = time.perf_counter()
         linear_walltime_step = 0.0
-        dz_remain = z_max - z
-        if use_focus_win and (z_center is not None) and (z_half > 0.0):
-            z_mid = z + 0.5 * dz_base
-            dz_try = min(dz_focus if abs(z_mid - float(z_center)) <= z_half else dz_base, dz_remain)
-        else:
-            dz_try = min(dz_base, dz_remain)
+        # The interval was built once by the schedule builder.  Do not make a
+        # pulse-dependent/live focus or remainder decision here.
+        dz_try = float(interval.dz)
 
         operator_energy_start = _operator_energy(E) if diag_operator_energy else _np.nan
 
@@ -645,7 +739,8 @@ def propagate_one_pulse(
             rho = xp.zeros_like(I, dtype=rdtype)
             Wt  = xp.zeros_like(I, dtype=rdtype)
             alpha_ib = xp.zeros_like(I, dtype=rdtype)
-            ion_source_raw = xp.zeros_like(I, dtype=rdtype)
+            net_density_energy_rate = xp.zeros_like(I, dtype=rdtype)
+            photoionization_energy_rate = xp.zeros_like(I, dtype=rdtype)
         else:
             X = field_amplitude_from_intensity(I, n0) if ion_input == "E" else I
             rho_out = evolve_rho_time(
@@ -662,11 +757,29 @@ def propagate_one_pulse(
                 species_terms = {}
             xp.maximum(rho, 0.0, out=rho)
             xp.minimum(rho, N0, out=rho)
-            ion_source_raw = species_terms.get("drho_dt_u_sum", None)
+            # The legacy field is the energy-weighted net density derivative
+            # and may include recombination.  HR-2B deposition and raw
+            # ionization absorption use the separate positive photo-creation
+            # source below.
+            net_density_energy_rate = species_terms.get("drho_dt_u_sum", None)
+            photoionization_energy_rate = species_terms.get(
+                "photoionization_energy_rate", None
+            )
             rho_by_species = species_terms.get("rho_by_species", {})
-            if ion_source_raw is None:
+            if photoionization_energy_rate is None:
+                # Compatibility fallback for a non-species return path.
                 d_rho_dt = Wt * xp.clip(N0 - rho, 0.0, N0)
-                ion_source_raw = Ui * d_rho_dt
+                photoionization_energy_rate = Ui * d_rho_dt
+            photoionization_energy_rate = xp.asarray(
+                photoionization_energy_rate, dtype=rdtype
+            )
+            photoionization_energy_rate = xp.nan_to_num(
+                photoionization_energy_rate,
+                nan=0.0,
+                posinf=0.0,
+                neginf=0.0,
+            )
+            xp.maximum(photoionization_energy_rate, 0.0, out=photoionization_energy_rate)
 
         if ion_off:
             rho_by_species = {}
@@ -682,13 +795,17 @@ def propagate_one_pulse(
 
         # 电离吸收 α_ion（只参与传播与热，避免在 Q 中重复计 IB）
         I_floor = 1e-6 * float(getattr(ion_conf, "I_cap", 1e19))
-        alpha_ion_raw = ion_source_raw / (I + I_floor)
+        alpha_ion_raw = photoionization_energy_rate / (I + I_floor)
         if use_ion_op_corr and (not ion_off):
             ion_source_prop = operator_correct_scalar(
-                ion_source_raw, axes.Omega, omega0, dt=dt, method=ion_op_method
+                photoionization_energy_rate,
+                axes.Omega,
+                omega0,
+                dt=dt,
+                method=ion_op_method,
             )
         else:
-            ion_source_prop = ion_source_raw
+            ion_source_prop = photoionization_energy_rate
         ion_source_prop = xp.nan_to_num(ion_source_prop, nan=0.0, posinf=0.0, neginf=0.0)
         alpha_ion = ion_source_prop / (I + I_floor)
         alpha_ion = xp.nan_to_num(alpha_ion, nan=0.0, posinf=0.0, neginf=0.0)
@@ -703,6 +820,13 @@ def propagate_one_pulse(
         alpha_R_eff = 0.0                    # 标量/2D 等效吸收，用于传播
         alpha_R_closed = 0.0                 # 仅 closed_form 模型保留其等效系数
         E_dep_rot_step = 0.0                 # 本 z 步旋转拉曼总沉积能量 [J]
+        E_dep_raman_interval = 0.0
+        E_dep_raman_interval_reduction_reference = 0.0
+        E_dep_raman_operator_interval = 0.0
+        E_dep_raman_interval_closure_residual = 0.0
+        E_dep_raman_operator_energy_residual = 0.0
+        raman_operator_energy_relative_residual = 0.0
+        raman_actual_local_negative_min_J_m2 = 0.0
         IR_max = 0.0
         Q_rot_vol = None
 
@@ -821,8 +945,80 @@ def propagate_one_pulse(
                     raman_diag_parts, reference_energy=U0_baseline)
                 IR = raman_step_diag["I_R_stage1"]
                 E_dep_rot_step = float(raman_step_diag["actual_global_energy_loss_J"])
+                target_local_fluence_gain = raman_step_diag[
+                    "target_local_fluence_loss_heun"
+                ]
+                q_raman = q_raman_from_target_fluence_gain(
+                    target_local_fluence_gain, dz_try
+                )
+                E_dep_raman_interval = interval_energy_from_q(
+                    q_raman, axes.dx, axes.dy, dz_try
+                )
+                E_dep_raman_interval_reduction_reference = (
+                    interval_energy_from_fluence_gain(
+                        target_local_fluence_gain, axes.dx, axes.dy
+                    )
+                )
+                E_dep_raman_operator_interval = E_dep_rot_step
+                E_dep_raman_interval_closure_residual = (
+                    E_dep_raman_interval
+                    - E_dep_raman_interval_reduction_reference
+                )
+                E_dep_raman_operator_energy_residual = (
+                    E_dep_raman_interval - E_dep_raman_operator_interval
+                )
+                raman_operator_energy_relative_residual = abs(
+                    E_dep_raman_operator_energy_residual
+                ) / max(
+                    abs(E_dep_raman_interval),
+                    U0_baseline * 1.0e-15,
+                    1.0e-300,
+                )
+                actual_local_fluence_loss = raman_step_diag[
+                    "actual_local_fluence_loss"
+                ]
+                actual_local_fluence_loss_finite = xp.nan_to_num(
+                    xp.asarray(actual_local_fluence_loss),
+                    nan=0.0, posinf=0.0, neginf=0.0,
+                )
+                raman_actual_local_negative_min_J_m2 = float(
+                    xp.min(xp.minimum(actual_local_fluence_loss_finite, 0.0))
+                )
+                del q_raman, target_local_fluence_gain, actual_local_fluence_loss_finite
+                E_dep_raman_interval_J_list.append(E_dep_raman_interval)
+                E_dep_raman_interval_reduction_reference_J_list.append(
+                    E_dep_raman_interval_reduction_reference
+                )
+                E_dep_raman_interval_operator_J_list.append(
+                    E_dep_raman_operator_interval
+                )
+                E_dep_raman_interval_closure_residual_J_list.append(
+                    E_dep_raman_interval_closure_residual
+                )
+                E_dep_raman_operator_energy_residual_J_list.append(
+                    E_dep_raman_operator_energy_residual
+                )
+                raman_operator_energy_relative_residual_list.append(
+                    raman_operator_energy_relative_residual
+                )
+                raman_actual_local_negative_min_J_m2_list.append(
+                    raman_actual_local_negative_min_J_m2
+                )
+                E_dep_raman_pulse += E_dep_raman_interval
+                E_dep_raman_operator_pulse += E_dep_raman_operator_interval
+                E_dep_raman_pulse_closure_residual += (
+                    E_dep_raman_interval_closure_residual
+                )
+                E_dep_raman_operator_energy_pulse_residual += (
+                    E_dep_raman_operator_energy_residual
+                )
                 Qacc_raman += xp.maximum(
-                    xp.asarray(raman_step_diag["actual_local_fluence_loss"], dtype=Qacc_raman.dtype), 0.0)
+                    xp.asarray(
+                        raman_step_diag["target_local_fluence_loss_heun"],
+                        dtype=Qacc_raman.dtype,
+                    ),
+                    0.0,
+                )
                 # The complete 3-D Raman response and local closure maps are
                 # no longer inputs to the following linear halfstep.  Capture
                 # the legacy scalar diagnostics, then drop every reference to
@@ -873,11 +1069,73 @@ def propagate_one_pulse(
             raman_target_loss_cumulative += float(raman_step_diag["target_global_energy_loss_J"])
             raman_actual_loss_cumulative += float(raman_step_diag["actual_global_energy_loss_J"])
 
-        # —— 热沉积：分量分别记账 ——
-        # 电离 + IB：Qslice (J/m^3)；电离源优先使用逐组分 Σ_j U_j * ∂ρ_j/∂t
+        if not full_isaacs_on:
+            # No authoritative actual field-loss map exists for disabled or
+            # legacy Raman paths.  Keep the canonical interval ledger aligned
+            # without promoting Q_rot_vol, w_R, or another inferred estimate.
+            E_dep_raman_interval_J_list.append(0.0)
+            E_dep_raman_interval_reduction_reference_J_list.append(0.0)
+            E_dep_raman_interval_operator_J_list.append(0.0)
+            E_dep_raman_interval_closure_residual_J_list.append(0.0)
+            E_dep_raman_operator_energy_residual_J_list.append(0.0)
+            raman_operator_energy_relative_residual_list.append(0.0)
+            raman_actual_local_negative_min_J_m2_list.append(0.0)
+
+        # —— HR-2B plasma deposition: mechanism-resolved, one interval only ——
+        # q maps are interval-average volume energy densities [J/m^3].  The
+        # direct 3-D reductions are kept separately for the Level-1 closure;
+        # neither path stores a longitudinal payload.
         operator_energy_after_raman_post = _operator_energy(E) if diag_operator_energy else _np.nan
 
-        Qslice = heat_Q_per_z(I, alpha_ib, dt, ion_source=ion_source_raw, Wt=Wt, rho=rho, Ui=Ui, N0=N0)
+        q_ion = q_ion_from_power(photoionization_energy_rate, dt)
+        ib_power = alpha_ib * I
+        q_ib = q_ib_from_power(alpha_ib, I, dt)
+        E_dep_ion_interval = interval_energy_from_q(
+            q_ion, axes.dx, axes.dy, dz_try
+        )
+        E_dep_ib_interval = interval_energy_from_q(
+            q_ib, axes.dx, axes.dy, dz_try
+        )
+        E_dep_plasma_interval = E_dep_ion_interval + E_dep_ib_interval
+        E_dep_ion_direct = direct_interval_energy(
+            photoionization_energy_rate, dt, axes.dx, axes.dy, dz_try
+        )
+        E_dep_ib_direct = direct_interval_energy(
+            ib_power, dt, axes.dx, axes.dy, dz_try
+        )
+        E_dep_plasma_direct = E_dep_ion_direct + E_dep_ib_direct
+        E_dep_ion_interval_J_list.append(E_dep_ion_interval)
+        E_dep_ib_interval_J_list.append(E_dep_ib_interval)
+        E_dep_plasma_interval_J_list.append(E_dep_plasma_interval)
+        E_dep_ion_interval_direct_J_list.append(E_dep_ion_direct)
+        E_dep_ib_interval_direct_J_list.append(E_dep_ib_direct)
+        E_dep_plasma_interval_direct_J_list.append(E_dep_plasma_direct)
+        E_dep_ion_interval_closure_residual_J_list.append(
+            E_dep_ion_interval - E_dep_ion_direct
+        )
+        E_dep_ib_interval_closure_residual_J_list.append(
+            E_dep_ib_interval - E_dep_ib_direct
+        )
+        E_dep_plasma_interval_closure_residual_J_list.append(
+            E_dep_plasma_interval - E_dep_plasma_direct
+        )
+        E_dep_ion_pulse += E_dep_ion_interval
+        E_dep_ib_pulse += E_dep_ib_interval
+        E_dep_plasma_pulse += E_dep_plasma_interval
+
+        # Keep the legacy heat helper as the Q_CAP compatibility guard.  For
+        # normal finite production sources this equals q_ion + q_ib exactly;
+        # Qacc/Q2D remains the legacy slow-heat path, not thermal truth.
+        Qslice = heat_Q_per_z(
+            I,
+            alpha_ib,
+            dt,
+            ion_source=photoionization_energy_rate,
+            Wt=Wt,
+            rho=rho,
+            Ui=Ui,
+            N0=N0,
+        )
         Qacc += xp.asarray(Qslice, dtype=Qacc.dtype) * dz_try
         # Poynting 模式：如需把拉曼也积入慢时间面密度（J/m^2），可把体能量密度乘 dz_try 累起来
         if use_raman and raman_absorb_on and (absorption_model == "poynting") and (Q_rot_vol is not None):
@@ -931,7 +1189,11 @@ def propagate_one_pulse(
         operator_energy_after_linear_half2 = _operator_energy(E) if diag_operator_energy else _np.nan
 
         save_count += 1
-        if (save_count % save_every) == 0 or (z + dz_try >= z_max - 1e-16):
+        if (
+            (save_count % save_every) == 0
+            or interval_index == longitudinal_schedule.n_intervals - 1
+            or (z + dz_try >= z_max - 1e-16)
+        ):
             z_now = float(z + dz_try)
             z_axis_list.append(z_now)
 
@@ -1151,8 +1413,78 @@ def propagate_one_pulse(
             eta = elapsed / max(frac, 1e-9) * (1.0 - frac)
             print(f"[z] {z:.3f}/{z_max:.3f} m ({frac*100:6.2f}%)  elapsed {elapsed:6.1f}s  ETA {eta:6.1f}s")
 
+    # ---------- HR-2D unified scalar ledger ----------
+    # This consumes only the canonical interval scalars accumulated above.
+    # It deliberately does not consult sparse legacy E_dep*_z diagnostics,
+    # legacy Raman estimates, or the field-loss diagnostic as a deposition
+    # source.
+    unified_deposition = build_unified_deposition_ledger(
+        ion_interval_J=E_dep_ion_interval_J_list,
+        ib_interval_J=E_dep_ib_interval_J_list,
+        raman_interval_J=E_dep_raman_interval_J_list,
+        ion_interval_reference_J=E_dep_ion_interval_direct_J_list,
+        ib_interval_reference_J=E_dep_ib_interval_direct_J_list,
+        raman_interval_reference_J=E_dep_raman_interval_reduction_reference_J_list,
+        ion_pulse_J=E_dep_ion_pulse,
+        ib_pulse_J=E_dep_ib_pulse,
+        raman_pulse_J=E_dep_raman_pulse,
+        ion_configured=ion_deposition_configured,
+        ib_configured=ib_deposition_configured,
+        raman_configured=bool(use_raman),
+        raman_authoritative=raman_deposition_authoritative,
+        raman_source=raman_deposition_source,
+        ionization_feedback_enabled=bool(switches.use_ionization_loss),
+        raman_feedback_enabled=bool(switches.use_raman_full_operator),
+        field_in_J=U0_baseline,
+        field_out_J=(U_z_list[-1] if U_z_list else _np.nan),
+        raman_operator_relative_residuals=(
+            raman_operator_energy_relative_residual_list
+        ),
+        raman_operator_cumulative_relative_residual=(
+            abs(E_dep_raman_operator_pulse - E_dep_raman_pulse)
+            / max(abs(E_dep_raman_pulse), U0_baseline * 1.0e-15, 1.0e-300)
+            if full_isaacs_on else None
+        ),
+    )
+    mechanism_status_json = json.dumps(
+        unified_deposition["mechanisms"], sort_keys=True, separators=(",", ":")
+    )
+
     # ---------- 打包 ----------
     diag = {
+        # Canonical schedule metadata is complete and absolute.  Legacy
+        # z_axis/dz_used_z below intentionally retain their local/sparse
+        # propagation semantics.
+        "longitudinal_schedule_schema": _np.asarray(
+            "khz_filament.longitudinal_schedule.v1"
+        ),
+        "z_edges": _np.asarray(longitudinal_schedule.z_edges, dtype=_np.float64),
+        "dz_intervals": _np.asarray(longitudinal_schedule.dz_intervals, dtype=_np.float64),
+        "n_intervals": _np.int64(longitudinal_schedule.n_intervals),
+        "longitudinal_z_start": float(longitudinal_schedule.z_start),
+        "longitudinal_z_end": float(longitudinal_schedule.z_end),
+        "deposition_contract_schema": _np.asarray(
+            "khz_filament.deposition_contract.v1"
+        ),
+        "deposition_channels": _np.asarray(
+            deposition_contract.channels, dtype="U64"
+        ),
+        "deposition_channel_names": _np.asarray(
+            deposition_contract.channels, dtype="U64"
+        ),
+        "deposition_channel_count": _np.int64(len(deposition_contract.channels)),
+        "deposition_value_name": _np.asarray(deposition_contract.value_name),
+        "deposition_value_unit": _np.asarray(deposition_contract.value_unit),
+        "deposition_representation": _np.asarray(deposition_contract.representation),
+        "deposition_payload_allocated": _np.bool_(deposition_contract.payload_allocated),
+        "deposition_q_shape": _np.asarray(deposition_contract.q_shape, dtype=_np.int64),
+        "deposition_n_intervals": _np.int64(deposition_contract.n_intervals),
+        "thermal_grid_matches_optical": _np.bool_(
+            deposition_contract.transverse_grid.same_grid
+        ),
+        "transverse_remapping": _np.asarray(
+            "none" if deposition_contract.transverse_grid.same_grid else "external"
+        ),
         "z_axis":                   _np.asarray(z_axis_list,              dtype=rdtype_np),
         "U_z":                      _np.asarray(U_z_list,                 dtype=rdtype_np),
         "I_max_z":                  _np.asarray(I_max_z_list,             dtype=rdtype_np),
@@ -1164,6 +1496,212 @@ def propagate_one_pulse(
         "E_dep_z":                  _np.asarray(E_dep_z_list,             dtype=rdtype_np),   # 电离+IB
         "E_dep_total_z":            _np.asarray(E_dep_total_z_list,       dtype=rdtype_np),
         "E_dep_cumulative_z":       _np.asarray(E_dep_cumulative_z_list,  dtype=rdtype_np),
+        # HR-2B authoritative plasma deposition ledger.  These arrays are
+        # canonical-interval aligned and intentionally independent of the
+        # legacy sparse z_axis records above.
+        "E_dep_ion_interval_J": _np.asarray(
+            E_dep_ion_interval_J_list, dtype=_np.float64
+        ),
+        "E_dep_ib_interval_J": _np.asarray(
+            E_dep_ib_interval_J_list, dtype=_np.float64
+        ),
+        "E_dep_plasma_interval_J": _np.asarray(
+            E_dep_plasma_interval_J_list, dtype=_np.float64
+        ),
+        "E_dep_ion_interval_direct_J": _np.asarray(
+            E_dep_ion_interval_direct_J_list, dtype=_np.float64
+        ),
+        "E_dep_ib_interval_direct_J": _np.asarray(
+            E_dep_ib_interval_direct_J_list, dtype=_np.float64
+        ),
+        "E_dep_plasma_interval_direct_J": _np.asarray(
+            E_dep_plasma_interval_direct_J_list, dtype=_np.float64
+        ),
+        "E_dep_ion_interval_closure_residual_J": _np.asarray(
+            E_dep_ion_interval_closure_residual_J_list, dtype=_np.float64
+        ),
+        "E_dep_ib_interval_closure_residual_J": _np.asarray(
+            E_dep_ib_interval_closure_residual_J_list, dtype=_np.float64
+        ),
+        "E_dep_plasma_interval_closure_residual_J": _np.asarray(
+            E_dep_plasma_interval_closure_residual_J_list, dtype=_np.float64
+        ),
+        "E_dep_ion_pulse_J": float(E_dep_ion_pulse),
+        "E_dep_ib_pulse_J": float(E_dep_ib_pulse),
+        "E_dep_plasma_pulse_J": float(E_dep_plasma_pulse),
+        # HR-2C-R authoritative Raman deposition is the positive Eq.10/Heun
+        # rotational medium-gain source.  The signed field-loss scalar remains
+        # a separate operator-energy diagnostic; no q/map stack is retained.
+        "E_dep_raman_interval_J": _np.asarray(
+            E_dep_raman_interval_J_list, dtype=_np.float64
+        ),
+        "E_dep_raman_interval_reduction_reference_J": _np.asarray(
+            E_dep_raman_interval_reduction_reference_J_list, dtype=_np.float64
+        ),
+        "E_dep_raman_interval_operator_J": _np.asarray(
+            E_dep_raman_interval_operator_J_list, dtype=_np.float64
+        ),
+        "E_dep_raman_interval_closure_residual_J": _np.asarray(
+            E_dep_raman_interval_closure_residual_J_list, dtype=_np.float64
+        ),
+        "E_dep_raman_operator_energy_residual_J": _np.asarray(
+            E_dep_raman_operator_energy_residual_J_list, dtype=_np.float64
+        ),
+        "raman_operator_energy_closure_relative_interval": _np.asarray(
+            raman_operator_energy_relative_residual_list, dtype=_np.float64
+        ),
+        "E_dep_raman_pulse_J": float(E_dep_raman_pulse),
+        "E_dep_raman_operator_pulse_J": float(E_dep_raman_operator_pulse),
+        "E_dep_raman_pulse_closure_residual_J": float(
+            E_dep_raman_pulse_closure_residual
+        ),
+        "E_dep_raman_operator_energy_pulse_residual_J": float(
+            E_dep_raman_operator_energy_pulse_residual
+        ),
+        # HR-2D unified deposition bookkeeping.  The mechanism-resolved
+        # interval arrays above remain the canonical source; the total is
+        # populated only when every active mechanism is authoritative.
+        "unified_deposition_ledger_schema": _np.asarray(
+            "khz_filament.unified_deposition_ledger.v1"
+        ),
+        "deposition_mechanism_status_json": _np.asarray(mechanism_status_json),
+        "deposition_ion_configured": bool(
+            unified_deposition["mechanisms"]["ion"]["configured"]
+        ),
+        "deposition_ion_active": bool(
+            unified_deposition["mechanisms"]["ion"]["active"]
+        ),
+        "deposition_ion_authoritative": bool(
+            unified_deposition["mechanisms"]["ion"]["authoritative"]
+        ),
+        "deposition_ion_source": _np.asarray(
+            unified_deposition["mechanisms"]["ion"]["source"]
+        ),
+        "deposition_ion_feedback_applied": bool(
+            unified_deposition["mechanisms"]["ion"]["feedback_applied"]
+        ),
+        "deposition_ib_configured": bool(
+            unified_deposition["mechanisms"]["ib"]["configured"]
+        ),
+        "deposition_ib_active": bool(
+            unified_deposition["mechanisms"]["ib"]["active"]
+        ),
+        "deposition_ib_authoritative": bool(
+            unified_deposition["mechanisms"]["ib"]["authoritative"]
+        ),
+        "deposition_ib_source": _np.asarray(
+            unified_deposition["mechanisms"]["ib"]["source"]
+        ),
+        "deposition_raman_configured": bool(
+            unified_deposition["mechanisms"]["raman"]["configured"]
+        ),
+        "deposition_raman_active": bool(
+            unified_deposition["mechanisms"]["raman"]["active"]
+        ),
+        "deposition_raman_authoritative": bool(
+            unified_deposition["mechanisms"]["raman"]["authoritative"]
+        ),
+        "deposition_raman_source": _np.asarray(
+            unified_deposition["mechanisms"]["raman"]["source"]
+        ),
+        "deposition_raman_feedback_applied": bool(
+            unified_deposition["mechanisms"]["raman"]["feedback_applied"]
+        ),
+        "deposition_ion_level1_closure_status": _np.asarray(
+            unified_deposition["level1"]["ion"]
+        ),
+        "deposition_ib_level1_closure_status": _np.asarray(
+            unified_deposition["level1"]["ib"]
+        ),
+        "deposition_raman_level1_closure_status": _np.asarray(
+            unified_deposition["level1"]["raman"]
+        ),
+        "deposition_raman_deposition_reduction_closure_status": _np.asarray(
+            unified_deposition["level1"]["raman"]
+        ),
+        "deposition_raman_operator_energy_closure_status": _np.asarray(
+            unified_deposition["raman_operator_energy_closure_status"]
+        ),
+        "raman_operator_energy_step_p99": float(
+            unified_deposition["raman_operator_energy_step_p99"]
+        ),
+        "raman_operator_energy_cumulative_relative": float(
+            unified_deposition["raman_operator_energy_cumulative_relative"]
+        ),
+        "raman_operator_energy_step_p99_tolerance": float(
+            unified_deposition["raman_operator_energy_step_p99_tolerance"]
+        ),
+        "raman_operator_energy_cumulative_tolerance": float(
+            unified_deposition["raman_operator_energy_cumulative_tolerance"]
+        ),
+        "deposition_level1_all_available_mechanism_closure_pass": bool(
+            unified_deposition["level1_all_available_pass"]
+        ),
+        "deposition_ion_level2_closure_status": _np.asarray(
+            unified_deposition["level2"]["ion"]
+        ),
+        "deposition_ib_level2_closure_status": _np.asarray(
+            unified_deposition["level2"]["ib"]
+        ),
+        "deposition_raman_level2_closure_status": _np.asarray(
+            unified_deposition["level2"]["raman"]
+        ),
+        "deposition_level2_all_available_mechanism_closure_pass": bool(
+            unified_deposition["level2_all_available_pass"]
+        ),
+        "total_deposition_authoritative": bool(
+            unified_deposition["total_authoritative"]
+        ),
+        "total_deposition_unavailable_reason": _np.asarray(
+            unified_deposition["total_unavailable_reason"]
+        ),
+        "E_dep_total_interval_J": _np.asarray(
+            unified_deposition["total_interval_J"], dtype=_np.float64
+        ),
+        "E_dep_total_pulse_J": float(unified_deposition["total_pulse_J"]),
+        "E_dep_total_level2_closure_status": _np.asarray(
+            unified_deposition["total_level2_status"]
+        ),
+        "deposition_closure_relative_tolerance": float(
+            unified_deposition["closure_relative_tolerance"]
+        ),
+        # Level-3 is a signed optical-field bookkeeping diagnostic only.
+        # Positive residual means field loss not covered by authoritative
+        # deposition; it is never promoted to a deposition or heat source.
+        "E_field_in_J": float(unified_deposition["field_in_J"]),
+        "E_field_out_J": float(unified_deposition["field_out_J"]),
+        "E_field_loss_J": float(unified_deposition["field_loss_J"]),
+        "E_dep_accounted_authoritative_J": float(
+            unified_deposition["accounted_authoritative_J"]
+        ),
+        "E_field_energy_bookkeeping_residual_J": float(
+            unified_deposition["field_residual_J"]
+        ),
+        "E_field_energy_bookkeeping_relative_residual": float(
+            unified_deposition["field_relative_residual"]
+        ),
+        "field_energy_bookkeeping_authoritative": bool(
+            unified_deposition["field_bookkeeping_authoritative"]
+        ),
+        "field_energy_bookkeeping_status": _np.asarray(
+            "available"
+            if unified_deposition["field_bookkeeping_authoritative"]
+            else "unavailable"
+        ),
+        # These z-history values are retained for downstream compatibility,
+        # but none is a canonical HR-2 total-deposition ledger.
+        "legacy_E_dep_z_semantics": _np.asarray(
+            "compatibility_z_history_ion_ib_noncanonical"
+        ),
+        "legacy_E_dep_rot_z_semantics": _np.asarray(
+            "compatibility_z_history_raman_non_authoritative"
+        ),
+        "legacy_E_dep_total_z_semantics": _np.asarray(
+            "compatibility_z_history_non_authoritative"
+        ),
+        "raman_actual_local_negative_min_J_m2": _np.asarray(
+            raman_actual_local_negative_min_J_m2_list, dtype=_np.float64
+        ),
         "U_rel_change_z":           _np.asarray(U_rel_change_z_list,      dtype=rdtype_np),
         "U_step_change_z":          _np.asarray(U_step_change_z_list,     dtype=rdtype_np),
         "E_loss_from_input_z":      _np.asarray(E_loss_from_input_z_list, dtype=rdtype_np),
@@ -1190,6 +1728,8 @@ def propagate_one_pulse(
         "raman_absorption_on":      bool(use_raman and raman_absorb_on),
         "raman_absorption_calculated": bool(use_raman and raman_absorption_compute),
         "raman_operator_mode": _np.asarray(r_operator_mode),
+        "raman_deposition_authoritative": bool(raman_deposition_authoritative),
+        "raman_deposition_source": _np.asarray(raman_deposition_source),
         "raman_operator_feedback_enabled": bool(switches.use_raman_full_operator),
         "raman_operator_applied": _np.asarray(raman_operator_applied_z_list, dtype=_np.bool_),
         "raman_rhs_l2_norm": _np.asarray(raman_rhs_l2_norm_z_list, dtype=rdtype_np),
@@ -1298,6 +1838,16 @@ def propagate_one_pulse(
         "nonlinear_use_self_steepening": bool(switches.use_self_steepening),
         "nonlinear_use_ionization_solver": bool(switches.use_ionization_solver),
     }
+    for prefix, grid_metadata in (
+        ("optical_grid_", deposition_contract.transverse_grid.optical_grid),
+        ("thermal_grid_", deposition_contract.transverse_grid.thermal_grid),
+    ):
+        diag[f"{prefix}Nx"] = _np.int64(grid_metadata.Nx)
+        diag[f"{prefix}Ny"] = _np.int64(grid_metadata.Ny)
+        diag[f"{prefix}dx"] = float(grid_metadata.dx)
+        diag[f"{prefix}dy"] = float(grid_metadata.dy)
+        diag[f"{prefix}Lx"] = float(grid_metadata.Lx)
+        diag[f"{prefix}Ly"] = float(grid_metadata.Ly)
     if diag_linear_halfstep_energy:
         diag["linear_halfstep_energy_diagnostics_enabled"] = _np.bool_(True)
         diag["linear_halfstep_energy_sign_convention"] = _np.asarray(
@@ -1323,5 +1873,5 @@ def propagate_one_pulse(
     diag["diagnostic_all_zero_traces"] = _np.asarray(validation["all_zero_traces"], dtype="U64")
 
 
-    # Qacc 是 2D（J/m^2）：用于慢时间热扩散
+    # Qacc/Q2D is legacy 2-D slow-heat compatibility output [J/m^2].
     return E, to_cpu(Qacc).astype(rdtype_np, copy=False), diag

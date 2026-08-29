@@ -125,16 +125,20 @@ python Filament_python/npz2mat.py --npz Filament_python/khzfil_out.npz --mat Fil
 ## 快速检查
 
 ```powershell
-python -m compileall Filament_python/KHz_filament
-pytest -q Filament_python/tests/test_sanity.py
-$previousPythonPath = $env:PYTHONPATH
-try {
-  $env:PYTHONPATH = (Resolve-Path Filament_python)
-  python Filament_python/tests/ionization_selfcheck_min.py
-} finally {
-  $env:PYTHONPATH = $previousPythonPath
-}
+D:\Filament_1\Filament_python\tools\run_local_tests.ps1 -Mode import
+D:\Filament_1\Filament_python\tools\run_local_tests.ps1 -Mode backend
+D:\Filament_1\Filament_python\tools\run_local_tests.ps1 -Mode sanity
+D:\Filament_1\Filament_python\tools\run_local_tests.ps1 -Mode targeted
+$py = 'C:\Users\wangj\.conda\envs\filament-local-test\python.exe'
+& $py -s -B -m compileall D:\Filament_1\Filament_python\KHz_filament
 ```
+
+本地测试入口默认使用仓库外的 `filament-local-test` Conda 环境，并自动设置
+`Filament_python` 模块路径、`PYTHONNOUSERSITE=1` 和显式 `python -m pytest`。
+不要使用裸 `python`/`pytest` 运行本地测试，也不要在 backend 或 sanity 失败后继续
+执行 targeted。该环境仅用于 Windows CPU 软件测试；CuPy、GPU 和真实传播仍以 HPC
+`scvi806` 环境为权威。环境指纹见
+`Filament_python/results/local_test_environment/`。
 
 `tests/minimal_run.py` 会从 `Filament_python` 工作目录加载 `khz_config.json`，因此它不是低成本 smoke test；首次验证优先使用 `test_run.py --cfg config_ref.json`。
 

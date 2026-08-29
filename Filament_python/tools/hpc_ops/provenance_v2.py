@@ -29,6 +29,26 @@ from urllib.parse import urlsplit
 
 SCHEMA = "filament.provenance.v2"
 VERSION = 2
+CLASSIFIED_HASH_SCOPE = "classified_by_record"
+TRACKED_HASH_SCOPE = "git_blob_oid+canonical_lf_sha256"
+EXTERNAL_HASH_SCOPE = "raw_bytes"
+STRICT_TOP_LEVEL_KEYS = {
+    "schema",
+    "version",
+    "repository",
+    "repository_path",
+    "head",
+    "branch",
+    "hash_scope",
+    "line_endings",
+    "records",
+    "created_at_utc",
+}
+LINE_ENDING_POLICY = {
+    "tracked_create": "canonical-LF-from-Git-blob",
+    "tracked_validate": "canonical-LF-worktree-match",
+    "external": "raw-bytes",
+}
 
 
 class ProvenanceError(ValueError):
@@ -137,6 +157,26 @@ def _read_tracked(repo: Path, relative: str) -> bytes:
     return path.read_bytes()
 
 
+def _read_git_blob(repo: Path, oid: str) -> bytes:
+    result = subprocess.run(
+        ["git", "-C", str(repo), "cat-file", "blob", oid],
+        check=False,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        message = result.stderr.decode("utf-8", errors="replace").strip()
+        raise ProvenanceError(message or f"could not read Git blob: {oid}")
+    return result.stdout
+
+
+def _digest(value: Any, *, name: str, lengths: tuple[int, ...] = (64,)) -> str:
+    if not isinstance(value, str) or len(value) not in lengths:
+        raise ProvenanceError(f"{name} must be a hexadecimal digest")
+    if any(character not in "0123456789abcdefABCDEF" for character in value):
+        raise ProvenanceError(f"{name} must be a hexadecimal digest")
+    return value.lower()
+
+
 def _safe_repository_identity(identity: str) -> str:
     """Reject control characters and credentials in a recorded remote URL."""
 
@@ -193,28 +233,35 @@ def create_manifest(
     tracked_paths: Iterable[str],
     external_paths: Iterable[str],
 ) -> dict[str, Any]:
-    """Create a v2 manifest after enforcing clean, committed, LF worktree state."""
+    """Create a v2 manifest from clean committed content.
+
+    Tracked text is hashed from the committed Git blob.  The worktree may use
+    LF or CRLF, but its canonical-LF bytes must still match that blob.  This is
+    what makes one manifest portable between Windows and Linux checkouts.
+    """
 
     repo_path = Path(repo).resolve()
     root = _repo_root(repo_path)
     _ensure_clean(root)
 
-    tracked_records: list[dict[str, str]] = []
+    records: list[dict[str, str]] = []
     for value in tracked_paths:
         relative = _repo_relative(root, value)
         oid = _git_blob_oid(root, relative)
-        data = _read_tracked(root, relative)
-        if b"\r\n" in data or b"\r" in data:
-            raise ProvenanceError(f"tracked text must use LF in worktree: {relative}")
-        tracked_records.append(
+        worktree_data = _read_tracked(root, relative)
+        blob_data = _read_git_blob(root, oid)
+        if canonical_lf_bytes(worktree_data) != canonical_lf_bytes(blob_data):
+            raise ProvenanceError(f"tracked text does not match committed Git blob: {relative}")
+        records.append(
             {
                 "path": relative,
+                "classification": "tracked_text",
+                "hash_scope": TRACKED_HASH_SCOPE,
                 "git_blob_oid": oid,
-                "canonical_lf_sha256": canonical_lf_sha256(data),
+                "canonical_lf_sha256": canonical_lf_sha256(blob_data),
             }
         )
 
-    external_records: list[dict[str, str]] = []
     for value in external_paths:
         candidate = Path(value)
         if candidate.is_symlink():
@@ -222,15 +269,20 @@ def create_manifest(
         path = candidate.resolve()
         if not path.is_file():
             raise ProvenanceError(f"external artifact is not a regular file: {value}")
-        external_records.append(
+        records.append(
             {
                 "path": str(path),
+                "classification": "external",
+                "hash_scope": EXTERNAL_HASH_SCOPE,
                 "raw_sha256": raw_sha256_file(path),
             }
         )
 
-    if not tracked_records and not external_records:
+    if not records:
         raise ProvenanceError("at least one tracked or external path is required")
+    paths = [record["path"] for record in records]
+    if len(paths) != len(set(paths)):
+        raise ProvenanceError("each provenance path must have exactly one classification")
 
     metadata = _metadata(root)
     manifest: dict[str, Any] = {
@@ -240,13 +292,9 @@ def create_manifest(
         "repository_path": str(root),
         "head": metadata["head"],
         "branch": metadata["branch"],
-        "line_endings": {
-            "tracked_create": "LF-required",
-            "tracked_validate": "canonical-LF",
-            "external": "raw-bytes",
-        },
-        "tracked_text": tracked_records,
-        "external": external_records,
+        "hash_scope": CLASSIFIED_HASH_SCOPE,
+        "line_endings": LINE_ENDING_POLICY,
+        "records": records,
         "created_at_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
     output_path = Path(output).absolute()
@@ -269,33 +317,128 @@ def create_manifest(
     return manifest
 
 
-def _validate_tracked(repo: Path, record: dict[str, Any]) -> None:
+def _validate_tracked(repo: Path, record: dict[str, Any], *, strict: bool) -> dict[str, Any]:
     required = {"path", "git_blob_oid", "canonical_lf_sha256"}
+    if strict:
+        required |= {"classification", "hash_scope"}
     if set(record) != required:
         raise ProvenanceError("tracked_text record has an unexpected shape")
-    relative = _repo_relative(repo, str(record["path"]))
+    if strict:
+        if record.get("classification") != "tracked_text":
+            raise ProvenanceError("tracked_text record classification is invalid")
+        if record.get("hash_scope") != TRACKED_HASH_SCOPE:
+            raise ProvenanceError("tracked_text record hash_scope is invalid")
+    if not isinstance(record.get("path"), str):
+        raise ProvenanceError("tracked path must be a string")
+    relative = _repo_relative(repo, record["path"])
     if relative != record["path"]:
         raise ProvenanceError("tracked path is not canonical")
+    expected_oid = _digest(record["git_blob_oid"], name="git_blob_oid", lengths=(40, 64))
+    expected_hash = _digest(record["canonical_lf_sha256"], name="canonical_lf_sha256")
     actual_oid = _git_blob_oid(repo, relative)
-    if actual_oid != record["git_blob_oid"]:
+    if actual_oid.lower() != expected_oid:
         raise ProvenanceError(f"Git blob mismatch: {relative}")
     actual_hash = canonical_lf_sha256(_read_tracked(repo, relative))
-    if actual_hash != record["canonical_lf_sha256"]:
+    if actual_hash != expected_hash:
         raise ProvenanceError(f"canonical text hash mismatch: {relative}")
+    return record
 
 
-def _validate_external(record: dict[str, Any]) -> None:
+def _validate_external(record: dict[str, Any], *, strict: bool) -> dict[str, Any]:
     required = {"path", "raw_sha256"}
+    if strict:
+        required |= {"classification", "hash_scope"}
     if set(record) != required:
         raise ProvenanceError("external record has an unexpected shape")
-    path = Path(str(record["path"]))
+    if strict:
+        if record.get("classification") != "external":
+            raise ProvenanceError("external record classification is invalid")
+        if record.get("hash_scope") != EXTERNAL_HASH_SCOPE:
+            raise ProvenanceError("external record hash_scope is invalid")
+    if not isinstance(record.get("path"), str):
+        raise ProvenanceError("external path must be a string")
+    path = Path(record["path"])
+    if strict and not path.is_absolute():
+        raise ProvenanceError("external path must be absolute")
     if path.is_symlink():
         raise ProvenanceError(f"external artifact must not be a symlink: {path}")
     if not path.is_file():
         raise ProvenanceError(f"external artifact is missing: {path}")
+    expected_hash = _digest(record["raw_sha256"], name="raw_sha256")
     actual_hash = raw_sha256_file(path)
-    if actual_hash != record["raw_sha256"]:
+    if actual_hash != expected_hash:
         raise ProvenanceError(f"raw artifact hash mismatch: {path}")
+    return record
+
+
+def iter_records(manifest: dict[str, Any], *, require_hash_scope: bool = False) -> list[dict[str, Any]]:
+    """Return records from either a new strict manifest or a legacy v2 manifest."""
+
+    if not isinstance(manifest, dict):
+        raise ProvenanceError("provenance manifest must be an object")
+    has_new = "records" in manifest or "hash_scope" in manifest
+    if has_new:
+        if set(manifest) != STRICT_TOP_LEVEL_KEYS:
+            raise ProvenanceError("classified provenance manifest has an unexpected shape")
+        if manifest.get("hash_scope") != CLASSIFIED_HASH_SCOPE:
+            raise ProvenanceError("provenance manifest hash_scope is invalid")
+        if set(manifest) & {"tracked_text", "external"}:
+            raise ProvenanceError("new provenance manifests must use records only")
+        records = manifest.get("records")
+        if not isinstance(records, list):
+            raise ProvenanceError("provenance manifest records must be a list")
+        return records
+    if require_hash_scope:
+        raise ProvenanceError("strict provenance validation requires hash_scope and records")
+    tracked = manifest.get("tracked_text", [])
+    external = manifest.get("external", [])
+    if not isinstance(tracked, list) or not isinstance(external, list):
+        raise ProvenanceError("legacy provenance record groups must be lists")
+    return [*tracked, *external]
+
+
+def lookup_record(
+    manifest: dict[str, Any], path: str, *, classification: str | None = None,
+    require_hash_scope: bool = False,
+) -> dict[str, Any]:
+    """Find one provenance record by path and optional classification."""
+
+    matches = []
+    for record in iter_records(manifest, require_hash_scope=require_hash_scope):
+        if not isinstance(record, dict) or record.get("path") != path:
+            continue
+        actual_classification = record.get("classification")
+        if actual_classification is None and not require_hash_scope:
+            actual_classification = "tracked_text" if "git_blob_oid" in record else "external"
+        if classification is None or actual_classification == classification:
+            matches.append(record)
+    if len(matches) != 1:
+        qualifier = f" ({classification})" if classification else ""
+        raise ProvenanceError(f"expected exactly one provenance record for {path}{qualifier}")
+    return matches[0]
+
+
+find_record = lookup_record
+
+
+def validate_record(
+    repo: str | os.PathLike[str], record: dict[str, Any], *, require_hash_scope: bool = False,
+) -> dict[str, Any]:
+    """Validate one tracked or external record using the canonical hash helpers."""
+
+    if not isinstance(record, dict):
+        raise ProvenanceError("provenance record must be an object")
+    classification = record.get("classification")
+    if classification == "tracked_text":
+        return _validate_tracked(_repo_root(Path(repo).resolve()), record, strict=require_hash_scope)
+    if classification == "external":
+        return _validate_external(record, strict=require_hash_scope)
+    if not require_hash_scope and "classification" not in record:
+        if "git_blob_oid" in record:
+            return _validate_tracked(_repo_root(Path(repo).resolve()), record, strict=False)
+        if "raw_sha256" in record:
+            return _validate_external(record, strict=False)
+    raise ProvenanceError("provenance record classification is invalid")
 
 
 def validate_manifest(
@@ -303,6 +446,7 @@ def validate_manifest(
     manifest_path: str | os.PathLike[str],
     *,
     require_clean: bool = True,
+    require_hash_scope: bool = False,
 ) -> dict[str, Any]:
     """Validate a v2 manifest strictly unless ``require_clean=False`` is explicit."""
 
@@ -316,6 +460,21 @@ def validate_manifest(
         raise ProvenanceError("unsupported provenance schema")
     if manifest.get("version") != VERSION:
         raise ProvenanceError("unsupported provenance version")
+    strict_records = manifest.get("hash_scope") == CLASSIFIED_HASH_SCOPE
+    if strict_records:
+        if set(manifest) != STRICT_TOP_LEVEL_KEYS:
+            raise ProvenanceError("classified provenance manifest has an unexpected shape")
+        if not isinstance(manifest.get("repository"), str) or not manifest["repository"]:
+            raise ProvenanceError("repository identity must be a non-empty string")
+        if not isinstance(manifest.get("repository_path"), str) or not manifest["repository_path"]:
+            raise ProvenanceError("repository_path must be a non-empty string")
+        _digest(manifest.get("head"), name="head", lengths=(40, 64))
+        if not isinstance(manifest.get("branch"), str) or not manifest["branch"]:
+            raise ProvenanceError("branch must be a non-empty string")
+        if manifest.get("line_endings") != LINE_ENDING_POLICY:
+            raise ProvenanceError("line_endings policy is invalid")
+        if not isinstance(manifest.get("created_at_utc"), str) or not manifest["created_at_utc"]:
+            raise ProvenanceError("created_at_utc must be a non-empty string")
     current_identity = _safe_repository_identity(
         _git(repo_path, "remote", "get-url", "origin", check=False) or repo_path.name
     )
@@ -328,16 +487,25 @@ def validate_manifest(
         raise ProvenanceError("repository HEAD does not match manifest")
     if require_clean:
         _ensure_clean(repo_path)
-    for record in manifest.get("tracked_text", []):
-        if not isinstance(record, dict):
-            raise ProvenanceError("tracked_text record is not an object")
-        _validate_tracked(repo_path, record)
-    for record in manifest.get("external", []):
-        if not isinstance(record, dict):
-            raise ProvenanceError("external record is not an object")
-        _validate_external(record)
-    if not manifest.get("tracked_text") and not manifest.get("external"):
+    records = iter_records(manifest, require_hash_scope=require_hash_scope)
+    if require_hash_scope and not strict_records:
+        raise ProvenanceError("strict provenance validation requires classified hash_scope")
+    if not records:
         raise ProvenanceError("manifest contains no records")
+    seen: set[str] = set()
+    for record in records:
+        if not isinstance(record, dict):
+            raise ProvenanceError("provenance record is not an object")
+        classification = record.get("classification")
+        if strict_records and classification not in {"tracked_text", "external"}:
+            raise ProvenanceError("provenance record classification is invalid")
+        if not strict_records:
+            classification = "tracked_text" if "git_blob_oid" in record else "external"
+        path_key = str(record.get("path"))
+        if path_key in seen:
+            raise ProvenanceError(f"duplicate provenance record: {path_key}")
+        seen.add(path_key)
+        validate_record(repo_path, record, require_hash_scope=strict_records)
     return manifest
 
 
@@ -359,6 +527,11 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="allow a dirty CRLF checkout while retaining canonical content checks",
     )
+    validate.add_argument(
+        "--require-hash-scope",
+        action="store_true",
+        help="require the classified records schema and reject legacy v2 groups",
+    )
     return parser
 
 
@@ -369,7 +542,12 @@ def main(argv: list[str] | None = None) -> int:
             manifest = create_manifest(args.repo, args.output, args.tracked, args.external)
             print(json.dumps(manifest, ensure_ascii=False, indent=2))
         else:
-            manifest = validate_manifest(args.repo, args.manifest, require_clean=not args.non_strict)
+            manifest = validate_manifest(
+                args.repo,
+                args.manifest,
+                require_clean=not args.non_strict,
+                require_hash_scope=args.require_hash_scope,
+            )
             print(
                 json.dumps(
                     {

@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "collected_at": "2026-08-27T18:54+08:00",
+  "collection_method": "local environment; rebuilt from conda-forge with OpenBLAS after MKL native crash",
+  "status": "verified",
+  "environment_name": "filament-local-test",
+  "environment_path": "C:\\Users\\wangj\\.conda\\envs\\filament-local-test",
+  "location_policy": "outside repo (D:\\Filament_1) by design; never inside Git working tree",
+  "platform": "win-64",
+  "os_family": "Windows",
+  "creation_command": [
+    "conda create -y -p C:\\Users\\wangj\\.conda\\envs\\filament-local-test",
+    "--override-channels -c conda-forge",
+    "python=3.13.7 numpy=2.3.3 scipy pytest"
+  ],
+  "python": {
+    "version_expected": "3.13.7",
+    "version_short": "3.13",
+    "packager": "conda-forge",
+    "executable": "C:\\Users\\wangj\\.conda\\envs\\filament-local-test\\python.exe"
+  },
+  "packages": {
+    "numpy_expected": "2.3.3",
+    "scipy_expected": "1.16.3",
+    "scipy_actual": "1.16.3",
+    "scipy_conda_meta_channel": "https://conda.anaconda.org/conda-forge/win-64",
+    "scipy_conda_meta_build": "py313he51e9a2_2",
+    "pytest_expected": "9.1.1",
+    "cupy": "unavailable"
+  },
+  "verification_commands_powershell": [
+    "& $py -VV",
+    "& $py -c \"import sys; print(sys.executable)\"",
+    "& $py -c \"import numpy; print(numpy.__version__)\"",
+    "& $py -c \"import scipy; print(scipy.__version__)\"",
+    "& $py -c \"import pytest; print(pytest.__version__)\"",
+    "# cupy import expected to fail with ModuleNotFoundError -> record remote_gpu_only"
+  ],
+  "cupy_status": "remote_gpu_only",
+  "blas": {
+    "provider": "OpenBLAS",
+    "packages": [
+      "libopenblas 0.3.34 pthreads_h877e47f_0",
+      "libblas 3.11.0 9_h0adab6e_openblas",
+      "libcblas 3.11.0 9_h2a8eebe_openblas",
+      "liblapack 3.11.0 9_hd232482_openblas"
+    ]
+  },
+  "verification": {
+    "python_executable": "C:\\Users\\wangj\\.conda\\envs\\filament-local-test\\python.exe",
+    "python_no_user_site": true,
+    "pip_check": "pass",
+    "backend_probe": {
+      "status": "pass",
+      "dtype": "complex128",
+      "shape": [8, 8],
+      "max_error": 1.588822e-14,
+      "started_at": "2026-08-27T18:53:11+08:00",
+      "finished_at": "2026-08-27T18:53:11+08:00",
+      "exit_code": 0
+    },
+    "import_root": "pass",
+    "import_external_directory": "pass",
+    "sanity": {"passed": 1, "exit_code": 0},
+    "targeted": {"passed": 56, "skipped": 3, "exit_code": 0, "scope": [
+      "Filament_python/tests/test_sanity.py",
+      "Filament_python/tests/test_longitudinal_contract.py",
+      "Filament_python/tests/test_hr2d_unified_deposition_ledger.py",
+      "Filament_python/tests/test_hpc_execution_guardrails.py",
+      "Filament_python/tests/test_hpc_git_source_state.py",
+      "Filament_python/tests/test_hr2e_schedule_convergence.py"
+    ]},
+    "compileall": {"status": "pass", "exit_code": 0}
+  },
+  "notes": [
+    "Local env is for CPU software / import / config tests only.",
+    "HPC (scvi806 Filament_python) remains the sole authoritative environment for GPU/CuPy and real propagation.",
+    "The prior Windows MKL variant crashed in numpy.linalg.norm during the first full Isaacs Raman test; it was removed and replaced by this OpenBLAS environment.",
+    "conda list may display scipy as pypi_0 because the conda-installed SciPy dist-info carries a wheel direct_url; conda-meta records the conda-forge package URL, build, and SHA, and pip check passes."
+  ]
+}

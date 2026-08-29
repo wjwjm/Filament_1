@@ -1,0 +1,18 @@
+Traceback (most recent call last):
+  File "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/source/staging/Filament_1_a11e1f1_hr2e_retry1_20260827/Filament_python/tools/hr2e_schedule_convergence.py", line 707, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/source/staging/Filament_1_a11e1f1_hr2e_retry1_20260827/Filament_python/tools/hr2e_schedule_convergence.py", line 681, in main
+    coarse = None if args.coarse is None else load_case_with_provenance(
+                                              ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        args.coarse, args.coarse_metadata, args.manifest, case_id=f"hr2e_{pulse}_coarse"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/source/staging/Filament_1_a11e1f1_hr2e_retry1_20260827/Filament_python/tools/hr2e_schedule_convergence.py", line 314, in load_case_with_provenance
+    run = load_canonical_npz(npz_path, label=case_id)
+  File "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/source/staging/Filament_1_a11e1f1_hr2e_retry1_20260827/Filament_python/tools/hr2e_schedule_convergence.py", line 302, in load_canonical_npz
+    result = validate_canonical_mapping(copied, label=label or source.stem)
+  File "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/source/staging/Filament_1_a11e1f1_hr2e_retry1_20260827/Filament_python/tools/hr2e_schedule_convergence.py", line 222, in validate_canonical_mapping
+    raise ValueError(f"{label}: Level-1 deposition closure failed")
+ValueError: hr2e_120fs_coarse: Level-1 deposition closure failed
