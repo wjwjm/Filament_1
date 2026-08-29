@@ -1,0 +1,59 @@
+{
+  "schema": "khz_filament.hr2e.r1_reprocess_manifest.v1",
+  "reprocessed_utc_date": "2026-08-29",
+  "verdict": "HR-2E BLOCKED",
+  "stage": "R1_corrected_120fs_reprocessing",
+  "reuse_class": "A",
+  "raw_npz_downloaded": false,
+  "raw_npz_modified": false,
+  "existing_jobs": {
+    "coarse": 224730,
+    "candidate": 224731,
+    "fine": 224732
+  },
+  "propagation_execution_git_sha": "a11e1f1b3ad2fc2f95f5effbe231fbec4558a3b7",
+  "analysis_git_sha": "485790961fa57da9cde6a316b0128000d5279431",
+  "analysis_checkout": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/source/staging/Filament_1_4857909_hr2e_resume_20260829",
+  "analysis_checkout_acquisition": {
+    "state": "completed",
+    "source_class": "strict_remote_verified",
+    "operation_id": "b0ef6452-3551-4eb6-91ef-8e3243b36c43"
+  },
+  "corrected_raman_contract": {
+    "source": "eq10_heun_positive_rotational_energy",
+    "deposition_reduction_relative_tolerance": 2e-05,
+    "operator_step_p99_relative_tolerance": 0.001,
+    "operator_cumulative_relative_tolerance": 0.005
+  },
+  "provenance_gate": "passed",
+  "corrected_authoritative_prerequisites": {
+    "ion": "pass",
+    "ib": "not_applicable_zero",
+    "raman_deposition_reduction": "pass",
+    "raman_operator_energy": "pass",
+    "total": "pass"
+  },
+  "raman_operator_energy_summary": {
+    "coarse_step_p99_relative": 0.00019894498109351844,
+    "candidate_step_p99_relative": 0.00020055910979863256,
+    "fine_step_p99_relative": 0.0001953543967101719,
+    "maximum_step_p99_relative": 0.00020055910979863256,
+    "maximum_cumulative_relative": 7.304432074306533e-05
+  },
+  "analysis_artifacts": {
+    "remote_directory": "/data/run01/scvi806/user_Wangjimin/projects/Filament_1/campaigns/hr2e_schedule_convergence_20260827_a11e1f1/stage2_120fs_retry1/analysis_120fs",
+    "local_directory": "Filament_python/results/hr2e_schedule_convergence/stage2_120fs_retry1/analysis_120fs",
+    "schedule_comparison_json_sha256": "2a981c1a4468731954f79288f2848245f94e9e7ccf09a6b8fdbd958a752f997f"
+  },
+  "candidate_vs_fine_primary_pass": false,
+  "failure_classification": [
+    "B_focus_dz_resolution",
+    "C_base_dz_resolution"
+  ],
+  "stage_r2_40fs_submitted": false,
+  "production_schedule_frozen": false,
+  "production_config_changed": false,
+  "new_120fs_jobs": 0,
+  "new_40fs_jobs": 0,
+  "repeated_identical_successful_jobs": 0
+}
