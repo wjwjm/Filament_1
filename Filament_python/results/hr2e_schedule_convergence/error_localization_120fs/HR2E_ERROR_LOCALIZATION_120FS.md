@@ -48,7 +48,7 @@ Focus resolution is the main limiter for Ion and Total deposition formation,
 but base-region resolution remains material after the focus window (26.80% of
 Total and 52.00% of Raman candidate-to-fine difference).  This finding does
 not authorize creation of a new schedule, an extra-fine case, or any HPC job.
-It also does not change the existing HR-2E Raman Level-1 closure blocker.
+It documents the remaining HR-2E longitudinal schedule-convergence debt.
 
 ## Artifacts
 

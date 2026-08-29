@@ -47,5 +47,7 @@ finite, nonnegative, and exactly one-to-one with the canonical interval count.
 The revised postprocessor reconstructs the corrected scalar Raman and total
 ledgers in memory; it neither overwrites nor downloads the raw NPZ files.
 
-This classification does not run HR-2E convergence or freeze a production
-schedule.  HR-2E remains paused until its reprocessing is separately resumed.
+This classification did not itself run HR-2E convergence or freeze a production
+schedule.  Corrected HR-2E reprocessing has since validated the authoritative
+Raman contract; the remaining deferred work is longitudinal schedule
+convergence, not Raman closure.

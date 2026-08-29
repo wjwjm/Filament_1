@@ -2,6 +2,12 @@
 
 Date: 2026-08-28
 
+> Historical Stage-2 record.  Corrected R1 reprocessing subsequently passed
+> the authoritative Raman deposition-reduction and operator-energy closures.
+> This document preserves the original prerequisite failure evidence; it is
+> not the current HR-2E status.  The current unresolved issue is longitudinal
+> schedule convergence only.
+
 All three replacement public-GPU jobs completed successfully at execution SHA
 `a11e1f1b3ad2fc2f95f5effbe231fbec4558a3b7`:
 

@@ -2,10 +2,10 @@
 
 ## Verdict
 
-**HR-2E BLOCKED.**  The corrected Class-A reconstruction completed and the
+**HR-2E DEFERRED.**  The corrected Class-A reconstruction completed and the
 authoritative prerequisite gate passed, but the 120 fs candidate-to-fine
-longitudinal convergence gate did not pass.  This is a schedule-resolution
-finding, not a Raman closure or provenance failure.
+longitudinal convergence gate did not pass.  This is unresolved longitudinal
+schedule convergence debt, not a Raman closure or provenance failure.
 
 ## Provenance and reuse
 
@@ -42,7 +42,7 @@ pulse errors are about 1.14--1.22%, and Raman/total location shifts remain
 above the candidate-resolution allowance.  The error did not decrease from
 coarse-to-candidate to candidate-to-fine, so no monotonicity claim is made.
 
-## Required stop actions
+## Deferred work boundary
 
 - 40 fs candidate/fine submitted: **0**.
 - New 120 fs jobs: **0**.
@@ -50,8 +50,9 @@ coarse-to-candidate to candidate-to-fine, so no monotonicity claim is made.
 - Production config: **unchanged**.
 - HR-3 and HR-5: **not executed**.
 
-The scientifically relevant blocker is insufficient convergence of the
-existing 0.10 mm / 0.05 mm candidate schedule relative to the 0.05 mm /
-0.025 mm fine schedule under the frozen primary pulse-energy and location
-gates.  The next schedule decision requires separate user review; this task
+The scientifically relevant debt is insufficient convergence of the existing
+0.10 mm / 0.05 mm candidate schedule relative to the 0.05 mm / 0.025 mm fine
+schedule under the frozen primary pulse-energy and location gates.  Future
+work is to refine both base and focus dz, revalidate 120 fs, use 40 fs only as
+a necessary cross-check, and then freeze the production schedule.  This task
 does not create a finer schedule or submit another run.
