@@ -29,6 +29,7 @@ from .grids import make_axes
 from .heat import diffuse_dn_gas
 from .longitudinal import build_deposition_contract, build_longitudinal_schedule
 from .propagate import propagate_one_pulse
+from .thermalization import ThermalDiagnosticSink, build_physical_sample_plan
 from .summary import print_sim_summary
 from .utils import gaussian_pulse_t, transverse_intensity_profile
 
@@ -317,6 +318,22 @@ def run_demo(
     deposition_contract = build_deposition_contract(
         longitudinal_schedule, axes=axes
     )
+    focus_enabled = bool(getattr(prop_for_pulse, "focus_window_step", False))
+    focal_plane = getattr(beam, "focal_length", None)
+    thermal_sample_plan = build_physical_sample_plan(
+        longitudinal_schedule,
+        focus_center_m=(None if z_focus_hint is None else float(z_focus_hint)),
+        focus_halfwidth_m=float(getattr(prop_for_pulse, "focus_halfwidth_m", 0.0)),
+        focus_enabled=focus_enabled,
+        focal_plane_m=(None if focal_plane is None else float(focal_plane)),
+    )
+    thermal_sink = ThermalDiagnosticSink(
+        plan=thermal_sample_plan,
+        output_path=out_path,
+        shape=(grid.Ny, grid.Nx),
+        dtype=(_np.float32 if str(dtype).lower() == "fp32" else _np.float64),
+        enabled=(int(run.Npulses) == 1),
+    )
 
     # The pulse-independent source is defined at the exact input plane of
     # propagate_one_pulse: after the lens and optional linear pre-advance.
@@ -348,6 +365,7 @@ def run_demo(
             record_every_z=1,
             longitudinal_schedule=longitudinal_schedule,
             deposition_contract=deposition_contract,
+            thermal_sink=thermal_sink,
         )
         dn_gas = diffuse_dn_gas(dn_gas, Q2D, heat.D_gas, delta_t_pulse, axes.kperp2, heat.gamma_heat)
         mn, mx = float(xp.min(dn_gas)), float(xp.max(dn_gas))
@@ -356,6 +374,9 @@ def run_demo(
         pulse_dn_gas_max_list.append(mx)
         print(f"Pulse {i + 1}/{run.Npulses}: Δn_gas min/max = {mn:.3e}/{mx:.3e}  (elapsed {time.perf_counter() - t_p:.1f}s)")
         last_diag = diag
+
+    # Idempotently close a sink even when a test double bypassed propagation.
+    thermal_sink.finalize()
 
     print(f"[total] {time.perf_counter() - t_all:5.1f}s")
 

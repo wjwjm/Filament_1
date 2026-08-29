@@ -124,3 +124,49 @@ def test_failed_reduction_closure_is_not_authoritative():
     assert not ledger["authoritative"]
     assert ledger["unavailable_reason"] == "thermalization_closure_failed"
     assert ledger["level_t2"]["ion"] == "failed"
+
+
+def test_physical_sample_plan_uses_midpoints_and_deduplicates_intervals():
+    from KHz_filament.longitudinal import build_longitudinal_schedule
+    from KHz_filament.thermalization import build_physical_sample_plan
+
+    schedule = build_longitudinal_schedule(
+        0.003, 0.020, focus_window_step=True,
+        focus_center_m=0.010, focus_halfwidth_m=0.003, dz_focus=0.001,
+    )
+    plan = build_physical_sample_plan(
+        schedule, focus_center_m=0.010, focus_halfwidth_m=0.003,
+        focus_enabled=True, focal_plane_m=0.010,
+    )
+    assert len(plan.interval_index) == len(np.unique(plan.interval_index))
+    assert plan.interval_index[0] == 0
+    assert plan.interval_index[-1] == schedule.n_intervals - 1
+    assert any("focus" in value for value in plan.region)
+    np.testing.assert_allclose(
+        plan.z_mid_m, 0.5 * (plan.z_left_m + plan.z_right_m)
+    )
+
+
+def test_memmap_sink_streams_each_slot_once_and_reopens(tmp_path):
+    from KHz_filament.longitudinal import build_longitudinal_schedule
+    from KHz_filament.thermalization import ThermalDiagnosticSink, build_physical_sample_plan
+
+    schedule = build_longitudinal_schedule(0.005, 0.010)
+    plan = build_physical_sample_plan(
+        schedule, focus_center_m=None, focus_halfwidth_m=0.0,
+        focus_enabled=False, focal_plane_m=None,
+    )
+    sink = ThermalDiagnosticSink(
+        plan=plan, output_path=str(tmp_path / "tiny.npz"), shape=(2, 3),
+        dtype=np.float32, enabled=True,
+    )
+    for interval in plan.interval_index:
+        sink.record_sample(int(interval), np.full((2, 3), interval, dtype=np.float32))
+    with pytest.raises(ValueError, match="only once"):
+        sink.record_sample(int(plan.interval_index[0]), np.zeros((2, 3), dtype=np.float32))
+    meta = sink.finalize()
+    archive = tmp_path / meta["thermal_map_archive_filename"]
+    reopened = np.lib.format.open_memmap(archive, mode="r")
+    assert meta["thermal_map_archive_complete"]
+    assert reopened.shape == (plan.count, 2, 3)
+    assert reopened.dtype == np.float32

@@ -6,6 +6,8 @@
 - 已实现、待验收：将 HR-2 权威、分机制、按 interval 的沉积图转换为独立的 HR-3A
   microscopic-thermalization ledger；完整热化是两篇核心参考文献支持的模型近似，
   而非 fs 瞬时平动升温结论。
+- HR-3A-R：改为 interval-streaming、O(K) 标量账本与物理 z 稀疏二维诊断 sidecar；
+  不再在 RAM 或主 NPZ 中保留 full-z thermal/deposition map history。
 - 未实现：`Delta T`、`delta rho`、`delta n`、声学/等压状态、扩散、传热传质及
   脉冲间慢状态传播；这些属于 HR-3B/HR-3C。
 - 保留：HR-2E = **DEFERRED**；production longitudinal schedule = **NOT FROZEN**；

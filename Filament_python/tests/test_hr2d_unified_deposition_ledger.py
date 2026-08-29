@@ -62,7 +62,9 @@ def _run(
         out_path=str(output), dtype="fp64",
     )
     with np.load(output, allow_pickle=False) as data:
-        return {key: data[key].copy() for key in data.files}
+        result = {key: data[key].copy() for key in data.files}
+    result["__output_path__"] = output
+    return result
 
 
 def test_unified_helper_sums_all_authoritative_mechanisms_and_closes_level2():
@@ -193,7 +195,7 @@ def test_unified_output_keeps_only_scalar_longitudinal_ledgers(tmp_path):
     assert np.asarray(data["E_dep_total_interval_J"]).ndim == 1
 
 
-def test_hr3a_thermal_ledger_consumes_authoritative_interval_maps(tmp_path):
+def test_hr3a_streaming_thermal_ledger_writes_sparse_sidecar(tmp_path):
     data = _run(tmp_path, full_operator=True)
 
     assert data["thermalization_ledger_schema"].item() == (
@@ -201,18 +203,16 @@ def test_hr3a_thermal_ledger_consumes_authoritative_interval_maps(tmp_path):
     )
     assert data["thermalization_source"].item() == "hr2_authoritative_deposition"
     assert data["thermalization_authoritative"].item()
-    assert data["thermalization_t1_ion_status"].item() == "pass"
-    assert data["thermalization_t1_raman_status"].item() == "pass"
-    assert data["thermalization_t2_ion_status"].item() == "pass"
-    assert data["thermalization_t3_channel_sum_status"].item() == "pass"
-    assert data["thermalization_zero_channel_pass"].item()
-    assert np.asarray(data["q_th_ion"]).shape == (
-        int(data["n_intervals"]), 8, 8
-    )
-    assert np.array_equal(data["q_th_ib"], np.zeros_like(data["q_th_ib"]))
-    np.testing.assert_allclose(
-        data["q_thermal"], data["q_th_ion"] + data["q_th_ib"] + data["q_th_raman"]
-    )
+    assert data["thermalization_t1_status"].item() == "pass"
+    assert data["thermalization_t2_status"].item() == "pass"
+    assert data["thermalization_t3_status"].item() == "pass"
+    assert not any(key in data for key in ("q_th_ion", "q_th_ib", "q_th_raman", "q_thermal"))
+    archive = data["__output_path__"].with_suffix(".hr3a_qthermal_samples.npy")
+    assert archive.is_file()
+    maps = np.lib.format.open_memmap(archive, mode="r")
+    assert maps.shape[0] == len(data["thermal_map_interval_index"])
+    assert maps.shape[1:] == (8, 8)
+    assert maps.dtype == np.float64
     np.testing.assert_allclose(
         data["E_thermal_interval_J"],
         data["E_th_ion_interval_J"]

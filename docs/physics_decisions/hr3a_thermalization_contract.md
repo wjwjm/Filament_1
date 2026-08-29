@@ -42,6 +42,10 @@ reductions. It emits
 - authority, source, scheme, active/inactive channel, unit, and schedule
   metadata.
 
+HR-3A-R makes the maps transient and persists the full-z scalar ledger plus a
+sparse physical-z `q_thermal` diagnostic sidecar. Full `[K, Ny, Nx]` thermal
+or deposition map history is not a production output.
+
 The source is fixed as `hr2_authoritative_deposition`. No thermal source is
 constructed from field-energy loss, net electron-density change, recombination,
 attachment, `Qacc`, `gamma_heat`, `Q_rot_vol`, `w_R`, `E_dep_rot_z`,
