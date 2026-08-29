@@ -19,6 +19,7 @@ from .deposition import (
     q_ion_from_power,
     q_raman_from_target_fluence_gain,
 )
+from .thermalization import build_complete_thermalization_ledger
 from .linear_full import step_linear_full_factorized, step_linear_full_3d
 from .air_dispersion import n_of_omega
 from .constants import c0, eps0
@@ -509,6 +510,11 @@ def propagate_one_pulse(
     E_dep_raman_operator_energy_residual_J_list = []
     raman_operator_energy_relative_residual_list = []
     raman_actual_local_negative_min_J_m2_list = []
+    # HR-3A captures only the in-flight authoritative interval maps.  The
+    # optical solver never reads these CPU-owned diagnostic payloads.
+    q_ion_interval_maps = []
+    q_ib_interval_maps = []
+    q_raman_interval_maps = []
     U_rel_change_z_list, U_step_change_z_list, E_loss_from_input_z_list = [], [], []
     fwhm_plasma_z_list, fwhm_fluence_z_list, fwhm_time_z_list = [], [], []
     rho_onaxis_time_list = [] if record_onaxis_rho_time else None
@@ -984,6 +990,7 @@ def propagate_one_pulse(
                 raman_actual_local_negative_min_J_m2 = float(
                     xp.min(xp.minimum(actual_local_fluence_loss_finite, 0.0))
                 )
+                q_raman_interval_maps.append(to_cpu(q_raman).copy())
                 del q_raman, target_local_fluence_gain, actual_local_fluence_loss_finite
                 E_dep_raman_interval_J_list.append(E_dep_raman_interval)
                 E_dep_raman_interval_reduction_reference_J_list.append(
@@ -1080,6 +1087,7 @@ def propagate_one_pulse(
             E_dep_raman_operator_energy_residual_J_list.append(0.0)
             raman_operator_energy_relative_residual_list.append(0.0)
             raman_actual_local_negative_min_J_m2_list.append(0.0)
+            q_raman_interval_maps.append(_np.zeros((Ny, Nx), dtype=rdtype_np))
 
         # —— HR-2B plasma deposition: mechanism-resolved, one interval only ——
         # q maps are interval-average volume energy densities [J/m^3].  The
@@ -1090,6 +1098,8 @@ def propagate_one_pulse(
         q_ion = q_ion_from_power(photoionization_energy_rate, dt)
         ib_power = alpha_ib * I
         q_ib = q_ib_from_power(alpha_ib, I, dt)
+        q_ion_interval_maps.append(to_cpu(q_ion).copy())
+        q_ib_interval_maps.append(to_cpu(q_ib).copy())
         E_dep_ion_interval = interval_energy_from_q(
             q_ion, axes.dx, axes.dy, dz_try
         )
@@ -1446,6 +1456,37 @@ def propagate_one_pulse(
             if full_isaacs_on else None
         ),
     )
+    thermal_map_shape = (longitudinal_schedule.n_intervals, Ny, Nx)
+    q_ion_stack = (
+        _np.stack(q_ion_interval_maps, axis=0)
+        if q_ion_interval_maps else _np.empty(thermal_map_shape, dtype=rdtype_np)
+    )
+    q_ib_stack = (
+        _np.stack(q_ib_interval_maps, axis=0)
+        if q_ib_interval_maps else _np.empty(thermal_map_shape, dtype=rdtype_np)
+    )
+    q_raman_stack = (
+        _np.stack(q_raman_interval_maps, axis=0)
+        if q_raman_interval_maps else _np.empty(thermal_map_shape, dtype=rdtype_np)
+    )
+    thermalization = build_complete_thermalization_ledger(
+        q_ion=q_ion_stack,
+        q_ib=q_ib_stack,
+        q_raman=q_raman_stack,
+        z_edges=longitudinal_schedule.z_edges,
+        dz_intervals=longitudinal_schedule.dz_intervals,
+        dx=axes.dx,
+        dy=axes.dy,
+        deposition_mechanisms=unified_deposition["mechanisms"],
+        deposition_interval_J={
+            "ion": E_dep_ion_interval_J_list,
+            "ib": E_dep_ib_interval_J_list,
+            "raman": E_dep_raman_interval_J_list,
+        },
+    )
+    thermalization_mechanism_status_json = json.dumps(
+        thermalization["mechanisms"], sort_keys=True, separators=(",", ":")
+    )
     mechanism_status_json = json.dumps(
         unified_deposition["mechanisms"], sort_keys=True, separators=(",", ":")
     )
@@ -1687,6 +1728,92 @@ def propagate_one_pulse(
             "available"
             if unified_deposition["field_bookkeeping_authoritative"]
             else "unavailable"
+        ),
+        # HR-3A thermalization ledger.  This is intentionally separate from
+        # the HR-2 deposition ledger even when the complete-microscopic-
+        # thermalization approximation makes their values identical.
+        "thermalization_ledger_schema": _np.asarray(
+            "khz_filament.thermalization_ledger.v1"
+        ),
+        "thermalization_source": _np.asarray("hr2_authoritative_deposition"),
+        "thermalization_scheme": _np.asarray(
+            "complete_microscopic_thermalization"
+        ),
+        "thermalization_complete_microscopic_approximation": _np.bool_(True),
+        "thermalization_authoritative": bool(thermalization["authoritative"]),
+        "thermalization_unavailable_reason": _np.asarray(
+            thermalization["unavailable_reason"]
+        ),
+        "thermalization_value_unit": _np.asarray("J/m^3"),
+        "thermalization_representation": _np.asarray(
+            "interval_average_volumetric_thermalized_energy"
+        ),
+        "thermalization_z_edges": _np.asarray(
+            longitudinal_schedule.z_edges, dtype=_np.float64
+        ),
+        "thermalization_dz_intervals": _np.asarray(
+            longitudinal_schedule.dz_intervals, dtype=_np.float64
+        ),
+        "thermalization_mechanism_status_json": _np.asarray(
+            thermalization_mechanism_status_json
+        ),
+        "thermalization_active_channels": _np.asarray(
+            [
+                channel for channel, status in thermalization["mechanisms"].items()
+                if status["active"]
+            ], dtype="U16"
+        ),
+        "thermalization_inactive_channels": _np.asarray(
+            [
+                channel for channel, status in thermalization["mechanisms"].items()
+                if not status["active"]
+            ], dtype="U16"
+        ),
+        "q_th_ion": _np.asarray(thermalization["q_th_ion"], dtype=rdtype_np),
+        "q_th_ib": _np.asarray(thermalization["q_th_ib"], dtype=rdtype_np),
+        "q_th_raman": _np.asarray(
+            thermalization["q_th_raman"], dtype=rdtype_np
+        ),
+        "q_thermal": _np.asarray(thermalization["q_thermal"], dtype=rdtype_np),
+        "E_th_ion_interval_J": _np.asarray(
+            thermalization["E_th_ion_interval_J"], dtype=_np.float64
+        ),
+        "E_th_ib_interval_J": _np.asarray(
+            thermalization["E_th_ib_interval_J"], dtype=_np.float64
+        ),
+        "E_th_raman_interval_J": _np.asarray(
+            thermalization["E_th_raman_interval_J"], dtype=_np.float64
+        ),
+        "E_thermal_interval_J": _np.asarray(
+            thermalization["E_thermal_interval_J"], dtype=_np.float64
+        ),
+        "E_th_ion_pulse_J": float(thermalization["E_th_ion_pulse_J"]),
+        "E_th_ib_pulse_J": float(thermalization["E_th_ib_pulse_J"]),
+        "E_th_raman_pulse_J": float(thermalization["E_th_raman_pulse_J"]),
+        "E_thermal_pulse_J": float(thermalization["E_thermal_pulse_J"]),
+        "thermalization_t1_ion_status": _np.asarray(
+            thermalization["level_t1"]["ion"]
+        ),
+        "thermalization_t1_ib_status": _np.asarray(
+            thermalization["level_t1"]["ib"]
+        ),
+        "thermalization_t1_raman_status": _np.asarray(
+            thermalization["level_t1"]["raman"]
+        ),
+        "thermalization_t2_ion_status": _np.asarray(
+            thermalization["level_t2"]["ion"]
+        ),
+        "thermalization_t2_ib_status": _np.asarray(
+            thermalization["level_t2"]["ib"]
+        ),
+        "thermalization_t2_raman_status": _np.asarray(
+            thermalization["level_t2"]["raman"]
+        ),
+        "thermalization_t3_channel_sum_status": _np.asarray(
+            thermalization["level_t3"]
+        ),
+        "thermalization_zero_channel_pass": bool(
+            thermalization["zero_channel_pass"]
         ),
         # These z-history values are retained for downstream compatibility,
         # but none is a canonical HR-2 total-deposition ledger.

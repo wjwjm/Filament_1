@@ -22,6 +22,7 @@ $targetedTests = @(
     (Join-Path $filamentPythonRoot 'tests\test_longitudinal_contract.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr2c_raman_deposition.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr2d_unified_deposition_ledger.py'),
+    (Join-Path $filamentPythonRoot 'tests\test_hr3a_thermalization.py'),
     (Join-Path $filamentPythonRoot 'tests\test_phase8b_raman_diagnostics.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hpc_execution_guardrails.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hpc_git_source_state.py'),

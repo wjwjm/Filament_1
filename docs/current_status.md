@@ -1,5 +1,16 @@
 # 当前项目状态 (Round 1 Restructuring)
 
+## 2026-08-29: HR-3A thermalization contract
+
+- 开发分支：`HR-3`（尚未合并 `main`）。
+- 已实现、待验收：将 HR-2 权威、分机制、按 interval 的沉积图转换为独立的 HR-3A
+  microscopic-thermalization ledger；完整热化是两篇核心参考文献支持的模型近似，
+  而非 fs 瞬时平动升温结论。
+- 未实现：`Delta T`、`delta rho`、`delta n`、声学/等压状态、扩散、传热传质及
+  脉冲间慢状态传播；这些属于 HR-3B/HR-3C。
+- 保留：HR-2E = **DEFERRED**；production longitudinal schedule = **NOT FROZEN**；
+  未提交 HPC 或 Slurm 作业。
+
 - 日期: 2026-08-23
 - 分支: `main`
 - 基线 HEAD (本轮开始前): `37f79794f8b1dd93b4431e11f21e70f7059c6492`
