@@ -206,6 +206,7 @@ def test_hr3a_streaming_thermal_ledger_writes_sparse_sidecar(tmp_path):
     assert data["thermalization_t1_status"].item() == "pass"
     assert data["thermalization_t2_status"].item() == "pass"
     assert data["thermalization_t3_status"].item() == "pass"
+    assert data["thermalization_first_failed_level"].item() == ""
     assert not any(key in data for key in ("q_th_ion", "q_th_ib", "q_th_raman", "q_thermal"))
     archive = data["__output_path__"].with_suffix(".hr3a_qthermal_samples.npy")
     assert archive.is_file()

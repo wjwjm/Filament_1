@@ -40,4 +40,7 @@ For `K=16000`, `Nx=Ny=512`, and float32, one map is 1 MiB. The prior map-only
 post-loop lower bound was about 156.25 GiB (and approximately 171.875 GiB with
 the sum temporary). The streaming working set is four current maps, about
 4 MiB, plus at most one 1 MiB host staging map. For a 1.3 m run with a 0.3 m
-focus window, the physical plan is about 421 maps, or about 421 MiB on disk.
+focus window, the nominal target union is approximately `261 + 301 - 61 =
+501` maps, or about 501 MiB on disk. The actual archive count is always
+`build_physical_sample_plan(...).count` after interval-midpoint snapping,
+landmark inclusion, and interval-index de-duplication.

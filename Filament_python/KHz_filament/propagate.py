@@ -1817,6 +1817,7 @@ def propagate_one_pulse(
         "thermalization_t2_status": _np.asarray(thermalization["thermalization_t2_status"]),
         "thermalization_t3_status": _np.asarray(thermalization["thermalization_t3_status"]),
         "thermalization_first_failed_interval": _np.int64(thermalization["thermalization_first_failed_interval"]),
+        "thermalization_first_failed_level": _np.asarray(thermalization["thermalization_first_failed_level"]),
         "thermalization_max_abs_T2_residual_ion_J": float(thermalization["thermalization_max_abs_T2_residual_ion_J"]),
         "thermalization_max_abs_T2_residual_ib_J": float(thermalization["thermalization_max_abs_T2_residual_ib_J"]),
         "thermalization_max_abs_T2_residual_raman_J": float(thermalization["thermalization_max_abs_T2_residual_raman_J"]),

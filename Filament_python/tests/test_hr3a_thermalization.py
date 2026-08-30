@@ -52,6 +52,10 @@ def test_complete_thermalization_is_channel_identity_and_closes_reductions():
     assert set(ledger["level_t1"].values()) == {"pass"}
     assert set(ledger["level_t2"].values()) == {"pass"}
     assert ledger["level_t3"] == "pass"
+    assert ledger["thermalization_t1_status"] == "pass"
+    assert ledger["thermalization_t2_status"] == "pass"
+    assert ledger["thermalization_t3_status"] == "pass"
+    assert ledger["thermalization_first_failed_level"] == ""
     assert ledger["E_thermal_pulse_J"] == pytest.approx(
         ledger["E_th_ion_pulse_J"] + ledger["E_th_ib_pulse_J"] + ledger["E_th_raman_pulse_J"]
     )
@@ -66,6 +70,8 @@ def test_inactive_ib_stays_exact_zero():
     assert np.array_equal(ledger["q_th_ib"], np.zeros_like(ledger["q_th_ib"]))
     assert np.array_equal(ledger["E_th_ib_interval_J"], np.zeros(2))
     assert ledger["E_th_ib_pulse_J"] == 0.0
+    assert ledger["level_t1"]["ib"] == "pass"
+    assert ledger["level_t2"]["ib"] == "pass"
 
 
 def test_non_authoritative_active_channel_is_marked_unavailable_without_fallback():
@@ -77,6 +83,11 @@ def test_non_authoritative_active_channel_is_marked_unavailable_without_fallback
     assert np.isnan(ledger["q_thermal"]).all()
     assert ledger["level_t1"]["raman"] == "unavailable"
     assert ledger["level_t3"] == "unavailable"
+    assert ledger["thermalization_t1_status"] == "unavailable"
+    assert ledger["thermalization_t2_status"] == "unavailable"
+    assert ledger["thermalization_t3_status"] == "unavailable"
+    assert ledger["thermalization_first_failed_level"] == "T1"
+    assert np.isnan(ledger["E_thermal_pulse_J"])
 
 
 @pytest.mark.parametrize("field", ["q_ion", "q_ib", "q_raman"])
@@ -122,8 +133,55 @@ def test_failed_reduction_closure_is_not_authoritative():
     inputs["deposition_interval_J"]["ion"] = np.array([0.0, 0.0])
     ledger = build_complete_thermalization_ledger(**inputs)
     assert not ledger["authoritative"]
-    assert ledger["unavailable_reason"] == "thermalization_closure_failed"
+    assert ledger["unavailable_reason"] == "t2_reduction_closure_failed"
+    assert ledger["thermalization_t1_status"] == "pass"
+    assert ledger["thermalization_t2_status"] == "failed"
+    assert ledger["thermalization_t3_status"] == "pass"
+    assert ledger["thermalization_first_failed_level"] == "T2"
     assert ledger["level_t2"]["ion"] == "failed"
+    assert np.isfinite(ledger["q_thermal"]).all()
+    np.testing.assert_allclose(
+        ledger["E_thermal_interval_J"],
+        ledger["E_th_ion_interval_J"]
+        + ledger["E_th_ib_interval_J"]
+        + ledger["E_th_raman_interval_J"],
+    )
+
+
+def test_scalar_ledger_keeps_t3_independent_of_synthetic_t3_failure():
+    from KHz_filament.thermalization import (
+        ThermalScalarLedger,
+        thermalize_interval,
+    )
+
+    inputs = _inputs()
+    result = thermalize_interval(
+        q_ion=inputs["q_ion"][0], q_ib=inputs["q_ib"][0],
+        q_raman=inputs["q_raman"][0], dz=inputs["dz_intervals"][0],
+        dx=inputs["dx"], dy=inputs["dy"],
+        mechanisms=inputs["deposition_mechanisms"],
+        reference_interval_J={
+            name: inputs["deposition_interval_J"][name][0]
+            for name in ("ion", "ib", "raman")
+        },
+    )
+    synthetic = dict(result)
+    synthetic.update(
+        authoritative=False,
+        reason="t3_channel_sum_closure_failed",
+        t3_ok=False,
+        t3_status="failed",
+        t3=1.0,
+    )
+    ledger = ThermalScalarLedger(inputs["deposition_mechanisms"])
+    ledger.append(0, synthetic)
+    summary = ledger.as_dict()
+
+    assert summary["thermalization_t1_status"] == "pass"
+    assert summary["thermalization_t2_status"] == "pass"
+    assert summary["thermalization_t3_status"] == "failed"
+    assert not summary["thermalization_authoritative"]
+    assert summary["thermalization_first_failed_level"] == "T3"
 
 
 def test_physical_sample_plan_uses_midpoints_and_deduplicates_intervals():

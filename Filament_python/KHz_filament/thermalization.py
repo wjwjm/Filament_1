@@ -189,13 +189,29 @@ def thermalize_interval(*, q_ion, q_ib, q_raman, dz: float, dx: float, dy: float
     ion, ib, raman = _map(q_ion, "q_ion"), _map(q_ib, "q_ib"), _map(q_raman, "q_raman")
     if ion.shape != ib.shape or ion.shape != raman.shape:
         raise ValueError("thermalization maps must have identical shapes")
-    unavailable = [name for name in THERMALIZATION_CHANNELS if bool(mechanisms[name]["active"]) and not bool(mechanisms[name]["authoritative"])]
+    unavailable = []
+    t1_channel_status = {}
     for name, value in (("ion", ion), ("ib", ib), ("raman", raman)):
-        if not bool(mechanisms[name]["active"]) and bool(xp.any(value != 0.0)):
+        active = bool(mechanisms[name]["active"])
+        authoritative = bool(mechanisms[name]["authoritative"])
+        if not active and bool(xp.any(value != 0.0)):
             raise ValueError(f"inactive {name} channel must be exact zero")
+        if active and not authoritative:
+            unavailable.append(
+                f"{name}:{mechanisms[name].get('source', 'missing')}"
+            )
+            t1_channel_status[name] = "unavailable"
+        else:
+            t1_channel_status[name] = "pass"
     if unavailable:
         nan = math.nan
-        return {"authoritative": False, "reason": ";".join(unavailable), "q_thermal": None,
+        return {"authoritative": False,
+                "reason": "t1_non_authoritative_channel:" + ";".join(unavailable),
+                "t1_ok": False, "t1_status": "unavailable",
+                "t1_channel_status": t1_channel_status,
+                "t2_ok": False, "t2_status": "unavailable",
+                "t2_channel_status": {name: "unavailable" for name in THERMALIZATION_CHANNELS},
+                "t3_ok": False, "t3_status": "unavailable", "q_thermal": None,
                 "energies": {name: nan for name in (*THERMALIZATION_CHANNELS, "total")},
                 "t2": {name: nan for name in THERMALIZATION_CHANNELS}, "t3": nan,
                 "max": nan, "onaxis": nan, "radius": nan}
@@ -204,7 +220,13 @@ def thermalize_interval(*, q_ion, q_ib, q_raman, dz: float, dx: float, dy: float
     energies = {name: _energy(value, dx, dy, dz) for name, value in channel_maps.items()}
     energies["total"] = _energy(q_total, dx, dy, dz)
     residuals = {name: energies[name] - float(reference_interval_J[name]) for name in THERMALIZATION_CHANNELS}
-    t2_ok = all(abs(value) <= _ATOL + _RTOL * max(abs(energies[name]), abs(float(reference_interval_J[name]))) for name, value in residuals.items())
+    t2_channel_ok = {
+        name: abs(value) <= _ATOL + _RTOL * max(
+            abs(energies[name]), abs(float(reference_interval_J[name]))
+        )
+        for name, value in residuals.items()
+    }
+    t2_ok = all(t2_channel_ok.values())
     t3 = energies["total"] - sum(energies[name] for name in THERMALIZATION_CHANNELS)
     t3_ok = abs(t3) <= _ATOL + _RTOL * max(abs(energies["total"]), 1.0e-300)
     total_sum = float(xp.sum(q_total, dtype=xp.float64))
@@ -213,7 +235,20 @@ def thermalize_interval(*, q_ion, q_ib, q_raman, dz: float, dx: float, dy: float
         radius = math.sqrt(float(xp.sum(q_total * r2, dtype=xp.float64)) / total_sum)
     else:
         radius = math.nan
-    return {"authoritative": bool(t2_ok and t3_ok), "reason": "" if t2_ok and t3_ok else "thermalization_closure_failed",
+    reason = ""
+    if not t2_ok:
+        reason = "t2_reduction_closure_failed"
+    elif not t3_ok:
+        reason = "t3_channel_sum_closure_failed"
+    return {"authoritative": bool(t2_ok and t3_ok), "reason": reason,
+            "t1_ok": True, "t1_status": "pass",
+            "t1_channel_status": t1_channel_status,
+            "t2_ok": t2_ok, "t2_status": "pass" if t2_ok else "failed",
+            "t2_channel_status": {
+                name: "pass" if t2_channel_ok[name] else "failed"
+                for name in THERMALIZATION_CHANNELS
+            },
+            "t3_ok": t3_ok, "t3_status": "pass" if t3_ok else "failed",
             "q_thermal": q_total, "energies": energies, "t2": residuals, "t3": t3,
             "max": float(xp.max(q_total)), "onaxis": float(q_total[q_total.shape[0] // 2, q_total.shape[1] // 2]), "radius": radius}
 
@@ -224,8 +259,11 @@ class ThermalScalarLedger:
         self.mechanisms = mechanisms
         self.values = {name: [] for name in ("ion", "ib", "raman", "total", "max", "onaxis", "radius", "t2_ion", "t2_ib", "t2_raman", "t3")}
         self.first_failed_interval = -1
-        self.authoritative = True
+        self.first_failed_level = ""
         self.reason = ""
+        self.t1_all_pass, self.t1_any_unavailable = True, False
+        self.t2_all_pass, self.t2_any_unavailable = True, False
+        self.t3_all_pass, self.t3_any_unavailable = True, False
 
     def append(self, index: int, result) -> None:
         for name in THERMALIZATION_CHANNELS:
@@ -236,24 +274,41 @@ class ThermalScalarLedger:
         self.values["max"].append(result["max"])
         self.values["onaxis"].append(result["onaxis"])
         self.values["radius"].append(result["radius"])
-        if not result["authoritative"] and self.first_failed_interval < 0:
-            self.first_failed_interval = int(index)
-            self.reason = str(result["reason"])
-        self.authoritative = self.authoritative and bool(result["authoritative"])
+        for level in ("t1", "t2", "t3"):
+            status = str(result[f"{level}_status"])
+            if status != "pass":
+                setattr(self, f"{level}_all_pass", False)
+                if status == "unavailable":
+                    setattr(self, f"{level}_any_unavailable", True)
+                if self.first_failed_interval < 0:
+                    self.first_failed_interval = int(index)
+                    self.first_failed_level = level.upper()
+                    self.reason = str(result["reason"])
 
     def as_dict(self) -> dict[str, object]:
         value = lambda name: np.asarray(self.values[name], dtype=np.float64)
+        pulse_reductions_available = not self.t1_any_unavailable
+
+        def aggregate_status(all_pass: bool, any_unavailable: bool) -> str:
+            if all_pass:
+                return "pass"
+            return "unavailable" if any_unavailable else "failed"
+
         def max_abs(name):
             values = value(name)
             finite = values[np.isfinite(values)]
             return float(np.max(np.abs(finite))) if finite.size else math.nan
         return {
-            "thermalization_authoritative": self.authoritative,
+            "thermalization_authoritative": bool(
+                self.t1_all_pass and self.t2_all_pass and self.t3_all_pass
+            ),
             "thermalization_unavailable_reason": self.reason,
             "E_th_ion_interval_J": value("ion"), "E_th_ib_interval_J": value("ib"),
             "E_th_raman_interval_J": value("raman"), "E_thermal_interval_J": value("total"),
-            "E_th_ion_pulse_J": float(np.nansum(value("ion"))), "E_th_ib_pulse_J": float(np.nansum(value("ib"))),
-            "E_th_raman_pulse_J": float(np.nansum(value("raman"))), "E_thermal_pulse_J": float(np.nansum(value("total"))),
+            "E_th_ion_pulse_J": float(np.nansum(value("ion"))) if pulse_reductions_available else math.nan,
+            "E_th_ib_pulse_J": float(np.nansum(value("ib"))) if pulse_reductions_available else math.nan,
+            "E_th_raman_pulse_J": float(np.nansum(value("raman"))) if pulse_reductions_available else math.nan,
+            "E_thermal_pulse_J": float(np.nansum(value("total"))) if pulse_reductions_available else math.nan,
             "q_thermal_max_J_m3": value("max"), "q_thermal_onaxis_J_m3": value("onaxis"),
             "q_thermal_second_moment_radius_m": value("radius"),
             "thermalization_t2_ion_residual_J": value("t2_ion"), "thermalization_t2_ib_residual_J": value("t2_ib"),
@@ -261,10 +316,19 @@ class ThermalScalarLedger:
             "thermalization_max_abs_T2_residual_ion_J": max_abs("t2_ion"), "thermalization_max_abs_T2_residual_ib_J": max_abs("t2_ib"),
             "thermalization_max_abs_T2_residual_raman_J": max_abs("t2_raman"), "thermalization_max_abs_T3_residual_J": max_abs("t3"),
             "thermalization_first_failed_interval": self.first_failed_interval,
-            "thermalization_t1_status": "pass" if self.authoritative else "failed",
-            "thermalization_t2_status": "pass" if self.authoritative else "failed",
-            "thermalization_t3_status": "pass" if self.authoritative else "failed",
+            "thermalization_first_failed_level": self.first_failed_level,
+            "thermalization_t1_status": aggregate_status(self.t1_all_pass, self.t1_any_unavailable),
+            "thermalization_t2_status": aggregate_status(self.t2_all_pass, self.t2_any_unavailable),
+            "thermalization_t3_status": aggregate_status(self.t3_all_pass, self.t3_any_unavailable),
         }
+
+
+def _status_from_intervals(statuses) -> str:
+    """Reduce per-interval diagnostic states without conflating T1/T2/T3."""
+    states = tuple(str(status) for status in statuses)
+    if all(state == "pass" for state in states):
+        return "pass"
+    return "unavailable" if "unavailable" in states else "failed"
 
 
 # Compatibility-only whole-stack helper for small unit tests. Production uses
@@ -287,35 +351,27 @@ def build_complete_thermalization_ledger(**kwargs):
     ):
         raise ValueError("thermalization schedule has invalid interval geometry")
     ledger = ThermalScalarLedger(kwargs["deposition_mechanisms"])
-    last = None
+    results = []
     for index in range(q_ion.shape[0]):
-        last = thermalize_interval(q_ion=q_ion[index], q_ib=q_ib[index], q_raman=q_raman[index],
+        result = thermalize_interval(q_ion=q_ion[index], q_ib=q_ib[index], q_raman=q_raman[index],
             dz=float(dz_values[index]), dx=kwargs["dx"], dy=kwargs["dy"],
             mechanisms=kwargs["deposition_mechanisms"], reference_interval_J={name: kwargs["deposition_interval_J"][name][index] for name in THERMALIZATION_CHANNELS})
-        ledger.append(index, last)
+        results.append(result)
+        ledger.append(index, result)
     summary = ledger.as_dict()
     maps = (q_ion, q_ib, q_raman, q_ion + q_ib + q_raman)
-    if not summary["thermalization_authoritative"]:
+    if summary["thermalization_t1_status"] != "pass":
         maps = tuple(np.full_like(value, np.nan, dtype=np.float64) for value in maps)
-        nonauth = [
-            name for name in THERMALIZATION_CHANNELS
-            if bool(kwargs["deposition_mechanisms"][name]["active"])
-            and not bool(kwargs["deposition_mechanisms"][name]["authoritative"])
-        ]
-        level_t1 = {name: ("unavailable" if name in nonauth else "pass") for name in THERMALIZATION_CHANNELS}
-        level_t2 = {
-            name: ("unavailable" if name in nonauth else (
-                "pass" if np.allclose(summary[f"thermalization_t2_{name}_residual_J"], 0.0, rtol=_RTOL, atol=_ATOL) else "failed"
-            )) for name in THERMALIZATION_CHANNELS
-        }
-        level_t3 = "unavailable" if nonauth else "failed"
-    else:
-        level_t1 = {name: "pass" for name in THERMALIZATION_CHANNELS}
-        level_t2 = {name: "pass" for name in THERMALIZATION_CHANNELS}
-        level_t3 = "pass"
+    level_t1 = {
+        name: _status_from_intervals(result["t1_channel_status"][name] for result in results)
+        for name in THERMALIZATION_CHANNELS
+    }
+    level_t2 = {
+        name: _status_from_intervals(result["t2_channel_status"][name] for result in results)
+        for name in THERMALIZATION_CHANNELS
+    }
+    level_t3 = summary["thermalization_t3_status"]
     unavailable_reason = summary["thermalization_unavailable_reason"]
-    if unavailable_reason and unavailable_reason in THERMALIZATION_CHANNELS:
-        unavailable_reason = f"{unavailable_reason}:{kwargs['deposition_mechanisms'][unavailable_reason]['source']}"
     summary.update({"authoritative": summary["thermalization_authoritative"], "unavailable_reason": unavailable_reason, "mechanisms": kwargs["deposition_mechanisms"],
                     "q_th_ion": maps[0], "q_th_ib": maps[1], "q_th_raman": maps[2], "q_thermal": maps[3],
                     "level_t1": level_t1, "level_t2": level_t2, "level_t3": level_t3, "zero_channel_pass": True})

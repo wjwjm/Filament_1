@@ -1,13 +1,16 @@
 # 当前项目状态 (Round 1 Restructuring)
 
-## 2026-08-29: HR-3A thermalization contract
+## 2026-08-30: HR-3A thermalization contract
 
 - 开发分支：`HR-3`（尚未合并 `main`）。
-- 已实现、待验收：将 HR-2 权威、分机制、按 interval 的沉积图转换为独立的 HR-3A
+- HR-3A = **CLOSED**：将 HR-2 权威、分机制、按 interval 的沉积图转换为独立的 HR-3A
   microscopic-thermalization ledger；完整热化是两篇核心参考文献支持的模型近似，
   而非 fs 瞬时平动升温结论。
 - HR-3A-R：改为 interval-streaming、O(K) 标量账本与物理 z 稀疏二维诊断 sidecar；
   不再在 RAM 或主 NPZ 中保留 full-z thermal/deposition map history。
+- HR-3A-R2：静态 sample-map 估算修正为 nominal `~501` 张 / `~501 MiB`（实际值以
+  `build_physical_sample_plan(...).count` 为准）；T1/T2/T3 closure 状态独立，overall
+  authority 为三者 conjunction。已知 HR-2E strict-float baseline failure 不阻止 HR-3A close。
 - 未实现：`Delta T`、`delta rho`、`delta n`、声学/等压状态、扩散、传热传质及
   脉冲间慢状态传播；这些属于 HR-3B/HR-3C。
 - 保留：HR-2E = **DEFERRED**；production longitudinal schedule = **NOT FROZEN**；

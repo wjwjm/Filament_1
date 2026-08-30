@@ -1,7 +1,7 @@
 # HR-3A thermalization contract
 
-**Status:** IMPLEMENTED; acceptance pending the unrelated HR-2E targeted-test
-failure (2026-08-29, branch `HR-3`)
+**Status:** CLOSED (2026-08-30, branch `HR-3`). The known unrelated HR-2E
+strict-float targeted-test baseline failure is non-blocking for HR-3A closure.
 
 ## Authoritative transition
 
@@ -35,12 +35,10 @@ interval-average maps `q_ion`, `q_ib`, and `q_raman`, with the fixed
 longitudinal schedule and transverse geometry already used for their HR-2
 reductions. It emits
 
-- `q_th_ion`, `q_th_ib`, `q_th_raman`, and `q_thermal` in `J/m^3` with shape
-  `[K, Ny, Nx]`;
-- `E_th_*_interval_J` and `E_th_*_pulse_J` using
+- full-z scalar `E_th_*_interval_J` and `E_th_*_pulse_J` using
   `sum(q_th[k]) * dx * dy * dz[k]`;
-- authority, source, scheme, active/inactive channel, unit, and schedule
-  metadata.
+- independent T1/T2/T3 closure status, authority, source, scheme,
+  active/inactive channel, unit, and schedule metadata.
 
 HR-3A-R makes the maps transient and persists the full-z scalar ledger plus a
 sparse physical-z `q_thermal` diagnostic sidecar. Full `[K, Ny, Nx]` thermal
@@ -53,12 +51,17 @@ attachment, `Qacc`, `gamma_heat`, `Q_rot_vol`, `w_R`, `E_dep_rot_z`,
 
 ## Closure and defensive rules
 
-- **T1 identity:** every authoritative channel is copied exactly into its
-  corresponding thermal channel.
+- **T1 identity/authority:** an active authoritative deposition channel is
+  directly interpreted as its complete-microscopic thermal source without a
+  duplicate map copy; inactive channels must be exact zero. An active
+  non-authoritative channel is unavailable and fails closed.
 - **T2 reduction:** interval reductions are recomputed from the thermal maps
   with the HR-2 schedule and geometry, then checked against the authoritative
   HR-2 interval energy ledger.
 - **T3 sum:** `q_thermal` and `E_thermal` equal the three channel sums.
+- T1, T2, and T3 are independent diagnostics. Overall authority is their
+  conjunction; a T2 reduction failure, for example, leaves valid T1 and T3
+  statuses unchanged.
 - An inactive channel must be exact zero. Current Isaacs-compatible short-pulse
   configurations retain the inactive `IB` channel rather than removing it.
 - A missing, non-finite, negative, shape-mismatched, schedule-mismatched, or
