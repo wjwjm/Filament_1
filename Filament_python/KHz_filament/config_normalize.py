@@ -139,6 +139,18 @@ def _normalize_linear_precision(propagation: Dict[str, Any]) -> None:
     propagation["linear_precision_strategy"] = strategy
 
 
+def _normalize_heat(heat: Dict[str, Any]) -> None:
+    """Validate explicit HR-3B parameters without touching legacy heat terms."""
+    for name in ("rho0", "Cv", "f_rep", "D_gas", "gamma_heat"):
+        if name in heat:
+            heat[name] = _to_float(heat[name])
+    if "hr3b_enabled" in heat and not isinstance(heat["hr3b_enabled"], bool):
+        raise ValueError("heat.hr3b_enabled must be true or false.")
+    for name in ("rho0", "Cv"):
+        if name in heat and float(heat[name]) <= 0.0:
+            raise ValueError(f"heat.{name} must be positive for HR-3B.")
+
+
 def _normalize_raman(raman: Dict[str, Any]) -> None:
     """Validate the explicit Isaacs rotational-Raman parameterization.
 
@@ -242,12 +254,14 @@ def normalize_config(raw: Dict[str, Any]) -> Dict[str, Any]:
     out["beam"] = dict(out.get("beam", {}))
     out["propagation"] = dict(out.get("propagation", {}))
     out["ionization"] = dict(out.get("ionization", {}))
+    out["heat"] = dict(out.get("heat", {}))
     out["raman"] = dict(out.get("raman", {}))
 
     _normalize_beam(out["beam"], grid=out["grid"])
     _normalize_species(out["ionization"])
     _normalize_nonlinear_switches(out["propagation"])
     _normalize_linear_precision(out["propagation"])
+    _normalize_heat(out["heat"])
     _normalize_raman(out["raman"])
     _validate_raman_operator_coupling(out["raman"], out["propagation"])
     return out

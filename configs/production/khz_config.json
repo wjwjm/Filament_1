@@ -93,7 +93,10 @@
   "heat": {
     "D_gas": 2.0e-05,
     "gamma_heat": -1.0e-23,
-    "f_rep": 1.0e3
+      "f_rep": 1.0e3,
+      "hr3b_enabled": false,
+      "rho0": 1.23,
+      "Cv": 714.2857142857143
   },
   "run": {
     "Npulses": 1

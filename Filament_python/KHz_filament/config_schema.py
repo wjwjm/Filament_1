@@ -45,6 +45,13 @@ NONLINEAR_SWITCH_FIELDS: Set[str] = {
 }
 
 
+HEAT_HR3B_FIELDS: Dict[str, str] = {
+    "hr3b_enabled": "enable authoritative HR-3B post-acoustic delta_n_th state",
+    "rho0": "ambient dry-air mass density [kg/m^3]",
+    "Cv": "dry-air constant-volume specific heat [J/(kg K)]",
+}
+
+
 RATE_ALIAS_MAP: Dict[str, str] = {
     # historical shorthand
     "ppt_talebpour_i": "ppt_talebpour_i_lut",

@@ -29,6 +29,11 @@ from .grids import make_axes
 from .heat import diffuse_dn_gas
 from .longitudinal import build_deposition_contract, build_longitudinal_schedule
 from .propagate import propagate_one_pulse
+from .slow_state import (
+    HR3BDiagnosticSink,
+    ThermalSlowStateStore,
+    validate_hr3b_parameters,
+)
 from .thermalization import ThermalDiagnosticSink, build_physical_sample_plan
 from .summary import print_sim_summary
 from .utils import gaussian_pulse_t, transverse_intensity_profile
@@ -334,6 +339,37 @@ def run_demo(
         dtype=(_np.float32 if str(dtype).lower() == "fp32" else _np.float64),
         enabled=(int(run.Npulses) == 1),
     )
+    hr3b_enabled = bool(getattr(heat, "hr3b_enabled", False))
+    hr3b_parameters = None
+    thermal_slow_state = None
+    hr3b_sink = None
+    if hr3b_enabled:
+        beta_th = validate_hr3b_parameters(
+            rho0=float(heat.rho0),
+            Cv=float(heat.Cv),
+            T0=float(prop_for_pulse.air_T),
+            n0=float(beam.n0),
+        )
+        hr3b_parameters = {
+            "rho0": float(heat.rho0),
+            "Cv": float(heat.Cv),
+            "T0": float(prop_for_pulse.air_T),
+            "n0": float(beam.n0),
+            "beta_th": float(beta_th),
+        }
+        thermal_slow_state = ThermalSlowStateStore(
+            output_path=out_path,
+            n_intervals=longitudinal_schedule.n_intervals,
+            shape=(grid.Ny, grid.Nx),
+            dtype=(_np.float32 if str(dtype).lower() == "fp32" else _np.float64),
+        )
+        hr3b_sink = HR3BDiagnosticSink(
+            plan=thermal_sample_plan,
+            output_path=out_path,
+            shape=(grid.Ny, grid.Nx),
+            dtype=(_np.float32 if str(dtype).lower() == "fp32" else _np.float64),
+            enabled=(int(run.Npulses) == 1),
+        )
 
     # The pulse-independent source is defined at the exact input plane of
     # propagate_one_pulse: after the lens and optional linear pre-advance.
@@ -341,7 +377,7 @@ def run_demo(
     # independent working copy while only the slow medium persists.
     E_source = E
 
-    dn_gas = xp.zeros((grid.Ny, grid.Nx), dtype=rtype)
+    dn_gas = xp.zeros((grid.Ny, grid.Nx), dtype=rtype) if not hr3b_enabled else None
     delta_t_pulse = 1.0 / heat.f_rep
 
     t_all = time.perf_counter()
@@ -349,6 +385,7 @@ def run_demo(
     pulse_index_list = []
     pulse_dn_gas_min_list = []
     pulse_dn_gas_max_list = []
+    pulse_delta_n_th_min_list = []
     for i in range(run.Npulses):
         t_p = time.perf_counter()
         E_pulse = E_source.copy()
@@ -366,17 +403,29 @@ def run_demo(
             longitudinal_schedule=longitudinal_schedule,
             deposition_contract=deposition_contract,
             thermal_sink=thermal_sink,
+            thermal_slow_state=thermal_slow_state,
+            hr3b_parameters=hr3b_parameters,
+            hr3b_sink=hr3b_sink,
         )
-        dn_gas = diffuse_dn_gas(dn_gas, Q2D, heat.D_gas, delta_t_pulse, axes.kperp2, heat.gamma_heat)
-        mn, mx = float(xp.min(dn_gas)), float(xp.max(dn_gas))
+        if hr3b_enabled:
+            mn = float(_np.min(diag["delta_n_state_min_after_update"]))
+            pulse_delta_n_th_min_list.append(mn)
+            print(f"Pulse {i + 1}/{run.Npulses}: HR-3B Δn_th min = {mn:.3e}  (elapsed {time.perf_counter() - t_p:.1f}s)")
+        else:
+            dn_gas = diffuse_dn_gas(dn_gas, Q2D, heat.D_gas, delta_t_pulse, axes.kperp2, heat.gamma_heat)
+            mn, mx = float(xp.min(dn_gas)), float(xp.max(dn_gas))
+            pulse_dn_gas_min_list.append(mn)
+            pulse_dn_gas_max_list.append(mx)
+            print(f"Pulse {i + 1}/{run.Npulses}: Δn_gas min/max = {mn:.3e}/{mx:.3e}  (elapsed {time.perf_counter() - t_p:.1f}s)")
         pulse_index_list.append(i + 1)
-        pulse_dn_gas_min_list.append(mn)
-        pulse_dn_gas_max_list.append(mx)
-        print(f"Pulse {i + 1}/{run.Npulses}: Δn_gas min/max = {mn:.3e}/{mx:.3e}  (elapsed {time.perf_counter() - t_p:.1f}s)")
         last_diag = diag
 
     # Idempotently close a sink even when a test double bypassed propagation.
     thermal_sink.finalize()
+    if hr3b_sink is not None:
+        hr3b_sink.finalize()
+    if thermal_slow_state is not None:
+        thermal_slow_state.finalize()
 
     print(f"[total] {time.perf_counter() - t_all:5.1f}s")
 
@@ -398,11 +447,16 @@ def run_demo(
     out = {
         "x": to_cpu(axes.x), "y": to_cpu(axes.y), "t": to_cpu(axes.t), "t_axis": to_cpu(axes.t),
         "I_out_center_t": to_cpu(I_out[:, grid.Ny // 2, grid.Nx // 2]),
-        "dn_gas": to_cpu(dn_gas),
         "pulse_index": _np.asarray(pulse_index_list, dtype=_np.int64),
-        "pulse_dn_gas_min": _np.asarray(pulse_dn_gas_min_list, dtype=float),
-        "pulse_dn_gas_max": _np.asarray(pulse_dn_gas_max_list, dtype=float),
     }
+    if hr3b_enabled:
+        out["pulse_delta_n_th_min"] = _np.asarray(pulse_delta_n_th_min_list, dtype=float)
+    else:
+        out.update({
+            "dn_gas": to_cpu(dn_gas),
+            "pulse_dn_gas_min": _np.asarray(pulse_dn_gas_min_list, dtype=float),
+            "pulse_dn_gas_max": _np.asarray(pulse_dn_gas_max_list, dtype=float),
+        })
     out.update(input_profile)
     if last_diag:
         # Propagation owns the diagnostic schema.  Copy every returned field so
@@ -428,8 +482,13 @@ def run_demo(
             "diagnostics": {key: to_cpu(value) for key, value in (last_diag or {}).items()},
             "pulse_summary": {
                 "pulse_index": _np.asarray(pulse_index_list, dtype=_np.int64),
-                "dn_gas_min": _np.asarray(pulse_dn_gas_min_list, dtype=float),
-                "dn_gas_max": _np.asarray(pulse_dn_gas_max_list, dtype=float),
+                **(
+                    {"delta_n_th_min": _np.asarray(pulse_delta_n_th_min_list, dtype=float)}
+                    if hr3b_enabled else {
+                        "dn_gas_min": _np.asarray(pulse_dn_gas_min_list, dtype=float),
+                        "dn_gas_max": _np.asarray(pulse_dn_gas_max_list, dtype=float),
+                    }
+                ),
             },
             "axes": {"x": to_cpu(axes.x), "y": to_cpu(axes.y), "t": to_cpu(axes.t)},
         }

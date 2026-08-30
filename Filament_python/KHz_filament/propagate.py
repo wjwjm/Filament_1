@@ -20,6 +20,7 @@ from .deposition import (
     q_raman_from_target_fluence_gain,
 )
 from .thermalization import ThermalScalarLedger, thermalize_interval
+from .slow_state import HR3BScalarLedger, map_post_acoustic_increment
 from .linear_full import step_linear_full_factorized, step_linear_full_3d
 from .air_dispersion import n_of_omega
 from .constants import c0, eps0
@@ -243,6 +244,9 @@ def propagate_one_pulse(
     longitudinal_schedule: LongitudinalSchedule | None = None,
     deposition_contract: DepositionContract | None = None,
     thermal_sink=None,
+    thermal_slow_state=None,
+    hr3b_parameters=None,
+    hr3b_sink=None,
 ):
     """极简稳定版：固定一步只做一次安全缩步（可选近焦加密），标准 Strang 分裂。
        产出统一的 diag 契约（见函数尾部）。"""
@@ -520,6 +524,9 @@ def propagate_one_pulse(
                   "source": raman_deposition_source},
     }
     thermal_scalar_ledger = ThermalScalarLedger(thermalization_mechanisms)
+    hr3b_scalar_ledger = HR3BScalarLedger() if thermal_slow_state is not None else None
+    if thermal_slow_state is not None and not isinstance(hr3b_parameters, dict):
+        raise ValueError("HR-3B slow state requires explicit mapping parameters")
     U_rel_change_z_list, U_step_change_z_list, E_loss_from_input_z_list = [], [], []
     fwhm_plasma_z_list, fwhm_fluence_z_list, fwhm_time_z_list = [], [], []
     rho_onaxis_time_list = [] if record_onaxis_rho_time else None
@@ -944,7 +951,13 @@ def propagate_one_pulse(
         dphi_p = dphi_p_raw if switches.use_plasma_phase else xp.zeros_like(dphi_p_raw, dtype=rdtype)
         phase  = dphi_k + dphi_p
 
-        E = apply_nonlinear(E, phase, alpha_total, dz_try, dn_gas=dn_gas, k0=k0)
+        # HR-3B consumes exactly one old, interval-centered state slice here.
+        # The in-place update occurs only after this interval's q_thermal exists.
+        if thermal_slow_state is not None:
+            slow_index_slice = thermal_slow_state.read_interval(interval.index)
+        else:
+            slow_index_slice = dn_gas
+        E = apply_nonlinear(E, phase, alpha_total, dz_try, dn_gas=slow_index_slice, k0=k0)
         operator_energy_after_nonraman = _operator_energy(E) if diag_operator_energy else _np.nan
         if full_isaacs_mode:
             if full_isaacs_on:
@@ -1164,6 +1177,30 @@ def propagate_one_pulse(
                     if getattr(thermal_sink, "mode", "production") == "validation" else None
                 ),
             )
+        if thermal_slow_state is not None:
+            if not bool(thermal_interval["authoritative"]):
+                raise ValueError("HR-3B requires authoritative HR-3A q_thermal")
+            hr3b_interval = map_post_acoustic_increment(
+                thermal_interval["q_thermal"],
+                source_authoritative=True,
+                rho0=hr3b_parameters["rho0"],
+                Cv=hr3b_parameters["Cv"],
+                T0=hr3b_parameters["T0"],
+                n0=hr3b_parameters["n0"],
+            )
+            state_after = thermal_slow_state.update_interval(
+                interval.index, hr3b_interval["delta_n_increment"]
+            )
+            hr3b_scalar_ledger.append(
+                interval.index, hr3b_interval, slow_index_slice, state_after
+            )
+            if hr3b_sink is not None:
+                hr3b_sink.record_sample(
+                    interval.index,
+                    hr3b_interval["delta_n_increment"],
+                    state_after,
+                )
+            del hr3b_interval
 
         # Keep the legacy heat helper as the Q_CAP compatibility guard.  For
         # normal finite production sources this equals q_ion + q_ib exactly;
@@ -1501,6 +1538,21 @@ def propagate_one_pulse(
             "thermal_map_archive_disabled_reason": "no_sink",
         }
     )
+    hr3b_archive = (
+        hr3b_sink.finalize()
+        if hr3b_sink is not None else {
+            "hr3b_map_archive_schema": "khz_filament.hr3b.sparse_maps.v1",
+            "hr3b_increment_archive_filename": "",
+            "hr3b_state_after_archive_filename": "",
+            "hr3b_map_archive_dtype": "",
+            "hr3b_map_archive_shape": (0, Ny, Nx),
+            "hr3b_map_archive_complete": False,
+            "hr3b_map_archive_enabled": False,
+            "hr3b_map_archive_disabled_reason": "no_sink",
+        }
+    )
+    hr3b_ledger = hr3b_scalar_ledger.as_dict() if hr3b_scalar_ledger is not None else None
+    hr3b_state_metadata = thermal_slow_state.metadata() if thermal_slow_state is not None else None
     thermal_sample_plan = getattr(thermal_sink, "plan", None)
     if thermal_sample_plan is None:
         thermal_sample_plan_metadata = {
@@ -1839,8 +1891,10 @@ def propagate_one_pulse(
         "thermal_map_region": _np.asarray(thermal_sample_plan_metadata["region"]),
         "thermal_map_reason": _np.asarray(thermal_sample_plan_metadata["reason"]),
         "authoritative_hr3a_thermal_source_available": bool(thermalization["thermalization_authoritative"]),
-        "authoritative_hr_slow_state_update_active": False,
-        "legacy_slow_heat_compatibility_path_active": True,
+        "authoritative_hr_slow_state_update_active": bool(thermal_slow_state is not None),
+        "legacy_slow_heat_compatibility_path_active": bool(
+            thermal_slow_state is None and dn_gas is not None
+        ),
         # These z-history values are retained for downstream compatibility,
         # but none is a canonical HR-2 total-deposition ledger.
         "legacy_E_dep_z_semantics": _np.asarray(
@@ -1991,6 +2045,41 @@ def propagate_one_pulse(
         "nonlinear_use_self_steepening": bool(switches.use_self_steepening),
         "nonlinear_use_ionization_solver": bool(switches.use_ionization_solver),
     }
+    if hr3b_ledger is not None:
+        diag.update({
+            "hr3b_mapping_schema": _np.asarray("khz_filament.hr3b.post_acoustic.v1"),
+            "hr3b_authoritative": bool(hr3b_ledger["hr3b_authoritative"]),
+            "hr3b_source_authority_status": _np.asarray(hr3b_ledger["hr3b_source_authority_status"]),
+            "hr3b_mapping_status": _np.asarray(hr3b_ledger["hr3b_mapping_status"]),
+            "hr3b_sign_status": _np.asarray(hr3b_ledger["hr3b_sign_status"]),
+            "hr3b_thermodynamic_status": _np.asarray(hr3b_ledger["hr3b_thermodynamic_status"]),
+            "hr3b_first_failed_interval": _np.int64(hr3b_ledger["hr3b_first_failed_interval"]),
+            "hr3b_first_failed_level": _np.asarray(hr3b_ledger["hr3b_first_failed_level"]),
+            "delta_n_increment_min": _np.asarray(hr3b_ledger["delta_n_increment_min"], dtype=_np.float64),
+            "delta_n_increment_onaxis": _np.asarray(hr3b_ledger["delta_n_increment_onaxis"], dtype=_np.float64),
+            "delta_n_state_min_after_update": _np.asarray(hr3b_ledger["delta_n_state_min_after_update"], dtype=_np.float64),
+            "delta_n_state_onaxis_after_update": _np.asarray(hr3b_ledger["delta_n_state_onaxis_after_update"], dtype=_np.float64),
+            "Delta_T_impulse_max": _np.asarray(hr3b_ledger["Delta_T_impulse_max"], dtype=_np.float64),
+            "Delta_T_post_max": _np.asarray(hr3b_ledger["Delta_T_post_max"], dtype=_np.float64),
+            "delta_rho_min": _np.asarray(hr3b_ledger["delta_rho_min"], dtype=_np.float64),
+            "hr3b_mapping_max_abs_residual": _np.asarray(hr3b_ledger["hr3b_mapping_max_abs_residual"], dtype=_np.float64),
+            "hr3b_isobaric_max_abs_residual": _np.asarray(hr3b_ledger["hr3b_isobaric_max_abs_residual"], dtype=_np.float64),
+            "hr3b_state_schema": _np.asarray(hr3b_state_metadata["hr3b_state_schema"]),
+            "hr3b_state_filename": _np.asarray(hr3b_state_metadata["hr3b_state_filename"]),
+            "hr3b_state_dtype": _np.asarray(hr3b_state_metadata["hr3b_state_dtype"]),
+            "hr3b_state_shape": _np.asarray(hr3b_state_metadata["hr3b_state_shape"], dtype=_np.int64),
+            "hr3b_state_interval_centered": bool(hr3b_state_metadata["hr3b_state_interval_centered"]),
+            "hr3b_state_disk_backed": bool(hr3b_state_metadata["hr3b_state_disk_backed"]),
+            "hr3b_map_archive_schema": _np.asarray(hr3b_archive["hr3b_map_archive_schema"]),
+            "hr3b_increment_archive_filename": _np.asarray(hr3b_archive["hr3b_increment_archive_filename"]),
+            "hr3b_state_after_archive_filename": _np.asarray(hr3b_archive["hr3b_state_after_archive_filename"]),
+            "hr3b_map_archive_dtype": _np.asarray(hr3b_archive["hr3b_map_archive_dtype"]),
+            "hr3b_map_archive_shape": _np.asarray(hr3b_archive["hr3b_map_archive_shape"], dtype=_np.int64),
+            "hr3b_map_archive_complete": bool(hr3b_archive["hr3b_map_archive_complete"]),
+            "hr3b_map_archive_enabled": bool(hr3b_archive["hr3b_map_archive_enabled"]),
+            "hr3b_map_archive_disabled_reason": _np.asarray(hr3b_archive["hr3b_map_archive_disabled_reason"]),
+            "hr3b_beta_th_m3_J": float(hr3b_parameters["beta_th"]),
+        })
     for prefix, grid_metadata in (
         ("optical_grid_", deposition_contract.transverse_grid.optical_grid),
         ("thermal_grid_", deposition_contract.transverse_grid.thermal_grid),

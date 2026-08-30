@@ -11,8 +11,12 @@
 - HR-3A-R2：静态 sample-map 估算修正为 nominal `~501` 张 / `~501 MiB`（实际值以
   `build_physical_sample_plan(...).count` 为准）；T1/T2/T3 closure 状态独立，overall
   authority 为三者 conjunction。已知 HR-2E strict-float baseline failure 不阻止 HR-3A close。
-- 未实现：`Delta T`、`delta rho`、`delta n`、声学/等压状态、扩散、传热传质及
-  脉冲间慢状态传播；这些属于 HR-3B/HR-3C。
+- HR-3B = **CLOSED**：实现为显式 opt-in 的 post-acoustic reduced mapping。唯一 authoritative
+  persistent slow state 是 interval-centered、disk-backed `delta_n_th[K,Ny,Nx]`；每个
+  interval 读取旧 slice 用于本发相位，再在 HR-3A authoritative `q_thermal` 完成后原地累加。
+  `Q2D/gamma_heat/dn_gas` 仅保留 non-authoritative legacy compatibility 模式。
+- 未实现：persistent `Delta T`、persistent `delta rho`、显式声学/等压瞬态、扩散、
+  传热传质及脉冲间慢状态传播；这些属于 HR-3C/HR-4。
 - 保留：HR-2E = **DEFERRED**；production longitudinal schedule = **NOT FROZEN**；
   未提交 HPC 或 Slurm 作业。
 
