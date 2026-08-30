@@ -145,8 +145,15 @@ def _normalize_heat(heat: Dict[str, Any]) -> None:
     for name in ("rho0", "Cv", "f_rep", "D_gas", "D_th", "gamma_heat"):
         if name in heat:
             heat[name] = _to_float(heat[name])
-    if "hr3b_enabled" in heat and not isinstance(heat["hr3b_enabled"], bool):
-        raise ValueError("heat.hr3b_enabled must be true or false.")
+    for name in ("hr3b_enabled", "hr3c_enabled", "resume_hr3c"):
+        if name in heat and not isinstance(heat[name], bool):
+            raise ValueError(f"heat.{name} must be true or false.")
+    if bool(heat.get("hr3c_enabled", False)) and not bool(heat.get("hr3b_enabled", False)):
+        raise ValueError("heat.hr3c_enabled requires heat.hr3b_enabled=true.")
+    if "hr3c_batch_intervals" in heat:
+        heat["hr3c_batch_intervals"] = int(heat["hr3c_batch_intervals"])
+        if heat["hr3c_batch_intervals"] <= 0:
+            raise ValueError("heat.hr3c_batch_intervals must be positive.")
     for name in ("rho0", "Cv"):
         if name in heat and float(heat[name]) <= 0.0:
             raise ValueError(f"heat.{name} must be positive for HR-3B.")

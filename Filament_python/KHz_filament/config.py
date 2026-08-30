@@ -155,6 +155,9 @@ class HeatConfig:
     # reuses PropagationConfig.air_T so no second ambient-temperature source
     # exists.  gamma_heat remains legacy compatibility only.
     hr3b_enabled: bool = False
+    hr3c_enabled: bool = False
+    hr3c_batch_intervals: int = 1
+    resume_hr3c: bool = False
     rho0: float = 1.23           # kg/m^3, dry air at the Isaacs STP reference
     Cv: float = 1000.0 / 1.4     # J/(kg K), C_p/gamma in the same reference
 

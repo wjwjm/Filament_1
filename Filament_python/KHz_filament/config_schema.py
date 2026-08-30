@@ -54,6 +54,9 @@ HEAT_HR3B_FIELDS: Dict[str, str] = {
 
 HEAT_HR3C_FIELDS: Dict[str, str] = {
     "D_th": "authoritative HR-3C transverse thermal diffusivity [m^2/s]",
+    "hr3c_enabled": "enable transactional HR-3C state lifecycle",
+    "hr3c_batch_intervals": "HR-3C disk streaming batch size [intervals]",
+    "resume_hr3c": "explicitly resume an existing HR-3C state manifest",
 }
 
 

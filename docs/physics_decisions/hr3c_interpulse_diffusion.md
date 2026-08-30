@@ -4,6 +4,17 @@
 HR-3C-B adds disk-backed streaming execution but not HR-3C-C promotion or
 pulse orchestration.
 
+## HR-3C-C transactional integration
+
+HR-3C-C uses two slots only. During a pulse, authoritative A is read-only and
+the transaction writes `B[k]=A[k]+Delta_delta_n_th[k]` exactly once per
+interval. After target flush/fsync, an atomically replaced manifest promotes
+the physical stage to `post_pulse`. For non-final pulses, B is diffused to A,
+durably flushed, then atomically promoted to `pre_pulse` for the next fresh
+optical pulse. The manifest binds shape/dtype, interval-centered state,
+`D_th`, `f_rep`, edge threshold, batch size, and a schedule/transverse-grid
+fingerprint. Resume is explicit and opens existing memmaps without truncation.
+
 ## Scope and frozen state
 
 The only authoritative persistent slow state remains HR-3B's interval-centered

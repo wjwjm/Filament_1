@@ -83,6 +83,41 @@ class PingPongSlowStateStore:
         self._current.flush()
         self._next.flush()
 
+    @classmethod
+    def open_existing(cls, *, output_path: str, n_intervals: int, shape, dtype):
+        """Open existing slots without truncation or zero-fill."""
+        self = cls.__new__(cls)
+        self.n_intervals, self.shape, self.dtype = _validate_state_layout(
+            n_intervals=n_intervals, shape=shape, dtype=dtype,
+        )
+        root = Path(output_path).with_suffix("")
+        self.current_path = root.with_name(root.name + ".hr3c_delta_n_th_current.npy")
+        self.next_path = root.with_name(root.name + ".hr3c_delta_n_th_next.npy")
+        self.state_shape = (self.n_intervals, *self.shape)
+        if not self.current_path.is_file() or not self.next_path.is_file():
+            raise FileNotFoundError("HR-3C resume requires both existing state slots")
+        self._current = np.lib.format.open_memmap(self.current_path, mode="r+")
+        self._next = np.lib.format.open_memmap(self.next_path, mode="r+")
+        if self._current.shape != self.state_shape or self._next.shape != self.state_shape:
+            raise ValueError("HR-3C existing state shape does not match requested layout")
+        if self._current.dtype != self.dtype or self._next.dtype != self.dtype:
+            raise ValueError("HR-3C existing state dtype does not match requested layout")
+        self.next_complete = False
+        self.next_valid = False
+        return self
+
+    def select_authoritative(self, filename: str) -> None:
+        """Select an existing slot by manifest; never performs a role swap."""
+        self._require_open()
+        name = Path(filename).name
+        if name == self.current_path.name:
+            return
+        if name == self.next_path.name:
+            self._current, self._next = self._next, self._current
+            self.current_path, self.next_path = self.next_path, self.current_path
+            return
+        raise ValueError("HR-3C manifest authoritative filename is not a state slot")
+
     def _require_open(self) -> None:
         if self._current is None or self._next is None:
             raise RuntimeError("HR-3C ping-pong state store is closed")

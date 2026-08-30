@@ -1,5 +1,12 @@
 # 当前项目状态 (Round 1 Restructuring)
 
+## 2026-08-30: HR-3C-C transactional integration
+
+- HR-3C-C = **CLOSED**：HR-3B post update 改为 A(pre)→B(post) transaction；
+  manifest 以 write-temp / fsync / replace 原子记录 `pre_pulse` 与 `post_pulse`。
+  仅在最后一发前执行脉间 B→A diffusion，final post-state 不再额外扩散。
+- HR-3 已 ready for closeout review；未合并 main，未启动 HPC。
+
 ## 2026-08-30: HR-3C-B disk-backed streaming diffusion
 
 - HR-3C-B = **CLOSED**：新增 current/next 两份 disk-backed

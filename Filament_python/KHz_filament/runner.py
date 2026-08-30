@@ -34,6 +34,7 @@ from .slow_state import (
     ThermalSlowStateStore,
     validate_hr3b_parameters,
 )
+from .hr3c_state_machine import HR3CStateController
 from .thermalization import ThermalDiagnosticSink, build_physical_sample_plan
 from .summary import print_sim_summary
 from .utils import gaussian_pulse_t, transverse_intensity_profile
@@ -340,9 +341,13 @@ def run_demo(
         enabled=(int(run.Npulses) == 1),
     )
     hr3b_enabled = bool(getattr(heat, "hr3b_enabled", False))
+    hr3c_enabled = bool(getattr(heat, "hr3c_enabled", False))
+    if hr3c_enabled and not hr3b_enabled:
+        raise ValueError("HR-3C requires heat.hr3b_enabled=true")
     hr3b_parameters = None
     thermal_slow_state = None
     hr3b_sink = None
+    hr3c_controller = None
     if hr3b_enabled:
         beta_th = validate_hr3b_parameters(
             rho0=float(heat.rho0),
@@ -357,19 +362,26 @@ def run_demo(
             "n0": float(beam.n0),
             "beta_th": float(beta_th),
         }
-        thermal_slow_state = ThermalSlowStateStore(
-            output_path=out_path,
-            n_intervals=longitudinal_schedule.n_intervals,
-            shape=(grid.Ny, grid.Nx),
-            dtype=(_np.float32 if str(dtype).lower() == "fp32" else _np.float64),
-        )
-        hr3b_sink = HR3BDiagnosticSink(
-            plan=thermal_sample_plan,
-            output_path=out_path,
-            shape=(grid.Ny, grid.Nx),
-            dtype=(_np.float32 if str(dtype).lower() == "fp32" else _np.float64),
-            enabled=(int(run.Npulses) == 1),
-        )
+        if hr3c_enabled:
+            hr3c_controller = HR3CStateController(
+                output_path=out_path, n_intervals=longitudinal_schedule.n_intervals,
+                shape=(grid.Ny, grid.Nx), dtype=(_np.float32 if str(dtype).lower() == "fp32" else _np.float64),
+                z_edges=longitudinal_schedule.z_edges, dx=axes.dx, dy=axes.dy,
+                D_th=float(heat.D_th), f_rep=float(heat.f_rep), edge_threshold=1.0e-3,
+                batch_intervals=int(heat.hr3c_batch_intervals), npulses=int(run.Npulses),
+                resume=bool(heat.resume_hr3c),
+            )
+            hr3c_controller.attach_grid(axes.kperp2)
+        else:
+            thermal_slow_state = ThermalSlowStateStore(
+                output_path=out_path, n_intervals=longitudinal_schedule.n_intervals,
+                shape=(grid.Ny, grid.Nx), dtype=(_np.float32 if str(dtype).lower() == "fp32" else _np.float64),
+            )
+            hr3b_sink = HR3BDiagnosticSink(
+                plan=thermal_sample_plan, output_path=out_path, shape=(grid.Ny, grid.Nx),
+                dtype=(_np.float32 if str(dtype).lower() == "fp32" else _np.float64),
+                enabled=(int(run.Npulses) == 1),
+            )
 
     # The pulse-independent source is defined at the exact input plane of
     # propagate_one_pulse: after the lens and optional linear pre-advance.
@@ -386,10 +398,19 @@ def run_demo(
     pulse_dn_gas_min_list = []
     pulse_dn_gas_max_list = []
     pulse_delta_n_th_min_list = []
-    for i in range(run.Npulses):
+    hr3c_diffusion_passes = 0
+    hr3c_post_commits = 0
+    while hr3c_controller is not None and not bool(hr3c_controller.manifest["run_complete"]):
+        if hr3c_controller.manifest["physical_stage"] == "post_pulse":
+            hr3c_controller.diffuse_to_next_pre()
+            hr3c_diffusion_passes += 1
+            continue
+        i = int(hr3c_controller.manifest["next_pulse_index"])
         t_p = time.perf_counter()
         E_pulse = E_source.copy()
-        E, Q2D, diag = propagate_one_pulse(
+        transaction = hr3c_controller.begin_pulse()
+        try:
+            E, Q2D, diag = propagate_one_pulse(
             E_pulse,
             kperp2=axes.kperp2,
             k0=k0, omega0=omega0,
@@ -403,9 +424,40 @@ def run_demo(
             longitudinal_schedule=longitudinal_schedule,
             deposition_contract=deposition_contract,
             thermal_sink=thermal_sink,
-            thermal_slow_state=thermal_slow_state,
+            thermal_slow_state=transaction,
             hr3b_parameters=hr3b_parameters,
-            hr3b_sink=hr3b_sink,
+            hr3b_sink=None,
+            )
+            hr3c_controller.commit_post_pulse(transaction, i)
+        except Exception:
+            transaction.store.mark_next_invalid()
+            raise
+        hr3c_post_commits += 1
+        mn = float(_np.min(diag["delta_n_state_min_after_update"]))
+        pulse_delta_n_th_min_list.append(mn)
+        print(f"Pulse {i + 1}/{run.Npulses}: HR-3C post Δn_th min = {mn:.3e}  (elapsed {time.perf_counter() - t_p:.1f}s)")
+        pulse_index_list.append(i + 1)
+        last_diag = diag
+        if i == int(run.Npulses) - 1:
+            hr3c_controller.mark_complete()
+            break
+        hr3c_controller.diffuse_to_next_pre()
+        hr3c_diffusion_passes += 1
+
+    if hr3c_controller is None:
+      for i in range(run.Npulses):
+        t_p = time.perf_counter()
+        E_pulse = E_source.copy()
+        E, Q2D, diag = propagate_one_pulse(
+            E_pulse,
+            kperp2=axes.kperp2, k0=k0, omega0=omega0,
+            dz=prop_for_pulse.dz, z_max=prop_for_pulse.z_max,
+            n0=beam.n0, n2=n2_used, Ui=Ui_N2, N0=N0_air,
+            ion_conf=ion, dn_gas=dn_gas, dt=axes.dt, axes=axes, prop_conf=prop_for_pulse, raman_conf=raman,
+            record_onaxis_rho_time=True, record_every_z=1,
+            longitudinal_schedule=longitudinal_schedule, deposition_contract=deposition_contract,
+            thermal_sink=thermal_sink, thermal_slow_state=thermal_slow_state,
+            hr3b_parameters=hr3b_parameters, hr3b_sink=hr3b_sink,
         )
         if hr3b_enabled:
             mn = float(_np.min(diag["delta_n_state_min_after_update"]))
@@ -426,6 +478,8 @@ def run_demo(
         hr3b_sink.finalize()
     if thermal_slow_state is not None:
         thermal_slow_state.finalize()
+    if hr3c_controller is not None:
+        hr3c_controller.close()
 
     print(f"[total] {time.perf_counter() - t_all:5.1f}s")
 
@@ -451,6 +505,23 @@ def run_demo(
     }
     if hr3b_enabled:
         out["pulse_delta_n_th_min"] = _np.asarray(pulse_delta_n_th_min_list, dtype=float)
+    if hr3c_controller is not None:
+        manifest = hr3c_controller.manifest
+        out.update({
+            "hr3c_enabled": True,
+            "hr3c_manifest_filename": _np.asarray(hr3c_controller.manifest_path.name),
+            "hr3c_final_authoritative_filename": _np.asarray(manifest["authoritative_filename"]),
+            "hr3c_final_physical_stage": _np.asarray(manifest["physical_stage"]),
+            "hr3c_final_pulse_index": _np.int64(manifest["pulse_index"]),
+            "hr3c_run_complete": bool(manifest["run_complete"]),
+            "n_fresh_pulses_completed": _np.int64(len(pulse_index_list)),
+            "n_hr3b_post_commits": _np.int64(hr3c_post_commits),
+            "n_hr3c_diffusion_passes": _np.int64(hr3c_diffusion_passes),
+            "hr3c_D_th_m2_s": float(heat.D_th),
+            "hr3c_dt_interpulse_s": 1.0 / float(heat.f_rep),
+            "hr3c_edge_threshold": 1.0e-3,
+            "hr3c_batch_intervals": _np.int64(heat.hr3c_batch_intervals),
+        })
     else:
         out.update({
             "dn_gas": to_cpu(dn_gas),
