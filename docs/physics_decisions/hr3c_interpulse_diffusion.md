@@ -1,6 +1,6 @@
 # HR-3C-A interpulse transverse thermal diffusion
 
-**Status:** HR-3C-A CLOSED; HR-3C-B CLOSED (2026-08-30, branch `HR-3`).
+**Status:** HR-3C-A CLOSED; HR-3C-B CLOSED; HR-3C-C implementation ready for closeout review (2026-08-30, branch `HR-3`).
 HR-3C-B adds disk-backed streaming execution but not HR-3C-C promotion or
 pulse orchestration.
 
