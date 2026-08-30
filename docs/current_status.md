@@ -1,10 +1,11 @@
 # 当前项目状态 (Round 1 Restructuring)
 
-## 2026-08-30: HR-3 overall closeout
+## 2026-08-30: HR-3 merged to main
 
 - HR-3B、HR-3C-A、HR-3C-B 和 HR-3C-C 均为 **CLOSED**；HR-3C 为
-  **CLOSED**，HR-3 为 **CLOSED / READY TO MERGE**。分支仍为 `HR-3`，未合并
-  `main`。
+  **CLOSED**，HR-3 为 **CLOSED / MERGED TO MAIN**。HR-3 source
+  `7d74370ab56049591b69f01ceede3e14a0e0ecec` 已通过 merge commit
+  `654fb0236b9c119ab7d89524c08cf0b84fe9181e` 合入并推送 `main`。
 - completed-run `resume_hr3c=true` 现验证并加载已有 completed NPZ，不执行
   pulse/diffusion，也不重写主 NPZ、diagnostic report、manifest 或 two-slot state。
   H3-5 与 H3-10 均 PASS；完整冻结账本见
@@ -50,7 +51,8 @@
 
 ## 2026-08-30: HR-3A thermalization contract
 
-- 开发分支：`HR-3`（尚未合并 `main`）。
+- 历史开发分支为 `HR-3`；该分支已于 merge commit
+  `654fb0236b9c119ab7d89524c08cf0b84fe9181e` 合入 `main`。
 - HR-3A = **CLOSED**：将 HR-2 权威、分机制、按 interval 的沉积图转换为独立的 HR-3A
   microscopic-thermalization ledger；完整热化是两篇核心参考文献支持的模型近似，
   而非 fs 瞬时平动升温结论。

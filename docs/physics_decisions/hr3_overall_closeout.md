@@ -1,9 +1,10 @@
 # HR-3 overall closeout and merge-readiness ledger
 
 **Date:** 2026-08-30
-**Branch:** `HR-3`
-**Classification:** **HR-3 CLOSED / READY TO MERGE**. This is not a merge to
-`main`, a production-performance certification, or an HR-4 authorization.
+**Source branch:** `HR-3` at `7d74370ab56049591b69f01ceede3e14a0e0ecec`
+**Merged main:** `654fb0236b9c119ab7d89524c08cf0b84fe9181e`
+**Classification:** **HR-3 CLOSED / MERGED TO MAIN**. This is not a
+production-performance certification or an HR-4 authorization.
 
 ## Scope and frozen model boundary
 

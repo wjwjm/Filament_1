@@ -1,7 +1,8 @@
 # HR-3C-A interpulse transverse thermal diffusion
 
 **Status:** HR-3C-A CLOSED; HR-3C-B CLOSED; HR-3C-C CLOSED; HR-3C CLOSED
-(2026-08-30, branch `HR-3`). HR-3 is CLOSED / READY TO MERGE (not merged).
+(2026-08-30, source branch `HR-3`). HR-3 is CLOSED / MERGED TO MAIN via
+`654fb0236b9c119ab7d89524c08cf0b84fe9181e`.
 
 ## HR-3C-C transactional integration
 
