@@ -1,11 +1,18 @@
 # 当前项目状态 (Round 1 Restructuring)
 
-## 2026-08-30: HR-3C-C transactional integration (closeout review pending)
+## 2026-08-30: HR-3C-C final closeout
 
-- HR-3C-C implementation is **READY FOR CLOSEOUT REVIEW**：HR-3B post update 改为 A(pre)→B(post) transaction；
-  manifest 以 write-temp / fsync / replace 原子记录 `pre_pulse` 与 `post_pulse`。
-  仅在最后一发前执行脉间 B→A diffusion，final post-state 不再额外扩散。
-- HR-3 已 ready for closeout review；未合并 main，未启动 HPC。
+- HR-3B、HR-3C-A、HR-3C-B 和 HR-3C-C 均为 **CLOSED**；HR-3C 为
+  **CLOSED**，HR-3 为 **READY FOR OVERALL CLOSEOUT REVIEW**。分支仍为 `HR-3`，
+  未合并 `main`。
+- HR-3C-C 将每发 HR-3B post update 固定为 A(pre)→B(post) transaction；manifest
+  以 write-temp / fsync / replace 原子记录 `pre_pulse` 与 `post_pulse`。final post
+  与 `run_complete=true` 为同一次 manifest 提交，final post-state 不再额外扩散。
+- CC1–CC12 closeout gate 均 PASS：覆盖 N=1/2/3 的 `N/N/(N-1)` 累计计数、fresh
+  optical source、pulse/diffusion interruption restart equivalence、completed-run
+  resume、legacy isolation、standalone HR-3B 和仅两份 full-volume HR-3C slots。
+- HR-2E 仍为 **DEFERRED**；production longitudinal schedule 仍为 **NOT FROZEN**。
+  本 closeout 未运行 HPC/Slurm，未变更 production config 或物理模型。
 
 ## 2026-08-30: HR-3C-B disk-backed streaming diffusion
 
@@ -15,8 +22,9 @@
   成功后才标记 complete，且仍非 authoritative。
 - 本地 NumPy microbenchmark（`K=32, 64x64, fp32`）的最佳观测为 B=2、
   76.07 MiB/s；仅作为工程基线，不冻结 production batch size。
-- 未进入 HR-3C-C：没有 runner 接线、role swap、generation metadata、checkpoint、
-  restart 或 `Npulses=N -> N-1` orchestration。
+- 该条为 HR-3C-B 关闭时的历史边界；后续 HR-3C-C 已完成 runner 接线、atomic
+  manifest lifecycle、restart 与 `Npulses=N -> N-1` orchestration（见本页 2026-08-30
+  final closeout 记录）。
 
 ## 2026-08-30: HR-3C-A interpulse transverse diffusion
 
@@ -24,8 +32,8 @@
   interval-centered `delta_n_th[k,y,x]` 的单个二维 slice 施加
   `dt_interpulse=1/f_rep` 的谱横向扩散。该算子采用现有 `kperp2`、周期边界和
   `R_edge <= 1e-3` 的 fail-closed numerical-validity gate。
-- 未实现 HR-3C-B 的 ping-pong/storage/performance，亦未实现 HR-3C-C 的
-  `Npulses=N -> N-1` orchestration、checkpoint 或 crash consistency。
+- 该条为 HR-3C-A 关闭时的历史边界；后续 HR-3C-B/C 已分别完成 disk-backed
+  streaming 与 transactional lifecycle（见本页 2026-08-30 final closeout 记录）。
 
 ## 2026-08-30: air refractivity scaling repair
 

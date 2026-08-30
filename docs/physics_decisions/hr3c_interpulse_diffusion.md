@@ -1,8 +1,7 @@
 # HR-3C-A interpulse transverse thermal diffusion
 
-**Status:** HR-3C-A CLOSED; HR-3C-B CLOSED; HR-3C-C implementation ready for closeout review (2026-08-30, branch `HR-3`).
-HR-3C-B adds disk-backed streaming execution but not HR-3C-C promotion or
-pulse orchestration.
+**Status:** HR-3C-A CLOSED; HR-3C-B CLOSED; HR-3C-C CLOSED; HR-3C CLOSED
+(2026-08-30, branch `HR-3`). HR-3 is READY FOR OVERALL CLOSEOUT REVIEW.
 
 ## HR-3C-C transactional integration
 
@@ -118,9 +117,21 @@ batch-size freeze.
   best observed value (76.07 MiB/s); it is not a production batch-size freeze
   or GPU/HPC certification.
 
-## Deferred
+## HR-3C-C transactional lifecycle and final closeout
 
-HR-3C-C owns atomic generation metadata, checkpoint/restart, crash consistency,
-role swaps, and the final `Npulses=N -> N-1` diffusion orchestration. No
-production propagation, HPC/Slurm work, HR-3D/HR-4 gas dynamics, or HR-2E
-convergence work is included.
+HR-3C-C integrates the existing HR-3B post-acoustic state and the frozen HR-3C-A
+diffusion operator without changing either physical contract. A pulse reads
+authoritative pre-state A and writes B exactly once per interval; a successful
+post commit atomically promotes B. For non-final pulses, B is diffused into A;
+the final post commit atomically records `run_complete=true` and is never
+diffused.
+
+Closeout gates CC1–CC12 are PASS. The evidence includes exact N=1/2/3
+`fresh/post/diffusion = N/N/(N-1)` totals, fresh optical-source copies, pulse and
+diffusion interruption recovery equivalent to uninterrupted references,
+completed-run resume without re-execution, HR-3C legacy-path isolation,
+standalone HR-3B regression, and exactly two HR-3C full-volume state slots.
+
+This closeout performs no production propagation, HPC/Slurm work, HR-3D/HR-4
+gas dynamics, or HR-2E convergence work. HR-2E remains DEFERRED and the
+production longitudinal schedule remains NOT FROZEN.

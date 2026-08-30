@@ -150,8 +150,13 @@ def _normalize_heat(heat: Dict[str, Any]) -> None:
             raise ValueError(f"heat.{name} must be true or false.")
     if bool(heat.get("hr3c_enabled", False)) and not bool(heat.get("hr3b_enabled", False)):
         raise ValueError("heat.hr3c_enabled requires heat.hr3b_enabled=true.")
+    if bool(heat.get("resume_hr3c", False)) and not bool(heat.get("hr3c_enabled", False)):
+        raise ValueError("heat.resume_hr3c requires heat.hr3c_enabled=true.")
     if "hr3c_batch_intervals" in heat:
-        heat["hr3c_batch_intervals"] = int(heat["hr3c_batch_intervals"])
+        raw_batch = heat["hr3c_batch_intervals"]
+        if isinstance(raw_batch, bool) or int(raw_batch) != float(raw_batch):
+            raise ValueError("heat.hr3c_batch_intervals must be an integer.")
+        heat["hr3c_batch_intervals"] = int(raw_batch)
         if heat["hr3c_batch_intervals"] <= 0:
             raise ValueError("heat.hr3c_batch_intervals must be positive.")
     for name in ("rho0", "Cv"):

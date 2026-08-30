@@ -439,7 +439,6 @@ def run_demo(
         pulse_index_list.append(i + 1)
         last_diag = diag
         if i == int(run.Npulses) - 1:
-            hr3c_controller.mark_complete()
             break
         hr3c_controller.diffuse_to_next_pre()
         hr3c_diffusion_passes += 1
@@ -514,9 +513,12 @@ def run_demo(
             "hr3c_final_physical_stage": _np.asarray(manifest["physical_stage"]),
             "hr3c_final_pulse_index": _np.int64(manifest["pulse_index"]),
             "hr3c_run_complete": bool(manifest["run_complete"]),
-            "n_fresh_pulses_completed": _np.int64(len(pulse_index_list)),
-            "n_hr3b_post_commits": _np.int64(hr3c_post_commits),
-            "n_hr3c_diffusion_passes": _np.int64(hr3c_diffusion_passes),
+            "n_fresh_pulses_completed": _np.int64(manifest["n_fresh_pulses_completed_total"]),
+            "n_hr3b_post_commits": _np.int64(manifest["n_hr3b_post_commits_total"]),
+            "n_hr3c_diffusion_passes": _np.int64(manifest["n_hr3c_diffusion_passes_total"]),
+            "this_invocation_fresh_pulses": _np.int64(len(pulse_index_list)),
+            "this_invocation_post_commits": _np.int64(hr3c_post_commits),
+            "this_invocation_diffusions": _np.int64(hr3c_diffusion_passes),
             "hr3c_D_th_m2_s": float(heat.D_th),
             "hr3c_dt_interpulse_s": 1.0 / float(heat.f_rep),
             "hr3c_edge_threshold": 1.0e-3,

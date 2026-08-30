@@ -118,6 +118,7 @@ class HR3CStateController:
                 raise FileExistsError("HR-3C new run refuses to overwrite existing manifest or state slots")
             self.store = PingPongSlowStateStore(output_path=output_path, n_intervals=n_intervals, shape=shape, dtype=dtype)
             self.manifest = {"schema_version": SCHEMA, "physical_stage": "pre_pulse", "pulse_index": -1, "next_pulse_index": 0, "authoritative_filename": self.store.current_path.name, "scratch_filename": self.store.next_path.name, "run_complete": False, **self.expected}
+            self.manifest.update({"n_fresh_pulses_completed_total": 0, "n_hr3b_post_commits_total": 0, "n_hr3c_diffusion_passes_total": 0})
             self._write_manifest()
 
     def _validate_manifest(self, manifest: dict) -> None:
@@ -126,37 +127,50 @@ class HR3CStateController:
                 raise ValueError(f"HR-3C resume fingerprint mismatch: {key}")
         if manifest.get("schema_version") != SCHEMA or manifest.get("physical_stage") not in ("pre_pulse", "post_pulse"):
             raise ValueError("HR-3C manifest is invalid")
+        slots = {Path(self.output_path).with_suffix("").name + ".hr3c_delta_n_th_current.npy", Path(self.output_path).with_suffix("").name + ".hr3c_delta_n_th_next.npy"}
+        if manifest.get("authoritative_filename") not in slots or manifest.get("scratch_filename") not in slots or manifest.get("authoritative_filename") == manifest.get("scratch_filename"):
+            raise ValueError("HR-3C manifest slot invariant failed")
+        p, nxt, n, complete = int(manifest.get("pulse_index", -99)), int(manifest.get("next_pulse_index", -99)), int(self.expected["npulses"]), manifest.get("run_complete")
+        if not isinstance(complete, bool): raise ValueError("HR-3C manifest run_complete invariant failed")
+        for key in ("n_fresh_pulses_completed_total", "n_hr3b_post_commits_total", "n_hr3c_diffusion_passes_total"):
+            if not isinstance(manifest.get(key), int) or manifest[key] < 0:
+                raise ValueError("HR-3C manifest counter invariant failed")
+        if manifest["physical_stage"] == "pre_pulse" and (complete or not (0 <= nxt < n and p == nxt - 1)):
+            raise ValueError("HR-3C pre_pulse manifest invariant failed")
+        if manifest["physical_stage"] == "post_pulse" and (not (0 <= p < n and nxt == p + 1) or (p == n - 1) != complete):
+            raise ValueError("HR-3C post_pulse manifest invariant failed")
+        if manifest["n_fresh_pulses_completed_total"] != manifest["n_hr3b_post_commits_total"]:
+            raise ValueError("HR-3C manifest pulse/post counter invariant failed")
 
     def _write_manifest(self) -> None:
         _atomic_json(self.manifest_path, self.manifest)
 
     def begin_pulse(self) -> PulseSlowStateTransaction:
+        self._validate_manifest(self.manifest)
         if self.manifest["run_complete"] or self.manifest["physical_stage"] != "pre_pulse":
             raise ValueError("HR-3C manifest is not ready for a fresh pulse")
         return PulseSlowStateTransaction(self.store)
 
     def commit_post_pulse(self, transaction: PulseSlowStateTransaction, pulse_index: int) -> None:
         transaction.finalize()
-        self.manifest.update({"physical_stage": "post_pulse", "pulse_index": int(pulse_index), "next_pulse_index": int(pulse_index) + 1, "authoritative_filename": self.store.next_path.name, "scratch_filename": self.store.current_path.name})
+        final = int(pulse_index) == int(self.expected["npulses"]) - 1
+        self.manifest.update({"physical_stage": "post_pulse", "pulse_index": int(pulse_index), "next_pulse_index": int(pulse_index) + 1, "authoritative_filename": self.store.next_path.name, "scratch_filename": self.store.current_path.name, "run_complete": final, "n_fresh_pulses_completed_total": int(self.manifest["n_fresh_pulses_completed_total"]) + 1, "n_hr3b_post_commits_total": int(self.manifest["n_hr3b_post_commits_total"]) + 1})
         self._write_manifest()
         self.store.select_authoritative(self.manifest["authoritative_filename"])
 
     def diffuse_to_next_pre(self) -> dict:
+        self._validate_manifest(self.manifest)
         if self.manifest["physical_stage"] != "post_pulse" or self.manifest["run_complete"]:
             raise ValueError("HR-3C manifest is not ready for diffusion")
         summary = diffuse_current_to_next(self.store, kperp2=self.kperp2, D_th=self.expected["D_th"], f_rep=self.expected["f_rep"], edge_threshold=self.expected["edge_threshold"], batch_intervals=self.expected["batch_intervals"])
         _fsync_memmap(self.store.next_path)
-        self.manifest.update({"physical_stage": "pre_pulse", "next_pulse_index": int(self.manifest["next_pulse_index"]), "authoritative_filename": self.store.next_path.name, "scratch_filename": self.store.current_path.name})
+        self.manifest.update({"physical_stage": "pre_pulse", "next_pulse_index": int(self.manifest["next_pulse_index"]), "authoritative_filename": self.store.next_path.name, "scratch_filename": self.store.current_path.name, "n_hr3c_diffusion_passes_total": int(self.manifest["n_hr3c_diffusion_passes_total"]) + 1})
         self._write_manifest()
         self.store.select_authoritative(self.manifest["authoritative_filename"])
         return summary
 
     def attach_grid(self, kperp2) -> None:
         self.kperp2 = kperp2
-
-    def mark_complete(self) -> None:
-        self.manifest["run_complete"] = True
-        self._write_manifest()
 
     def close(self) -> None:
         self.store.close()
