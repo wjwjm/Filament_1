@@ -1,5 +1,16 @@
 # 当前项目状态 (Round 1 Restructuring)
 
+## 2026-08-30: HR-3C-B disk-backed streaming diffusion
+
+- HR-3C-B = **CLOSED**：新增 current/next 两份 disk-backed
+  `delta_n_th[K,Ny,Nx]` memmap，按 z batch 在现有 backend 上做 batched
+  transverse spectral diffusion。current 不被修改；next 只有全量写盘及 flush
+  成功后才标记 complete，且仍非 authoritative。
+- 本地 NumPy microbenchmark（`K=32, 64x64, fp32`）的最佳观测为 B=2、
+  76.07 MiB/s；仅作为工程基线，不冻结 production batch size。
+- 未进入 HR-3C-C：没有 runner 接线、role swap、generation metadata、checkpoint、
+  restart 或 `Npulses=N -> N-1` orchestration。
+
 ## 2026-08-30: HR-3C-A interpulse transverse diffusion
 
 - HR-3C-A = **CLOSED**：冻结 authoritative `D_th=21.7e-6 m^2/s`，对 HR-3B

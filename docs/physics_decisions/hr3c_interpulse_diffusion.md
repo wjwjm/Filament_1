@@ -1,8 +1,8 @@
 # HR-3C-A interpulse transverse thermal diffusion
 
-**Status:** CLOSED (2026-08-30, branch `HR-3`). This is the HR-3C-A physics
-operator and validation baseline only; it does not create the HR-3C-B storage
-lifecycle or the HR-3C-C pulse orchestration.
+**Status:** HR-3C-A CLOSED; HR-3C-B CLOSED (2026-08-30, branch `HR-3`).
+HR-3C-B adds disk-backed streaming execution but not HR-3C-C promotion or
+pulse orchestration.
 
 ## Scope and frozen state
 
@@ -66,10 +66,50 @@ periodic domain by construction.
 - C8 dtype/finite: PASS; float32 input returns finite float32 output, while
   float64 is used for analytical validation.
 
+## HR-3C-B storage and streaming contract
+
+`PingPongSlowStateStore` creates two distinct disk-backed `.npy` memmaps named
+`<run>.hr3c_delta_n_th_current.npy` and
+`<run>.hr3c_delta_n_th_next.npy`, each shaped `[K, Ny, Nx]` at the real
+propagation dtype. `current` remains authoritative input and is never modified
+by `diffuse_current_to_next`; `next` is non-authoritative scratch. There is no
+role swap, generation record, checkpoint, restart, or runner integration.
+
+The pass reads a bounded `[B, Ny, Nx]` host batch, transfers it once to the
+configured `xp` backend, applies batched `FFT2/IFFT2` over `(-2,-1)` using a
+single kernel built once per volume pass, transfers one output batch to host,
+and writes it to `next`. Working state is therefore `O(B*Ny*Nx)`, not a full
+`[K,Ny,Nx]` materialization. Each evolved slice receives the same HR-3C-A
+sign and edge gates. A failure leaves `current` intact and marks `next` invalid;
+partial `next` contents are never promoted. Only successful full writes followed
+by `flush_next()` report `complete=true`, which still does not confer authority.
+
+For the nominal `K=16000`, `Ny=Nx=512`, float32 case, one raw state payload is
+`16,777,216,000` bytes = `15.625 GiB`; the two-file ping-pong payload is
+`33,554,432,000` bytes = `31.25 GiB`. A disk-space preflight runs before either
+file is created and fails closed if capacity is insufficient. The local benchmark
+uses only a temporary tiny state and must not be interpreted as a production
+batch-size freeze.
+
+### HR-3C-B validation gates
+
+- CB1 separate disk-backed layout and nominal-byte estimators: PASS.
+- CB2 current immutability: PASS.
+- CB3 batch/slice HR-3C-A equivalence in float32 and float64: PASS.
+- CB4 tiny-volume streaming closure with partial final batch: PASS.
+- CB5 edge failure includes the global interval index, leaves current intact,
+  and leaves next unpromoted: PASS.
+- CB6 bounded batch reads and a single kernel build per volume pass: PASS.
+- CB7 successful flush, close, and read-only reopen persistence: PASS.
+- CB8 estimator and local microbenchmark harness: PASS; observed local values
+  are CPU/NumPy `K=32`, `64x64`, float32 only: B=1/2/4/8/16/32 gave
+  73.30/76.07/54.64/48.10/56.70/58.65 MiB/s, respectively. B=2 was the local
+  best observed value (76.07 MiB/s); it is not a production batch-size freeze
+  or GPU/HPC certification.
+
 ## Deferred
 
-HR-3C-B owns current/next disk-backed ping-pong files, z chunking, batched FFT,
-host/device streaming, flushing, and performance work. HR-3C-C owns atomic
-generation metadata, checkpoint/restart, crash consistency, role swaps, and
-the final `Npulses=N -> N-1` diffusion orchestration. No production propagation,
-HPC/Slurm work, HR-3D/HR-4 gas dynamics, or HR-2E convergence work is included.
+HR-3C-C owns atomic generation metadata, checkpoint/restart, crash consistency,
+role swaps, and the final `Npulses=N -> N-1` diffusion orchestration. No
+production propagation, HPC/Slurm work, HR-3D/HR-4 gas dynamics, or HR-2E
+convergence work is included.

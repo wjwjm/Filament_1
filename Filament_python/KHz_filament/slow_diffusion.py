@@ -10,6 +10,20 @@ from .device import xp
 DEFAULT_EDGE_CONTAMINATION_THRESHOLD = 1.0e-3
 
 
+class EdgeContaminationError(ValueError):
+    """Fail-closed periodic-boundary error with the affected interval index."""
+
+    def __init__(self, *, interval_index: int, R_edge: float, threshold: float):
+        self.interval_index = int(interval_index)
+        self.R_edge = float(R_edge)
+        self.threshold = float(threshold)
+        super().__init__(
+            "HR-3C edge-contamination gate failed: "
+            f"interval={self.interval_index} R_edge={self.R_edge:.6e} "
+            f"exceeds {self.threshold:.6e}"
+        )
+
+
 def validate_hr3c_parameters(*, D_th: float, f_rep: float) -> float:
     """Validate authoritative HR-3C inputs and return ``dt_interpulse`` in s."""
     values = {"D_th": D_th, "f_rep": f_rep}
@@ -27,6 +41,24 @@ def _finite_2d_real_map(value, name: str):
     if not bool(xp.all(xp.isfinite(result))):
         raise ValueError(f"{name} must be finite")
     return result
+
+
+def _finite_3d_real_batch(value, name: str):
+    result = xp.asarray(value)
+    if result.ndim != 3 or result.dtype.kind != "f":
+        raise ValueError(f"{name} must be a real floating-point [B, Ny, Nx] batch")
+    if not bool(xp.all(xp.isfinite(result))):
+        raise ValueError(f"{name} must be finite")
+    return result
+
+
+def _validate_edge_threshold(edge_threshold: float | None) -> float | None:
+    if edge_threshold is None:
+        return None
+    threshold = float(edge_threshold)
+    if not math.isfinite(threshold) or threshold < 0.0 or threshold > 1.0:
+        raise ValueError("edge_threshold must be finite and satisfy 0 <= threshold <= 1")
+    return threshold
 
 
 def build_diffusion_kernel(kperp2, *, D_th: float, f_rep: float):
@@ -72,6 +104,61 @@ def _roundoff_tolerance(state) -> float:
     return 128.0 * float(xp.finfo(state.dtype).eps) * scale
 
 
+def diffuse_batch_2d(
+    delta_n_th_batch,
+    *,
+    kperp2,
+    D_th: float,
+    f_rep: float,
+    edge_threshold: float | None = DEFAULT_EDGE_CONTAMINATION_THRESHOLD,
+    kernel=None,
+    batch_offset: int = 0,
+    return_summary: bool = False,
+):
+    """Diffuse independent ``[B, Ny, Nx]`` slices with the HR-3C-A operator.
+
+    ``kernel`` may be supplied by a streaming volume pass so the frozen
+    spectral kernel is constructed once rather than once per z batch.
+    """
+    batch = _finite_3d_real_batch(delta_n_th_batch, "delta_n_th_batch")
+    threshold = _validate_edge_threshold(edge_threshold)
+    if kernel is None:
+        kernel = build_diffusion_kernel(kperp2, D_th=D_th, f_rep=f_rep)
+    else:
+        kernel = _finite_2d_real_map(kernel, "diffusion kernel")
+        if bool(xp.any(kernel <= 0.0)) or bool(xp.any(kernel > 1.0)):
+            raise ValueError("diffusion kernel must satisfy 0 < G <= 1")
+    if kernel.shape != batch.shape[-2:]:
+        raise ValueError("kperp2 shape must match each [Ny, Nx] state slice")
+
+    evolved = xp.real(
+        xp.fft.ifft2(xp.fft.fft2(batch, axes=(-2, -1)) * kernel[None, :, :], axes=(-2, -1))
+    ).astype(batch.dtype, copy=False)
+    if not bool(xp.all(xp.isfinite(evolved))):
+        raise ValueError("HR-3C diffusion produced non-finite values")
+
+    max_R_edge = 0.0
+    for local_index in range(int(evolved.shape[0])):
+        state = evolved[local_index]
+        roundoff_tolerance = _roundoff_tolerance(batch[local_index])
+        if float(xp.max(batch[local_index])) <= roundoff_tolerance and float(xp.max(state)) > roundoff_tolerance:
+            raise ValueError("HR-3C diffusion produced a significant positive thermal-index channel")
+        edge = evaluate_edge_contamination(state)
+        max_R_edge = max(max_R_edge, edge["R_edge"])
+        if threshold is not None and edge["R_edge"] > threshold:
+            raise EdgeContaminationError(
+                interval_index=int(batch_offset) + local_index,
+                R_edge=edge["R_edge"],
+                threshold=threshold,
+            )
+
+    summary = {
+        "n_intervals": int(evolved.shape[0]),
+        "max_R_edge": float(max_R_edge),
+    }
+    return (evolved, summary) if return_summary else evolved
+
+
 def diffuse_interval_2d(
     delta_n_th,
     *,
@@ -88,33 +175,20 @@ def diffuse_interval_2d(
     it with ``edge_threshold=None``.
     """
     state = _finite_2d_real_map(delta_n_th, "delta_n_th")
-    kernel = build_diffusion_kernel(kperp2, D_th=D_th, f_rep=f_rep)
-    if kernel.shape != state.shape:
-        raise ValueError("kperp2 shape must match the [Ny, Nx] state slice")
-
-    evolved = xp.real(xp.fft.ifft2(xp.fft.fft2(state) * kernel)).astype(state.dtype, copy=False)
-    if not bool(xp.all(xp.isfinite(evolved))):
-        raise ValueError("HR-3C diffusion produced non-finite values")
-    roundoff_tolerance = _roundoff_tolerance(state)
-    if float(xp.max(state)) <= roundoff_tolerance and float(xp.max(evolved)) > roundoff_tolerance:
-        raise ValueError("HR-3C diffusion produced a significant positive thermal-index channel")
-
-    if edge_threshold is not None:
-        threshold = float(edge_threshold)
-        if not math.isfinite(threshold) or threshold < 0.0 or threshold > 1.0:
-            raise ValueError("edge_threshold must be finite and satisfy 0 <= threshold <= 1")
-        edge = evaluate_edge_contamination(evolved)
-        if edge["R_edge"] > threshold:
-            raise ValueError(
-                "HR-3C edge-contamination gate failed: "
-                f"R_edge={edge['R_edge']:.6e} exceeds {threshold:.6e}"
-            )
-    return evolved
+    return diffuse_batch_2d(
+        state[None, :, :],
+        kperp2=kperp2,
+        D_th=D_th,
+        f_rep=f_rep,
+        edge_threshold=edge_threshold,
+    )[0]
 
 
 __all__ = [
     "DEFAULT_EDGE_CONTAMINATION_THRESHOLD",
+    "EdgeContaminationError",
     "build_diffusion_kernel",
+    "diffuse_batch_2d",
     "diffuse_interval_2d",
     "evaluate_edge_contamination",
     "validate_hr3c_parameters",
