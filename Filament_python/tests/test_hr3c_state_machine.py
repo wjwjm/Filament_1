@@ -32,6 +32,21 @@ def _commit_one(controller, pulse):
     controller.commit_post_pulse(tx, pulse)
 
 
+def _reach_manifest_stage(controller, stage: str) -> None:
+    if stage == "initial_pre":
+        return
+    _commit_one(controller, 0)
+    if stage == "intermediate_post":
+        return
+    controller.diffuse_to_next_pre()
+    if stage == "intermediate_pre":
+        return
+    _commit_one(controller, 1)
+    controller.diffuse_to_next_pre()
+    _commit_one(controller, 2)
+    assert stage == "final_post"
+
+
 def test_cc1_cc3_cc4_transactional_counts_and_final_pulse_has_no_diffusion(tmp_path):
     controller = _controller(tmp_path, npulses=3)
     pre0 = np.array(controller.store.read_current_batch(0, 2), copy=True)
@@ -130,6 +145,43 @@ def test_manifest_slot_and_stage_invariants_fail_closed(tmp_path, field, value):
     with pytest.raises(ValueError, match="invariant"):
         _controller(tmp_path, npulses=2, resume=True)
     controller.close()
+
+
+@pytest.mark.parametrize("stage", ["initial_pre", "intermediate_post", "intermediate_pre", "final_post"])
+def test_valid_counter_stage_manifests_reopen_without_regression(tmp_path, stage):
+    controller = _controller(tmp_path, npulses=3)
+    _reach_manifest_stage(controller, stage)
+    expected = dict(controller.manifest)
+    controller.close()
+
+    resumed = _controller(tmp_path, npulses=3, resume=True)
+    assert resumed.manifest == expected
+    resumed.close()
+
+
+@pytest.mark.parametrize("stage,updates", [
+    ("intermediate_pre", {"n_fresh_pulses_completed_total": 0, "n_hr3b_post_commits_total": 0}),
+    ("intermediate_pre", {"n_hr3c_diffusion_passes_total": 0}),
+    ("intermediate_post", {"n_fresh_pulses_completed_total": 0, "n_hr3b_post_commits_total": 0}),
+    ("intermediate_post", {"n_hr3c_diffusion_passes_total": 1}),
+    ("final_post", {"n_fresh_pulses_completed_total": 2, "n_hr3b_post_commits_total": 2}),
+    ("intermediate_pre", {
+        "n_fresh_pulses_completed_total": 0,
+        "n_hr3b_post_commits_total": 0,
+        "n_hr3c_diffusion_passes_total": 0,
+    }),
+])
+def test_counter_stage_index_tampering_fails_closed(tmp_path, stage, updates):
+    controller = _controller(tmp_path, npulses=3)
+    _reach_manifest_stage(controller, stage)
+    manifest_path = tmp_path / "run.hr3c_state_manifest.json"
+    controller.close()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.update(updates)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="counter.*invariant"):
+        _controller(tmp_path, npulses=3, resume=True)
 
 
 def test_diffusion_interruption_resume_matches_uninterrupted_final_state_and_totals(tmp_path, monkeypatch):

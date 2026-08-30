@@ -1,18 +1,25 @@
 # 当前项目状态 (Round 1 Restructuring)
 
-## 2026-08-30: HR-3C-C final closeout
+## 2026-08-30: HR-3 overall closeout
 
 - HR-3B、HR-3C-A、HR-3C-B 和 HR-3C-C 均为 **CLOSED**；HR-3C 为
-  **CLOSED**，HR-3 为 **READY FOR OVERALL CLOSEOUT REVIEW**。分支仍为 `HR-3`，
-  未合并 `main`。
+  **CLOSED**，但 HR-3 overall closeout 为 **BLOCKED**。分支仍为 `HR-3`，未合并
+  `main`。
+- H3-5 未通过：completed-run `resume_hr3c=true` 不执行 pulse/diffusion，但当前
+  runner 仍会无条件重写主 NPZ；新输出不是已完成 run 的原最终诊断。该恢复输出
+  幂等性修复不属于本次唯一允许的 manifest 硬化，因此 HR-3 不能标记 READY TO MERGE。
+  完整冻结账本见 `docs/physics_decisions/hr3_overall_closeout.md`。
 - HR-3C-C 将每发 HR-3B post update 固定为 A(pre)→B(post) transaction；manifest
   以 write-temp / fsync / replace 原子记录 `pre_pulse` 与 `post_pulse`。final post
   与 `run_complete=true` 为同一次 manifest 提交，final post-state 不再额外扩散。
+- manifest 的 fresh/post/diffusion persistent counters 现与 physical stage 和
+  pulse/index 精确绑定；被篡改的任意不一致 manifest 会 fail closed。
 - CC1–CC12 closeout gate 均 PASS：覆盖 N=1/2/3 的 `N/N/(N-1)` 累计计数、fresh
   optical source、pulse/diffusion interruption restart equivalence、completed-run
   resume、legacy isolation、standalone HR-3B 和仅两份 full-volume HR-3C slots。
 - HR-2E 仍为 **DEFERRED**；production longitudinal schedule 仍为 **NOT FROZEN**。
-  本 closeout 未运行 HPC/Slurm，未变更 production config 或物理模型。
+  HR-4 为 **NOT STARTED**。本 closeout 未运行 HPC/Slurm，未变更 production config
+  或物理模型。
 
 ## 2026-08-30: HR-3C-B disk-backed streaming diffusion
 

@@ -1,7 +1,7 @@
 # HR-3C-A interpulse transverse thermal diffusion
 
 **Status:** HR-3C-A CLOSED; HR-3C-B CLOSED; HR-3C-C CLOSED; HR-3C CLOSED
-(2026-08-30, branch `HR-3`). HR-3 is READY FOR OVERALL CLOSEOUT REVIEW.
+(2026-08-30, branch `HR-3`). HR-3 overall closeout is BLOCKED (not merged).
 
 ## HR-3C-C transactional integration
 
@@ -13,6 +13,12 @@ durably flushed, then atomically promoted to `pre_pulse` for the next fresh
 optical pulse. The manifest binds shape/dtype, interval-centered state,
 `D_th`, `f_rep`, edge threshold, batch size, and a schedule/transverse-grid
 fingerprint. Resume is explicit and opens existing memmaps without truncation.
+Persistent fresh/post/diffusion counters are exact functions of the manifest
+stage and pulse indices; any mismatch is rejected before resume can open the
+state slots.
+The completed-run resume path remains an overall-closeout blocker until it can
+preserve or explicitly load the original final NPZ diagnostics instead of
+rewriting them from a fresh source field.
 
 ## Scope and frozen state
 

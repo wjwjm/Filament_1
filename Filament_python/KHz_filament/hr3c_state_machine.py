@@ -139,8 +139,17 @@ class HR3CStateController:
             raise ValueError("HR-3C pre_pulse manifest invariant failed")
         if manifest["physical_stage"] == "post_pulse" and (not (0 <= p < n and nxt == p + 1) or (p == n - 1) != complete):
             raise ValueError("HR-3C post_pulse manifest invariant failed")
-        if manifest["n_fresh_pulses_completed_total"] != manifest["n_hr3b_post_commits_total"]:
+        fresh = manifest["n_fresh_pulses_completed_total"]
+        post = manifest["n_hr3b_post_commits_total"]
+        diffusions = manifest["n_hr3c_diffusion_passes_total"]
+        if fresh != post:
             raise ValueError("HR-3C manifest pulse/post counter invariant failed")
+        if manifest["physical_stage"] == "pre_pulse":
+            expected_counts = (nxt, nxt, nxt)
+        else:
+            expected_counts = (p + 1, p + 1, p)
+        if (fresh, post, diffusions) != expected_counts:
+            raise ValueError("HR-3C manifest counter/stage/index invariant failed")
 
     def _write_manifest(self) -> None:
         _atomic_json(self.manifest_path, self.manifest)
