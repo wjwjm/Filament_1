@@ -62,7 +62,9 @@ def _run(
         out_path=str(output), dtype="fp64",
     )
     with np.load(output, allow_pickle=False) as data:
-        return {key: data[key].copy() for key in data.files}
+        result = {key: data[key].copy() for key in data.files}
+    result["__output_path__"] = output
+    return result
 
 
 def test_unified_helper_sums_all_authoritative_mechanisms_and_closes_level2():
@@ -191,3 +193,30 @@ def test_unified_output_keeps_only_scalar_longitudinal_ledgers(tmp_path):
         for key in data
     )
     assert np.asarray(data["E_dep_total_interval_J"]).ndim == 1
+
+
+def test_hr3a_streaming_thermal_ledger_writes_sparse_sidecar(tmp_path):
+    data = _run(tmp_path, full_operator=True)
+
+    assert data["thermalization_ledger_schema"].item() == (
+        "khz_filament.thermalization_ledger.v1"
+    )
+    assert data["thermalization_source"].item() == "hr2_authoritative_deposition"
+    assert data["thermalization_authoritative"].item()
+    assert data["thermalization_t1_status"].item() == "pass"
+    assert data["thermalization_t2_status"].item() == "pass"
+    assert data["thermalization_t3_status"].item() == "pass"
+    assert data["thermalization_first_failed_level"].item() == ""
+    assert not any(key in data for key in ("q_th_ion", "q_th_ib", "q_th_raman", "q_thermal"))
+    archive = data["__output_path__"].with_suffix(".hr3a_qthermal_samples.npy")
+    assert archive.is_file()
+    maps = np.lib.format.open_memmap(archive, mode="r")
+    assert maps.shape[0] == len(data["thermal_map_interval_index"])
+    assert maps.shape[1:] == (8, 8)
+    assert maps.dtype == np.float64
+    np.testing.assert_allclose(
+        data["E_thermal_interval_J"],
+        data["E_th_ion_interval_J"]
+        + data["E_th_ib_interval_J"]
+        + data["E_th_raman_interval_J"],
+    )

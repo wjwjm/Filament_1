@@ -173,6 +173,9 @@
 - **D_gas (float, m²/s)**：气体热/密度扩散系数（控制慢时扩散平滑速度）。
 - **gamma_heat (float, Δn per J/m³)**：热沉积能量密度到折射率变化的耦合系数（负值通常表示加热导致折射率降低）。
 - **f_rep (float, Hz)**：重复频率（kHz 条件下用于脉冲间累积/慢时演化）。
+- **hr3b_enabled (bool)**：启用 HR-3B authoritative post-acoustic `delta_n_th` 慢状态；关闭时仅保留 legacy `Q2D -> gamma_heat -> dn_gas` compatibility 路径，后者不是 authoritative HR source。
+- **rho0 (float, kg/m³)**：HR-3B 环境空气质量密度，用于 `beta_th=(n0-1)/(rho0*Cv*T0)`；不得用分子数密度替代。
+- **Cv (float, J/(kg K))**：HR-3B 干空气定容比热；不得用 `Cp` 或 `gamma_heat` 替代。环境温度 `T0` 复用 `propagation.air_T`。
 
 ---
 

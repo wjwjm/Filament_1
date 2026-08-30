@@ -45,7 +45,7 @@ def _tiny_components(*, npulses: int):
                 }
             ]
         ),
-        "heat": HeatConfig(f_rep=1e3),
+        "heat": HeatConfig(f_rep=1e3, hr3b_enabled=False),
         "run": RunConfig(Npulses=npulses),
         "raman": RamanConfig(enabled=False, absorption=False),
         "dtype": "fp32",

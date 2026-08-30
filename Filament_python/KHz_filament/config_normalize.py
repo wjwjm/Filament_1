@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import math
 from typing import Any, Dict
 
 from .constants import eps0, c0
@@ -139,6 +140,35 @@ def _normalize_linear_precision(propagation: Dict[str, Any]) -> None:
     propagation["linear_precision_strategy"] = strategy
 
 
+def _normalize_heat(heat: Dict[str, Any]) -> None:
+    """Validate explicit HR-3B/HR-3C parameters without changing legacy terms."""
+    for name in ("rho0", "Cv", "f_rep", "D_gas", "D_th", "gamma_heat"):
+        if name in heat:
+            heat[name] = _to_float(heat[name])
+    for name in ("hr3b_enabled", "hr3c_enabled", "resume_hr3c"):
+        if name in heat and not isinstance(heat[name], bool):
+            raise ValueError(f"heat.{name} must be true or false.")
+    if bool(heat.get("hr3c_enabled", False)) and not bool(heat.get("hr3b_enabled", False)):
+        raise ValueError("heat.hr3c_enabled requires heat.hr3b_enabled=true.")
+    if bool(heat.get("resume_hr3c", False)) and not bool(heat.get("hr3c_enabled", False)):
+        raise ValueError("heat.resume_hr3c requires heat.hr3c_enabled=true.")
+    if "hr3c_batch_intervals" in heat:
+        raw_batch = heat["hr3c_batch_intervals"]
+        if isinstance(raw_batch, bool) or int(raw_batch) != float(raw_batch):
+            raise ValueError("heat.hr3c_batch_intervals must be an integer.")
+        heat["hr3c_batch_intervals"] = int(raw_batch)
+        if heat["hr3c_batch_intervals"] <= 0:
+            raise ValueError("heat.hr3c_batch_intervals must be positive.")
+    for name in ("rho0", "Cv"):
+        if name in heat and float(heat[name]) <= 0.0:
+            raise ValueError(f"heat.{name} must be positive for HR-3B.")
+    for name in ("D_th", "f_rep"):
+        if name in heat:
+            value = float(heat[name])
+            if not math.isfinite(value) or value <= 0.0:
+                raise ValueError(f"heat.{name} must be finite and positive for HR-3C.")
+
+
 def _normalize_raman(raman: Dict[str, Any]) -> None:
     """Validate the explicit Isaacs rotational-Raman parameterization.
 
@@ -242,12 +272,14 @@ def normalize_config(raw: Dict[str, Any]) -> Dict[str, Any]:
     out["beam"] = dict(out.get("beam", {}))
     out["propagation"] = dict(out.get("propagation", {}))
     out["ionization"] = dict(out.get("ionization", {}))
+    out["heat"] = dict(out.get("heat", {}))
     out["raman"] = dict(out.get("raman", {}))
 
     _normalize_beam(out["beam"], grid=out["grid"])
     _normalize_species(out["ionization"])
     _normalize_nonlinear_switches(out["propagation"])
     _normalize_linear_precision(out["propagation"])
+    _normalize_heat(out["heat"])
     _normalize_raman(out["raman"])
     _validate_raman_operator_coupling(out["raman"], out["propagation"])
     return out

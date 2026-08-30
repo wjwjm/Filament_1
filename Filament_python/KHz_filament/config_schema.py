@@ -45,6 +45,21 @@ NONLINEAR_SWITCH_FIELDS: Set[str] = {
 }
 
 
+HEAT_HR3B_FIELDS: Dict[str, str] = {
+    "hr3b_enabled": "enable authoritative HR-3B post-acoustic delta_n_th state",
+    "rho0": "ambient dry-air mass density [kg/m^3]",
+    "Cv": "dry-air constant-volume specific heat [J/(kg K)]",
+}
+
+
+HEAT_HR3C_FIELDS: Dict[str, str] = {
+    "D_th": "authoritative HR-3C transverse thermal diffusivity [m^2/s]",
+    "hr3c_enabled": "enable transactional HR-3C state lifecycle",
+    "hr3c_batch_intervals": "HR-3C disk streaming batch size [intervals]",
+    "resume_hr3c": "explicitly resume an existing HR-3C state manifest",
+}
+
+
 RATE_ALIAS_MAP: Dict[str, str] = {
     # historical shorthand
     "ppt_talebpour_i": "ppt_talebpour_i_lut",

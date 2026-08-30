@@ -1,5 +1,73 @@
 # 当前项目状态 (Round 1 Restructuring)
 
+## 2026-08-30: HR-3 overall closeout
+
+- HR-3B、HR-3C-A、HR-3C-B 和 HR-3C-C 均为 **CLOSED**；HR-3C 为
+  **CLOSED**，HR-3 为 **CLOSED / READY TO MERGE**。分支仍为 `HR-3`，未合并
+  `main`。
+- completed-run `resume_hr3c=true` 现验证并加载已有 completed NPZ，不执行
+  pulse/diffusion，也不重写主 NPZ、diagnostic report、manifest 或 two-slot state。
+  H3-5 与 H3-10 均 PASS；完整冻结账本见
+  `docs/physics_decisions/hr3_overall_closeout.md`。
+- HR-3C-C 将每发 HR-3B post update 固定为 A(pre)→B(post) transaction；manifest
+  以 write-temp / fsync / replace 原子记录 `pre_pulse` 与 `post_pulse`。final post
+  与 `run_complete=true` 为同一次 manifest 提交，final post-state 不再额外扩散。
+- manifest 的 fresh/post/diffusion persistent counters 现与 physical stage 和
+  pulse/index 精确绑定；被篡改的任意不一致 manifest 会 fail closed。
+- CC1–CC12 closeout gate 均 PASS：覆盖 N=1/2/3 的 `N/N/(N-1)` 累计计数、fresh
+  optical source、pulse/diffusion interruption restart equivalence、completed-run
+  resume、legacy isolation、standalone HR-3B 和仅两份 full-volume HR-3C slots。
+- HR-2E 仍为 **DEFERRED**；production longitudinal schedule 仍为 **NOT FROZEN**。
+  HR-4 为 **NOT STARTED**。本 closeout 未运行 HPC/Slurm，未变更 production config
+  或物理模型。
+
+## 2026-08-30: HR-3C-B disk-backed streaming diffusion
+
+- HR-3C-B = **CLOSED**：新增 current/next 两份 disk-backed
+  `delta_n_th[K,Ny,Nx]` memmap，按 z batch 在现有 backend 上做 batched
+  transverse spectral diffusion。current 不被修改；next 只有全量写盘及 flush
+  成功后才标记 complete，且仍非 authoritative。
+- 本地 NumPy microbenchmark（`K=32, 64x64, fp32`）的最佳观测为 B=2、
+  76.07 MiB/s；仅作为工程基线，不冻结 production batch size。
+- 该条为 HR-3C-B 关闭时的历史边界；后续 HR-3C-C 已完成 runner 接线、atomic
+  manifest lifecycle、restart 与 `Npulses=N -> N-1` orchestration（见本页 2026-08-30
+  final closeout 记录）。
+
+## 2026-08-30: HR-3C-A interpulse transverse diffusion
+
+- HR-3C-A = **CLOSED**：冻结 authoritative `D_th=21.7e-6 m^2/s`，对 HR-3B
+  interval-centered `delta_n_th[k,y,x]` 的单个二维 slice 施加
+  `dt_interpulse=1/f_rep` 的谱横向扩散。该算子采用现有 `kperp2`、周期边界和
+  `R_edge <= 1e-3` 的 fail-closed numerical-validity gate。
+- 该条为 HR-3C-A 关闭时的历史边界；后续 HR-3C-B/C 已分别完成 disk-backed
+  streaming 与 transactional lifecycle（见本页 2026-08-30 final closeout 记录）。
+
+## 2026-08-30: air refractivity scaling repair
+
+- `KHz_filament.air_dispersion` 的 Ciddor-simple refractivity 经验式已移除重复的
+  外层 `1e-6` 缩放；这是既有光学背景折射率实现错误的修复，不改变 HR-3B 的
+  `beta_th`、热力学参数来源、persistent slow state 或脉冲排序合同。
+
+## 2026-08-30: HR-3A thermalization contract
+
+- 开发分支：`HR-3`（尚未合并 `main`）。
+- HR-3A = **CLOSED**：将 HR-2 权威、分机制、按 interval 的沉积图转换为独立的 HR-3A
+  microscopic-thermalization ledger；完整热化是两篇核心参考文献支持的模型近似，
+  而非 fs 瞬时平动升温结论。
+- HR-3A-R：改为 interval-streaming、O(K) 标量账本与物理 z 稀疏二维诊断 sidecar；
+  不再在 RAM 或主 NPZ 中保留 full-z thermal/deposition map history。
+- HR-3A-R2：静态 sample-map 估算修正为 nominal `~501` 张 / `~501 MiB`（实际值以
+  `build_physical_sample_plan(...).count` 为准）；T1/T2/T3 closure 状态独立，overall
+  authority 为三者 conjunction。已知 HR-2E strict-float baseline failure 不阻止 HR-3A close。
+- HR-3B = **CLOSED**：实现为显式 opt-in 的 post-acoustic reduced mapping。唯一 authoritative
+  persistent slow state 是 interval-centered、disk-backed `delta_n_th[K,Ny,Nx]`；每个
+  interval 读取旧 slice 用于本发相位，再在 HR-3A authoritative `q_thermal` 完成后原地累加。
+  `Q2D/gamma_heat/dn_gas` 仅保留 non-authoritative legacy compatibility 模式。
+- 未实现：persistent `Delta T`、persistent `delta rho`、显式声学/等压瞬态、扩散、
+  传热传质及脉冲间慢状态传播；这些属于 HR-3C/HR-4。
+- 保留：HR-2E = **DEFERRED**；production longitudinal schedule = **NOT FROZEN**；
+  未提交 HPC 或 Slurm 作业。
+
 - 日期: 2026-08-23
 - 分支: `main`
 - 基线 HEAD (本轮开始前): `37f79794f8b1dd93b4431e11f21e70f7059c6492`
