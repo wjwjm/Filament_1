@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import math
 from typing import Any, Dict
 
 from .constants import eps0, c0
@@ -140,8 +141,8 @@ def _normalize_linear_precision(propagation: Dict[str, Any]) -> None:
 
 
 def _normalize_heat(heat: Dict[str, Any]) -> None:
-    """Validate explicit HR-3B parameters without touching legacy heat terms."""
-    for name in ("rho0", "Cv", "f_rep", "D_gas", "gamma_heat"):
+    """Validate explicit HR-3B/HR-3C parameters without changing legacy terms."""
+    for name in ("rho0", "Cv", "f_rep", "D_gas", "D_th", "gamma_heat"):
         if name in heat:
             heat[name] = _to_float(heat[name])
     if "hr3b_enabled" in heat and not isinstance(heat["hr3b_enabled"], bool):
@@ -149,6 +150,11 @@ def _normalize_heat(heat: Dict[str, Any]) -> None:
     for name in ("rho0", "Cv"):
         if name in heat and float(heat[name]) <= 0.0:
             raise ValueError(f"heat.{name} must be positive for HR-3B.")
+    for name in ("D_th", "f_rep"):
+        if name in heat:
+            value = float(heat[name])
+            if not math.isfinite(value) or value <= 0.0:
+                raise ValueError(f"heat.{name} must be finite and positive for HR-3C.")
 
 
 def _normalize_raman(raman: Dict[str, Any]) -> None:

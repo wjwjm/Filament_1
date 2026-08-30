@@ -1,5 +1,14 @@
 # 当前项目状态 (Round 1 Restructuring)
 
+## 2026-08-30: HR-3C-A interpulse transverse diffusion
+
+- HR-3C-A = **CLOSED**：冻结 authoritative `D_th=21.7e-6 m^2/s`，对 HR-3B
+  interval-centered `delta_n_th[k,y,x]` 的单个二维 slice 施加
+  `dt_interpulse=1/f_rep` 的谱横向扩散。该算子采用现有 `kperp2`、周期边界和
+  `R_edge <= 1e-3` 的 fail-closed numerical-validity gate。
+- 未实现 HR-3C-B 的 ping-pong/storage/performance，亦未实现 HR-3C-C 的
+  `Npulses=N -> N-1` orchestration、checkpoint 或 crash consistency。
+
 ## 2026-08-30: air refractivity scaling repair
 
 - `KHz_filament.air_dispersion` 的 Ciddor-simple refractivity 经验式已移除重复的

@@ -147,7 +147,8 @@ class IonizationConfig:
     #             sp["fraction"] = float(sp["fraction"] / total)
 @dataclass
 class HeatConfig:
-    D_gas: float = 2.0e-5        # m^2/s
+    D_gas: float = 2.0e-5        # m^2/s; legacy compatibility only
+    D_th: float = 21.7e-6        # m^2/s; authoritative HR-3C thermal diffusivity
     gamma_heat: float = -1.0e-23 # Δn per J/m^3
     f_rep: float = 1.0e3         # Hz (1 kHz default)
     # HR-3B authoritative post-acoustic mapping.  ``T0`` intentionally

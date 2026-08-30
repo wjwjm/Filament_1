@@ -52,6 +52,11 @@ HEAT_HR3B_FIELDS: Dict[str, str] = {
 }
 
 
+HEAT_HR3C_FIELDS: Dict[str, str] = {
+    "D_th": "authoritative HR-3C transverse thermal diffusivity [m^2/s]",
+}
+
+
 RATE_ALIAS_MAP: Dict[str, str] = {
     # historical shorthand
     "ppt_talebpour_i": "ppt_talebpour_i_lut",

@@ -20,6 +20,7 @@ $sanityTest = Join-Path $filamentPythonRoot 'tests\test_sanity.py'
 $targetedTests = @(
     $sanityTest,
     (Join-Path $filamentPythonRoot 'tests\test_air_dispersion.py'),
+    (Join-Path $filamentPythonRoot 'tests\test_hr3c_interpulse_diffusion.py'),
     (Join-Path $filamentPythonRoot 'tests\test_longitudinal_contract.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr2c_raman_deposition.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr2d_unified_deposition_ledger.py'),
