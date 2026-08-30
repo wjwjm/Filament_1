@@ -41,6 +41,11 @@ def _npz_count(output: Path, key: str) -> int:
         return int(data[key])
 
 
+def _npz_snapshot(output: Path) -> dict[str, np.ndarray]:
+    with np.load(output) as data:
+        return {key: np.array(data[key], copy=True) for key in data.files}
+
+
 def _install_deterministic_propagator(monkeypatch, *, fail_on=None, pulse_offset=0):
     runner = importlib.import_module("KHz_filament.runner")
     fields, calls = [], []
@@ -60,10 +65,17 @@ def _install_deterministic_propagator(monkeypatch, *, fail_on=None, pulse_offset
         E[...] = pulse + 1
         return E, np.zeros(E.shape[-2:], dtype=np.float32), {
             "delta_n_state_min_after_update": np.array([increment.min()]),
+            "z_axis": np.array([0.0, 1e-4]),
+            "w_mom_z": np.array([2e-4, 1e-4]),
+            "rho_max_z": np.array([1.0, 2.0]),
         }
 
     monkeypatch.setattr(runner, "propagate_one_pulse", fake_propagate)
-    monkeypatch.setattr(runner, "write_nonlinear_diagnostic_report", lambda *a, **k: {"validation": {"z_records": 0}})
+    def fake_report(path, *args, **kwargs):
+        Path(path).write_bytes(b"deterministic diagnostic report\n")
+        return {"validation": {"z_records": 2}}
+
+    monkeypatch.setattr(runner, "write_nonlinear_diagnostic_report", fake_report)
     return runner, fields, calls
 
 
@@ -115,22 +127,84 @@ def test_pulse_interruption_resume_matches_uninterrupted_runner(monkeypatch, tmp
         assert resumed_manifest[key] == reference_manifest[key]
 
 
-def test_completed_runner_resume_does_not_reexecute(monkeypatch, tmp_path):
+def test_completed_runner_resume_is_artifact_idempotent(monkeypatch, tmp_path):
     runner, _, _ = _install_deterministic_propagator(monkeypatch)
     output = tmp_path / "completed.npz"
-    runner.run_demo(**_components(npulses=3), out_path=str(output))
+    completed = runner.run_demo(**_components(npulses=3), out_path=str(output), return_results=True)
     state_before = _authoritative_state(output)
-    manifest_before = json.loads(output.with_suffix(".hr3c_state_manifest.json").read_text(encoding="utf-8"))
+    manifest_path = output.with_suffix(".hr3c_state_manifest.json")
+    manifest_before = manifest_path.read_bytes()
+    npz_before = output.read_bytes()
+    report_path = output.with_suffix(".diagnostic_report.json")
+    report_before = report_path.read_bytes()
+    slot_before = {
+        path.name: path.read_bytes()
+        for path in tmp_path.glob("completed.hr3c_delta_n_th_*.npy")
+    }
+    snapshot_before = _npz_snapshot(output)
     runner, _, _ = _install_deterministic_propagator(monkeypatch)
     monkeypatch.setattr(runner, "propagate_one_pulse", lambda *a, **k: (_ for _ in ()).throw(AssertionError("pulse rerun")))
     import KHz_filament.hr3c_state_machine as machine
     monkeypatch.setattr(machine, "diffuse_current_to_next", lambda *a, **k: (_ for _ in ()).throw(AssertionError("diffusion rerun")))
+    monkeypatch.setattr(runner, "write_nonlinear_diagnostic_report", lambda *a, **k: (_ for _ in ()).throw(AssertionError("report rewrite")))
     resumed = runner.run_demo(**_components(npulses=3, resume=True), out_path=str(output), return_results=True)
+
+    assert output.read_bytes() == npz_before
+    assert report_path.read_bytes() == report_before
+    assert manifest_path.read_bytes() == manifest_before
+    assert slot_before == {
+        path.name: path.read_bytes()
+        for path in tmp_path.glob("completed.hr3c_delta_n_th_*.npy")
+    }
     np.testing.assert_array_equal(_authoritative_state(output), state_before)
-    assert json.loads(output.with_suffix(".hr3c_state_manifest.json").read_text(encoding="utf-8")) == manifest_before
+    snapshot_after = _npz_snapshot(output)
+    assert snapshot_after.keys() == snapshot_before.keys()
+    for key in (
+        "I_out_center_t", "pulse_index", "n_fresh_pulses_completed",
+        "n_hr3b_post_commits", "n_hr3c_diffusion_passes",
+        "hr3c_final_pulse_index", "hr3c_final_physical_stage",
+        "hr3c_run_complete", "hr3c_final_authoritative_filename",
+        "z_axis", "w_mom_z", "rho_max_z",
+    ):
+        np.testing.assert_array_equal(snapshot_after[key], snapshot_before[key])
+    np.testing.assert_array_equal(snapshot_before["pulse_index"], np.array([1, 2, 3]))
+    np.testing.assert_array_equal(resumed["I_out_center_t"], completed["I_out_center_t"])
+    np.testing.assert_array_equal(resumed["pulse_summary"]["pulse_index"], np.array([1, 2, 3]))
+    assert int(resumed["pulse_summary"]["n_fresh_pulses_completed"]) == 3
+    assert int(resumed["pulse_summary"]["n_hr3b_post_commits"]) == 3
+    assert int(resumed["pulse_summary"]["n_hr3c_diffusion_passes"]) == 2
+    assert resumed["E_final"] is None and resumed["I_final"] is None
+    np.testing.assert_array_equal(resumed["diagnostics"]["z_axis"], snapshot_before["z_axis"])
+    assert runner.run_demo(**_components(npulses=3, resume=True), out_path=str(output)) is None
+    assert output.read_bytes() == npz_before
+    assert report_path.read_bytes() == report_before
+    assert manifest_path.read_bytes() == manifest_before
     assert _npz_count(output, "n_fresh_pulses_completed") == 3
     assert _npz_count(output, "n_hr3b_post_commits") == 3
     assert _npz_count(output, "n_hr3c_diffusion_passes") == 2
+
+
+def test_completed_runner_resume_missing_or_mismatched_npz_fails_closed(monkeypatch, tmp_path):
+    runner, _, _ = _install_deterministic_propagator(monkeypatch)
+    missing = tmp_path / "missing.npz"
+    runner.run_demo(**_components(npulses=2), out_path=str(missing))
+    missing.unlink()
+    runner, _, _ = _install_deterministic_propagator(monkeypatch)
+    monkeypatch.setattr(runner, "propagate_one_pulse", lambda *a, **k: (_ for _ in ()).throw(AssertionError("pulse rerun")))
+    with pytest.raises(FileNotFoundError, match="completed primary NPZ"):
+        runner.run_demo(**_components(npulses=2, resume=True), out_path=str(missing))
+    assert not missing.exists()
+
+    mismatched = tmp_path / "mismatched.npz"
+    runner, _, _ = _install_deterministic_propagator(monkeypatch)
+    runner.run_demo(**_components(npulses=2), out_path=str(mismatched))
+    artifact = _npz_snapshot(mismatched)
+    artifact["n_hr3c_diffusion_passes"] = np.array(99, dtype=np.int64)
+    np.savez_compressed(mismatched, **artifact)
+    runner, _, _ = _install_deterministic_propagator(monkeypatch)
+    monkeypatch.setattr(runner, "propagate_one_pulse", lambda *a, **k: (_ for _ in ()).throw(AssertionError("pulse rerun")))
+    with pytest.raises(ValueError, match="n_hr3c_diffusion_passes mismatch"):
+        runner.run_demo(**_components(npulses=2, resume=True), out_path=str(mismatched))
 
 
 def test_standalone_hr3b_remains_single_file_without_hr3c_manifest(tmp_path):

@@ -2,8 +2,8 @@
 
 **Date:** 2026-08-30
 **Branch:** `HR-3`
-**Classification:** **HR-3 BLOCKED**. This is not a merge to `main`, a
-production-performance certification, or an HR-4 authorization.
+**Classification:** **HR-3 CLOSED / READY TO MERGE**. This is not a merge to
+`main`, a production-performance certification, or an HR-4 authorization.
 
 ## Scope and frozen model boundary
 
@@ -81,9 +81,9 @@ Invalid/tampered manifests fail closed. A pulse interruption retains the
 authoritative pre-state; an interrupted diffusion retains the authoritative
 post-state and recomputes scratch on resume. Final post and `run_complete=true`
 are committed atomically, and resuming a completed run executes neither a pulse
-nor a diffusion pass. However, the runner currently still writes a new primary
-NPZ after that no-op resume; it does not preserve or reload the completed run's
-original final optical diagnostics. This is the overall-closeout blocker below.
+nor a diffusion pass. A completed resume validates and loads the existing primary
+NPZ; it does not recreate final diagnostics from a fresh source or rewrite the
+NPZ, diagnostic report, manifest, or state slots.
 
 ## Audit gates
 
@@ -93,12 +93,12 @@ original final optical diagnostics. This is the overall-closeout blocker below.
 | H3-2 manifest integrity | PASS | exact counter/stage/index validator plus tampered-manifest tests. |
 | H3-3 authoritative chain | PASS | only `q_ion/q_IB/q_Raman -> q_thermal -> delta_n_th` reaches the HR-3 slow state. |
 | H3-4 temporal ordering | PASS | old pre-state read occurs before interval thermalization/update; final post does not diffuse. |
-| H3-5 persistence/restart | BLOCKED | State restart is correct, but completed-run resume rewrites the primary NPZ from a fresh source rather than preserving/loading completed diagnostics. |
+| H3-5 persistence/restart | PASS | Completed artifact validation/load is byte-idempotent for NPZ/report/manifest/state, while incomplete pulse and diffusion resumes retain their transactional semantics. |
 | H3-6 exact counts | PASS | runner N=1/2/3 confirms `N/N/(N-1)` and manifest totals. |
 | H3-7 memory/storage architecture | PASS | disk-backed ping-pong, bounded z batches, one kernel per volume pass; no full-volume device materialization. |
 | H3-8 regression | PASS | all HR-3-relevant tests pass; only the known HR-2E strict-float baseline fails. |
 | H3-9 deferred boundary | PASS | HR-2E deferred, production schedule not frozen, HR-4 not started. |
-| H3-10 merge-readiness report | BLOCKED | This ledger records the blocker; merge readiness cannot be granted until H3-5 is repaired and revalidated. |
+| H3-10 merge-readiness report | PASS | This ledger records the frozen contract, tested completed-resume provenance, and future boundaries. |
 
 ## Deferred and future work
 
@@ -112,11 +112,19 @@ original final optical diagnostics. This is the overall-closeout blocker below.
 
 No HPC or Slurm job was submitted for this closeout.
 
-## Required follow-up before merge readiness
+## Completed-resume provenance repair
 
-Perform one bounded runner-level repair: a completed `resume_hr3c=true` must
-either preserve the existing final NPZ without rewriting it, or load a validated
-completed diagnostic artifact before returning. It must then be covered by an
-idempotence regression that compares the NPZ byte/schema-relevant content before
-and after completed resume. This is software/provenance repair only; it must not
-change HR-3A/B/C physics, configurations, or the frozen `D_th` contract.
+The bounded runner repair is complete. A completed `resume_hr3c=true` validates
+the primary NPZ against the manifest before returning it. Missing, unreadable,
+or provenance-mismatched artifacts fail closed; no pulse, diffusion, NPZ/report
+write, or synthetic final field is permitted. The returned completed artifact
+preserves the persisted propagation diagnostics and pulse history. Full-field
+`E_final`/`I_final` are intentionally `None` on this path because the primary
+NPZ does not persist them and a fresh-field reconstruction would be false.
+
+Runner-level coverage verifies no physics reexecution, NPZ byte idempotence,
+schema/content and diagnostic preservation, `pulse_index=[1,2,3]`,
+`return_results=True`, missing/mismatched artifact fail-closed behavior, report
+idempotence, and manifest/two-slot state immutability. This is
+software/provenance repair only; it does not change HR-3A/B/C physics,
+configurations, or the frozen `D_th` contract.

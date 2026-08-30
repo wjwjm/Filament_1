@@ -3,12 +3,12 @@
 ## 2026-08-30: HR-3 overall closeout
 
 - HR-3B、HR-3C-A、HR-3C-B 和 HR-3C-C 均为 **CLOSED**；HR-3C 为
-  **CLOSED**，但 HR-3 overall closeout 为 **BLOCKED**。分支仍为 `HR-3`，未合并
+  **CLOSED**，HR-3 为 **CLOSED / READY TO MERGE**。分支仍为 `HR-3`，未合并
   `main`。
-- H3-5 未通过：completed-run `resume_hr3c=true` 不执行 pulse/diffusion，但当前
-  runner 仍会无条件重写主 NPZ；新输出不是已完成 run 的原最终诊断。该恢复输出
-  幂等性修复不属于本次唯一允许的 manifest 硬化，因此 HR-3 不能标记 READY TO MERGE。
-  完整冻结账本见 `docs/physics_decisions/hr3_overall_closeout.md`。
+- completed-run `resume_hr3c=true` 现验证并加载已有 completed NPZ，不执行
+  pulse/diffusion，也不重写主 NPZ、diagnostic report、manifest 或 two-slot state。
+  H3-5 与 H3-10 均 PASS；完整冻结账本见
+  `docs/physics_decisions/hr3_overall_closeout.md`。
 - HR-3C-C 将每发 HR-3B post update 固定为 A(pre)→B(post) transaction；manifest
   以 write-temp / fsync / replace 原子记录 `pre_pulse` 与 `post_pulse`。final post
   与 `run_complete=true` 为同一次 manifest 提交，final post-state 不再额外扩散。
