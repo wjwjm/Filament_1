@@ -1,5 +1,11 @@
 # 当前项目状态 (Round 1 Restructuring)
 
+## 2026-08-30: air refractivity scaling repair
+
+- `KHz_filament.air_dispersion` 的 Ciddor-simple refractivity 经验式已移除重复的
+  外层 `1e-6` 缩放；这是既有光学背景折射率实现错误的修复，不改变 HR-3B 的
+  `beta_th`、热力学参数来源、persistent slow state 或脉冲排序合同。
+
 ## 2026-08-30: HR-3A thermalization contract
 
 - 开发分支：`HR-3`（尚未合并 `main`）。
