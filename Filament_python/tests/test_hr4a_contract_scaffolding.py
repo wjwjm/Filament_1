@@ -99,19 +99,19 @@ def test_boundary_helper_applies_ambient_outflow_inflow_and_deterministic_corner
     delta_n = np.full((4, 5), -1.0, dtype=np.float64)
     vx, vy = np.zeros((4, 5), dtype=np.float64), np.zeros((4, 5), dtype=np.float64)
     vx[:, 0], vx[:, -1], vy[0, :], vy[-1, :] = -2.0, 2.0, -3.0, 3.0
-    vx[1, 1], vy[1, 1] = 4.0, 5.0
-    vx[1, 3], vy[1, 3] = 6.0, 7.0
-    vx[2, 1], vy[2, 1] = 8.0, 9.0
+    vx[1, 1], vy[1, 1] = -4.0, -5.0
+    vx[1, 3], vy[1, 3] = 6.0, -7.0
+    vx[2, 1], vy[2, 1] = -8.0, 9.0
     vx[2, 3], vy[2, 3] = 10.0, 11.0
     dn_out, vx_out, vy_out = apply_hr4_open_boundaries(delta_n, vx, vy)
     assert np.all(dn_out[0, :] == 0.0) and np.all(dn_out[:, -1] == 0.0)
-    assert (vx_out[0, 0], vy_out[0, 0]) == (4.0, 5.0)
-    assert (vx_out[0, -1], vy_out[0, -1]) == (6.0, 7.0)
-    assert (vx_out[-1, 0], vy_out[-1, 0]) == (8.0, 9.0)
+    assert (vx_out[0, 0], vy_out[0, 0]) == (-4.0, -5.0)
+    assert (vx_out[0, -1], vy_out[0, -1]) == (6.0, -7.0)
+    assert (vx_out[-1, 0], vy_out[-1, 0]) == (-8.0, 9.0)
     assert (vx_out[-1, -1], vy_out[-1, -1]) == (10.0, 11.0)
     assert (vx_out[1, 0], vy_out[1, 0]) == (vx[1, 1], vy[1, 1])
     assert (vx_out[-1, 2], vy_out[-1, 2]) == (vx[-2, 2], vy[-2, 2])
-    vx[:, 0] = 1.0
+    vx[1:-1, 1] = 1.0
     _, vx_inflow, vy_inflow = apply_hr4_open_boundaries(delta_n, vx, vy)
     assert np.all(vx_inflow[1:-1, 0] == 0.0) and np.all(vy_inflow[1:-1, 0] == 0.0)
     assert (vx_inflow[0, 0], vy_inflow[0, 0]) == (0.0, 0.0)
