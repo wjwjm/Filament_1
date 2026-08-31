@@ -1,6 +1,6 @@
 # HR-4 status: isobaric transverse slow flow
 
-**Program status:** HR-4 branch active; HR-4A **CLOSED** and HR-4B
+**Program status:** HR-4 branch active; HR-4A, HR-4B, HR-4C, and HR-4D are
 **CLOSED** (2026-08-31).
 
 **Branch provenance:** HR-4A started from local `main`
@@ -234,9 +234,8 @@ may report failure but must not alter them automatically.
 
 **DEFERRED:** MUSCL/TVD, WENO, semi-Lagrangian and higher-order schemes,
 implicit/adaptive integration, acoustic/pressure/compressible/longitudinal
-flow, turbulence, HR-4D runner integration, production allocation/benchmarks,
-HR-4E convergence and domain-size studies, HR-4F beam-deflection benchmark,
-and all HPC/Slurm work.
+flow, turbulence, production allocation/benchmarks, HR-4E convergence and
+domain-size studies, HR-4F beam-deflection benchmark, and all HPC/Slurm work.
 
 ## Upstream preserved status
 
@@ -377,6 +376,61 @@ These Windows CPU checks do not establish GPU/CuPy equivalence or production
 performance. No HPC/Slurm work, push, merge to `main`, HR-4D runner work,
 HR-4E convergence study, or HR-4F benchmark was performed.
 
+## HR-4D implementation status
+
+**CLOSED.** HR-4D adds a thin, restart-safe orchestration layer over the
+existing authorities. It uses `HR4CThreeFieldStore` as the only persistent
+state authority and places the lifecycle metadata in the same atomically
+replaced manifest as the field-slot promotion. The metadata records
+`pulse_index`, `phase` (`PRE` or `POST`), `n_pulses`, authoritative and
+predecessor generations, completion state, and completed-pulse, POST-commit,
+and interpulse counters. Initial lifecycle metadata is written in the same
+initial HR-4C manifest creation; resume additionally binds repetition rate,
+hydro step, batch count, transport/gravity parameters, `n0`, and CFL limit.
+Invalid phase, index, generation, predecessor, parameter, or counter
+combinations fail closed on reopen.
+
+The actual lifecycle is:
+
+```text
+PRE_p -> fresh source copy -> propagate_one_pulse / HR-2 / HR-3A / HR-3B
+      -> atomic POST_p(delta_n + increment, vx unchanged, vy unchanged)
+      -> HR-4C full-z flow -> PRE_(p+1)
+```
+
+The pulse transaction implements the existing `read_interval` / `update_interval`
+contract used by `propagate_one_pulse`; therefore HR-3B continues to call its
+authoritative mapping from HR-3A `q_thermal` rather than HR-4D duplicating a
+deposition or density conversion. Each pulse receives `source_template.copy()`;
+the working field is pulse-local and no optical-field history is retained.
+
+HR-4D computes the interpulse duration exactly as `1 / f_rep`, then sends one
+transactional HR-4C request containing `N_full = floor(duration / dt_hydro)`
+fixed steps and, when needed, one final remainder step. Both types call the
+unchanged HR-4B stability audit. This avoids `round()` spacing drift while
+keeping all full and remainder steps in one HR-4C staging/commit transaction.
+Consequently, an evolution failure retains `POST_p`, rather than committing a
+partial PRE state. The final pulse commits `POST_final` and stops; it never
+runs an extra interpulse advance.
+
+Local lifecycle tests cover fresh source content, POST increment and velocity
+continuity, one/two/five-pulse counts, exact and remainder schedules,
+remainder stability rejection, restart from PRE, restart from intermediate
+POST, restart from final POST, optical/conversion/commit/interpulse failures,
+metadata tamper rejection, and bounded optical working-state behavior. A
+small repository-level connection test also exercised the real
+`propagate_one_pulse -> HR-2/HR-3A/HR-3B -> HR-4C` chain for two pulses and one
+interpulse evolution. The HR-4D test file reported `12 passed`.
+
+Required local gates used the explicit Windows test environment: `compileall`,
+backend, and `sanity` passed. The full bounded targeted gate reported
+`201 passed, 3 skipped, 1 failed`; the sole failure remains the pre-existing
+HR-2E strict-float assertion in `test_hr2e_error_localization.py`
+(`3.0000000000000004 != 3.0`). New HR-4D failures are zero. These are CPU
+software/configuration checks only; production `dt_hydro`, `dx/dy`, domain,
+and z batch size remain **PROVISIONAL**. HR-4E convergence, HR-4F benchmark,
+HPC/Slurm work, push, and merge to `main` remain out of scope.
+
 ## Change log
 
 | Date | Stage | Change |
@@ -385,3 +439,4 @@ HR-4E convergence study, or HR-4F benchmark was performed.
 | 2026-08-31 | HR-4A | Added and validated contract-only scaffolding; HR-4A closed with no solver, runner, or HPC action. |
 | 2026-08-31 | HR-4B | Closed the bounded single-screen operator and its local validation; HR-4C/4D/4E/4F remain deferred. |
 | 2026-08-31 | HR-4C | Closed three-field transactional disk-backed full-z evolution and local storage-lifecycle validation; HR-4D/4E/4F remain deferred. |
+| 2026-08-31 | HR-4D | Closed PRE/POST fresh-pulse orchestration, exact interpulse scheduling, and restart-safe lifecycle validation; HR-4E/4F remain deferred. |
