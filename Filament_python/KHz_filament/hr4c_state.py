@@ -7,7 +7,7 @@ import os
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 import numpy as np
 
@@ -56,6 +56,7 @@ class HR4CThreeFieldStore:
     def __init__(
         self, *, output_path: str, n_intervals: int, shape, dtype, z_edges,
         dx: float, dy: float, check_disk_space: bool = True,
+        authoritative_metadata: Mapping[str, Any] | None = None,
     ):
         self.n_intervals, self.shape, self.dtype = _validate_state_layout(
             n_intervals=n_intervals, shape=shape, dtype=dtype,
@@ -103,6 +104,8 @@ class HR4CThreeFieldStore:
             array.fill(0.0)
             array.flush()
         self._written = {field: set() for field in HR4C_FIELDS}
+        if authoritative_metadata is not None and not isinstance(authoritative_metadata, Mapping):
+            raise ValueError("HR-4C authoritative metadata must be a mapping or None")
         self.manifest = {
             "schema_version": HR4C_SCHEMA,
             "transaction_status": "committed",
@@ -119,6 +122,7 @@ class HR4CThreeFieldStore:
             "authoritative_filenames": {field: self.slot_paths["current"][field].name for field in HR4C_FIELDS},
             "scratch_filenames": {field: self.slot_paths["next"][field].name for field in HR4C_FIELDS},
             "initialization": {"mode": "zeros"},
+            "authoritative_metadata": None if authoritative_metadata is None else dict(authoritative_metadata),
             "last_evolution": None,
             "last_abort": None,
         }
@@ -280,6 +284,16 @@ class HR4CThreeFieldStore:
         first, last = self._bounds(start, stop)
         return {field: self._current[field][first:last] for field in HR4C_FIELDS}
 
+    def set_authoritative_metadata(self, metadata: Mapping[str, Any] | None) -> None:
+        """Atomically attach caller-owned metadata to the committed generation."""
+        if self.manifest["transaction_status"] != "committed":
+            raise ValueError("HR-4C metadata update requires a committed generation")
+        if metadata is not None and not isinstance(metadata, Mapping):
+            raise ValueError("HR-4C authoritative metadata must be a mapping or None")
+        replacement = dict(self.manifest)
+        replacement["authoritative_metadata"] = None if metadata is None else dict(metadata)
+        self._replace_manifest(replacement)
+
     def begin_staging(self) -> None:
         if self.manifest["transaction_status"] != "committed":
             raise ValueError("HR-4C cannot begin a second staging transaction")
@@ -333,7 +347,9 @@ class HR4CThreeFieldStore:
                 if not np.all(np.isfinite(array[start:stop])):
                     raise ValueError("HR-4C staging finite validation failed")
 
-    def commit_staging(self, evolution: Mapping[str, Any]) -> None:
+    def commit_staging(
+        self, evolution: Mapping[str, Any], *, authoritative_metadata: Mapping[str, Any] | None = None,
+    ) -> None:
         try:
             batch = int(evolution.get("batch_intervals", 0))
             self.validate_staging(batch_intervals=batch)
@@ -350,6 +366,8 @@ class HR4CThreeFieldStore:
                 "last_evolution": dict(evolution),
                 "last_abort": None,
             })
+            if authoritative_metadata is not None:
+                committed_manifest["authoritative_metadata"] = dict(authoritative_metadata)
             _atomic_json(self.manifest_path, committed_manifest)
         except Exception as error:
             self.abort_staging(reason=type(error).__name__)
@@ -380,6 +398,7 @@ class HR4CThreeFieldStore:
             "grid_fingerprint": self.grid_fingerprint,
             "z_ordering": self.manifest["z_ordering"],
             "authoritative_filenames": dict(self.manifest["authoritative_filenames"]),
+            "authoritative_metadata": self.manifest.get("authoritative_metadata"),
         }
 
     def close(self) -> None:
@@ -389,18 +408,43 @@ class HR4CThreeFieldStore:
         self._next = {}
 
 
+def _normalize_hr4c_step_schedule(
+    *, dt_hydro: float, n_hydro_steps: int, step_schedule: Sequence[tuple[float, int]] | None,
+) -> tuple[tuple[float, int], ...]:
+    if step_schedule is None:
+        count = int(n_hydro_steps)
+        if count <= 0:
+            raise ValueError("HR-4C n_hydro_steps must be positive")
+        return ((float(dt_hydro), count),)
+    if not step_schedule:
+        raise ValueError("HR-4C step_schedule must not be empty")
+    normalized = []
+    for raw_dt, raw_count in step_schedule:
+        dt_value = float(raw_dt)
+        count = int(raw_count)
+        if not np.isfinite(dt_value) or dt_value <= 0.0 or count <= 0:
+            raise ValueError("HR-4C step_schedule requires positive finite dt and positive count")
+        normalized.append((dt_value, count))
+    return tuple(normalized)
+
+
 def evolve_hr4_full_z(
     store: HR4CThreeFieldStore, *, dt_hydro: float, n_hydro_steps: int,
     batch_intervals: int, chi: float, nu: float, n0: float,
     gravity_x: float = 0.0, gravity_y: float = -9.81,
     cfl_limit: float = 1.0,
     failure_injector: Callable[[int, int], None] | None = None,
+    step_schedule: Sequence[tuple[float, int]] | None = None,
+    authoritative_metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, object]:
     """Create and atomically promote one full-z HR-4C evolution generation."""
     batch = int(batch_intervals)
-    steps = int(n_hydro_steps)
-    if batch <= 0 or steps <= 0:
-        raise ValueError("HR-4C batch_intervals and n_hydro_steps must be positive")
+    schedule = _normalize_hr4c_step_schedule(
+        dt_hydro=dt_hydro, n_hydro_steps=n_hydro_steps, step_schedule=step_schedule,
+    )
+    steps = sum(count for _, count in schedule)
+    if batch <= 0:
+        raise ValueError("HR-4C batch_intervals must be positive")
     started = time.perf_counter()
     n_batches = 0
     max_operator_temp = 0
@@ -415,14 +459,19 @@ def evolve_hr4_full_z(
             incoming = store.read_authoritative_batch(start, stop)
             outgoing = {field: np.empty_like(incoming[field]) for field in HR4C_FIELDS}
             for local in range(stop - start):
-                result = advance_hr4_single_screen(
-                    incoming["delta_n"][local], incoming["vx"][local], incoming["vy"][local],
-                    dx=store.dx, dy=store.dy, dt_hydro=dt_hydro, chi=chi, nu=nu, n0=n0,
-                    gravity_x=gravity_x, gravity_y=gravity_y, cfl_limit=cfl_limit,
-                    n_steps=steps,
-                )
+                current = {field: incoming[field][local] for field in HR4C_FIELDS}
+                result = None
+                for scheduled_dt, scheduled_steps in schedule:
+                    result = advance_hr4_single_screen(
+                        current["delta_n"], current["vx"], current["vy"],
+                        dx=store.dx, dy=store.dy, dt_hydro=scheduled_dt, chi=chi, nu=nu, n0=n0,
+                        gravity_x=gravity_x, gravity_y=gravity_y, cfl_limit=cfl_limit,
+                        n_steps=scheduled_steps,
+                    )
+                    current = {field: result[field] for field in HR4C_FIELDS}
                 for field in HR4C_FIELDS:
-                    outgoing[field][local] = np.asarray(to_cpu(result[field]), dtype=store.dtype)
+                    outgoing[field][local] = np.asarray(to_cpu(current[field]), dtype=store.dtype)
+                assert result is not None
                 performance = result["performance"]
                 total_screen_seconds += float(performance["wall_time_s_total"])
                 max_operator_temp = max(max_operator_temp, int(performance["temporary_working_set_estimate_bytes"]))
@@ -434,6 +483,10 @@ def evolve_hr4_full_z(
             "source_generation": source_generation,
             "dt_hydro": float(dt_hydro),
             "n_hydro_steps": steps,
+            "step_schedule": [
+                {"dt_hydro": float(scheduled_dt), "n_hydro_steps": int(scheduled_steps)}
+                for scheduled_dt, scheduled_steps in schedule
+            ],
             "batch_intervals": batch,
             "chi": float(chi),
             "nu": float(nu),
@@ -441,7 +494,7 @@ def evolve_hr4_full_z(
             "gravity_y": float(gravity_y),
             "z_scan_order": "z_batch_outer_then_screen_then_all_hydro_steps",
         }
-        store.commit_staging(evolution)
+        store.commit_staging(evolution, authoritative_metadata=authoritative_metadata)
     except Exception as error:
         store.abort_staging(reason=type(error).__name__)
         raise
@@ -455,6 +508,7 @@ def evolve_hr4_full_z(
         "n_batches": n_batches,
         "batch_intervals": batch,
         "n_hydro_steps": steps,
+        "step_schedule": tuple(schedule),
         "bytes_read": 3 * bytes_one_field,
         "bytes_written": 3 * bytes_one_field,
         "working_set_estimate_bytes": estimate_hr4c_working_set_bytes(
