@@ -1,4 +1,4 @@
-"""HR-4A isobaric transverse slow-flow contracts; no PDE advance lives here."""
+"""HR-4A contracts and HR-4B single-screen isobaric flow operator."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, MutableMapping
 
 import numpy as np
+
+from .device import debug_backend, to_cpu, xp
 
 HR4_CHI = 21.7e-6
 HR4_NU = 1.5e-5
@@ -133,10 +135,10 @@ class HR4Geometry:
 
 
 def _finite_float_volume(value: Any, name: str) -> np.ndarray:
-    array = np.asarray(value)
-    if array.ndim != 3 or array.dtype.kind != "f":
+    array = xp.asarray(value)
+    if array.ndim != 3 or np.dtype(array.dtype).kind != "f":
         raise ValueError(f"HR-4 {name} must be a real floating [K, Ny, Nx] array")
-    if min(array.shape) <= 0 or not np.all(np.isfinite(array)):
+    if min(array.shape) <= 0 or not bool(xp.all(xp.isfinite(array))):
         raise ValueError(f"HR-4 {name} must have positive finite dimensions and values")
     return array
 
@@ -186,8 +188,8 @@ def create_hr4_slow_state(
         raise ValueError("HR-4 state dtype must be real floating point")
     volume_shape = (intervals, *slice_shape)
     return HR4SlowState(
-        np.zeros(volume_shape, result_dtype), np.zeros(volume_shape, result_dtype),
-        np.zeros(volume_shape, result_dtype), geometry or HR4Geometry(),
+        xp.zeros(volume_shape, result_dtype), xp.zeros(volume_shape, result_dtype),
+        xp.zeros(volume_shape, result_dtype), geometry or HR4Geometry(),
     )
 
 
@@ -221,16 +223,15 @@ def delta_T_from_delta_n(delta_n: Any, *, n0: float) -> np.ndarray:
 
 
 def _finite_screen(value: Any, name: str) -> np.ndarray:
-    array = np.asarray(value)
-    if array.ndim != 2 or array.dtype.kind != "f" or min(array.shape) < 3:
+    array = xp.asarray(value)
+    if array.ndim != 2 or np.dtype(array.dtype).kind != "f" or min(array.shape) < 3:
         raise ValueError(f"HR-4 {name} must be real floating [Ny, Nx] with Ny, Nx >= 3")
-    if not np.all(np.isfinite(array)):
+    if not bool(xp.all(xp.isfinite(array))):
         raise ValueError(f"HR-4 {name} must be finite")
     return array
 
 
-def apply_hr4_open_boundaries(delta_n: Any, vx: Any, vy: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Apply ambient-index/open-velocity policy without a PDE step or wrap-around."""
+def _validated_screen_triplet(delta_n: Any, vx: Any, vy: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     index, x_velocity, y_velocity = (
         _finite_screen(delta_n, "delta_n"), _finite_screen(vx, "vx"), _finite_screen(vy, "vy")
     )
@@ -238,22 +239,28 @@ def apply_hr4_open_boundaries(delta_n: Any, vx: Any, vy: Any) -> tuple[np.ndarra
         raise ValueError("HR-4 boundary fields must have identical shapes")
     if index.dtype != x_velocity.dtype or index.dtype != y_velocity.dtype:
         raise ValueError("HR-4 boundary fields must have identical dtypes")
+    return index, x_velocity, y_velocity
+
+
+def apply_hr4_boundaries(delta_n: Any, vx: Any, vy: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Apply ambient-index and local interior-normal inflow/outflow boundaries."""
+    index, x_velocity, y_velocity = _validated_screen_triplet(delta_n, vx, vy)
     index_out, vx_out, vy_out = index.copy(), x_velocity.copy(), y_velocity.copy()
     index_out[0, :] = index_out[-1, :] = index_out[:, 0] = index_out[:, -1] = 0.0
     faces = (
-        ((slice(1, -1), 0), x_velocity[1:-1, 0] > 0.0, (slice(1, -1), 1)),
-        ((slice(1, -1), -1), x_velocity[1:-1, -1] < 0.0, (slice(1, -1), -2)),
-        ((0, slice(1, -1)), y_velocity[0, 1:-1] > 0.0, (1, slice(1, -1))),
-        ((-1, slice(1, -1)), y_velocity[-1, 1:-1] < 0.0, (-2, slice(1, -1))),
+        ((slice(1, -1), 0), x_velocity[1:-1, 1] > 0.0, (slice(1, -1), 1)),
+        ((slice(1, -1), -1), x_velocity[1:-1, -2] < 0.0, (slice(1, -1), -2)),
+        ((0, slice(1, -1)), y_velocity[1, 1:-1] > 0.0, (1, slice(1, -1))),
+        ((-1, slice(1, -1)), y_velocity[-2, 1:-1] < 0.0, (-2, slice(1, -1))),
     )
     for edge, inflow, interior in faces:
-        vx_out[edge] = np.where(inflow, 0.0, x_velocity[interior])
-        vy_out[edge] = np.where(inflow, 0.0, y_velocity[interior])
+        vx_out[edge] = xp.where(inflow, 0.0, x_velocity[interior])
+        vy_out[edge] = xp.where(inflow, 0.0, y_velocity[interior])
     corners = (
-        ((0, 0), x_velocity[0, 0] > 0.0, y_velocity[0, 0] > 0.0, (1, 1)),
-        ((0, -1), x_velocity[0, -1] < 0.0, y_velocity[0, -1] > 0.0, (1, -2)),
-        ((-1, 0), x_velocity[-1, 0] > 0.0, y_velocity[-1, 0] < 0.0, (-2, 1)),
-        ((-1, -1), x_velocity[-1, -1] < 0.0, y_velocity[-1, -1] < 0.0, (-2, -2)),
+        ((0, 0), x_velocity[1, 1] > 0.0, y_velocity[1, 1] > 0.0, (1, 1)),
+        ((0, -1), x_velocity[1, -2] < 0.0, y_velocity[1, -2] > 0.0, (1, -2)),
+        ((-1, 0), x_velocity[-2, 1] > 0.0, y_velocity[-2, 1] < 0.0, (-2, 1)),
+        ((-1, -1), x_velocity[-2, -2] < 0.0, y_velocity[-2, -2] < 0.0, (-2, -2)),
     )
     for corner, x_inflow, y_inflow, diagonal in corners:
         if bool(x_inflow or y_inflow):
@@ -261,6 +268,180 @@ def apply_hr4_open_boundaries(delta_n: Any, vx: Any, vy: Any) -> tuple[np.ndarra
         else:
             vx_out[corner], vy_out[corner] = x_velocity[diagonal], y_velocity[diagonal]
     return index_out, vx_out, vy_out
+
+
+def apply_hr4_open_boundaries(delta_n: Any, vx: Any, vy: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Backward-compatible HR-4A name for the frozen boundary policy."""
+    return apply_hr4_boundaries(delta_n, vx, vy)
+
+
+def _positive_spacing(value: float, name: str) -> float:
+    result = _finite_real(value, name)
+    if result <= 0.0:
+        raise ValueError(f"HR-4 {name} must be positive")
+    return result
+
+
+def _nonnegative_coefficient(value: float, name: str) -> float:
+    result = _finite_real(value, name)
+    if result < 0.0:
+        raise ValueError(f"HR-4 {name} must be non-negative")
+    return result
+
+
+def upwind_advection(q: Any, vx: Any, vy: Any, *, dx: float, dy: float):
+    """Return vx*dq/dx + vy*dq/dy with local first-order upwinding."""
+    scalar, x_velocity, y_velocity = _validated_screen_triplet(q, vx, vy)
+    dx_value, dy_value = _positive_spacing(dx, "dx"), _positive_spacing(dy, "dy")
+    result = xp.zeros_like(scalar)
+    center = scalar[1:-1, 1:-1]
+    backward_x = (center - scalar[1:-1, :-2]) / dx_value
+    forward_x = (scalar[1:-1, 2:] - center) / dx_value
+    backward_y = (center - scalar[:-2, 1:-1]) / dy_value
+    forward_y = (scalar[2:, 1:-1] - center) / dy_value
+    local_vx = x_velocity[1:-1, 1:-1]
+    local_vy = y_velocity[1:-1, 1:-1]
+    dqdx = xp.where(local_vx >= 0.0, backward_x, forward_x)
+    dqdy = xp.where(local_vy >= 0.0, backward_y, forward_y)
+    result[1:-1, 1:-1] = local_vx * dqdx + local_vy * dqdy
+    return result
+
+
+def laplacian_fd(q: Any, *, dx: float, dy: float):
+    """Return the second-order central transverse finite-difference Laplacian."""
+    scalar = _finite_screen(q, "q")
+    dx_value, dy_value = _positive_spacing(dx, "dx"), _positive_spacing(dy, "dy")
+    result = xp.zeros_like(scalar)
+    center = scalar[1:-1, 1:-1]
+    result[1:-1, 1:-1] = (
+        (scalar[1:-1, 2:] - 2.0 * center + scalar[1:-1, :-2]) / dx_value**2
+        + (scalar[2:, 1:-1] - 2.0 * center + scalar[:-2, 1:-1]) / dy_value**2
+    )
+    return result
+
+
+def compute_hr4_rhs(
+    delta_n: Any, vx: Any, vy: Any, *,
+    dx: float, dy: float, chi: float, nu: float, n0: float,
+    gravity_x: float = HR4_GRAVITY_X, gravity_y: float = HR4_GRAVITY_Y,
+) -> dict[str, np.ndarray]:
+    """Compute all HR-4B RHS terms from one bounded old-state tuple."""
+    old_delta_n, old_vx, old_vy = apply_hr4_boundaries(delta_n, vx, vy)
+    chi_value, nu_value = _nonnegative_coefficient(chi, "chi"), _nonnegative_coefficient(nu, "nu")
+    n0_value = _finite_real(n0, "n0")
+    if n0_value <= 1.0:
+        raise ValueError("HR-4 n0 must be greater than one")
+    gx, gy = _finite_real(gravity_x, "gravity_x"), _finite_real(gravity_y, "gravity_y")
+    if gx != 0.0:
+        raise ValueError("HR-4B buoyancy is frozen to the vy equation; gravity_x must be zero")
+    rhs_delta_n = -upwind_advection(old_delta_n, old_vx, old_vy, dx=dx, dy=dy)
+    rhs_delta_n += chi_value * laplacian_fd(old_delta_n, dx=dx, dy=dy)
+    rhs_vx = -upwind_advection(old_vx, old_vx, old_vy, dx=dx, dy=dy)
+    rhs_vx += nu_value * laplacian_fd(old_vx, dx=dx, dy=dy)
+    rhs_vy = -upwind_advection(old_vy, old_vx, old_vy, dx=dx, dy=dy)
+    rhs_vy += nu_value * laplacian_fd(old_vy, dx=dx, dy=dy)
+    rhs_vy += old_delta_n / (n0_value - 1.0) * gy
+    if not all(bool(xp.all(xp.isfinite(item))) for item in (rhs_delta_n, rhs_vx, rhs_vy)):
+        raise ValueError("HR-4B RHS contains non-finite values")
+    return {
+        "old_delta_n": old_delta_n, "old_vx": old_vx, "old_vy": old_vy,
+        "rhs_delta_n": rhs_delta_n, "rhs_vx": rhs_vx, "rhs_vy": rhs_vy,
+    }
+
+
+def thermal_channel_observables(
+    delta_n: Any, vx: Any, vy: Any, *, dx: float, dy: float,
+    x_min: float = HR4_X_MIN, y_min: float = HR4_Y_MIN,
+) -> dict[str, object]:
+    """Return scalar diagnostics for a negative-index thermal channel."""
+    index, x_velocity, y_velocity = _validated_screen_triplet(delta_n, vx, vy)
+    dx_value, dy_value = _positive_spacing(dx, "dx"), _positive_spacing(dy, "dy")
+    x0, y0 = _finite_real(x_min, "x_min"), _finite_real(y_min, "y_min")
+    weights = xp.maximum(-index, 0.0)
+    weight_sum = float(to_cpu(xp.sum(weights)))
+    speed = xp.sqrt(x_velocity**2 + y_velocity**2)
+    result = {
+        "min_delta_n": float(to_cpu(xp.min(index))),
+        "max_delta_n": float(to_cpu(xp.max(index))),
+        "max_abs_vx": float(to_cpu(xp.max(xp.abs(x_velocity)))),
+        "max_abs_vy": float(to_cpu(xp.max(xp.abs(y_velocity)))),
+        "max_abs_v": float(to_cpu(xp.max(speed))),
+        "thermal_channel_centroid_x_m": float("nan"),
+        "thermal_channel_centroid_y_m": float("nan"),
+        "thermal_channel_width_m": float("nan"),
+        "thermal_channel_defined": bool(weight_sum > 0.0),
+    }
+    if weight_sum == 0.0:
+        return result
+    x = x0 + xp.arange(index.shape[1], dtype=index.dtype) * dx_value
+    y = y0 + xp.arange(index.shape[0], dtype=index.dtype) * dy_value
+    x_grid, y_grid = xp.meshgrid(x, y, indexing="xy")
+    centroid_x = xp.sum(weights * x_grid) / weight_sum
+    centroid_y = xp.sum(weights * y_grid) / weight_sum
+    radial_variance = xp.sum(weights * ((x_grid - centroid_x)**2 + (y_grid - centroid_y)**2)) / weight_sum
+    result["thermal_channel_centroid_x_m"] = float(to_cpu(centroid_x))
+    result["thermal_channel_centroid_y_m"] = float(to_cpu(centroid_y))
+    result["thermal_channel_width_m"] = float(to_cpu(xp.sqrt(0.5 * radial_variance)))
+    return result
+
+
+def advance_hr4_single_screen(
+    delta_n: Any, vx: Any, vy: Any, *,
+    dx: float, dy: float, dt_hydro: float, chi: float, nu: float, n0: float,
+    gravity_x: float = HR4_GRAVITY_X, gravity_y: float = HR4_GRAVITY_Y,
+    cfl_limit: float = HR4_CFL_LIMIT, n_steps: int = 1,
+    require_stable: bool = True, x_min: float = HR4_X_MIN, y_min: float = HR4_Y_MIN,
+) -> dict[str, object]:
+    """Advance an independent screen with fixed-step unsplit Forward Euler."""
+    if isinstance(n_steps, bool) or int(n_steps) != n_steps or int(n_steps) <= 0:
+        raise ValueError("HR-4 n_steps must be a positive integer")
+    dt_value = _positive_spacing(dt_hydro, "dt_hydro")
+    current_delta_n, current_vx, current_vy = _validated_screen_triplet(delta_n, vx, vy)
+    started = __import__("time").perf_counter()
+    last_audit: dict[str, object] | None = None
+    for _ in range(int(n_steps)):
+        old_delta_n, old_vx, old_vy = apply_hr4_boundaries(current_delta_n, current_vx, current_vy)
+        audit = audit_hr4_stability(
+            dx=dx, dy=dy, dt_hydro=dt_value, chi=chi, nu=nu,
+            max_abs_vx=float(to_cpu(xp.max(xp.abs(old_vx)))),
+            max_abs_vy=float(to_cpu(xp.max(xp.abs(old_vy)))),
+            cfl_limit=cfl_limit,
+        )
+        if bool(require_stable) and not audit["overall_pass"]:
+            raise ValueError(
+                "HR-4 stability audit failed before single-screen advance: "
+                f"combined_chi={audit['combined_number_chi']:.6g}, "
+                f"combined_nu={audit['combined_number_nu']:.6g}"
+            )
+        rhs = compute_hr4_rhs(
+            old_delta_n, old_vx, old_vy, dx=dx, dy=dy, chi=chi, nu=nu, n0=n0,
+            gravity_x=gravity_x, gravity_y=gravity_y,
+        )
+        next_delta_n = old_delta_n + dt_value * rhs["rhs_delta_n"]
+        next_vx = old_vx + dt_value * rhs["rhs_vx"]
+        next_vy = old_vy + dt_value * rhs["rhs_vy"]
+        if not all(bool(xp.all(xp.isfinite(item))) for item in (next_delta_n, next_vx, next_vy)):
+            raise ValueError("HR-4B Euler update produced non-finite values")
+        current_delta_n, current_vx, current_vy = apply_hr4_boundaries(next_delta_n, next_vx, next_vy)
+        last_audit = audit
+    elapsed = __import__("time").perf_counter() - started
+    element_bytes = int(np.dtype(current_delta_n.dtype).itemsize)
+    return {
+        "delta_n": current_delta_n, "vx": current_vx, "vy": current_vy,
+        "steps": int(n_steps), "stability": last_audit,
+        "observables": thermal_channel_observables(
+            current_delta_n, current_vx, current_vy, dx=dx, dy=dy, x_min=x_min, y_min=y_min,
+        ),
+        "performance": {
+            "grid_shape": tuple(current_delta_n.shape),
+            "dtype": np.dtype(current_delta_n.dtype).name,
+            "backend": debug_backend()["backend"],
+            "wall_time_s_total": elapsed,
+            "wall_time_s_per_step": elapsed / int(n_steps),
+            "temporary_working_set_estimate_bytes": int(12 * current_delta_n.size * element_bytes),
+            "slow_time_history_stored": False,
+        },
+    }
 
 
 def audit_hr4_stability(
@@ -275,19 +456,35 @@ def audit_hr4_stability(
             "max_abs_vx": max_abs_vx, "max_abs_vy": max_abs_vy, "cfl_limit": cfl_limit,
         }.items()
     }
-    if min(values["dx"], values["dy"], values["dt_hydro"], values["chi"], values["nu"], values["cfl_limit"]) <= 0.0:
-        raise ValueError("HR-4 dx, dy, dt_hydro, chi, nu, and cfl_limit must be positive")
+    if min(values["dx"], values["dy"], values["dt_hydro"], values["cfl_limit"]) <= 0.0:
+        raise ValueError("HR-4 dx, dy, dt_hydro, and cfl_limit must be positive")
+    if values["chi"] < 0.0 or values["nu"] < 0.0:
+        raise ValueError("HR-4 chi and nu must be non-negative")
     if values["max_abs_vx"] < 0.0 or values["max_abs_vy"] < 0.0:
         raise ValueError("HR-4 maximum absolute velocities must be non-negative")
     scale = values["dt_hydro"] * (1.0 / values["dx"] ** 2 + 1.0 / values["dy"] ** 2)
     chi_number, nu_number = values["chi"] * scale, values["nu"] * scale
     cfl = values["max_abs_vx"] * values["dt_hydro"] / values["dx"] + values["max_abs_vy"] * values["dt_hydro"] / values["dy"]
+    if not all(math.isfinite(item) for item in (chi_number, nu_number, cfl)):
+        raise ValueError("HR-4 stability audit produced non-finite derived values")
     passed_diffusion = chi_number <= 0.5 and nu_number <= 0.5
     passed_advection = cfl <= values["cfl_limit"]
+    combined_chi = cfl + 2.0 * chi_number
+    combined_nu = cfl + 2.0 * nu_number
+    if not math.isfinite(combined_chi) or not math.isfinite(combined_nu):
+        raise ValueError("HR-4 combined stability audit produced non-finite values")
+    passed_combined = combined_chi <= 1.0 and combined_nu <= 1.0
     return {
         "diffusion_number_chi": chi_number, "diffusion_number_nu": nu_number,
-        "advection_CFL": cfl, "passed_diffusion": passed_diffusion,
-        "passed_advection": passed_advection, "overall_pass": bool(passed_diffusion and passed_advection),
+        "advection_CFL": cfl,
+        "passed_diffusion_chi": chi_number <= 0.5,
+        "passed_diffusion_nu": nu_number <= 0.5,
+        "passed_diffusion": passed_diffusion,
+        "combined_number_chi": combined_chi, "combined_number_nu": combined_nu,
+        "passed_combined_chi": combined_chi <= 1.0,
+        "passed_combined_nu": combined_nu <= 1.0,
+        "passed_advection": passed_advection, "passed_combined": passed_combined,
+        "overall_pass": bool(passed_diffusion and passed_advection and passed_combined),
     }
 
 
