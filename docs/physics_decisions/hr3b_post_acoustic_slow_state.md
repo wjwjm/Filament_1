@@ -1,5 +1,8 @@
 # HR-3B post-acoustic slow-state decision
 
+**Status:** HR-3B CLOSED; incorporated in HR-3 CLOSED / MERGED TO MAIN by
+`654fb0236b9c119ab7d89524c08cf0b84fe9181e`.
+
 ## Evidence gate: PASS
 
 The two repository reference PDFs establish the intended reduced model and
@@ -71,9 +74,13 @@ zero and updated in place, forward in interval index:
 5. release transient maps and advance.
 
 This creates `delta_n_th^(p,+)` after a pulse. HR-3C alone may evolve it to
-`delta_n_th^(p+1,-)` through interpulse transport. No acoustic solver,
-diffusion, checkpoint transaction, double buffer, node state, grid resampling,
-or full-volume history of derived thermodynamic variables belongs here.
+`delta_n_th^(p+1,-)` through interpulse transport. The following is the
+**historical HR-3B substage boundary**, not a statement about final HR-3:
+no acoustic solver, checkpoint transaction, double buffer, node state, grid
+resampling, or full-volume history of derived thermodynamic variables belongs
+to HR-3B. HR-3C-C subsequently supplied the transactional two-slot,
+runner/restart lifecycle without changing the HR-3B mapping; explicit acoustic
+and full hydrodynamic evolution remain outside HR-3.
 
 For `K=16000`, `Nx=Ny=512`, float32, the persistent state file is about
 15.625 GiB. It is disk-backed, not an in-memory array; normal per-interval

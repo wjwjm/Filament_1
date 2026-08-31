@@ -1,6 +1,7 @@
 # HR-3A thermalization contract
 
-**Status:** CLOSED (2026-08-30, branch `HR-3`). The known unrelated HR-2E
+**Status:** CLOSED (2026-08-30, source branch `HR-3`), merged to `main` by
+`654fb0236b9c119ab7d89524c08cf0b84fe9181e`. The known unrelated HR-2E
 strict-float targeted-test baseline failure is non-blocking for HR-3A closure.
 
 ## Authoritative transition

@@ -89,8 +89,12 @@ periodic domain by construction.
 `<run>.hr3c_delta_n_th_current.npy` and
 `<run>.hr3c_delta_n_th_next.npy`, each shaped `[K, Ny, Nx]` at the real
 propagation dtype. `current` remains authoritative input and is never modified
-by `diffuse_current_to_next`; `next` is non-authoritative scratch. There is no
-role swap, generation record, checkpoint, restart, or runner integration.
+by `diffuse_current_to_next`; `next` is non-authoritative scratch. The
+following is the **historical HR-3C-B substage boundary**: the storage helper
+itself had no role swap, generation record, checkpoint, restart, or runner
+integration. HR-3C-C subsequently supplied those lifecycle responsibilities
+through the manifest-governed two-slot transaction described above, without
+altering the HR-3C-A/B diffusion contract.
 
 The pass reads a bounded `[B, Ny, Nx]` host batch, transfers it once to the
 configured `xp` backend, applies batched `FFT2/IFFT2` over `(-2,-1)` using a

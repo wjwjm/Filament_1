@@ -2,7 +2,8 @@
 
 **Recorded:** 2026-08-29
 
-**Branch:** `HR-3`
+**Source branch:** `HR-3` at `7d74370ab56049591b69f01ceede3e14a0e0ecec`,
+merged to `main` by `654fb0236b9c119ab7d89524c08cf0b84fe9181e`
 
 **Start main SHA:** `7bd2aa6b3bcaf27c66336f4e9f98fffd26ad445c`
 

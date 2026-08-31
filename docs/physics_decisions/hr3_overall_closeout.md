@@ -1,4 +1,4 @@
-# HR-3 overall closeout and merge-readiness ledger
+# HR-3 overall closeout and merged-status ledger
 
 **Date:** 2026-08-30
 **Source branch:** `HR-3` at `7d74370ab56049591b69f01ceede3e14a0e0ecec`
@@ -20,6 +20,29 @@ fresh optical pulse
 It is not a full hydrodynamic model. Longitudinal thermal diffusion/z mixing,
 acoustic transients, pressure, velocity, advection, buoyancy, viscosity,
 gravity, and production performance tuning are outside HR-3.
+
+## HR-3 reference-based approximations and reduced-model boundary
+
+HR-3 is a reference-compatible reduced baseline, not a complete fluid-
+hydrodynamics model. In the modeling boundary supported by Isaacs *et al.*
+(2022) and Zeng Qingwei (2022), it makes the following explicit
+approximations:
+
+- **HR-3A:** deposited energy is assumed eventually to thermalize completely,
+  so `q_thermal=q_dep`. No empirical `eta_ion`, `eta_Raman`, or `eta_IB`
+  thermalization efficiency is introduced.
+- **HR-3B:** the ps--us acoustic transient is not explicitly solved. The
+  Isaacs-style post-acoustic/isobaric reduced mapping is
+  `Delta delta_n_th=-beta_th*q_thermal`; only `delta_n_th` is persistent, not
+  full `Delta T`, `delta rho`, pressure, or other thermodynamic fields.
+- **HR-3C:** interpulse transport is purely transverse,
+  `partial_t delta_n_th=D_th nabla_perp^2 delta_n_th`. Every longitudinal
+  interval evolves independently: there is no longitudinal diffusion or
+  z mixing.
+
+Velocity, advection, buoyancy, viscosity, gravity, and complete hydrodynamics
+are deliberately omitted. Those flow effects are future HR-4 scope; this
+ledger does not freeze any HR-4 equation or implementation choice.
 
 ## Frozen authoritative chain
 
@@ -90,7 +113,7 @@ NPZ, diagnostic report, manifest, or state slots.
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| H3-1 branch integrity | PASS | `HR-3` is synchronized with its remote; `main` remains unchanged. |
+| H3-1 branch and merge integrity | PASS | frozen `HR-3` source `7d74370ab56049591b69f01ceede3e14a0e0ecec` was merged to `main` by `654fb0236b9c119ab7d89524c08cf0b84fe9181e`. |
 | H3-2 manifest integrity | PASS | exact counter/stage/index validator plus tampered-manifest tests. |
 | H3-3 authoritative chain | PASS | only `q_ion/q_IB/q_Raman -> q_thermal -> delta_n_th` reaches the HR-3 slow state. |
 | H3-4 temporal ordering | PASS | old pre-state read occurs before interval thermalization/update; final post does not diffuse. |

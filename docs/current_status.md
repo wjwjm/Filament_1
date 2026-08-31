@@ -65,8 +65,10 @@
   persistent slow state 是 interval-centered、disk-backed `delta_n_th[K,Ny,Nx]`；每个
   interval 读取旧 slice 用于本发相位，再在 HR-3A authoritative `q_thermal` 完成后原地累加。
   `Q2D/gamma_heat/dn_gas` 仅保留 non-authoritative legacy compatibility 模式。
-- 未实现：persistent `Delta T`、persistent `delta rho`、显式声学/等压瞬态、扩散、
-  传热传质及脉冲间慢状态传播；这些属于 HR-3C/HR-4。
+- 上述“未实现”是 **HR-3B 子阶段关闭时** 的范围边界：persistent `Delta T`、
+  persistent `delta rho`、显式声学/等压瞬态、传热传质及完整流体动力学未纳入
+  HR-3B。后续 HR-3C 已完成 `delta_n_th` 的脉冲间横向扩散与 runner/restart
+  生命周期；纵向扩散、z mixing 与完整流动效应仍留待 HR-4。
 - 保留：HR-2E = **DEFERRED**；production longitudinal schedule = **NOT FROZEN**；
   未提交 HPC 或 Slurm 作业。
 
