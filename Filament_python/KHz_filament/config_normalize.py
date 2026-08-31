@@ -5,6 +5,7 @@ import math
 from typing import Any, Dict
 
 from .constants import eps0, c0
+from .hr4 import normalize_hr4_config_values
 from .config_schema import NONLINEAR_SWITCH_FIELDS, RATE_ALIAS_MAP, REMOVED_RATES, TRANSVERSE_PROFILE_TYPES
 
 
@@ -141,7 +142,7 @@ def _normalize_linear_precision(propagation: Dict[str, Any]) -> None:
 
 
 def _normalize_heat(heat: Dict[str, Any]) -> None:
-    """Validate explicit HR-3B/HR-3C parameters without changing legacy terms."""
+    """Validate explicit HR-3B/HR-3C/HR-4A parameters without changing legacy terms."""
     for name in ("rho0", "Cv", "f_rep", "D_gas", "D_th", "gamma_heat"):
         if name in heat:
             heat[name] = _to_float(heat[name])
@@ -167,6 +168,7 @@ def _normalize_heat(heat: Dict[str, Any]) -> None:
             value = float(heat[name])
             if not math.isfinite(value) or value <= 0.0:
                 raise ValueError(f"heat.{name} must be finite and positive for HR-3C.")
+    normalize_hr4_config_values(heat)
 
 
 def _normalize_raman(raman: Dict[str, Any]) -> None:

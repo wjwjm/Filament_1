@@ -160,6 +160,25 @@ class HeatConfig:
     resume_hr3c: bool = False
     rho0: float = 1.23           # kg/m^3, dry air at the Isaacs STP reference
     Cv: float = 1000.0 / 1.4     # J/(kg K), C_p/gamma in the same reference
+    # HR-4A contract defaults. Explicit opt-in; no runner wiring in HR-4A.
+    hr4_enabled: bool = False
+    chi: float = 21.7e-6
+    nu: float = 1.5e-5
+    gravity_x: float = 0.0
+    gravity_y: float = -9.81
+    x_min: float = -1.5e-3
+    x_max: float = 1.5e-3
+    y_min: float = -1.0e-3
+    y_max: float = 2.5e-3
+    dx: float = 10.0e-6          # provisional HR-4 transverse spacing [m]
+    dy: float = 10.0e-6          # provisional HR-4 transverse spacing [m]
+    dt_hydro: float = 1.0e-6     # provisional HR-4 fixed timestep [s]
+    advection_scheme: str = "first_order_upwind"
+    diffusion_scheme: str = "explicit_central_fd"
+    time_integrator: str = "explicit_euler"
+    grid_layout: str = "collocated"
+    boundary_delta_n: str = "ambient_dirichlet_zero"
+    boundary_velocity: str = "open_zero_gradient_outflow_ambient_inflow"
 
 @dataclass
 class RunConfig:

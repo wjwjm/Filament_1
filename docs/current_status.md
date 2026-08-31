@@ -1,15 +1,17 @@
 # 当前项目状态 (Round 1 Restructuring)
 
-## 2026-08-31: HR-4A contract freeze in progress
+## 2026-08-31: HR-4A contract freeze and scaffolding
 
-- `HR-4` branch = **ACTIVE**; `HR-4A` = **IN PROGRESS**; `HR-4B` =
-  **NOT STARTED**. HR-4A begins by freezing the post-acoustic, isobaric,
-  two-dimensional transverse slow-flow contract in
-  `docs/physics_decisions/hr4_status.md` before code development.
-- The phase is contract/state/validation scaffolding only. It does not
-  implement the full Eq. (32)–(33) flow solver, alter production configuration
-  or upstream HR-3 physics, allocate production-size state, or submit
-  HPC/Slurm work.
+- `HR-4` branch = **ACTIVE**; `HR-4A` = **CLOSED**; `HR-4B` =
+  **NOT STARTED / READY TO PLAN**. HR-4A first froze its post-acoustic,
+  isobaric, two-dimensional transverse slow-flow contract in
+  `docs/physics_decisions/hr4_status.md`, then added only state/validation
+  scaffolding.
+- HR-4A did not implement the full Eq. (32)–(33) flow solver, alter production
+  configuration or upstream HR-3 physics, allocate production-size state, or
+  submit HPC/Slurm work. Required local compile/backend checks passed; the
+  bounded targeted run had zero new HR-4A failures and one known HR-2E
+  strict-float baseline failure (`3.0000000000000004 != 3.0`).
 
 ## 2026-08-30: HR-3 merged to main
 

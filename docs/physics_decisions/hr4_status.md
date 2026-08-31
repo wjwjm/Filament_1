@@ -1,6 +1,6 @@
 # HR-4 status: isobaric transverse slow flow
 
-**Program status:** HR-4 branch active; HR-4A **IN PROGRESS** (2026-08-31).
+**Program status:** HR-4 branch active; HR-4A **CLOSED** (2026-08-31).
 
 **Branch provenance:** HR-4A started from local `main`
 `543499daf6058e1782b125bb3a16c84155a11e05`; its verified upstream
@@ -247,14 +247,22 @@ remains **NOT FROZEN**.
 
 ## HR-4A implementation status
 
-**IN PROGRESS.** This document and the status update are the required first
-artifact. After their self-check and documentation commit, permitted code is
-only config validation, state contract, derived diagnostics, PRE/POST helper,
-boundary helpers, stability audit, and tiny targeted tests. Complete PDE
-advance remains outside HR-4A.
+**CLOSED.** HR-4A added only config validation, the three-field state contract,
+derived diagnostics, PRE/POST helper, boundary helper, stability audit, and
+tiny-array targeted tests. The documented D1–D11 contract is preserved; no
+PDE advance, runner integration, production allocation, production physics
+configuration change, or HPC/Slurm work occurred.
+
+Local validation used the required explicit Windows test environment:
+compileall and the backend probe passed. The controlled targeted run reported
+150 passed and 3 skipped. Its only failure was the pre-existing HR-2E
+strict-float baseline (3.0000000000000004 != 3.0), explicitly outside HR-4A;
+there were zero new HR-4A failures. Full pytest was not run because the
+repository-approved local entrypoint exposes only the bounded targeted set.
 
 ## Change log
 
 | Date | Stage | Change |
 | --- | --- | --- |
 | 2026-08-31 | HR-4A | Wrote this authority document before code; froze D1–D10, recorded D11 provisional, and separated HR-4B+ work. |
+| 2026-08-31 | HR-4A | Added and validated contract-only scaffolding; HR-4A closed with no solver, runner, or HPC action. |

@@ -60,6 +60,28 @@ HEAT_HR3C_FIELDS: Dict[str, str] = {
 }
 
 
+HEAT_HR4_FIELDS: Dict[str, str] = {
+    "hr4_enabled": "enable HR-4A contract validation only; no runner integration",
+    "chi": "must equal authoritative HR-3C D_th [m^2/s]",
+    "nu": "frozen HR-4 kinematic viscosity [m^2/s]",
+    "gravity_x": "frozen x gravity component [m/s^2]",
+    "gravity_y": "frozen y gravity component [m/s^2]",
+    "x_min": "frozen HR-4 transverse x lower bound [m]",
+    "x_max": "frozen HR-4 transverse x upper bound [m]",
+    "y_min": "frozen HR-4 transverse y lower bound [m]",
+    "y_max": "frozen HR-4 transverse y upper bound [m]",
+    "dx": "provisional HR-4 transverse spacing [m]",
+    "dy": "provisional HR-4 transverse spacing [m]",
+    "dt_hydro": "provisional HR-4 fixed hydro timestep [s]",
+    "advection_scheme": "frozen first-order local upwind",
+    "diffusion_scheme": "frozen explicit central finite difference",
+    "time_integrator": "frozen explicit unsplit Forward Euler",
+    "grid_layout": "frozen collocated three-field layout",
+    "boundary_delta_n": "frozen ambient Dirichlet zero boundary",
+    "boundary_velocity": "frozen open outflow / ambient inflow boundary",
+}
+
+
 RATE_ALIAS_MAP: Dict[str, str] = {
     # historical shorthand
     "ppt_talebpour_i": "ppt_talebpour_i_lut",
