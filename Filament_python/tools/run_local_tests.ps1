@@ -32,6 +32,7 @@ $targetedTests = @(
     (Join-Path $filamentPythonRoot 'tests\test_hr4a_contract_scaffolding.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4b_single_screen.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4c_state_lifecycle.py'),
+    (Join-Path $filamentPythonRoot 'tests\test_hr4d_pulse_lifecycle.py'),
     (Join-Path $filamentPythonRoot 'tests\test_runner_multipulse_orchestration.py'),
     (Join-Path $filamentPythonRoot 'tests\test_phase8b_raman_diagnostics.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hpc_execution_guardrails.py'),
