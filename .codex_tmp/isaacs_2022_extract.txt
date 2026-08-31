@@ -1,0 +1,925 @@
+      Research Article                                       Vol. 30, No. 13 / 20 Jun 2022 / Optics Express 22306
+
+
+
+
+Modeling the propagation of a
+high-average-power train of ultrashort laser
+pulses
+J. I SAACS , 1 B. H AFIZI , 1 L. A. J OHNSON , 1,2                         E. W. R OSENTHAL , 3
+L. M RINI , 4 AND J. P EÑANO 1,*
+1 Plasma Physics Division, U.S. Naval Research Laboratory, Washington, DC 20375, USA
+2 Currently at Emerging Tech Innovation Center, The MITRE Corporation, McLean VA 22102, USA
+3 Tactical Electronic Warfare Division, U.S. Naval Research Laboratory, Washington, DC 20375, USA
+4 William & Mary, Williamsburg, Virginia 23187, USA
+* joseph.penano@nrl.navy.mil
+
+
+
+Abstract: We investigate the interpulse thermal interaction of a train of ultrashort laser pulses
+and develop a model to describe the isobaric heating of air by a train of pulses undergoing
+filamentation. We calculate the heating of air from a single laser pulse and the resulting refractive
+index perturbation encountered by subsequent pulses, and use this to simulate the propagation
+of a high-power pulse train. The simulations show deflection of laser filaments by the thermal
+refractive index consistent with previous experimental measurements.
+
+© 2022 Optica Publishing Group under the terms of the Optica Open Access Publishing Agreement
+
+1.   Introduction
+The current development trend for short pulse laser systems is towards higher repetition rates
+(>kHz) and average power (> kW). The high average power, high peak power pulse trains
+produced by these systems drive a unique physics regime of atmospheric propagation and material
+interactions that has outpaced predictive modeling capabilities. Specifically, the ultrashort pulse
+trains possess average powers near those of high-energy lasers (HELs) and peak powers sufficient
+for nonlinear propagation. This high-average and high-peak power regime results in both linear
+and nonlinear heating of the air, combining, for the first time, high-average-power effects like
+thermal blooming with those found in filamentation, e.g. ionization and rotational excitation
+[1–6]. The propagation of laser filaments in this new regime has not been thoroughly investigated.
+   Previous efforts have focused either on low peak power HEL propagation where traditional
+thermal blooming plays a role [7], single pulse, high peak power pulse propagation such as
+filamentation studies [3,8–11], or experiments with high peak power trains with relatively low
+average power (≈ 1 W) [5,6]. Here, we present a theoretical framework suitable for implementation
+in a propagation code to model high average power ( kW), high peak power pulse trains.
+   We consider a train of pulses, each of spot size R0 , duration τp , and peak power P0 , separated
+by duration τs . Each pulse deposits thermal energy into the air which leads to a small evacuation
+of the air density on axis and a consequent decrease in the refractive index. Between pulses, the
+air cools and the refractive index increases towards its equilibrium value until the next pulse
+comes through. If τs is comparable to or shorter than the cooling time (either through convection
+or conduction), the refractive index perturbation can build up over the pulse train. This is shown
+schematically in Fig. 1 along with representative values of the pulse duration, τp , peak power, P0 ,
+separation time, τs , acoustic transit time, τa , and thermal conduction time, τD .
+
+
+
+
+#443989                                                                     https://doi.org/10.1364/OE.443989
+Journal © 2022             Received 8 Feb 2022; revised 8 Apr 2022; accepted 9 Apr 2022; published 6 Jun 2022
+       Research Article                                     Vol. 30, No. 13 / 20 Jun 2022 / Optics Express 22307
+
+
+
+
+                                  P0   
+                                                                     τD    
+                                                       δn
+                                     τa  μ
+
+                                                                             
+                              τp                   τs  
+        Fig. 1. Schematic diagram of a laser pulse train propagating to the left. Solid curves
+        represent laser power, the dashed curve represents the refractive index of air.
+
+
+2.     Absorption of laser energy by air for ultrashort laser pulse
+Laser pulses propagating in air lose their energy to linear absorption and scattering, ionization,
+rotational and vibrational Raman excitation of air molecules, and for pulses longer than the
+electron-neutral or electron-ion collision time, inverse Bremsstrahlung. All of these mechanisms,
+except scattering, result in heat being deposited along the propagation path of the laser. When an
+air molecule is ionized a plasma is created and the laser pulse loses energy equal to the ionization
+energy, UI , of the molecule plus, in the case of above-threshold ionization (ATI), whatever
+residual energy the free electron carries away. If the electron remains in the laser field and
+collides with a neutral or ion, it gains approximately the oscillation energy. After the laser pulse
+has passed, energized electrons transfer their energy to air molecules on the collisional time-scale
+of several tens of picoseconds. On a longer nanosecond time-scale, electrons recombine with and
+attach to ions and neutral molecules, respectively. For a weakly-ionized plasma at atmospheric
+pressure, the primary electron loss mechanisms in air are non-radiative, exothermic, three-body
+processes [12] which lead to local air heating. The laser pulse can also directly excite rotational
+and vibrational modes whose energy eventually becomes heat on a molecular collision time-scale.
+   The depletion of energy from the laser pulse can be described by the equation ∂FL /∂z = −αFL ,
+where FL is the laser pulse fluence and the effective extinction coefficient, neglecting scattering
+losses, can be written as α = α0 +αion +αp +αR where, in order, the terms denote the contributions
+from linear absorption, ionization, plasma heating (inverse Bremsstrahlung), and rotational
+Raman excitation. The change in laser fluence with z is also equal to the negative of the energy
+density deposited by the laser into the air, which we write as ua = u0 + uion + up + uR where the
+various terms on the RHS are the energy density deposited into the various process denoted by the
+subscripts, as in the expression for α. With this, the absorption coefficient for the process labeled
+j is given by αj = −uj /FL . For nonlinear absorption processes, α is a function of the local laser
+intensity. One can also define a macroscopic absorption coefficient Λ by integrating the  ∫ equation
+for fluence loss over transverse coordinates∫ to give ∂UL /∂z = −ΛUL , where UL = FL d2 r is
+the energy of the laser pulse, and Λ = UL−1 αFL d2 r. In the following sub-sections, we derive
+simple expressions for the various contributions to the laser absorption coefficient that can be
+used in propagation codes that model the interaction of many pulses in a pulse train.
+
+2.1.    Ionization and electron heating
+As the laser pulse creates and energizes free electrons, it loses fluence according to
+                                          ∂FL
+                                              = −(n0 UI ne + ue ),                                           (1)
+                                           ∂z
+where ne and ue are the electron number density and energy density, respectively, evaluated
+immediately behind the laser pulse before recombination and relaxation occur. The first term
+represents fluence lost to ionization and the second term represents fluence lost by heating the
+electrons.
+       Research Article                                                     Vol. 30, No. 13 / 20 Jun 2022 / Optics Express 22308
+
+
+
+
+  We now evaluate ne and ue . The equation governing the density of free electrons, for pulses
+short compared to the electron recombination and attachment times is ∂ne /∂t = γion (I)(nn − ne ),
+where nn is the ambient neutral density, γion is the photoionization rate, and we have neglected
+                                                                   ⟩︂ The evolution of the electron
+collisional ionization on the short time-scales of the laser⟨︂ pulse.
+energy density, ue = 3ne kB Te /2, is given by ∂ue /∂t = J⃗ · E             ⃗ is the laser electric
+                                                                  ⃗ , where E
+field, J⃗ is the linear part of the electron current governed by ∂ J/∂t⃗    + νe J⃗ = (ωpe
+                                                                                         2 /4π)E,⃗ Te is
+the electron temperature, ωpe = 4πe ne /me is the plasma frequency squared, νe is the electron
+                                2           2
+
+collision frequency, and kB is Boltzmann’s constant. Here, we have assumed that we can neglect
+electron recombination and cooling by interaction with the air over the duration of the laser pulse.
+   We can write a simple, closed form solution for the electron energization by assuming that νe
+and the laser intensity are constant over the duration of the pulse, and that the pulse has a simple
+radial profile, i.e., I(r, τ) = I0 f (r) for 0<τ<τp and zero for all other τ. In this case, the electron
+number density and energy density immediately following a laser pulse of duration τp are
+
+                                         ne = nn 1 − exp(−γion τp ) ,
+                                                [︁                 ]︁
+                                                                                                      (2)
+
+                                             ωpn
+                                              2
+                                                   νe [︁
+                                  (︃     )︃
+                                I0 f (r)
+                           ue =                          exp(−γion τp ) − 1 + γion τp ,
+                                                                                     ]︁
+                                                                                                                              (3)
+                                 n0 c νe + ω0 γion
+                                            2    2
+
+        2 = 4πe2 n /m , and ω is the laser angular frequency. In order to use Eqs. (2) and (3),
+where ωpn          n    e        0
+we must find values for γion and νe that are appropriate for the parameter regime of interest. For a
+NIR ultrashort pulse in the filamentation regime with τp ≃ 100 fsec, I0 = 70 TW/cm2 , a realistic
+model [13] yields νe ≈ 5 × 1012 sec−1 . Also, we assume laser intensities <100 TW/cm2 so that
+we can approximate the photoionization process as multiphoton and write
+                                                                      (︃     )︃ ℓ
+                                                               2πω0 I0 f (r)
+                                                  γion =                                                                      (4)
+                                                              (ℓ − 1)! Imp
+
+where Imp = ℏω02 /σmp , σmp = 6.4 × 10−18 cm2 is a cross-section that was determined empirically
+[14,15], and ℓ = Int[(UI /ℏω0 ) + 1] is the ionization order. If we use these parameters to evaluate
+Eqs. (2) and (3), we obtain ne = 6 × 1016 cm−3 and kB Te ≈ 1 eV, which is in the range predicted
+by the model of Ref. [13].
+   The absorption coefficients due to ionization and electron heating are given by the respective
+right-hand terms of Eq. (1) divided by −FL , i.e., αion = n0 UI ne /FL and αp = ue /FL , with ne
+and ue given by Eqs. (2) and (3). Assuming a Gaussian radial profile, f (r) = exp(−2r2 /R20 ), the
+macroscopic absorption coefficients due to ionization and plasma heating are given by
+
+                                       πR20 nn n0 UI [︁
+                          Λion =                            γEM − Γ(0, γion,0 τp ) + ln(γion,0 τp ) ,
+                                                                                                   ]︁
+                                                                                                                              (5)
+                                            2l    UL
+
+                            ωpn
+                  )︃ (︄      2
+                                       )︄
+                                             νe                            Γ(−1 + 1/l) − Γ(−1 + 1/l, γion,0 τp )
+          (︃                                      [︃                                                                     ]︃
+         1                                                            1
+  Λp =                                                 γion,0 τp +       +                                                    (6)
+       n0 cτp             νe2 + ω02 γion,0                           l−1           l(γion,0 τp )−1+1/l
+where γEM is the Euler–Mascheroni constant, Γ(x) is the gamma function, and Γ(s, x) is the upper
+incomplete gamma function. The ionization rate has been evaluated on-axis, γion,0 = γion (r = 0).
+
+2.2.    Rotational Raman excitation
+Laser energy loss due to rotational Raman excitation follows from the slow variation in time of
+the nonlinear Raman polarization field. It can be derived from the paraxial wave equation for the
+       Research Article                                      Vol. 30, No. 13 / 20 Jun 2022 / Optics Express 22309
+
+
+
+
+               ⃗ [4,16], shown here in a simplified form only containing self-phase modulation
+laser envelope A
+effects
+                                  ∂A
+                                   ⃗        ω02        i ∂
+                                                (︃          )︃
+                             2ik0    = −4π 2 1 +               p⃗SPM                       (7)
+                                  ∂z        c         ω0 ∂τ
+                    ⃗ r, t) exp [ik0 z − iω0 t] + c.c. (we shall hereafter work in the pulse frame,
+        ⃗ r, t) = A(⃗
+where E(⃗
+     ⃗ r⊥ , τ, z), with τ = t − z/𝑣g ) and p⃗SPM = (n0 /2π)n2 I A
+⃗ = A(⃗
+A                                                                     ⃗ + χL Q(τ)A   ⃗ is the slowly varying
+envelope of the nonlinear polarization field. The first term in p⃗SPM represents the instantaneous
+Kerr response that leads to nonlinear self-focusing, where n2 is the nonlinear Kerr index. The
+second term represents the delayed response due to molecular rotation, which if modeled as an
+effective two-level system, is characterized by the functions
+                                                 ∫ τ
+                                         nR n0
+                           Q(⃗r, τ) = −                dτ ′W(τ ′)Ω(τ − τ ′)I(⃗r, τ ′)                    (8)
+                                         2π χL −∞
+                                          (︄           )︄
+                                             ωR2 + ΓR2
+                                Ω(τ) =                    exp(−ΓR τ) sin(ωR τ)                           (9)
+                                                ωR
+
+where χL is the linear susceptibility of the medium. ωR = 1.6 × 1013 sec−1 and ΓR = 1.3 × 1013
+sec−1 are the phenomenological frequency and damping rate which characterize the dominant
+rotational Raman transition from J = 8 to J = 6 for pulse durations < ≈ 1 psec and λ0 = 800 nm.
+The nonlinear index for Raman is taken to be nR = 2.3 × 10−19 cm2 /W [17]. The function W(τ)
+is the difference between the normalized population of the upper and lower states. From here on
+we assume that the upper state population remains small throughout the laser interaction so that
+W(τ) ≈ −1 for all τ.
+   The equation for laser fluence loss to rotational Raman excitation derivable from Eq. (7) is
+given by
+                        ∂FL nR ∞ ′                                   ∂I(τ)
+                                    ∫               ∫ ∞
+                              =           dτ Ω(τ ′)     dτI(τ − τ ′)       ,               (10)
+                         ∂z      c 0                 −∞               ∂τ
+where the quantity on the RHS is identified as uR , i.e., the energy density injected into rotational
+modes of air. Assuming the same boxcar/Gaussian laser intensity profile used for analyzing
+the plasma loss in the previous section, the integrals in Eq. (10) can be evaluated to yield the
+absorption coefficient for rotational Raman excitation
+                   (︃     )︃            {︃               [︃                           ]︃ }︃
+                       1                                                ΓR
+            αR =             nR I0 f (r) 1 − exp(−ΓR τp ) cos(ωR τp ) +    sin(ωR τp ) ,         (11)
+                      cτp                                               ωR
+
+and for a Gaussian pulse,
+                  (︄        )︄ (︃   )︃ {︃                 [︃                             ]︃ }︃
+                     n R UL       1                                       ΓR
+            ΛR =                          1 − exp(−Γ τ
+                                                    R p )    cos(ω τ
+                                                                  R p ) +    sin(ω  τ
+                                                                                   R p )       .            (12)
+                     πR20 τp cτp                                          ωR
+
+2.3.    Comparison of absorption processes
+We compare the various magnitudes of the absorption coefficients derived previously by plotting
+the absorption coefficients as a function of pulse length for a fixed pulse energy. Figure 2 shows
+the results for a 3 mJ pulse, and a 10 mJ pulse with a focused spot size of R0 = 200µm. For the
+3 mJ pulse, rotational Raman is the dominant absorption mechanism for pulse durations >200
+fsec, while ionization loss is dominant for pulse durations <100 fsec. Absorption due to electron
+heating is negligible over the range plotted. For the 10 mJ pulse, ionization loss dominates for
+pulse durations <0.3 psec and Raman excitation for pulse durations >1 psec. Absorption from
+electron heating is only plotted for pulse durations greater than the electron collision time, and is
+                                            Research Article                                                                                   Vol. 30, No. 13 / 20 Jun 2022 / Optics Express 22310
+
+
+
+
+                         seen to be comparable with ionization loss. Linear absorption due to air molecules is indicated by
+                         the dashed black line. The lower panels plot the electron temperature versus pulse duration and
+                         show that the electrons are energized to approximately 1 eV for the 3 mJ pulse and several eV for
+                         the 10 mJ pulse. Making use of the expression ue = 3ne kB Te /2 and Eqs. (2) and (3) it follows that
+
+                                                                                   2 ωpn I0 νe
+                                                                                         2
+                                                                                                             e−γion τp − 1 + γion τp
+                                                                nn kB Te (r) =                         f (r)                         .                                                             (13)
+                                                                                   3 νe + ω0 n0 c γion
+                                                                                      2    2                      1 − e−γion τp
+
+                         Near the axis (r ≈ 0), in the limit γion,0 τp ≫ 1, we have
+
+                                                                                                  2 ωpn I0
+                                                                                                         2
+                                                                                 nn kB Te (0) =                    νe τp                                                                           (14)
+                                                                                                  3 νe2 + ω02 n0 c
+
+                        which is independent of pulse duration for fixed pulse energy and corresponds to shorter pulse
+                        durations due to the strong dependence of γion,0 on τp . In the opposite limit γion,0 τp ≪ 1, we have
+
+                                                                                                  2 ωpn I0 νe τp
+                                                                                                         2
+                                                                               nn kB Te (0) =                        ,                                                                             (15)
+                                                                                                  3 νe2 + ω02 n0 c 2
+
+                        which is half of that in Eq. (14).
+
+
+                                                                                                                                                                               
+                                                                                                          
+
+
+
+                                                                                                                                      
+   
+
+
+
+
+                                                                                                                                           
+                                                        
+
+
+
+
+                                                                              
+                                                                                                                                                                   
+
+                                                                                                                                                                                              
+                                                         
+
+
+
+
+                                                                                   
+                                                                                                                                                                                                   
+                                                                                                                                                                     
+                                                          
+
+
+
+
+                                                                                                                                                                              
+                                                                                                                                             
+                                                                                                                                
+                                                                                                                                                                       
+                                                              
+
+                                                                    
+
+
+
+
+                                                                                                                                                                                  
+                                                         
+
+
+
+
+                                                                                                                                                                                        
+                                                                                                                                                                                  
+                                                          
+
+
+
+
+                                                                                                                                                                                    
+
+                                                                                                                                                   
+                                                              
+
+
+
+
+                                                                                                                              
+
+
+
+
+                                                                                                                     
+                                                                                                                                                                     
+                                                                   τp [psec]                                                                                           τp [psec]
+                                                                                                                                           
+                                                                                                                                                                                
+                                                                                                                                           
+     kB Te [eV]
+
+
+
+
+                                                                                                              kB Te [eV]
+
+
+
+
+                                                                                                                                           
+
+                                      
+                                                                                                                                              
+
+                                      
+                                                                                                                                              
+
+                                      
+                                                                                                                                              
+                                                                                                                                                                     
+                                                                   τp [psec]                                                                                           τp [psec]
+
+                                             Fig. 2. Electron density (solid black curves), and macroscopic absorption coefficients,
+                                             Λi , due to Raman excitation (blue curves), ionization (green curves), electron heating (red
+                                             curves), and air molecules (black, dashed line, α0 = 1.6 × 10−4 km−1 at λ0 = 800 nm)
+                                             versus pulse duration for a fixed pulse energy, a) 3 mJ, and c) 10 mJ. Electron temperature
+                                             vs. pulse duration is also plotted for pulse energies 3 mJ (panel c), and 10 mJ (panel d). For
+                                             all figures R0 = 0.2 mm.
+      Research Article                                         Vol. 30, No. 13 / 20 Jun 2022 / Optics Express 22311
+
+
+
+
+3.   Air heating and thermal refractive index perturbation caused by an ultrashort
+     pulse
+Some of the energy lost by the laser pulse contributes to heating air molecules in the laser path,
+resulting in a refractive index perturbation that can affect subsequent pulses. Physically, the laser
+pulse produces a region of elevated temperature that is initially without a density perturbation.
+An acoustic wave is then generated that carries the excess energy away from the heated region
+and leaves behind a heated region in pressure balance with a density depletion which evolves on a
+hydrodynamic time scale [6,10,18]. In this Section we calculate the refractive index perturbation
+left behind by one pulse over a time long compared with the acoustic transit time across the
+propagation path, but comparable to the convection and thermal conduction times.
+   The change in refractive index of a gas due to a density perturbation δρ is given by δn =
+(n0 − 1)(δρ/ρ0 ), where n0 is the ambient refractive index of the propagation medium, and ρ0 is
+the ambient mass density. In general, when the density and temperature perturbations caused by
+the laser in a gaseous medium are small, they are governed by the linearized fluid equations
+                                                      (︂     )︂
+                     ρ0 CV (∂t + 𝑣⃗w · ∇) − κT ∇2 δT − c2s /γ (∂t + 𝑣⃗w · ∇) δρ = αI,
+                  [︁                             ]︁
+                                                                                                 (16)
+                    [︂                    (︂     )︂ ]︂         (︂     )︂
+                         (∂t + 𝑣⃗w · ∇)2 − c2s /γ ∇2 (δρ/ρ0 ) = c2s /γ ∇2 (δT/T0 ) ,                          (17)
+
+where δρ and δT are √︁ the density and temperature perturbations, respectively, ρ0 and T0 are the
+ambient values, cs = γRT0 /µ is the acoustic speed, R/µ = Cp − C𝑣 , Cp and C𝑣 are the specific
+heats of air at constant volume and pressure, respectively, µ is the normalized molecular weight,
+γ = Cp /C𝑣 , κT is the thermal conductivity, 𝑣⃗w is the wind velocity, which could be due to either
+external wind or buoyancy, and is it is assumed 𝑣w <<cs .
+  There are two parameter regimes that can be considered, which are dictated by timescales
+that are greater or less than τa = R0 /cs , i.e., the acoustic transit time across the pulse. For time
+scales short compared with τa , the propagation of the acoustic wave is important, convection and
+conduction can be neglected, and Eqs. (16) and (17) reduce to
+                                 (︂             )︂
+                                    ∂t2 − c2s ∇2 ∂t δρ = (γ − 1)α∇2 I,                            (18)
+
+                             ∂t (δT/T0 ) = (γ − 1) ∂t (δρ/ρ0 ) + αI/(ρ0 C𝑣 T0 ) .                             (19)
+This is known as the ’t3 ’ regime, since for times short compared with τa , δρ increases as t3 [7].
+For time scales >>τa , the acoustic wave has propagated away from the laser-heated volume and
+the fluid dynamics proceeds in the isobaric regime described by [7] δρ/ρ0 = −δT/T0 and
+                                                             αI
+                                    (∂t + 𝑣⃗w · ∇) δρ = −         + χ∇2 δρ                                    (20)
+                                                            T0 Cp
+
+where χ = κT /(ρ0 Cp ) is the thermal diffusivity.
+   For the purpose of analysis, we assume, as before, that a pulse has a flattop longitudinal
+intensity profile, I(r, τ) = I0 f (r) for τ<τp and zero otherwise, where τ = 0 marks the arrival
+of the pulse, and f (r) = exp(−2r2 /R20 ). Since τp <<τa , we can neglect the operator c2s ∇2 in
+Eq. (18) for times comparable to τp and integrate in time to yield, ∂t δρ = (γ − 1)αI0 ∇2 f (r)t2 /2.
+Substituting this result into Eq. (19) and integrating in time gives
+
+                   δT(t)/T0 = αI0 f (r)t/(ρ0 CV T0 ) + (γ − 1)2 αI0 ∇2 f (r)t3 /(6ρ0 ),                       (21)
+
+for t ≤ τp .
+       Research Article                                    Vol. 30, No. 13 / 20 Jun 2022 / Optics Express 22312
+
+
+
+
+   For τp <t<<τD , we can similarly solve ∂t2 − c2s ∇2 ∂t δρ = 0 for ∂t δρ, using ∂t δρ = (γ −
+                                                  (︁          )︁
+1)αI0 ∇2 f (r)τp2 /2 as the initial condition, then substitute into ∂t (δT/T0 ) = (γ − 1) ∂t (δρ/ρ0 ), and
+integrate to yield
+                                                                                    ∫ t
+   δT(t)/T0 = αI0 f (r)τp /(ρ0 CV T0 ) + (γ − 1)2 αI0 ∇2 f (r)τp3 /(6ρ0 ) + (γ − 1)     ∂t (∂ ρ/ρ0 ). (22)
+                                                                                       τp
+
+The first two terms on the RHS represent the conditions immediately after the passage of the laser
+pulse, i.e., from Eq. (21). The third term represents the contribution due to an acoustic wave that
+propagates out of the vicinity of the pulse for t>τa . For the laser pulse parameters considered
+here, the first term in Eq. (22) is the dominant term due to the very short pulse durations. Hence,
+to a good approximation, the refractive index change caused by one pulse after a time τp , where
+τa <τp <<τD is given by
+                                δn1 = −(n0 − 1)αI0 f (r)τp /(ρ0 CV T0 ) .                      (23)
+Eq. (23) represents the perturbation in the refractive index caused by one pulse, after the acoustic
+time when conditions have become isobaric, but early enough that heat transport via thermal
+diffusion is negligible. In our simulations, this is the contribution of each pulse to the refractive
+index that provides the initial conditions for our hydrodynamic simulation between pulses. For
+typical intensities in a laser filament at 800nm wavelength, i.e., I0 = 50 TW/cm2 , and pulse
+durations τp = 50 fsec, we have α = 0.5 m−1 , primarily due to rotational Raman excitation, and
+δn1 = −3.7 × 10−5 .
+
+4.     Inter-pulse thermal interaction of a pulse train
+Given the refractive-index imprint of a single pulse, we now consider a train of pulses with
+wavelength λ = 800 nm and duration τp <1 psec, with spot size R0 ≈ 0.2 mm and separation τs ≈ 1
+msec ( kHz rep-rate) propagating through air at STP, which is characterized by α0 = 1.6 × 10−4
+km−1 , ρ0 = 1.23 kg/m3 , Cp = 1 kJ/(kg K), γ = 1.4, χ = 21.7 mm2 /s, n0 − 1 = 2.9 × 10−4 , and
+T0 = 293 K. The acoustic speed is cs = 343 m/s and τa ≈ 0.6µs, which is much longer than
+τp so that heating of the air occurs in the t3 regime. Between pulses, cooling will occur in the
+isobaric regime for times τa <t<τs . The characteristic time for thermal conduction of a Gaussian
+perturbation with a 1/e2 radius of R0 is τD = R20 /( χ) ≈ 2 msec, which is comparable with the
+inter-pulse separation.
+
+4.1.    Convective vs diffusive cooling
+Before proceeding, it is useful to estimate the relative effects of convective and conductive
+(diffusive) cooling of the laser-heated air between pulses. Neglecting transverse wind, the relative
+magnitudes of thermal convection (by buoyancy) and conduction are parameterized by the Peclet
+number, Pe = 𝑣B R0 / χ, where 𝑣B is the buoyancy velocity, and Pe >>1 describes the convection-
+dominated regime. The buoyancy velocity can be estimated from (d𝑣b /dt) ≈ (δρ/ρ0 )g, where g
+is the gravitational acceleration, and the approximation δρ/ρ0 <<1 was made. This expression
+for the buoyancy velocity assumes that viscous stresses are negligible. The Reynolds number
+Re = 2R0 𝑣B /ν, computed with this velocity and taking ν = 0.15 cm2 /s for the kinematic viscosity
+of air, is found to have a value of 3700, sufficiently large to justify the assumption.
+   If τs is much shorter than the convection or conduction times, then δρ/ρ0 ≈ (δρ1 /ρ0 )(t/τs ),
+where δρ1 is the density change due to a single pulse. Letting t = R0 /𝑣B , i.e., the convection time,
+we obtain 𝑣B ≈ [|δρ1 |gR20 /(ρ0 τs )]1/3 . From Eq. (23), we have δρ1 ≈ αI0 τp /(CV T0 ) on-axis, after
+a few acoustic transit times. Using the results for 𝑣B and δρ1 , the Peclet number is
+                                                 2τp αP0 g 1/3 R0
+                                             (︃              )︃
+                                      Pe =                        ,                               (24)
+                                                πτs CV T0 ρ0    χ
+where we have written I0 = 2P0 /πR20 , and P0 is the peak pulse power.
+       Research Article                                         Vol. 30, No. 13 / 20 Jun 2022 / Optics Express 22313
+
+
+
+
+  Figure 3 plots Pe vs pulse duration for a pulse train with fixed energy per pulse UL = 5 mJ for
+various average power, obtained by varying the pulse separation time. For shorter pulses with
+increased absorption, convection due to buoyancy can be comparable to thermal conduction.
+Hence, for these shorter pulses, the heating of the air column should result in a deflection of the
+pulses downward as heat is convected upward. This will be seen in the simulations presented in
+the following sections.
+
+
+                               
+                                
+
+
+
+                                
+
+                                                          
+                                                                   
+                                                           
+                                                              
+                                                        
+                             
+                             
+
+
+
+                             
+                                                                 
+                                                       τp [psec]
+
+        Fig. 3. Peclet number versus pulse duration for a pulse train with fixed energy per pulse
+        UL = 5 mJ with average power 500 W (solid curve), 50 W (longer-dashed curve), and 5 W
+        (shorter-dashed curve) for R0 = 200µm.
+
+
+4.2.    Heating by a pulse train
+For the purpose of obtaining a simple analysis, we consider the regime where Pe <1 and the
+cooling between pulses is primarily due to thermal conduction. For pulse durations that are
+much shorter than the thermal conduction time, heating and cooling can be considered separately
+in time. If a single pulse produces a thermal index change δn1 exp(−2r2 /R20 ) then the pulse
+immediately after it experiences an index δn1 (1 + τs /τD )−1 exp −2r2 R−2     0 (1 + τs /τD )
+                                                                                               −1 [19],
+                                                                         [︁                      ]︁
+
+where we have assumed that the heated region diffuses transversely into free space.
+   Consider the change in refractive index on-axis. As an approximation, we assume that the
+transverse shape of the heated region under the influence of many pulses, for the purpose√of
+estimating the effect of conduction, remains Gaussian near the axis with a spot size R0 / 2.
+Hence, the on-axis change in refractive index caused by the N th pulse and experienced by the
+pulse immediately following it (i.e. at a time τs after the N th ) is δnN = δnN−1 (1 + τs /τD )−1 + δn1 .
+This recursion relation can be written
+                                                 N−1
+                                                 ∑︂
+                                     δnN = δn1         (1 + τs /τD )−k ,                                       (25)
+                                                 k=0
+
+which evaluates to
+                                       1 + (τs /τD ) [︁
+                           δnN = δn1                    1 − (1 + (τs /τD ))−N .
+                                                                             ]︁
+                                                                                                               (26)
+                                         (τs /τD )
+When τs /τD <<1 and Nτs /τD <<1, δnN ≈ Nδn1 , i.e., the refractive index change increases linearly
+with the number of pulses. In the limit of many pulses, i.e., Nτs /τD >>1, δnN = δn1 [1 + (τD /τs )],
+         Research Article                                        Vol. 30, No. 13 / 20 Jun 2022 / Optics Express 22314
+
+
+
+
+i.e., heating is balanced by conduction and the refractive index change reaches a steady-state. The
+smaller τs is compared with τD , the larger the value of the steady-state refractive index change.
+The dependence of δnN on N and τD /τs is plotted in Fig. (4).
+
+
+                                                                        τs /τD = 0.1
+
+
+
+
+                                  δnN /δn1
+                                                                         τs /τD = 1
+
+                                                                         τs /τD = 5
+
+                                                            N
+
+          Fig. 4. Normalized refractive index change from Eq. (26) as a function of N for τs /τD = 0.1
+          (solid curve), 1 (longer-dashed curve), and 5 (shorter dashed curve).
+
+
+
+5.      Simulations
+To simulate the propagation of a train of pulses undergoing filamentation, we used NRL’s PyCAP
+(Python Code for Atmospheric Propagation). The simulation solves each pulse in 3D using the
+Nonlinear Envelope Equation (NEE) of Brabec and Krausz [20], modified to include refractive
+index perturbations due to air heating, as well as plasma and ionization effects. The evolution of
+the electric field is given (in Gaussian units) by:
+
+                                               ω02                     ω2
+ [︄                    )︃ −1                            ]︄
+          ∂       i ∂                  ∂2                                       i ∂
+             (︃                                                            (︃        )︃
+      2ik0 + 1 +             ∇⊥ − k0 β2 2 + 2n0 2 δn(⃗r) A(⃗r, τ) = −4π 20 1 +
+                              2
+                                                                                        pNL (⃗r, τ) (27)
+          ∂z     ω0 ∂τ                 ∂τ      c                       c       ω0 ∂τ
+
+where higher-order dispersion terms aside from group-velocity dispersion (GVD) and refractive
+index variations due to atmospheric turbulence have been neglected here. We assume a center
+wavelength of 800nm, with corresponding propagation parameters n2 = 0.78 × 10−19 cm2 /W
+[17] and β2 = 0.20 fs2 /cm [21]. We assume a linear polarization and thus a scalar propagation
+equation, dropping the vector notation.
+   PyCAP solves the NEE using a symmetrized Fourier split-step with an adaptive propagation step
+which bounds local error [22]. For these simulations, the nonlinear polarization density envelope
+is pNL = pelec + prot + pfree + pion . The electronic Kerr term is given by pelec = (n0 /2π)n2 IA,
+while the rotational Raman response prot is described in detail in Eqs. (7–9). The polarization
+density due to free electrons is given by [23]
+
+                                                         1 ωp
+                                                             2 (︃
+                                      i ∂                             νe
+                             (︃            )︃                            )︃
+                                  1+          pfree = −           1−i       A(⃗r, τ).                           (28)
+                                     ω0 ∂τ              4π ω02        ω0
+
+For these simulations of femtosecond filamentation, the pulse duration is much smaller than the
+electron-neutral collisional time scale, so we set νe = 0. Finally, the effective polarization density
+due to ionization damping is
+
+                                  i ∂                n0 A(⃗r, τ) ∑︂ ∂nj
+                           (︃           )︃
+                              1+           pion = 2i                Uj                           (29)
+                                 ω0 ∂τ               ω0 |A| 2 j        ∂τ
+      Research Article                                    Vol. 30, No. 13 / 20 Jun 2022 / Optics Express 22315
+
+
+
+
+with the sum taken over air constituents (in this case we used 80% N2 and 20% O2 ). The evolution
+of the plasma density is given by
+                               ∂nj                                ∑︂
+                                   = γion,j (I)(nj,0 − nj ), ne =    nj                                  (30)
+                               ∂τ                                  j
+
+where nj,0 is the background density of the j-th constituent species and γion,j (I) is its cycle-averaged
+ionization rate at intensity I, calculated using the theory of Popruzhenko et. al. [15,24]. The
+electron density is calculated at each propagation step using fourth-order Runge-Kutta integration
+of Eq. (30).
+   All energy lost by the pulse is assumed to heat the air, on a time scale short enough so that
+Eq. (23) can be used to approximate the induced refractive index change for each pulse, with the
+quantity αI0 τp in Eq. (23) replaced by the more general expression for lost fluence,
+
+                                                    n0 − 1 ∂FL
+                                      δn+ =δn− −               ,                                         (31)
+                                                   ρ0 CV T0 ∂z
+where δn− and δn+ are the index perturbations before and after the pulse, respectively. Aerosol
+scattering and linear molecular absorption are not included, and the time scale for the pulse we
+will use is too short for inverse-Bremsstrahlung heating, so this consists solely of rotational and
+ionization absorption.
+  In between pulses, the perturbed index and velocity evolve according to the 2D linearized fluid
+equations in the isobaric limit,
+
+                                          ∂
+                                       (︃            )︃
+                                             + 𝑣⃗ · ∇ δn = χ∇2 δn,                             (32)
+                                          ∂t
+
+                                    ∂                            δn
+                                 (︃              )︃
+                                        + 𝑣⃗ · ∇ 𝑣⃗ = ν∇2 𝑣⃗ +        g⃗.                      (33)
+                                    ∂t                         n0 − 1
+All parameters in Eqs. (31–33) are assumed to be those for air at STP, given in Section 4. These
+equations are solved on a series of screens positioned at arbitrary intervals along the propagation
+path, with the inter-screen distance chosen so that the energy deposition curve (e.g. Figure 6(d))
+is sufficiently resolved.
+
+Filamentation of a single pulse
+Before attempting to simulate a train of pulses undergoing filamentation, we first verify that we
+can model the filamentation of a single femtosecond pulse. For comparison with experiment, we
+choose parameters identical to those found in Fig. 2(a) of [25], in which peak electron density
+was measured experimentally as a function of propagation distance. Pulses at λ0 = 800 nm were
+focused at f /240 through a f = 95 cm lens. The power was kept at a fixed 17 GW, while the
+pulse duration was varied from τp = 40 fs to τp = 120 fs. The simulation results are shown in
+Fig. 5 alongside the experimental measurements for the same parameters.
+  From Fig. 5, the simulated filament length and onset distance match the experiment to within
+about 5%. The maximum peak electron density matches very well in the 120 fs case and within
+40% in the 40 fs case. In the 120 fs case, the secondary peak is absent from the simulation, which
+may be due to differences between simulation and experiment in the temporal pulse profiles,
+which have been shown to significantly affect ionization and energy deposition [26].
+
+Simulation of kHz filamentation
+To demonstrate the validity of our models and as an example of how the thermal interaction
+of a pulse train can lead to observable propagation effects, we again model parameters from a
+     Research Article                                      Vol. 30, No. 13 / 20 Jun 2022 / Optics Express 22316
+
+
+
+
+       Fig. 5. (a) Experimental and (b) simulated peak electron density in a filament as a function
+       of propagation distance, in comparison with Fig. 2(a) of [25].
+
+
+previously-published experimental work [5]. The authors focused pulses to filament in air (at 1
+atm) and Xenon (at 1 atm and in a gas cell at 2.7 atm) at 1 kHz. They found that the heated air
+channel thus created rises due to buoyancy as it simultaneously expands due to thermal diffusion.
+This eventually creates a refractive index perturbation which pulses experience as a diverging
+lens offset transversely from the propagation axis. As the index perturbation builds up from
+the repeated filamentation, pulses are increasingly deflected downward as they pass through the
+heated region.
+   As in [5], we use 45 fs FWHM, 1.5 mJ pulses, focused at f = 60 cm through a 4mm diameter
+aperture, with temporal and spatial profiles as described previously, and operating at a repetition
+rate of 1 kHz. Several quantities of interest are shown in Fig. 6. In particular, the electron density
+profile has a longitudinal FWHM of approximately 9 cm, which we take to be the interaction
+length for the purpose of comparison with interferometric measurements.
+   The first pulse is notably different from subsequent pulses in all of the quantities shown in
+Fig. 6, in that the filament is significantly shorter longitudinally than for the pulses which follow.
+This is presumably due to the approximately axially-symmetric density perturbation as described
+in Section 4, which acts as a defocusing lens, in opposition to the effects of Kerr self-focusing
+and the phase induced by the 60cm lens at the aperture. This axisymmetric thermal lens reaches
+a steady-state by approximately the fourth pulse. From Fig. 6, in the area of peak heating between
+7cm and 4 cm before the geometric focus, the fluence FWHM is ≈ 150µm, corresponding to
+τs /τD ≈ 4. Hence, the number of pulses required for the thermal lens to reach a steady-state is in
+good agreement with the theoretical results shown in Fig. 4.
+   After examining the thermal interaction of the first few pulses, we then propagated 500 pulses
+through filamentation, with each pulse depositing energy on the 2D refractive index screens
+while simultaneously having its phase modified. Figure 7 shows the location of the transverse
+(fluence) centroid in the direction parallel to gravity (negative is down) for every fortieth pulse as
+a function of propagation distance (up to the 200th). The position of the centroid before and
+after the region of peak heating in each case follows a linear path, with deflection occurring
+predominantly within that region. By fitting a line to the trajectory before and after collapse, we
+can calculate the deflection of each pulse in terms of the deflection angle in milliradians (Fig. 8).
+   Direct comparison of our results to experiment is difficult, as the authors of [5] only include
+deflection results for Xenon at 2.7 atm. In simulation, the deflection in air reaches a steady-state
+value of less than −0.6 mrad. By comparison, for Xe at 2.7 atm the experimentally measured
+Research Article                                                                Vol. 30, No. 13 / 20 Jun 2022 / Optics Express 22317
+
+
+
+
+ Fig. 6. (a) Peak electron density, (b) plasma channel FWHM, (c) laser fluence FWHM, (d)
+ energy deposited, and (e) the peak intensity, as a function of propagation distance for the
+ first (solid line), second (dash-dotted), third (dotted) and fourth (dashed) pulses, using the
+ parameters from [5].
+
+
+
+
+                                                     0
+                                                                                            Pulse 0
+                   Pulse centroid location [μm]
+
+
+
+
+                                                  −20
+                                                  −40
+                                                  −60
+                                                  −80
+                                                                               Pulse 200
+                                                  −100
+                                                  −120
+                                                         −20         −10          0            10
+                                                               Distance from vacuum focus [cm]
+ Fig. 7. Centroid location in the direction parallel to gravity of every 40th pulse, as a function
+ of propagation distance.
+     Research Article                                                      Vol. 30, No. 13 / 20 Jun 2022 / Optics Express 22318
+
+
+
+
+                                                0.0
+
+                                               −0.2
+
+
+
+
+                        Deflection in [mrad]
+                                               −0.4
+
+                                               −0.6
+
+                                               −0.8
+
+                                               −1.0
+                                                      0   100     200      300      400       500
+                                                          Pulse number, or time in [ms]
+
+       Fig. 8. Centroid deflection in milliradians as a function of pulse number (or time in ms).
+
+
+deflection reached approximately −3.5 mrad, with an apparent noise level of about ± 0.5 mrad.
+For the experiment performed in air, filamentation occurred in free space, as opposed to a closed
+gas cell, such that any deflection in this case was overwhelmed by random fluctuations [27]. One
+result which does lend itself to rough comparison, however, is Fig. 2(b) of [5], which shows
+the interferometrically-determined air density perturbation after a large number of pulses, 100
+µs before the next pulse. Figure 9 shows the simulated equivalent, after the 500th pulse. The
+simulated result compares qualitatively well with the experimental figure, which had a maximum
+density depression of δρ/ρ0 ≈ 0.065.
+                                                                                              δρ/ρ0
+
+
+
+
+       Fig. 9. Simulated interferometrically-determined relative density perturbation δρ/ρ0 , in
+       analogy with Fig. 2(b) of [5]. This figure was calculated after 500 pulses, 100 µs before the
+       next pulse, using an interaction length of 9 cm.
+
+
+
+6.   Conclusions
+We have presented a theoretical model to describe the heating of air for ultrashort laser pulses and
+the interpulse thermal interactions of a pulse train in which the pulse separation allows for isobaric
+description of the hydrodynamics of air. The model includes the loss of laser energy to the air
+      Research Article                                             Vol. 30, No. 13 / 20 Jun 2022 / Optics Express 22319
+
+
+
+
+by means of linear absorption by molecules, and the nonlinear processes of photoionization,
+electron energization, and rotational Raman excitation. As such, the model can describe energy
+loss to the air for pulse durations from tens of femtoseconds to several picoseconds.
+   We calculated the air heating of a single laser pulse whose duration is much shorter than the
+acoustic transit time, and the resulting refractive index perturbation at isobaric time scales that
+would be encountered by subsequent pulses. We then calculated the cumulative index change
+over a laser pulse train where the primary cooling mechanism was thermal conduction.
+   We developed a 3D simulation in NRL’s PyCAP code based on this model to simulate the
+propagation of pulse trains undergoing nonlinear self-focusing. We compared the simulated peak
+electron density of a single pulse undergoing filamentation with a previous experimental study,
+and found that the simulation shows good agreement with experiment. We then self-consistently
+modeled the thermal interaction of 500 pulses undergoing filamentation in air at a repetition rate
+of 1 kHz. Later pulses were deflected downward by less than 0.6 milliradians, a result which
+could not be directly compared with experiment due to experimental noise issues but which is
+not inconsistent with the experimentally-observed level of noise. However, we compared our
+simulations with the interferometrically-measured air density perturbation and found agreement
+with experiment to within 40%.
+Funding. Office of Naval Research.
+Disclosures. The authors declare no conflicts of interest.
+Data availability. Data underlying the results presented in this paper are not publicly available at this time but may
+be obtained from the authors upon reasonable request.
+
+References
+1. B. Hafizi, J. Peñano, R. Fischer, G. DiComo, and A. Ting, “Determination of absorption coefficient based on laser
+    beam thermal blooming in gas-filled tube,” Appl. Opt. 53(22), 5016–5023 (2014).
+2. J. Palastro, T. Antonsen Jr, and H. Milchberg, “Compression, spectral broadening, and collimation in multiple,
+    femtosecond pulse filamentation in atmosphere,” Phys. Rev. A 86(3), 033834 (2012).
+3. J. Peñano, B. Hafizi, A. Ting, and M. Helle, “Theoretical and numerical investigation of filament onset distance in
+    atmospheric turbulence,” J. Opt. Soc. Am. B 31(5), 963–971 (2014).
+4. E. Rosenthal, J. Palastro, N. Jhajj, S. Zahedpour, J. Wahlstrand, and H. Milchberg, “Sensitivity of propagation and
+    energy deposition in femtosecond filamentation to the nonlinear refractive index,” J. Phys. B: At., Mol. Opt. Phys.
+    48(9), 094011 (2015).
+5. N. Jhajj, Y.-H. Cheng, J. K. Wahlstrand, and H. M. Milchberg, “Optical beam dynamics in a gas repetitively heated
+    by femtosecond filaments,” Opt. Express 21(23), 28980–28986 (2013).
+6. Y.-H. Cheng, J. K. Wahlstrand, N. Jhajj, and H. M. Milchberg, “The effect of long timescale gas dynamics on
+    femtosecond filamentation,” Opt. Express 21(4), 4740–4751 (2013).
+7. F. G. Gebhardt, “Twenty-five years of thermal blooming: an overview,” in Propagation of High-Energy Laser Beams
+    Through the Earth’s Atmosphere, vol. 1221 P. B. Ulrich and L. E. Wilson, eds., International Society for Optics and
+    Photonics (SPIE, 1990), pp. 2–25.
+8. A. Couairon and A. Mysyrowicz, “Femtosecond filamentation in transparent media,” Phys. Rep. 441(2-4), 47–189
+    (2007).
+9. S. L. Chin, T.-J. Wang, C. Marceau, J. Wu, J. S. Liu, O. Kosareva, N. Panov, Y. P. Chen, J.-F. Daigle, S. Yuan, A.
+    Azarm, W. W. Liu, T. Seideman, H. P. Zeng, M. Richardson, R. Li, and Z. Z. Xu, “Advances in intense femtosecond
+    laser filamentation in air,” Laser Phys. 22(1), 1–53 (2012).
+10. G. Point, C. Milián, A. Couairon, A. Mysyrowicz, and A. Houard, “Generation of long-lived underdense channels
+    using femtosecond filamentation in air,” J. Phys. B: At., Mol. Opt. Phys. 48(9), 094009 (2015).
+11. G. Point, E. Thouin, A. Mysyrowicz, and A. Houard, “Energy deposition from focused terawatt laser pulses in air
+    undergoing multifilamentation,” Opt. Express 24(6), 6271–6282 (2016).
+12. A. Dogariu, M. N. Shneider, and R. B. Miles, “Versatile radar measurement of the electron loss rate in air,” Appl.
+    Phys. Lett. 103(22), 224102 (2013).
+13. J. Penano, P. Sprangle, B. Hafizi, D. Gordon, R. Fernsler, and M. Scully, “Remote atmospheric lasing by recombination
+    and electron impact excitation of molecular nitrogen,” J. Appl. Phys. 111(3), 033105 (2012).
+14. J. Kasparian, R. Sauerbrey, D. Mondelain, S. Niedermeier, J. Yu, J.-P. Wolf, Y.-B. André, M. Franco, B. Prade, S.
+    Tzortzakis, A. Mysyrowicz, M. Rodriguez, H. Wille, and L. Wöste, “Infrared extension of the super continuum
+    generated by femtosecond terawatt laser pulses propagating in the atmosphere,” Opt. Lett. 25(18), 1397–1399 (2000).
+15. A. Talebpour, J. Yang, and S. Chin, “Semi-empirical model for the rate of tunnel ionization of n2 and o2 molecule in
+    an intense ti:sapphire laser pulse,” Opt. Commun. 163(1-3), 29–32 (1999).
+      Research Article                                               Vol. 30, No. 13 / 20 Jun 2022 / Optics Express 22320
+
+
+
+
+16. J. Palastro, T. Antonsen Jr, and A. Pearson, “Models of the delayed nonlinear raman response in diatomic gases,”
+    Phys. Rev. A 84(1), 013829 (2011).
+17. J. K. Wahlstrand, Y.-H. Cheng, and H. M. Milchberg, “Absolute measurement of the transient optical nonlinearity in
+    N2 , O2 , N2 O, and Ar,” Phys. Rev. A 85(4), 043820 (2012).
+18. J. K. Wahlstrand, N. Jhajj, E. W. Rosenthal, S. Zahedpour, and H. M. Milchberg, “Direct imaging of the acoustic
+    waves generated by femtosecond filaments in air,” Opt. Lett. 39(5), 1290 (2014).
+19. J. Crank, The Mathematics of Diffusion (Oxford University Press, New York, 1975), 2nd ed.
+20. T. Brabec and F. Krausz, “Nonlinear optical pulse propagation in the single-cycle regime,” Phys. Rev. Lett. 78(17),
+    3282–3285 (1997).
+21. I. Alexeev, A. Ting, D. F. Gordon, E. Briscoe, J. R. Penano, R. F. Hubbard, and P. Sprangle, “Longitudinal compression
+    of short laser pulses in air,” Appl. Phys. Lett. 84(20), 4080–4082 (2004).
+22. O. Sinkin, R. Holzlohner, J. Zweck, and C. Menyuk, “Optimization of the split-step fourier method in modeling
+    optical-fiber communications systems,” J. Lightwave Technol. 21(1), 61–68 (2003).
+23. P. Sprangle, J. R. Peñano, and B. Hafizi, “Propagation of intense short laser pulses in the atmosphere,” Phys. Rev. E
+    66(4), 046418 (2002).
+24. S. V. Popruzhenko, V. D. Mur, V. S. Popov, and D. Bauer, “Strong field ionization rate for arbitrary laser frequencies,”
+    Phys. Rev. Lett. 101(19), 193003 (2008).
+25. Y.-H. Chen, S. Varma, T. M. Antonsen, and H. M. Milchberg, “Direct measurement of the electron density of
+    extended femtosecond laser pulse-induced filaments,” Phys. Rev. Lett. 105(21), 215005 (2010).
+26. J. Gateau, A. Patas, M. Matthews, S. Hermelin, A. Lindinger, J. Kasparian, and J.-P. Wolf, “Maximizing energy
+    deposition by shaping few-cycle laser pulses,” J. Phys. B: At., Mol. Opt. Phys. 51(13), 135402 (2018).
+27. J. K. Wahlstrand and N. Jhajj, Private Communication (2021).
+

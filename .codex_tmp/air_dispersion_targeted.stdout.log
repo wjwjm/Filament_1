@@ -1,0 +1,18 @@
+..................................................................s..... [ 68%]
+...s.s.........................F.                                        [100%]
+================================== FAILURES ===================================
+___ test_region_energy_splits_intervals_conservatively_at_focus_boundaries ____
+
+    def test_region_energy_splits_intervals_conservatively_at_focus_boundaries():
+        edges = np.array([0.0, 1.3])
+        energy = np.array([13.0])
+        assert localization._region_energy(edges, energy, 0.0, 0.75) == 7.5
+>       assert localization._region_energy(edges, energy, 0.75, 1.05) == 3.0
+E       assert 3.0000000000000004 == 3.0
+E        +  where 3.0000000000000004 = <function _region_energy at 0x00000118F8942980>(array([0. , 1.3]), array([13.]), 0.75, 1.05)
+E        +    where <function _region_energy at 0x00000118F8942980> = localization._region_energy
+
+Filament_python\tests\test_hr2e_error_localization.py:27: AssertionError
+=========================== short test summary info ===========================
+FAILED Filament_python/tests/test_hr2e_error_localization.py::test_region_energy_splits_intervals_conservatively_at_focus_boundaries
+1 failed, 101 passed, 3 skipped in 33.42s

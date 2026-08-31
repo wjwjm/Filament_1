@@ -1,0 +1,24 @@
+{
+  "D_th": 2.17e-05,
+  "authoritative_filename": "hr3cc_smoke.hr3c_delta_n_th_next.npy",
+  "batch_intervals": 1,
+  "dt_interpulse": 0.001,
+  "edge_threshold": 0.001,
+  "f_rep": 1000.0,
+  "fingerprint": "a6b8654def81b5261e1c77d838d6de6142f5dff336777aa4ea94e58b864a50ca",
+  "interval_centered": true,
+  "n_intervals": 1,
+  "next_pulse_index": 3,
+  "npulses": 3,
+  "physical_stage": "post_pulse",
+  "pulse_index": 2,
+  "run_complete": true,
+  "schema_version": "khz_filament.hr3c.manifest.v1",
+  "scratch_filename": "hr3cc_smoke.hr3c_delta_n_th_current.npy",
+  "state_dtype": "float32",
+  "state_shape": [
+    1,
+    4,
+    4
+  ]
+}

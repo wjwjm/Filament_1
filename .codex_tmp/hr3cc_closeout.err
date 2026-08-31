@@ -1,0 +1,5 @@
+Exception: D:\Filament_1\Filament_python\tools\run_local_tests.ps1:99
+Line |
+  99 |          throw "Mode $Mode failed with exit code $LASTEXITCODE."
+     |          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Mode targeted failed with exit code 1.
