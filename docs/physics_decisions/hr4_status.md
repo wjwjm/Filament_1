@@ -1,6 +1,7 @@
 # HR-4 status: isobaric transverse slow flow
 
-**Program status:** HR-4 branch active; HR-4A **CLOSED** (2026-08-31).
+**Program status:** HR-4 branch active; HR-4A **CLOSED** and HR-4B
+**CLOSED** (2026-08-31).
 
 **Branch provenance:** HR-4A started from local `main`
 `543499daf6058e1782b125bb3a16c84155a11e05`; its verified upstream
@@ -17,10 +18,10 @@ by Isaacs *et al.* (2022); it is not a general CFD project. Each longitudinal
 interval (screen) owns an independent transverse slow state, with no
 longitudinal fluid coupling.
 
-HR-4A is limited to data/parameter contracts, state interfaces, boundary
-policy, and validation scaffolding. It must not implement the Eq. (32)–(33)
-advance, z-batched evolution, pulse-train runner integration, production-scale
-allocation, or an HPC/Slurm case. Those belong to HR-4B or later.
+HR-4A limited itself to contracts and validation scaffolding. HR-4B closes the
+single-screen Eq. (32)–(33) operator only: it has no z-batched evolution,
+pulse-train runner integration, persistent storage lifecycle, production-scale
+allocation, or an HPC/Slurm case. Those remain HR-4C or later.
 
 ## Reference provenance
 
@@ -233,9 +234,9 @@ may report failure but must not alter them automatically.
 
 **DEFERRED:** MUSCL/TVD, WENO, semi-Lagrangian and higher-order schemes,
 implicit/adaptive integration, acoustic/pressure/compressible/longitudinal
-flow, turbulence, full HR-4B single-screen PDE evolution, z batching, runner
-integration, production allocation/benchmarks, beam-deflection benchmark, and
-all HPC/Slurm work.
+flow, turbulence, HR-4C z-batched/persistent-state lifecycle, HR-4D runner
+integration, production allocation/benchmarks, HR-4E convergence and
+domain-size studies, HR-4F beam-deflection benchmark, and all HPC/Slurm work.
 
 ## Upstream preserved status
 
@@ -260,9 +261,68 @@ strict-float baseline (3.0000000000000004 != 3.0), explicitly outside HR-4A;
 there were zero new HR-4A failures. Full pytest was not run because the
 repository-approved local entrypoint exposes only the bounded targeted set.
 
+## HR-4B implementation status
+
+**CLOSED.** HR-4B implements a direct, single-screen [Ny, Nx] operator in the
+HR-4 module; it neither accepts nor constructs a full-z persistent state. One
+or more fixed slow-time steps use exactly:
+
+BC(old) -> all RHS(old) -> synchronous Forward Euler -> BC(new).
+
+The advection term is local first-order upwind in the original material form.
+The scalar and both velocity components use second-order central
+finite-difference Laplacians; no periodic FFT, roll, artificial viscosity, or
+conservative-flux rewrite is used. Buoyancy is explicitly restricted to the
+vy RHS; nonzero gravity_x fails closed.
+
+The velocity boundary now uses the nearest interior cell to evaluate each face
+normal velocity. u_n < 0 sets both velocity components to ambient zero;
+u_n >= 0 copies the nearest interior pair. A corner checks its diagonal
+nearest-interior velocity pair for the two incident-face tests; if either is
+inflow it is zero, otherwise it copies that diagonal pair. This is a
+deterministic HR-4B implementation choice.
+
+dt_hydro = 1.0 us is the development default, not a production value. The
+stability audit retains independent chi/nu diffusion and advection-CFL checks,
+and adds the conservative unsplit combined check for both chi and nu. Reduced
+operator tests may set chi, nu, or gravity_y to zero; this does not relax the
+frozen production-config authority that chi equals HR-3C D_th and nu is the
+STP baseline value.
+
+Thermal-channel diagnostics use max(-delta_n, 0) weighting with
+y_j = y_min + j*dy. The reported width is radial RMS width
+sqrt(<(x-xc)^2 + (y-yc)^2>/2). A screen with no negative-index channel has
+undefined centroid/width represented by NaN and
+thermal_channel_defined=false.
+
+Validation covers zero invariance, buoyancy sign, all four upwind directions,
+central Laplacians, Gaussian thermal diffusion, constant-velocity advection,
+viscous velocity diffusion, unsplit-Euler ordering, all faces/corners,
+no-wrap topward transport, coupled rise plus broadening, and the 1.0 us versus
+0.5 us short comparison. The bounded local gate reports 180 passed, 3 skipped,
+and one pre-existing HR-2E strict-float failure
+(3.0000000000000004 != 3.0); there are zero new HR-4B failures.
+
+The operator returns per-call shape, dtype, backend, total/per-step wall-time,
+and a conservative temporary working-set estimate of
+12 * Ny * Nx * dtype.itemsize; it stores no slow-time history. This estimate
+is development-only, not a measured peak-memory or production-performance
+claim. CPU test results do not establish CuPy/GPU numerical equivalence.
+
+One non-test development benchmark used a centered negative Gaussian on an
+81 by 81 float64 NumPy screen for 400 steps at 1.0 us. It measured
+0.37595 s total and 0.000940 s per step; the temporary estimate was 629856
+bytes. The channel centroid rose from -5.9994e-5 m after the first step to
+-5.1450e-5 m, radial RMS width broadened from 8.0264e-5 m to 1.4392e-4 m,
+and max absolute vy was 4.4411e-3 m/s. The same 400 us case at 0.5 us gave
+centroid -5.1449e-5 m, width 1.4390e-4 m, and max absolute vy
+4.4399e-3 m/s. This is a short development comparison, not an HR-4E
+convergence or production-performance result.
+
 ## Change log
 
 | Date | Stage | Change |
 | --- | --- | --- |
 | 2026-08-31 | HR-4A | Wrote this authority document before code; froze D1–D10, recorded D11 provisional, and separated HR-4B+ work. |
 | 2026-08-31 | HR-4A | Added and validated contract-only scaffolding; HR-4A closed with no solver, runner, or HPC action. |
+| 2026-08-31 | HR-4B | Closed the bounded single-screen operator and its local validation; HR-4C/4D/4E/4F remain deferred. |

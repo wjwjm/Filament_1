@@ -1,17 +1,18 @@
 # 当前项目状态 (Round 1 Restructuring)
 
-## 2026-08-31: HR-4A contract freeze and scaffolding
+## 2026-08-31: HR-4B single-screen isobaric flow operator
 
-- `HR-4` branch = **ACTIVE**; `HR-4A` = **CLOSED**; `HR-4B` =
-  **NOT STARTED / READY TO PLAN**. HR-4A first froze its post-acoustic,
-  isobaric, two-dimensional transverse slow-flow contract in
-  `docs/physics_decisions/hr4_status.md`, then added only state/validation
-  scaffolding.
-- HR-4A did not implement the full Eq. (32)–(33) flow solver, alter production
-  configuration or upstream HR-3 physics, allocate production-size state, or
-  submit HPC/Slurm work. Required local compile/backend checks passed; the
-  bounded targeted run had zero new HR-4A failures and one known HR-2E
-  strict-float baseline failure (`3.0000000000000004 != 3.0`).
+- HR-4 branch = **ACTIVE**; HR-4A = **CLOSED**; HR-4B =
+  **CLOSED**; HR-4C = **NOT STARTED / READY TO PLAN**. HR-4B implements the
+  frozen Isaacs-level post-acoustic, isobaric, two-dimensional single-screen
+  operator only: local first-order upwind material advection, central-FD
+  diffusion/viscosity, vy-only buoyancy, open boundaries, and fixed-step
+  unsplit Euler.
+- HR-4B has no full-z storage, runner/pulse integration, production allocation,
+  HPC/Slurm work, or production timestep/convergence freeze. compileall,
+  backend, and sanity passed; bounded targeted validation had zero new HR-4B
+  failures and one known HR-2E strict-float baseline failure
+  (3.0000000000000004 != 3.0).
 
 ## 2026-08-30: HR-3 merged to main
 
