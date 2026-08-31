@@ -234,9 +234,9 @@ may report failure but must not alter them automatically.
 
 **DEFERRED:** MUSCL/TVD, WENO, semi-Lagrangian and higher-order schemes,
 implicit/adaptive integration, acoustic/pressure/compressible/longitudinal
-flow, turbulence, HR-4C z-batched/persistent-state lifecycle, HR-4D runner
-integration, production allocation/benchmarks, HR-4E convergence and
-domain-size studies, HR-4F beam-deflection benchmark, and all HPC/Slurm work.
+flow, turbulence, HR-4D runner integration, production allocation/benchmarks,
+HR-4E convergence and domain-size studies, HR-4F beam-deflection benchmark,
+and all HPC/Slurm work.
 
 ## Upstream preserved status
 
@@ -319,6 +319,64 @@ centroid -5.1449e-5 m, width 1.4390e-4 m, and max absolute vy
 4.4399e-3 m/s. This is a short development comparison, not an HR-4E
 convergence or production-performance result.
 
+## HR-4C implementation status
+
+**CLOSED.** HR-4C extends the established HR-3C disk-backed lifecycle without
+changing its `.npy` memmap format, flush/fsync discipline, geometry
+fingerprint, or atomic JSON-manifest authority selection. It creates six
+field-specific slots: `delta_n`, `vx`, and `vy` each have one authoritative
+and one scratch slot. A committed state is exactly the manifest-selected
+three-field tuple, with every field shape `[K, Ny, Nx]`; there is no persistent
+temperature, density, or pressure field.
+
+Each full-z interpulse request begins a staging generation. The implementation
+reads one `[B, Ny, Nx]` batch for each of the three fields, advances each
+2-D screen by direct invocation of the HR-4B single-screen operator for all
+requested fixed hydro steps, and writes its three output screens together to
+staging. The fixed order is:
+
+```text
+z batch -> screen -> all HR-4B hydro steps -> three-field staging write
+```
+
+Only after every field and every screen is present, has the declared layout,
+and is finite are all scratch memmaps flushed/fsynced and the manifest
+atomically switched to the new generation. A failed operator call, incomplete
+field write, invalid value, or failed staging validation leaves the former
+committed generation authoritative and records an abort reason. Reopen
+discards a manifest-marked incomplete staging generation; HR-4C intentionally
+has no per-batch resume, partial promotion, repetition-rate logic, pulse
+PRE/POST orchestration, or runner wiring.
+
+The explicit legacy path reads an existing HR-3C-like `delta_n` memmap in
+z batches, creates a new HR-4C generation with numerically preserved
+`delta_n`, and initializes `vx = vy = 0`; it never modifies the source file.
+`batch_intervals` reuses the existing HR-3C batch authority. Its development
+value in HR-4C tests was `B = 1`, `2`, or `4`; any production batch size,
+production `dx/dy`, and production `dt_hydro` remain **PROVISIONAL**.
+
+Local HR-4C validation added nine lifecycle tests and passed all nine. They
+cover three-field create/reopen, legacy migration, batch-size equivalence,
+full-memory screen-by-screen reference equivalence, `4 + 4 + 2` partial-batch
+handling, z-screen independence, mid-transaction failure and restart-safe
+reopen, incomplete/non-finite staging rejection, manifest/grid/z-ordering
+mismatch rejection, and an instrumented `[B, Ny, Nx]` read/write trace. With
+fixed `B=2`, the working-set estimate was identical for `K=3` and `K=17`, and
+it is independent of hydro-step count because no hydro history is retained.
+The reported I/O accounting is three full state reads plus three full state
+writes per complete evolution; it is storage volume, not a claim of
+production I/O performance.
+
+Required local gates used the explicit Windows test environment: `compileall`,
+backend, and `sanity` all passed; HR-4C-specific tests were `9 passed`.
+The full repository bounded targeted gate reported `189 passed, 3 skipped,
+1 failed`. The sole failure is the pre-existing HR-2E strict-float assertion
+in `test_hr2e_error_localization.py`
+(`3.0000000000000004 != 3.0`), outside HR-4C. New HR-4C failures are zero.
+These Windows CPU checks do not establish GPU/CuPy equivalence or production
+performance. No HPC/Slurm work, push, merge to `main`, HR-4D runner work,
+HR-4E convergence study, or HR-4F benchmark was performed.
+
 ## Change log
 
 | Date | Stage | Change |
@@ -326,3 +384,4 @@ convergence or production-performance result.
 | 2026-08-31 | HR-4A | Wrote this authority document before code; froze D1–D10, recorded D11 provisional, and separated HR-4B+ work. |
 | 2026-08-31 | HR-4A | Added and validated contract-only scaffolding; HR-4A closed with no solver, runner, or HPC action. |
 | 2026-08-31 | HR-4B | Closed the bounded single-screen operator and its local validation; HR-4C/4D/4E/4F remain deferred. |
+| 2026-08-31 | HR-4C | Closed three-field transactional disk-backed full-z evolution and local storage-lifecycle validation; HR-4D/4E/4F remain deferred. |
