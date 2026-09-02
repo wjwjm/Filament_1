@@ -22,6 +22,13 @@ from KHz_filament.hr4e_timestep import (
 )
 from tools.generate_hr4e1_post_reference import select_hr3b_screens
 from tools.summarize_hr4e1_timestep import config_diff_guard, convergence_rows
+from KHz_filament.hr4e_spatial import (
+    E2_COMMON_DT_S,
+    build_e2_synthetic_state,
+    e2_geometry,
+    run_e2_case,
+)
+from tools.summarize_hr4e2_spatial import spatial_report, temporal_guard
 
 
 def _case(dt_us: float, *, y_shift: float = 0.0) -> dict:
@@ -63,6 +70,57 @@ def test_e1a_geometry_and_gaussian_are_inclusive_nodal():
     assert state["vx"].shape == state["vy"].shape == (351, 301)
     assert state["delta_n"][100, 150] == pytest.approx(-E1A_AMPLITUDE)
     assert np.all(state["vx"] == 0.0) and np.all(state["vy"] == 0.0)
+
+
+def test_e2_grid_family_preserves_domain_and_evaluates_gaussian_per_grid():
+    expected = {20.0e-6: (176, 151), 10.0e-6: (351, 301), 5.0e-6: (701, 601)}
+    for spacing, shape in expected.items():
+        geometry = e2_geometry(spacing)
+        assert geometry["x_min_m"] == pytest.approx(-1.5e-3)
+        assert geometry["x_max_m"] == pytest.approx(1.5e-3)
+        assert geometry["y_min_m"] == pytest.approx(-1.0e-3)
+        assert geometry["y_max_m"] == pytest.approx(2.5e-3)
+        state = build_e2_synthetic_state(spacing)
+        assert state["delta_n"].shape == shape
+        center = int(round(-geometry["y_min_m"] / spacing)), int(round(-geometry["x_min_m"] / spacing))
+        assert state["delta_n"][center] == pytest.approx(-E1A_AMPLITUDE)
+
+
+def test_e2_short_case_records_physical_m0_and_stability():
+    case = run_e2_case(
+        family="E2-A", spacing_m=20.0e-6, dt_hydro=E2_COMMON_DT_S,
+        snapshot_times_s=(0.0, E2_COMMON_DT_S),
+    )
+    assert case["status"] == "PASS"
+    assert case["stability"]["overall_pass"] is True
+    assert case["snapshots"][-1]["M0_negative_index_m2"] > 0.0
+
+
+def _e2_case(dx_m: float, dt_s: float, scale: float) -> dict:
+    grid = e2_geometry(dx_m)
+    initial = {"kind": "analytic_gaussian", "delta_n_sha256": "same-source"}
+    configuration = {
+        "family": "E2-A", "grid": grid, "dt_hydro_s": dt_s,
+        "operator": {"frozen": True}, "snapshot_times_s": [0.0, 100.0e-6], "initial_state": initial,
+    }
+    snapshot = {
+        "time_us": 100.0, "boundary_contaminated": False,
+        "xc_m": 0.0, "yc_m": scale * 1.0e-7,
+        "sigma_x_m": 80.0e-6 + scale * 1.0e-8, "sigma_y_m": 81.0e-6 + scale * 1.0e-8,
+        "min_delta_n": -1.0e-5 + scale * 1.0e-9, "max_abs_vx_m_s": 0.0,
+        "max_abs_vy_m_s": 1.0e-3 + scale * 1.0e-7, "max_abs_v_m_s": 1.0e-3 + scale * 1.0e-7,
+        "M0_negative_index_m2": 1.0e-12 + scale * 1.0e-15,
+    }
+    return {"case_id": f"E2_{dx_m}", "status": "PASS", "configuration": configuration, "stability": {"overall_pass": True}, "snapshots": [snapshot]}
+
+
+def test_e2_spatial_and_temporal_reports_are_deterministic():
+    cases = [_e2_case(20e-6, E2_COMMON_DT_S, 4.0), _e2_case(10e-6, E2_COMMON_DT_S, 2.0), _e2_case(5e-6, E2_COMMON_DT_S, 1.0)]
+    report = spatial_report(cases, horizons_us=(100.0,))
+    assert report["status"] == "PASS"
+    fine = _e2_case(5e-6, 0.0625e-6, 0.9)
+    guard = temporal_guard(cases[-1], fine, report)
+    assert guard["status"] == "PASS"
 
 
 def test_metrics_use_negative_weight_and_separate_second_moments():
