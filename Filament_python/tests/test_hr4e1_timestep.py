@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import KHz_filament.hr4e_timestep as hr4e_timestep
 from KHz_filament.hr4e_timestep import (
     E1A_AMPLITUDE,
     E1A_SIGMA_M,
@@ -175,6 +176,28 @@ def test_e1b_loader_requires_exact_grid_and_zeroes_velocities(tmp_path):
     np.save(bad_path, np.zeros((3, 3), dtype=np.float64), allow_pickle=False)
     with pytest.raises(ValueError, match="match exactly one immutable"):
         load_e1b_screen(bad_path)
+
+
+def test_e1b_partial_screen_identity_is_checked_against_immutable_manifest(monkeypatch):
+    loaded = {
+        "screen_identity": {"screen_id": "peak", "screen_index": 7, "screen_z_m": 0.8},
+        "n0": 1.00027,
+    }
+    captured = {}
+
+    monkeypatch.setattr(hr4e_timestep, "load_e1b_screen", lambda path: loaded)
+
+    def fake_run_timestep_case(**kwargs):
+        captured.update(kwargs)
+        return {"status": "PASS"}
+
+    monkeypatch.setattr(hr4e_timestep, "run_timestep_case", fake_run_timestep_case)
+    result = hr4e_timestep.run_e1b_case("peak.npy", screen_identity={"screen_id": "peak"})
+    assert result["status"] == "PASS"
+    assert captured["screen_identity"] == loaded["screen_identity"]
+
+    with pytest.raises(ValueError, match="screen identity"):
+        hr4e_timestep.run_e1b_case("peak.npy", screen_identity={"screen_id": "front"})
 
 
 def test_post_reference_generator_writes_selected_copies_and_preserves_source(tmp_path):

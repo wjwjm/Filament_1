@@ -1008,8 +1008,10 @@ def run_e1b_case(
     loaded = load_e1b_screen(screen_path)
     kwargs.setdefault("benchmark", "E1-B")
     loaded_identity = loaded["screen_identity"]
-    if screen_identity is not None and dict(screen_identity) != dict(loaded_identity):
-        raise ValueError("E1-B screen identity does not match immutable source manifest")
+    if screen_identity is not None:
+        requested_identity = dict(screen_identity)
+        if any(loaded_identity.get(key) != value for key, value in requested_identity.items()):
+            raise ValueError("E1-B screen identity does not match immutable source manifest")
     kwargs.setdefault("screen_identity", loaded_identity)
     kwargs.setdefault("source_metadata", loaded)
     kwargs.setdefault("n0", loaded["n0"])
