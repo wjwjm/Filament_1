@@ -339,6 +339,7 @@ For these cases, stop and return the relevant code/data provenance, numerical ev
 - 模型/连接失败后，先读 Agent 状态并审计共享工作树；确认已有写入和文件所有权前，不得重启第二个 writer。
 - 无变量展开的单条只读 SSH 命令才可内联；遇到中文路径、管道、重定向、正则、命令替换、heredoc 或嵌套引号，必须使用 `Filament_python/tools/hpc_ops/Invoke-SshRemoteScript.ps1` 的脚本/参数数组入口。第一次转义错误后不得继续堆叠引号。`Invoke-PappRemoteScript.ps1` 仅作为显式 Papp 回退，不得自动切换。
 - HPC GitHub 连接遵循代理优先、verified bundle 回退；代理值、token、认证 URL 和真实凭据不得进入仓库或日志。preflight 失败不得创建 run/lock 或调用 `sbatch`。
+- **小修复的增量 Git worktree 重试规范：**当 HPC 已有经核验、干净的基线 checkout，且修复已在本地形成独立 Git commit 时，默认传输仅包含新 commit 相对该基线所缺 Git objects 的 verified incremental/thin bundle；在基线对象库 fetch 后创建新的干净 worktree 和新的非覆盖 run root。禁止复制既有运行目录或原地覆盖代码文件作为生产重试路径。可复用已冻结且 hash/manifest 可核验的输入、POST reference 或原始状态，但不得修改其内容；新 worktree 必须重新通过 expected SHA、clean-worktree、provenance 和 batch-entry preflight，且 receipt 要记录基线 SHA、修复 SHA、bundle SHA256、复用输入指纹与新 run root。若基线 checkout 不存在、非干净、SHA 不匹配、增量 bundle 不可验证或修复超出小范围工具层，则停止该快捷路径并回到完整的受审计 staging 流程。
 - 仓库内 `Invoke-SshRemoteScript.ps1`、`Invoke-PappRemoteScript.ps1` 和 `hpc_preflight.sh` 仅允许 `scvi806`；不得把其固定根目录或 `Filament_python` 环境套用于 `t0s000727`。其他账户必须使用独立审计的入口。
 - 运行时终态和诊断报告分开核验；`PENDING`、`RUNNING`、编译通过或测试通过不能替代科学验收。
 
