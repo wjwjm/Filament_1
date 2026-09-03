@@ -46,7 +46,8 @@ for screen_pos in "${!SCREEN_IDS[@]}"; do
     for dx in "${DX_UM[@]}"; do
         case_id="E2C_${screen_id}_dx${dx}um_dt0p125us"
         case_dir="$RUN_ROOT/$case_id"
-        submission="$(sbatch --parsable --job-name="$case_id" --export="ALL,EXPECTED_GIT_SHA=$EXPECTED_SHA,REPO_DIR=$REPO,CASE_DIR=$case_dir,CASE_ID=$case_id,SCREEN_PATH=$screen_path,SOURCE_MANIFEST=$SOURCE_MANIFEST,SCREEN_ID=$screen_id,SCREEN_INDEX=$screen_index,SCREEN_Z_M=$screen_z_m,DX_UM=$dx,DT_US=$DT_US" "$BATCH")"
+        mkdir -m 700 -- "$case_dir"
+        submission="$(sbatch --parsable --job-name="$case_id" --output="$case_dir/slurm-%j.out" --error="$case_dir/slurm-%j.err" --export="ALL,EXPECTED_GIT_SHA=$EXPECTED_SHA,REPO_DIR=$REPO,CASE_DIR=$case_dir,CASE_ID=$case_id,SCREEN_PATH=$screen_path,SOURCE_MANIFEST=$SOURCE_MANIFEST,SCREEN_ID=$screen_id,SCREEN_INDEX=$screen_index,SCREEN_Z_M=$screen_z_m,DX_UM=$dx,DT_US=$DT_US" "$BATCH")"
         job_id="${submission%%;*}"
         [[ "$job_id" =~ ^[0-9]+$ ]]
         printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$case_id" "$screen_id" "$screen_index" "$screen_z_m" "$dx" "$DT_US" "$job_id" >> "$receipt"
