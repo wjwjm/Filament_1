@@ -1,0 +1,10 @@
+{
+  "schema": "khz_filament.hr4e2c.real_sources.v1",
+  "scope": "validation_only_hydro_spatial_convergence",
+  "source_manifest": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/post_reference_manifest.json",
+  "screens": [
+    {"screen_id": "front", "screen_index": 7827, "screen_z_m": 0.78274999999993, "screen": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/screen_front_delta_n.npy"},
+    {"screen_id": "peak", "screen_index": 8022, "screen_z_m": 0.802249999999928, "screen": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/screen_peak_delta_n.npy"},
+    {"screen_id": "rear", "screen_index": 10338, "screen_z_m": 0.941924999999913, "screen": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/screen_rear_delta_n.npy"}
+  ]
+}
