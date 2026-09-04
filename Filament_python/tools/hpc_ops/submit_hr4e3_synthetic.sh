@@ -15,7 +15,6 @@ import sys
 with open(sys.argv[1], encoding="utf-8") as handle:
     report = json.load(handle)
 assert report["status"] == "PASS"
-assert report["backend"]["backend"] == "cupy"
 PY
 mkdir -m 700 -- "$RUN_ROOT"
 receipt="$RUN_ROOT/submission_receipt.tsv"

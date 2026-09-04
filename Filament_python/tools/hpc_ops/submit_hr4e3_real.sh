@@ -17,7 +17,6 @@ import sys
 with open(sys.argv[1], encoding="utf-8") as handle:
     report = json.load(handle)
 assert report["status"] == "PASS"
-assert report["backend"]["backend"] == "cupy"
 assert all(item["edge_validity"]["status"] == "PASS" for item in report["real_post"])
 PY
 readonly -a SCREEN_IDS=(front peak rear)

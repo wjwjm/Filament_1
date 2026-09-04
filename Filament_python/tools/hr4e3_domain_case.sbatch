@@ -16,6 +16,7 @@ export PYTHONPYCACHEPREFIX="${CASE_DIR}/pycache" CUPY_CACHE_DIR="${CASE_DIR}/cup
 export UPPE_USE_GPU=1 PYTHONUNBUFFERED=1 CUDA_DEVICE_ORDER=PCI_BUS_ID
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK}" OPENBLAS_NUM_THREADS="${SLURM_CPUS_PER_TASK}" MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK}" NUMEXPR_NUM_THREADS="${SLURM_CPUS_PER_TASK}"
 mkdir -p "${CASE_DIR}"
+"${FIXED_PYTHON}" -c 'from KHz_filament.device import debug_backend; assert debug_backend()["backend"] == "cupy", debug_backend()'
 args=(--kind "${KIND}" --domain "${DOMAIN_ID}" --case-id "${CASE_ID}" --out-dir "${CASE_DIR}")
 if [[ "${KIND}" == "real_post" ]]; then
     : "${SCREEN_PATH:?}" "${SOURCE_MANIFEST:?}" "${SCREEN_ID:?}" "${SCREEN_INDEX:?}" "${SCREEN_Z_M:?}"
