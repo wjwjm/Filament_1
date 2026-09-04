@@ -8,6 +8,9 @@ readonly SOURCE_ROOT="/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b
 test "$(git -C "$REPO" rev-parse HEAD)" = "$EXPECTED_SHA"
 test -z "$(git -C "$REPO" status --porcelain=v1 --untracked-files=all)"
 test ! -e "$OUT" && test ! -e "$PROVENANCE"
+source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
+conda activate Filament_python
+export UPPE_USE_GPU=1 CUDA_DEVICE_ORDER=PCI_BUS_ID
 "$PYTHON" "$REPO/Filament_python/tools/hpc_ops/provenance_v2.py" create --repo "$REPO" --output "$PROVENANCE" \
     --tracked Filament_python/KHz_filament/hr4.py Filament_python/KHz_filament/hr4e_domain.py Filament_python/KHz_filament/hr4e_real_spatial.py Filament_python/KHz_filament/hr4e_spatial.py Filament_python/KHz_filament/hr4e_timestep.py Filament_python/tools/hr4e2c_real_sources.json Filament_python/tools/preflight_hr4e3_domain.py Filament_python/tools/run_hr4e3_domain_case.py Filament_python/tools/summarize_hr4e3_domain.py Filament_python/tools/hr4e3_domain_case.sbatch Filament_python/tools/hpc_ops/run_hr4e3_preflight.sh Filament_python/tools/hpc_ops/submit_hr4e3_synthetic.sh Filament_python/tools/hpc_ops/submit_hr4e3_real.sh \
     --external "$SOURCE_MANIFEST" "$SOURCE_ROOT/screen_front_delta_n.npy" "$SOURCE_ROOT/screen_peak_delta_n.npy" "$SOURCE_ROOT/screen_rear_delta_n.npy" >/dev/null
