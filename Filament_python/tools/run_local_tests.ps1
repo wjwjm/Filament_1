@@ -38,6 +38,7 @@ $targetedTests = @(
     (Join-Path $filamentPythonRoot 'tests\test_hr4e2c_adjudication.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e2c_velocity_diagnostic.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e3_domain.py'),
+    (Join-Path $filamentPythonRoot 'tests\test_hr4e4_reduced_limits.py'),
     (Join-Path $filamentPythonRoot 'tests\test_runner_multipulse_orchestration.py'),
     (Join-Path $filamentPythonRoot 'tests\test_phase8b_raman_diagnostics.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hpc_execution_guardrails.py'),
