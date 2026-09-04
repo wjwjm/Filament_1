@@ -1,0 +1,17 @@
+{
+  "schema": "khz_filament.hr4e2.project_acceptance_with_caveat.v1",
+  "project_decision": "HR-4E-2_ACCEPTED_WITH_DEFERRED_VELOCITY_FIELD_DIAGNOSTIC_CAVEAT",
+  "accepted_candidates": {
+    "dx_m": 1e-05,
+    "dt_hydro_s": 1e-06,
+    "scope": "current HR-4 hydro production candidates only; not a global numerical freeze"
+  },
+  "historical_a2_status": "A2_WARNING_A_NOT_GRANTED",
+  "deferred_evidence_debt": "Real-POST max|vy|/max|v| was within tolerance but non-monotonic in E2-C.  The historical runs did not persist final full velocity fields, so no field-convergence adjudication was possible.",
+  "historical_artifacts_preserved": [
+    "Filament_python/results/hr4e2_e2c_adjudication_d7e77cd_r2/",
+    "Filament_python/results/hr4e2_e2c_velocity_audit_d7e77cd/"
+  ],
+  "next_authorized_stage": "HR-4E-3 domain/boundary convergence",
+  "not_started": ["HR-4F", "HR-5"]
+}
