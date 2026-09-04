@@ -28,7 +28,7 @@ from KHz_filament.hr4e_spatial import (
     e2_geometry,
     run_e2_case,
 )
-from tools.summarize_hr4e2_spatial import spatial_report, temporal_guard
+from tools.summarize_hr4e2_spatial import e2a_classification, spatial_report, temporal_guard
 
 
 def _case(dt_us: float, *, y_shift: float = 0.0) -> dict:
@@ -118,9 +118,87 @@ def test_e2_spatial_and_temporal_reports_are_deterministic():
     cases = [_e2_case(20e-6, E2_COMMON_DT_S, 4.0), _e2_case(10e-6, E2_COMMON_DT_S, 2.0), _e2_case(5e-6, E2_COMMON_DT_S, 1.0)]
     report = spatial_report(cases, horizons_us=(100.0,))
     assert report["status"] == "PASS"
+    xc = next(row for row in report["rows"] if row["observable"] == "xc_m")
+    assert xc["trend_applicable"] is False
+    assert xc["trend_status"] == "N/A_NEAR_ZERO_SYMMETRY"
+    assert xc["trend_D10_5_lt_D20_10"] is None
+    assert xc["hard_gate_pass"] is True
     fine = _e2_case(5e-6, 0.0625e-6, 0.9)
     guard = temporal_guard(cases[-1], fine, report)
     assert guard["status"] == "PASS"
+
+
+def test_e2_spatial_guard_accepts_independent_analytic_grid_samples():
+    cases = [_e2_case(spacing * 1.0e-6, E2_COMMON_DT_S, scale) for spacing, scale in ((20.0, 4.0), (10.0, 2.0), (5.0, 1.0))]
+    for case in cases:
+        grid = case["configuration"]["grid"]
+        case["configuration"]["initial_state"] = {
+            "kind": "analytic_gaussian", "dtype": "float64",
+            "analytic_definition": {"amplitude": 1.0e-5, "sigma_m": 8.0e-5, "center_x_m": 0.0, "center_y_m": 0.0},
+            "shape": [grid["Ny"], grid["Nx"]], "delta_n_sha256": f"grid-{grid['Nx']}",
+        }
+    report = spatial_report(cases, horizons_us=(100.0,))
+    assert report["config_guard"]["pass"] is True
+    assert report["case_ids"] == [case["case_id"] for case in cases]
+
+
+def test_e2_temporal_guard_uses_near_zero_spatial_fallback():
+    coarse = _e2_case(5.0e-6, E2_COMMON_DT_S, 1.0)
+    fine = _e2_case(5.0e-6, 0.0625e-6, 0.9)
+    fine["snapshots"][0]["xc_m"] = 1.0e-21
+    spatial = {"rows": [{"horizon_us": 100.0, "observable": "xc_m", "D10_5": 2.0e-21}]}
+    guard = temporal_guard(coarse, fine, spatial)
+    xc = next(row for row in guard["rows"] if row["observable"] == "xc_m")
+    assert xc["rule"] == "absolute_near_zero_fallback"
+    assert xc["pass"] is True
+
+
+def test_e2_nonzero_centroid_keeps_strict_refinement_gate():
+    cases = [_e2_case(20.0e-6, E2_COMMON_DT_S, 4.0), _e2_case(10.0e-6, E2_COMMON_DT_S, 2.0), _e2_case(5.0e-6, E2_COMMON_DT_S, 1.0)]
+    for case, value in zip(cases, (4.0e-7, 3.0e-7, 0.0)):
+        case["snapshots"][0]["yc_m"] = value
+    report = spatial_report(cases, horizons_us=(100.0,))
+    yc = next(row for row in report["rows"] if row["observable"] == "yc_m")
+    assert yc["trend_applicable"] is True
+    assert yc["trend_status"] == "FAIL"
+    assert yc["hard_gate_pass"] is False
+    assert report["status"] == "FAIL"
+
+
+def test_e2_temporal_near_zero_ratio_preserves_warning_and_hard_gate():
+    coarse = _e2_case(5.0e-6, E2_COMMON_DT_S, 1.0)
+    fine = _e2_case(5.0e-6, 0.0625e-6, 0.9)
+    coarse["snapshots"][0]["yc_m"] = 1.0e-7
+    fine["snapshots"][0]["yc_m"] = 0.0
+    spatial = {"rows": [{"horizon_us": 100.0, "observable": "yc_m", "D10_5": 1.0e-7}]}
+    guard = temporal_guard(coarse, fine, spatial)
+    yc = next(row for row in guard["rows"] if row["observable"] == "yc_m")
+    assert yc["rule"] == "absolute_near_zero_fallback"
+    assert yc["ratio"] == pytest.approx(1.0)
+    assert yc["ratio_target_pass"] is False
+    assert yc["absolute_tolerance_pass"] is True
+    assert yc["diagnostic_warning"] == "ratio target exceeded in near-zero centroid regime"
+    assert yc["hard_gate_pass"] is True
+
+
+def test_e2_temporal_near_zero_fallback_does_not_hide_significant_error():
+    coarse = _e2_case(5.0e-6, E2_COMMON_DT_S, 1.0)
+    fine = _e2_case(5.0e-6, 0.0625e-6, 0.9)
+    coarse["snapshots"][0]["yc_m"] = 2.0e-6
+    fine["snapshots"][0]["yc_m"] = 0.0
+    spatial = {"rows": [{"horizon_us": 100.0, "observable": "yc_m", "D10_5": 1.0e-7}]}
+    guard = temporal_guard(coarse, fine, spatial)
+    yc = next(row for row in guard["rows"] if row["observable"] == "yc_m")
+    assert yc["rule"] == "ratio"
+    assert yc["hard_gate_pass"] is False
+    assert guard["status"] == "FAIL"
+
+
+def test_e2a_classification_is_deterministic_from_reports():
+    spatial = {"status": "PASS"}
+    temporal = {"status": "PASS"}
+    assert e2a_classification(spatial, temporal) == e2a_classification(spatial, temporal)
+    assert e2a_classification(spatial, temporal)["validity"] == "VALID"
 
 
 def test_metrics_use_negative_weight_and_separate_second_moments():

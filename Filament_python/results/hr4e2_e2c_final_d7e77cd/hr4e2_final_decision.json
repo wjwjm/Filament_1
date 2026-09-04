@@ -1,0 +1,45 @@
+{
+  "schema": "khz_filament.hr4e2.final_decision.v1",
+  "status": "WARNING",
+  "e2a": {
+    "status": "PASS",
+    "validity": "VALID",
+    "classification": "spatial synthetic benchmark accepted",
+    "report": "../hr4e2_e2a_d8c5700/e2a_classification_corrected.json"
+  },
+  "e2b": {
+    "status": "PASS",
+    "classification": "B1",
+    "report": "../hr4e2_e2b_d8c5700/e2b_advection_report.json"
+  },
+  "e2c": {
+    "status": "WARNING",
+    "classification": "E2-C_WARNING",
+    "hard_10_vs_5_tolerances_pass": true,
+    "all_cases_completed_pass": true,
+    "all_cases_cupy_float64": true,
+    "all_cases_stable": true,
+    "boundary_contamination_at_100us": false,
+    "screen_statuses": {
+      "front": "WARNING",
+      "peak": "WARNING",
+      "rear": "WARNING"
+    },
+    "warning_reason": "Non-near-zero width, minimum-index, and velocity observables have D10_5 >= D20_10 despite all frozen 10-vs-5 tolerances passing. These warnings remain explicit and are not recast as convergence passes.",
+    "report": "e2c_real_spatial_summary.json"
+  },
+  "hr4e2_abcd_decision": {
+    "class_a": false,
+    "classification": "WARNING_A_NOT_GRANTED",
+    "reason": "The E2-C contract admits a screen-level WARNING, but does not define a B/C/D mapping for that outcome. Because the resolved-observable strict refinement expectation is not met, Class A is not awarded; no undefined B/C/D label is inferred."
+  },
+  "production_candidate_statement": null,
+  "scope": {
+    "scope_is_hydro_only_validation": true,
+    "full_chain_transverse_convergence_claimed": false,
+    "production_multigrid_mapping_modified": false,
+    "validation_only_statement": "The 5 um initial field adds no physical information beyond the frozen 10 um POST morphology; bilinear sampling is a validation-only E2-C input adapter, not a production HR-3B-to-HR-4 mapper.",
+    "hr5_started": false,
+    "hr4f_started": false
+  }
+}

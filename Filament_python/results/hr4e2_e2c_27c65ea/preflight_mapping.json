@@ -1,0 +1,810 @@
+{
+  "dt_hydro_s": 1.25e-07,
+  "frozen_operator": {
+    "chi_m2_s": 2.17e-05,
+    "gravity_x_m_s2": 0.0,
+    "gravity_y_m_s2": -9.81,
+    "nu_m2_s": 1.5e-05
+  },
+  "full_chain_transverse_convergence_claimed": false,
+  "production_multigrid_mapping_modified": false,
+  "same_continuous_reference_used_for_20_10_5": true,
+  "schema": "khz_filament.hr4e2c.preflight.v2",
+  "scope_is_hydro_only_validation": true,
+  "screens": [
+    {
+      "rows": [
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 1.6e-06,
+          "10_vs_5_value": 7.392619856222832e-21,
+          "D10_5": 7.392619856222832e-21,
+          "D20_10": 1.6886341233747525e-19,
+          "Q_10um": 1.1337057292902671e-16,
+          "Q_20um": 1.1320170951668924e-16,
+          "Q_5um": 1.133631803091705e-16,
+          "diagnostic_warning": null,
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "xc_m",
+          "p_obs": null,
+          "strict_refinement_pass": null,
+          "trend_applicable": false,
+          "trend_status": "N/A_NEAR_ZERO"
+        },
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 1.6e-06,
+          "10_vs_5_value": 1.0842021724855044e-19,
+          "D10_5": 1.0842021724855044e-19,
+          "D20_10": 2.168404344971009e-18,
+          "Q_10um": 0.0007499999999996326,
+          "Q_20um": 0.0007499999999996347,
+          "Q_5um": 0.0007499999999996327,
+          "diagnostic_warning": null,
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "yc_m",
+          "p_obs": 4.321928094887363,
+          "strict_refinement_pass": true,
+          "trend_applicable": true,
+          "trend_status": "PASS"
+        },
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 0.01,
+          "10_vs_5_value": 0.0026091035535998727,
+          "D10_5": 1.2499633880614383e-07,
+          "D20_10": 6.590730598680461e-09,
+          "Q_10um": 4.77827759049141e-05,
+          "Q_20um": 4.778936663551278e-05,
+          "Q_5um": 4.7907772243720245e-05,
+          "diagnostic_warning": "WARNING_NONMONOTONIC_WITHIN_TOLERANCE",
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "sigma_x_m",
+          "p_obs": -4.245303627765371,
+          "strict_refinement_pass": false,
+          "trend_applicable": true,
+          "trend_status": "WARNING"
+        },
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 0.01,
+          "10_vs_5_value": 0.0012796289686005649,
+          "D10_5": 8.935447130000134e-08,
+          "D20_10": 1.5582054199643784e-08,
+          "Q_10um": 6.973906727638964e-05,
+          "Q_20um": 6.972348522218999e-05,
+          "Q_5um": 6.982842174768964e-05,
+          "diagnostic_warning": "WARNING_NONMONOTONIC_WITHIN_TOLERANCE",
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "sigma_y_m",
+          "p_obs": -2.519654485530244,
+          "strict_refinement_pass": false,
+          "trend_applicable": true,
+          "trend_status": "WARNING"
+        },
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 0.02,
+          "10_vs_5_value": 0.0,
+          "D10_5": 0.0,
+          "D20_10": 2.652879241832652e-06,
+          "Q_10um": -2.843616836977868e-05,
+          "Q_20um": -2.578328912794603e-05,
+          "Q_5um": -2.843616836977868e-05,
+          "diagnostic_warning": null,
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "min_delta_n",
+          "p_obs": null,
+          "strict_refinement_pass": true,
+          "trend_applicable": true,
+          "trend_status": "PASS"
+        },
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 0.01,
+          "10_vs_5_value": 2.448392006968261e-07,
+          "D10_5": 3.1728406897577806e-20,
+          "D20_10": 6.986591684096433e-17,
+          "Q_10um": 1.2958878551978092e-13,
+          "Q_20um": 1.2965865143662189e-13,
+          "Q_5um": 1.2958875379137402e-13,
+          "diagnostic_warning": null,
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "M0_negative_index_m2",
+          "p_obs": 11.104598027786817,
+          "strict_refinement_pass": true,
+          "trend_applicable": true,
+          "trend_status": "PASS"
+        }
+      ],
+      "screen_identity": {
+        "screen_id": "front",
+        "screen_index": 7827,
+        "screen_z_m": 0.78274999999993
+      },
+      "source_provenance": {
+        "screen_identity": {
+          "screen_id": "front",
+          "screen_index": 7827,
+          "screen_z_m": 0.7827499999999301
+        },
+        "source_full_state_array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+        "source_full_state_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+        "source_git_sha": "be280dc179904063425435ccf30ff0295df265af",
+        "source_grid": {
+          "Nx": 301,
+          "Ny": 351,
+          "dx_m": 1e-05,
+          "dy_m": 1e-05,
+          "grid_layout": "collocated_nodal_inclusive",
+          "x_max_m": 0.0015,
+          "x_min_m": -0.0015,
+          "y_max_m": 0.0025,
+          "y_min_m": -0.001
+        },
+        "source_manifest_path": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/post_reference_manifest.json",
+        "source_manifest_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
+        "source_post_array_sha256": "cb89b3ca34733ed39dc3a8b26c66f5c26ae0b5a2c2d6c5afe64bf7c48ed71b97",
+        "source_post_file_sha256": "b354c58a1fa344ad1f46bd77d4b933d0ad369ac0befe93d8abcf64b94fd0380d"
+      },
+      "status": "PASS",
+      "targets": [
+        {
+          "audit_hr4_stability": {
+            "advection_CFL": 0.0,
+            "combined_number_chi": 0.027124999999999993,
+            "combined_number_nu": 0.018749999999999996,
+            "diffusion_number_chi": 0.013562499999999996,
+            "diffusion_number_nu": 0.009374999999999998,
+            "overall_pass": true,
+            "passed_advection": true,
+            "passed_combined": true,
+            "passed_combined_chi": true,
+            "passed_combined_nu": true,
+            "passed_diffusion": true,
+            "passed_diffusion_chi": true,
+            "passed_diffusion_nu": true
+          },
+          "dx_m": 2e-05,
+          "grid": {
+            "Nx": 151,
+            "Ny": 176,
+            "dx_m": 2e-05,
+            "dy_m": 2e-05,
+            "grid_layout": "collocated_nodal_inclusive",
+            "x_max_m": 0.0015,
+            "x_min_m": -0.0015,
+            "y_max_m": 0.0025,
+            "y_min_m": -0.001
+          },
+          "max_abs_interpolation_residual_to_representation": 0.0,
+          "target_state_sha256": "6c44672067c3c82e6f2dc6e336251ea452c40ac15ff825cdb9bfd8fa60ebfbfc",
+          "target_velocity_sha256": {
+            "vx": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739",
+            "vy": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739"
+          }
+        },
+        {
+          "audit_hr4_stability": {
+            "advection_CFL": 0.0,
+            "combined_number_chi": 0.10849999999999997,
+            "combined_number_nu": 0.07499999999999998,
+            "diffusion_number_chi": 0.054249999999999986,
+            "diffusion_number_nu": 0.03749999999999999,
+            "overall_pass": true,
+            "passed_advection": true,
+            "passed_combined": true,
+            "passed_combined_chi": true,
+            "passed_combined_nu": true,
+            "passed_diffusion": true,
+            "passed_diffusion_chi": true,
+            "passed_diffusion_nu": true
+          },
+          "dx_m": 1e-05,
+          "grid": {
+            "Nx": 301,
+            "Ny": 351,
+            "dx_m": 1e-05,
+            "dy_m": 1e-05,
+            "grid_layout": "collocated_nodal_inclusive",
+            "x_max_m": 0.0015,
+            "x_min_m": -0.0015,
+            "y_max_m": 0.0025,
+            "y_min_m": -0.001
+          },
+          "max_abs_interpolation_residual_to_representation": 0.0,
+          "target_state_sha256": "6f591bcee9d09325f3b1fd8e2e6364a42fe816d1f891304b2332d92d2ba0bc80",
+          "target_velocity_sha256": {
+            "vx": "81cd6e9d91287d0f8b2a936725fa7b1cb219ffb082300f11dc8eda7e66a7f401",
+            "vy": "81cd6e9d91287d0f8b2a936725fa7b1cb219ffb082300f11dc8eda7e66a7f401"
+          }
+        },
+        {
+          "audit_hr4_stability": {
+            "advection_CFL": 0.0,
+            "combined_number_chi": 0.4339999999999999,
+            "combined_number_nu": 0.29999999999999993,
+            "diffusion_number_chi": 0.21699999999999994,
+            "diffusion_number_nu": 0.14999999999999997,
+            "overall_pass": true,
+            "passed_advection": true,
+            "passed_combined": true,
+            "passed_combined_chi": true,
+            "passed_combined_nu": true,
+            "passed_diffusion": true,
+            "passed_diffusion_chi": true,
+            "passed_diffusion_nu": true
+          },
+          "dx_m": 5e-06,
+          "grid": {
+            "Nx": 601,
+            "Ny": 701,
+            "dx_m": 5e-06,
+            "dy_m": 5e-06,
+            "grid_layout": "collocated_nodal_inclusive",
+            "x_max_m": 0.0015,
+            "x_min_m": -0.0015,
+            "y_max_m": 0.0025,
+            "y_min_m": -0.001
+          },
+          "max_abs_interpolation_residual_to_representation": 0.0,
+          "target_state_sha256": "66a0bb516f752ef46583b44ab7b8cb3a461a20135182ed05f6f93aefb8907c2e",
+          "target_velocity_sha256": {
+            "vx": "14f63ad0f71b6e59c2a3dbbe757f0cfa80f96e0e838f811862990363a1dfaa92",
+            "vy": "14f63ad0f71b6e59c2a3dbbe757f0cfa80f96e0e838f811862990363a1dfaa92"
+          }
+        }
+      ],
+      "validation_representation": {
+        "delta_n_rule": "bilinear_uniform_no_filter_no_smoothing_no_clipping",
+        "full_chain_transverse_convergence_claimed": false,
+        "kind": "bilinear_uniform_validation_only",
+        "production_multigrid_mapping_modified": false,
+        "same_continuous_reference_used_for_20_10_5": true,
+        "scope_is_hydro_only_validation": true,
+        "validation_representation_source_is_single_frozen_real_POST": true,
+        "velocity_rule": "exact_zero_preserved"
+      },
+      "warnings": [
+        "WARNING_NONMONOTONIC_WITHIN_TOLERANCE",
+        "WARNING_NONMONOTONIC_WITHIN_TOLERANCE"
+      ]
+    },
+    {
+      "rows": [
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 1.6e-06,
+          "10_vs_5_value": 7.790928168739384e-21,
+          "D10_5": 7.790928168739384e-21,
+          "D20_10": 1.0063548976692653e-18,
+          "Q_10um": 9.42004245314952e-17,
+          "Q_20um": 9.520677942916447e-17,
+          "Q_5um": 9.419263360332647e-17,
+          "diagnostic_warning": null,
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "xc_m",
+          "p_obs": null,
+          "strict_refinement_pass": null,
+          "trend_applicable": false,
+          "trend_status": "N/A_NEAR_ZERO"
+        },
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 1.6e-06,
+          "10_vs_5_value": 0.0,
+          "D10_5": 0.0,
+          "D20_10": 3.7947076036992655e-18,
+          "Q_10um": 0.0007499999999997179,
+          "Q_20um": 0.0007499999999997141,
+          "Q_5um": 0.0007499999999997179,
+          "diagnostic_warning": null,
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "yc_m",
+          "p_obs": null,
+          "strict_refinement_pass": true,
+          "trend_applicable": true,
+          "trend_status": "PASS"
+        },
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 0.01,
+          "10_vs_5_value": 0.00785592715383638,
+          "D10_5": 2.217580685828587e-07,
+          "D20_10": 9.629430720017933e-08,
+          "Q_10um": 2.8006363735546256e-05,
+          "Q_20um": 2.8102658042746435e-05,
+          "Q_5um": 2.8228121804129115e-05,
+          "diagnostic_warning": "WARNING_NONMONOTONIC_WITHIN_TOLERANCE",
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "sigma_x_m",
+          "p_obs": -1.203464182027094,
+          "strict_refinement_pass": false,
+          "trend_applicable": true,
+          "trend_status": "WARNING"
+        },
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 0.01,
+          "10_vs_5_value": 0.005536449581990829,
+          "D10_5": 1.8599809273911233e-07,
+          "D20_10": 5.747645276342868e-08,
+          "Q_10um": 3.340919499709483e-05,
+          "Q_20um": 3.33517185443314e-05,
+          "Q_5um": 3.359519308983394e-05,
+          "diagnostic_warning": "WARNING_NONMONOTONIC_WITHIN_TOLERANCE",
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "sigma_y_m",
+          "p_obs": -1.6942448959406535,
+          "strict_refinement_pass": false,
+          "trend_applicable": true,
+          "trend_status": "WARNING"
+        },
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 0.02,
+          "10_vs_5_value": 0.0,
+          "D10_5": 0.0,
+          "D20_10": 4.198531918980585e-06,
+          "Q_10um": -0.00014098281502767653,
+          "Q_20um": -0.00013678428310869595,
+          "Q_5um": -0.00014098281502767653,
+          "diagnostic_warning": null,
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "min_delta_n",
+          "p_obs": null,
+          "strict_refinement_pass": true,
+          "trend_applicable": true,
+          "trend_status": "PASS"
+        },
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 0.01,
+          "10_vs_5_value": 2.4651781253052795e-08,
+          "D10_5": 1.6745957976257874e-20,
+          "D20_10": 2.9169537066377324e-16,
+          "Q_10um": 6.793001372670302e-13,
+          "Q_20um": 6.790084418963665e-13,
+          "Q_5um": 6.793001205210723e-13,
+          "diagnostic_warning": null,
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "M0_negative_index_m2",
+          "p_obs": 14.088361959930788,
+          "strict_refinement_pass": true,
+          "trend_applicable": true,
+          "trend_status": "PASS"
+        }
+      ],
+      "screen_identity": {
+        "screen_id": "peak",
+        "screen_index": 8022,
+        "screen_z_m": 0.802249999999928
+      },
+      "source_provenance": {
+        "screen_identity": {
+          "screen_id": "peak",
+          "screen_index": 8022,
+          "screen_z_m": 0.802249999999928
+        },
+        "source_full_state_array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+        "source_full_state_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+        "source_git_sha": "be280dc179904063425435ccf30ff0295df265af",
+        "source_grid": {
+          "Nx": 301,
+          "Ny": 351,
+          "dx_m": 1e-05,
+          "dy_m": 1e-05,
+          "grid_layout": "collocated_nodal_inclusive",
+          "x_max_m": 0.0015,
+          "x_min_m": -0.0015,
+          "y_max_m": 0.0025,
+          "y_min_m": -0.001
+        },
+        "source_manifest_path": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/post_reference_manifest.json",
+        "source_manifest_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
+        "source_post_array_sha256": "1585a60a2617d19808d1925afd4f60210db215908c878f336377ac6e89cc0f96",
+        "source_post_file_sha256": "8b9fb3bd62224a9bdbd6dbb01d5a2945ffcf30b5e181775a26a90908fb8aff02"
+      },
+      "status": "PASS",
+      "targets": [
+        {
+          "audit_hr4_stability": {
+            "advection_CFL": 0.0,
+            "combined_number_chi": 0.027124999999999993,
+            "combined_number_nu": 0.018749999999999996,
+            "diffusion_number_chi": 0.013562499999999996,
+            "diffusion_number_nu": 0.009374999999999998,
+            "overall_pass": true,
+            "passed_advection": true,
+            "passed_combined": true,
+            "passed_combined_chi": true,
+            "passed_combined_nu": true,
+            "passed_diffusion": true,
+            "passed_diffusion_chi": true,
+            "passed_diffusion_nu": true
+          },
+          "dx_m": 2e-05,
+          "grid": {
+            "Nx": 151,
+            "Ny": 176,
+            "dx_m": 2e-05,
+            "dy_m": 2e-05,
+            "grid_layout": "collocated_nodal_inclusive",
+            "x_max_m": 0.0015,
+            "x_min_m": -0.0015,
+            "y_max_m": 0.0025,
+            "y_min_m": -0.001
+          },
+          "max_abs_interpolation_residual_to_representation": 0.0,
+          "target_state_sha256": "381cb2e2d555e319e63a555815fe92d3002b3eb3ed852b2e63b8570206003945",
+          "target_velocity_sha256": {
+            "vx": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739",
+            "vy": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739"
+          }
+        },
+        {
+          "audit_hr4_stability": {
+            "advection_CFL": 0.0,
+            "combined_number_chi": 0.10849999999999997,
+            "combined_number_nu": 0.07499999999999998,
+            "diffusion_number_chi": 0.054249999999999986,
+            "diffusion_number_nu": 0.03749999999999999,
+            "overall_pass": true,
+            "passed_advection": true,
+            "passed_combined": true,
+            "passed_combined_chi": true,
+            "passed_combined_nu": true,
+            "passed_diffusion": true,
+            "passed_diffusion_chi": true,
+            "passed_diffusion_nu": true
+          },
+          "dx_m": 1e-05,
+          "grid": {
+            "Nx": 301,
+            "Ny": 351,
+            "dx_m": 1e-05,
+            "dy_m": 1e-05,
+            "grid_layout": "collocated_nodal_inclusive",
+            "x_max_m": 0.0015,
+            "x_min_m": -0.0015,
+            "y_max_m": 0.0025,
+            "y_min_m": -0.001
+          },
+          "max_abs_interpolation_residual_to_representation": 0.0,
+          "target_state_sha256": "84327b6b7524787367d089f4b5e4e89528f05541707a9051fc17164ba7e46a2e",
+          "target_velocity_sha256": {
+            "vx": "81cd6e9d91287d0f8b2a936725fa7b1cb219ffb082300f11dc8eda7e66a7f401",
+            "vy": "81cd6e9d91287d0f8b2a936725fa7b1cb219ffb082300f11dc8eda7e66a7f401"
+          }
+        },
+        {
+          "audit_hr4_stability": {
+            "advection_CFL": 0.0,
+            "combined_number_chi": 0.4339999999999999,
+            "combined_number_nu": 0.29999999999999993,
+            "diffusion_number_chi": 0.21699999999999994,
+            "diffusion_number_nu": 0.14999999999999997,
+            "overall_pass": true,
+            "passed_advection": true,
+            "passed_combined": true,
+            "passed_combined_chi": true,
+            "passed_combined_nu": true,
+            "passed_diffusion": true,
+            "passed_diffusion_chi": true,
+            "passed_diffusion_nu": true
+          },
+          "dx_m": 5e-06,
+          "grid": {
+            "Nx": 601,
+            "Ny": 701,
+            "dx_m": 5e-06,
+            "dy_m": 5e-06,
+            "grid_layout": "collocated_nodal_inclusive",
+            "x_max_m": 0.0015,
+            "x_min_m": -0.0015,
+            "y_max_m": 0.0025,
+            "y_min_m": -0.001
+          },
+          "max_abs_interpolation_residual_to_representation": 0.0,
+          "target_state_sha256": "a689cb37f517d5daed286637fe6c7b3aa6b02b77b3985dcdb03c40534fac3dca",
+          "target_velocity_sha256": {
+            "vx": "14f63ad0f71b6e59c2a3dbbe757f0cfa80f96e0e838f811862990363a1dfaa92",
+            "vy": "14f63ad0f71b6e59c2a3dbbe757f0cfa80f96e0e838f811862990363a1dfaa92"
+          }
+        }
+      ],
+      "validation_representation": {
+        "delta_n_rule": "bilinear_uniform_no_filter_no_smoothing_no_clipping",
+        "full_chain_transverse_convergence_claimed": false,
+        "kind": "bilinear_uniform_validation_only",
+        "production_multigrid_mapping_modified": false,
+        "same_continuous_reference_used_for_20_10_5": true,
+        "scope_is_hydro_only_validation": true,
+        "validation_representation_source_is_single_frozen_real_POST": true,
+        "velocity_rule": "exact_zero_preserved"
+      },
+      "warnings": [
+        "WARNING_NONMONOTONIC_WITHIN_TOLERANCE",
+        "WARNING_NONMONOTONIC_WITHIN_TOLERANCE"
+      ]
+    },
+    {
+      "rows": [
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 1.6e-06,
+          "10_vs_5_value": 7.153374728575309e-21,
+          "D10_5": 7.153374728575309e-21,
+          "D20_10": 4.6906739444531386e-20,
+          "Q_10um": 2.955626874196632e-17,
+          "Q_20um": 2.960317548141085e-17,
+          "Q_5um": 2.9549115367237745e-17,
+          "diagnostic_warning": null,
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "xc_m",
+          "p_obs": null,
+          "strict_refinement_pass": null,
+          "trend_applicable": false,
+          "trend_status": "N/A_NEAR_ZERO"
+        },
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 1.6e-06,
+          "10_vs_5_value": 1.0842021724855044e-19,
+          "D10_5": 1.0842021724855044e-19,
+          "D20_10": 2.168404344971009e-19,
+          "Q_10um": 0.0007500000000000099,
+          "Q_20um": 0.0007500000000000101,
+          "Q_5um": 0.00075000000000001,
+          "diagnostic_warning": null,
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "yc_m",
+          "p_obs": 1.0,
+          "strict_refinement_pass": true,
+          "trend_applicable": true,
+          "trend_status": "PASS"
+        },
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 0.01,
+          "10_vs_5_value": 0.0016003269204049085,
+          "D10_5": 9.950697341629155e-08,
+          "D20_10": 1.112557179352026e-08,
+          "Q_10um": 6.207964664046822e-05,
+          "Q_20um": 6.209077221226174e-05,
+          "Q_5um": 6.217915361388451e-05,
+          "diagnostic_warning": "WARNING_NONMONOTONIC_WITHIN_TOLERANCE",
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "sigma_x_m",
+          "p_obs": -3.1609181481814086,
+          "strict_refinement_pass": false,
+          "trend_applicable": true,
+          "trend_status": "WARNING"
+        },
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 0.01,
+          "10_vs_5_value": 0.001606053763138382,
+          "D10_5": 9.970754378316583e-08,
+          "D20_10": 1.2608286421245877e-08,
+          "Q_10um": 6.19826125326804e-05,
+          "Q_20um": 6.199522081910164e-05,
+          "Q_5um": 6.208232007646356e-05,
+          "diagnostic_warning": "WARNING_NONMONOTONIC_WITHIN_TOLERANCE",
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "sigma_y_m",
+          "p_obs": -2.983330447917787,
+          "strict_refinement_pass": false,
+          "trend_applicable": true,
+          "trend_status": "WARNING"
+        },
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 0.02,
+          "10_vs_5_value": 0.0,
+          "D10_5": 0.0,
+          "D20_10": 2.4924821061447253e-06,
+          "Q_10um": -2.8209704738166198e-05,
+          "Q_20um": -2.5717222632021472e-05,
+          "Q_5um": -2.8209704738166198e-05,
+          "diagnostic_warning": null,
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "min_delta_n",
+          "p_obs": null,
+          "strict_refinement_pass": true,
+          "trend_applicable": true,
+          "trend_status": "PASS"
+        },
+        {
+          "10_vs_5_ceiling_pass": true,
+          "10_vs_5_tolerance": 0.01,
+          "10_vs_5_value": 9.666245860925365e-08,
+          "D10_5": 1.1592094033919396e-20,
+          "D20_10": 4.014652185188993e-17,
+          "Q_10um": 1.199234461984808e-13,
+          "Q_20um": 1.198832996766289e-13,
+          "Q_5um": 1.1992343460638676e-13,
+          "diagnostic_warning": null,
+          "hard_gate_pass": true,
+          "mapping_consistency_pass": true,
+          "observable": "M0_negative_index_m2",
+          "p_obs": 11.757918084932173,
+          "strict_refinement_pass": true,
+          "trend_applicable": true,
+          "trend_status": "PASS"
+        }
+      ],
+      "screen_identity": {
+        "screen_id": "rear",
+        "screen_index": 10338,
+        "screen_z_m": 0.941924999999913
+      },
+      "source_provenance": {
+        "screen_identity": {
+          "screen_id": "rear",
+          "screen_index": 10338,
+          "screen_z_m": 0.9419249999999126
+        },
+        "source_full_state_array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+        "source_full_state_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+        "source_git_sha": "be280dc179904063425435ccf30ff0295df265af",
+        "source_grid": {
+          "Nx": 301,
+          "Ny": 351,
+          "dx_m": 1e-05,
+          "dy_m": 1e-05,
+          "grid_layout": "collocated_nodal_inclusive",
+          "x_max_m": 0.0015,
+          "x_min_m": -0.0015,
+          "y_max_m": 0.0025,
+          "y_min_m": -0.001
+        },
+        "source_manifest_path": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/post_reference_manifest.json",
+        "source_manifest_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
+        "source_post_array_sha256": "aaf2007a6aa88503d7dd86575748b4000caf800624e0aa48303bd0fc5cd529be",
+        "source_post_file_sha256": "30eedba9c83206b1b48d7bae7abee7759869b05d5e06bfce5e99b88d5ca560dd"
+      },
+      "status": "PASS",
+      "targets": [
+        {
+          "audit_hr4_stability": {
+            "advection_CFL": 0.0,
+            "combined_number_chi": 0.027124999999999993,
+            "combined_number_nu": 0.018749999999999996,
+            "diffusion_number_chi": 0.013562499999999996,
+            "diffusion_number_nu": 0.009374999999999998,
+            "overall_pass": true,
+            "passed_advection": true,
+            "passed_combined": true,
+            "passed_combined_chi": true,
+            "passed_combined_nu": true,
+            "passed_diffusion": true,
+            "passed_diffusion_chi": true,
+            "passed_diffusion_nu": true
+          },
+          "dx_m": 2e-05,
+          "grid": {
+            "Nx": 151,
+            "Ny": 176,
+            "dx_m": 2e-05,
+            "dy_m": 2e-05,
+            "grid_layout": "collocated_nodal_inclusive",
+            "x_max_m": 0.0015,
+            "x_min_m": -0.0015,
+            "y_max_m": 0.0025,
+            "y_min_m": -0.001
+          },
+          "max_abs_interpolation_residual_to_representation": 0.0,
+          "target_state_sha256": "f9ba349aa2669238ef47a26d6f91300f34e4f381ed604190586ca2b1054e3b62",
+          "target_velocity_sha256": {
+            "vx": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739",
+            "vy": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739"
+          }
+        },
+        {
+          "audit_hr4_stability": {
+            "advection_CFL": 0.0,
+            "combined_number_chi": 0.10849999999999997,
+            "combined_number_nu": 0.07499999999999998,
+            "diffusion_number_chi": 0.054249999999999986,
+            "diffusion_number_nu": 0.03749999999999999,
+            "overall_pass": true,
+            "passed_advection": true,
+            "passed_combined": true,
+            "passed_combined_chi": true,
+            "passed_combined_nu": true,
+            "passed_diffusion": true,
+            "passed_diffusion_chi": true,
+            "passed_diffusion_nu": true
+          },
+          "dx_m": 1e-05,
+          "grid": {
+            "Nx": 301,
+            "Ny": 351,
+            "dx_m": 1e-05,
+            "dy_m": 1e-05,
+            "grid_layout": "collocated_nodal_inclusive",
+            "x_max_m": 0.0015,
+            "x_min_m": -0.0015,
+            "y_max_m": 0.0025,
+            "y_min_m": -0.001
+          },
+          "max_abs_interpolation_residual_to_representation": 0.0,
+          "target_state_sha256": "dbebb86fd7cfc4521483bcdf8e1dbd5baa78560b705652861843a99f75f429a2",
+          "target_velocity_sha256": {
+            "vx": "81cd6e9d91287d0f8b2a936725fa7b1cb219ffb082300f11dc8eda7e66a7f401",
+            "vy": "81cd6e9d91287d0f8b2a936725fa7b1cb219ffb082300f11dc8eda7e66a7f401"
+          }
+        },
+        {
+          "audit_hr4_stability": {
+            "advection_CFL": 0.0,
+            "combined_number_chi": 0.4339999999999999,
+            "combined_number_nu": 0.29999999999999993,
+            "diffusion_number_chi": 0.21699999999999994,
+            "diffusion_number_nu": 0.14999999999999997,
+            "overall_pass": true,
+            "passed_advection": true,
+            "passed_combined": true,
+            "passed_combined_chi": true,
+            "passed_combined_nu": true,
+            "passed_diffusion": true,
+            "passed_diffusion_chi": true,
+            "passed_diffusion_nu": true
+          },
+          "dx_m": 5e-06,
+          "grid": {
+            "Nx": 601,
+            "Ny": 701,
+            "dx_m": 5e-06,
+            "dy_m": 5e-06,
+            "grid_layout": "collocated_nodal_inclusive",
+            "x_max_m": 0.0015,
+            "x_min_m": -0.0015,
+            "y_max_m": 0.0025,
+            "y_min_m": -0.001
+          },
+          "max_abs_interpolation_residual_to_representation": 0.0,
+          "target_state_sha256": "12848c5451d2bf7ac3a607fde27daaa1da4dbc2dea2ee38d226e04b8337a2a29",
+          "target_velocity_sha256": {
+            "vx": "14f63ad0f71b6e59c2a3dbbe757f0cfa80f96e0e838f811862990363a1dfaa92",
+            "vy": "14f63ad0f71b6e59c2a3dbbe757f0cfa80f96e0e838f811862990363a1dfaa92"
+          }
+        }
+      ],
+      "validation_representation": {
+        "delta_n_rule": "bilinear_uniform_no_filter_no_smoothing_no_clipping",
+        "full_chain_transverse_convergence_claimed": false,
+        "kind": "bilinear_uniform_validation_only",
+        "production_multigrid_mapping_modified": false,
+        "same_continuous_reference_used_for_20_10_5": true,
+        "scope_is_hydro_only_validation": true,
+        "validation_representation_source_is_single_frozen_real_POST": true,
+        "velocity_rule": "exact_zero_preserved"
+      },
+      "warnings": [
+        "WARNING_NONMONOTONIC_WITHIN_TOLERANCE",
+        "WARNING_NONMONOTONIC_WITHIN_TOLERANCE"
+      ]
+    }
+  ],
+  "status": "PASS",
+  "validation_representation_source_is_single_frozen_real_POST": true
+}

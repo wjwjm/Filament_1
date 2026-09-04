@@ -1,0 +1,96 @@
+{
+  "boundary_contamination": false,
+  "centroid_accuracy_pass": true,
+  "centroid_error_limit_m": 2e-05,
+  "classification": "B1",
+  "config_guard": {
+    "pass": true,
+    "problems": []
+  },
+  "rows": [
+    {
+      "10um": 5.421010862427522e-20,
+      "20um": 5.421010862427522e-20,
+      "5um": 0.0,
+      "metric": "centroid_error_x_m",
+      "monotonic_refinement": null,
+      "p_obs_10_5": null,
+      "p_obs_20_10": null
+    },
+    {
+      "10um": 2.710505431213761e-20,
+      "20um": 4.0657581468206416e-20,
+      "5um": 0.0,
+      "metric": "centroid_error_y_m",
+      "monotonic_refinement": null,
+      "p_obs_10_5": null,
+      "p_obs_20_10": null
+    },
+    {
+      "10um": 1.1624232602516237e-05,
+      "20um": 2.1955872807798572e-05,
+      "5um": 5.9941858499747705e-06,
+      "metric": "sigma_x_growth_m",
+      "monotonic_refinement": true,
+      "p_obs_10_5": 0.9554997564256,
+      "p_obs_20_10": 0.9174714098953948
+    },
+    {
+      "10um": 6.015986886159723e-06,
+      "20um": 1.1644694336333531e-05,
+      "5um": 3.05871417256589e-06,
+      "metric": "sigma_y_growth_m",
+      "monotonic_refinement": true,
+      "p_obs_10_5": 0.9758761244068953,
+      "p_obs_20_10": 0.9527994431864614
+    },
+    {
+      "10um": 0.18762308431390173,
+      "20um": 0.31400882117753126,
+      "5um": 0.10390006892359893,
+      "metric": "peak_amplitude_loss",
+      "monotonic_refinement": true,
+      "p_obs_10_5": 0.8526407303115778,
+      "p_obs_20_10": 0.7429677464805372
+    },
+    {
+      "10um": 6.289633217076393e-14,
+      "20um": 1.1337223364152684e-13,
+      "5um": 3.329410088363934e-14,
+      "metric": "L1_field_error_m2",
+      "monotonic_refinement": true,
+      "p_obs_10_5": 0.9177093078123446,
+      "p_obs_20_10": 0.8500195552281691
+    },
+    {
+      "10um": 2.022810430821096e-10,
+      "20um": 3.501700515576472e-10,
+      "5um": 1.0967170177844899e-10,
+      "metric": "L2_field_error_m",
+      "monotonic_refinement": true,
+      "p_obs_10_5": 0.8831698030024293,
+      "p_obs_20_10": 0.7916945789455494
+    },
+    {
+      "10um": 9.974999999999998e-07,
+      "20um": 1.9975e-06,
+      "5um": 4.975000000000005e-07,
+      "metric": "effective_artificial_diffusion_x_m2_s",
+      "monotonic_refinement": true,
+      "p_obs_10_5": 1.003620315678695,
+      "p_obs_20_10": 1.0018067567056312
+    },
+    {
+      "10um": 4.993750000000007e-07,
+      "20um": 9.993750000000015e-07,
+      "5um": 2.49374999999999e-07,
+      "metric": "effective_artificial_diffusion_y_m2_s",
+      "monotonic_refinement": true,
+      "p_obs_10_5": 1.001806756705639,
+      "p_obs_20_10": 1.0009025305523553
+    }
+  ],
+  "schema": "khz_filament.hr4e2.advection_report.v2",
+  "stable": true,
+  "status": "PASS"
+}

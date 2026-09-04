@@ -1,0 +1,353 @@
+{
+  "backend": "cupy",
+  "case_id": "E2C_rear_dx20um_dt0p125us",
+  "configuration": {
+    "dt_hydro_s": 1.25e-07,
+    "execution": {
+      "backend": "cupy",
+      "dtype": "float64",
+      "git_sha": "d7e77cd380d48dafdab04d307a06264159afa958"
+    },
+    "family": "E2-C",
+    "grid": {
+      "Nx": 151,
+      "Ny": 176,
+      "dx_m": 1.9999999999999998e-05,
+      "dy_m": 1.9999999999999998e-05,
+      "grid_layout": "collocated_nodal_inclusive",
+      "x_max_m": 0.0015,
+      "x_min_m": -0.0015,
+      "y_max_m": 0.0025,
+      "y_min_m": -0.001
+    },
+    "initial_state": {
+      "analytic_definition": {
+        "amplitude": 1e-05,
+        "center_x_m": 0.0,
+        "center_y_m": 0.0,
+        "sigma_m": 8e-05
+      },
+      "delta_n_sha256": "0a88e3d8c5b51a4b49cb8b09bc3ee2ef3bef19fe6bd48ff4823722b48b55d7c7",
+      "dtype": "float64",
+      "kind": "real_hr3b_post_validation_representation",
+      "shape": [
+        176,
+        151
+      ],
+      "source_provenance": {
+        "screen_identity": {
+          "screen_id": "rear",
+          "screen_index": 10338,
+          "screen_z_m": 0.9419249999999126
+        },
+        "source_full_state_array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+        "source_full_state_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+        "source_git_sha": "be280dc179904063425435ccf30ff0295df265af",
+        "source_grid": {
+          "Nx": 301,
+          "Ny": 351,
+          "dx_m": 1e-05,
+          "dy_m": 1e-05,
+          "grid_layout": "collocated_nodal_inclusive",
+          "x_max_m": 0.0015,
+          "x_min_m": -0.0015,
+          "y_max_m": 0.0025,
+          "y_min_m": -0.001
+        },
+        "source_manifest_path": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/post_reference_manifest.json",
+        "source_manifest_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
+        "source_post_array_sha256": "aaf2007a6aa88503d7dd86575748b4000caf800624e0aa48303bd0fc5cd529be",
+        "source_post_file_sha256": "30eedba9c83206b1b48d7bae7abee7759869b05d5e06bfce5e99b88d5ca560dd"
+      },
+      "target_state_sha256": "0a88e3d8c5b51a4b49cb8b09bc3ee2ef3bef19fe6bd48ff4823722b48b55d7c7",
+      "target_velocity_sha256": {
+        "vx": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739",
+        "vy": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739"
+      },
+      "validation_representation": {
+        "delta_n_rule": "bilinear_uniform_no_filter_no_smoothing_no_clipping",
+        "full_chain_transverse_convergence_claimed": false,
+        "kind": "bilinear_uniform_validation_only",
+        "production_multigrid_mapping_modified": false,
+        "same_continuous_reference_used_for_20_10_5": true,
+        "scope_is_hydro_only_validation": true,
+        "validation_representation_source_is_single_frozen_real_POST": true,
+        "velocity_rule": "exact_zero_preserved"
+      }
+    },
+    "operator": {
+      "advection_scheme": "first_order_upwind",
+      "boundary_delta_n": "ambient_dirichlet_zero",
+      "boundary_velocity": "open_zero_gradient_outflow_ambient_inflow",
+      "cfl_limit": 1.0,
+      "chi_m2_s": 2.17e-05,
+      "diffusion_scheme": "explicit_central_fd",
+      "gravity_x_m_s2": 0.0,
+      "gravity_y_m_s2": -9.81,
+      "n0": 1.00027,
+      "nu_m2_s": 1.5e-05,
+      "time_integrator": "explicit_euler"
+    },
+    "snapshot_times_s": [
+      0.0,
+      0.0001
+    ]
+  },
+  "configuration_sha256": "918ea051d75e06127c58e1a0e1a3de11137eb37e8b5445db50214cce1091a36e",
+  "dtype": "float64",
+  "failure_reason": null,
+  "family": "E2-C",
+  "git_sha": "d7e77cd380d48dafdab04d307a06264159afa958",
+  "hydro_step_count": 800,
+  "initial_state": {
+    "analytic_definition": {
+      "amplitude": 1e-05,
+      "center_x_m": 0.0,
+      "center_y_m": 0.0,
+      "sigma_m": 8e-05
+    },
+    "delta_n_sha256": "0a88e3d8c5b51a4b49cb8b09bc3ee2ef3bef19fe6bd48ff4823722b48b55d7c7",
+    "dtype": "float64",
+    "kind": "real_hr3b_post_validation_representation",
+    "shape": [
+      176,
+      151
+    ],
+    "source_provenance": {
+      "screen_identity": {
+        "screen_id": "rear",
+        "screen_index": 10338,
+        "screen_z_m": 0.9419249999999126
+      },
+      "source_full_state_array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+      "source_full_state_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+      "source_git_sha": "be280dc179904063425435ccf30ff0295df265af",
+      "source_grid": {
+        "Nx": 301,
+        "Ny": 351,
+        "dx_m": 1e-05,
+        "dy_m": 1e-05,
+        "grid_layout": "collocated_nodal_inclusive",
+        "x_max_m": 0.0015,
+        "x_min_m": -0.0015,
+        "y_max_m": 0.0025,
+        "y_min_m": -0.001
+      },
+      "source_manifest_path": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/post_reference_manifest.json",
+      "source_manifest_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
+      "source_post_array_sha256": "aaf2007a6aa88503d7dd86575748b4000caf800624e0aa48303bd0fc5cd529be",
+      "source_post_file_sha256": "30eedba9c83206b1b48d7bae7abee7759869b05d5e06bfce5e99b88d5ca560dd"
+    },
+    "target_state_sha256": "0a88e3d8c5b51a4b49cb8b09bc3ee2ef3bef19fe6bd48ff4823722b48b55d7c7",
+    "target_velocity_sha256": {
+      "vx": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739",
+      "vy": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739"
+    },
+    "validation_representation": {
+      "delta_n_rule": "bilinear_uniform_no_filter_no_smoothing_no_clipping",
+      "full_chain_transverse_convergence_claimed": false,
+      "kind": "bilinear_uniform_validation_only",
+      "production_multigrid_mapping_modified": false,
+      "same_continuous_reference_used_for_20_10_5": true,
+      "scope_is_hydro_only_validation": true,
+      "validation_representation_source_is_single_frozen_real_POST": true,
+      "velocity_rule": "exact_zero_preserved"
+    }
+  },
+  "initial_state_sha256": "0a88e3d8c5b51a4b49cb8b09bc3ee2ef3bef19fe6bd48ff4823722b48b55d7c7",
+  "requested_dt_us": 0.125,
+  "requested_dx_um": 20.0,
+  "schema": "khz_filament.hr4e2.real_spatial_case.v1",
+  "slow_time_history_stored": false,
+  "snapshots": [
+    {
+      "M0_negative_index_m2": 1.1988329967662888e-13,
+      "boundary_contaminated": false,
+      "boundary_contamination_criteria": {
+        "first_interior_ring_ratio": 1.4181354174877202e-07,
+        "first_interior_ring_ratio_limit": 0.001,
+        "formal_edge_boundary_ratio": 1.818283395924288e-07,
+        "formal_edge_ratio_is_diagnostic_only": true,
+        "sigma_y_over_top_clearance": 0.0354258404680583,
+        "sigma_y_over_top_clearance_limit": 0.25
+      },
+      "boundary_contamination_reasons": [],
+      "edge_contamination_ratio": 1.818283395924288e-07,
+      "edge_metric": 1.818283395924288e-07,
+      "first_interior_ring_ratio": 1.4181354174877202e-07,
+      "formal_edge_boundary_ratio": 1.818283395924288e-07,
+      "hydro_step_count": 0,
+      "max_abs_v": 0.0,
+      "max_abs_v_m_s": 0.0,
+      "max_abs_vx": 0.0,
+      "max_abs_vx_m_s": 0.0,
+      "max_abs_vy": 0.0,
+      "max_abs_vy_m_s": 0.0,
+      "max_boundary_abs_delta_n": 4.676119890109251e-12,
+      "max_delta_n": -7.728987702713989e-18,
+      "max_domain_abs_delta_n": 2.571722263202122e-05,
+      "max_first_interior_ring_abs_delta_n": 3.647050425388606e-12,
+      "min_delta_n": -2.571722263202122e-05,
+      "sigma_x": 6.209077221226176e-05,
+      "sigma_x_m": 6.209077221226176e-05,
+      "sigma_y": 6.199522081910168e-05,
+      "sigma_y_m": 6.199522081910168e-05,
+      "sigma_y_over_top_clearance": 0.0354258404680583,
+      "stability": {
+        "advection_CFL": 0.0,
+        "combined_number_chi": 0.027125000000000003,
+        "combined_number_nu": 0.018750000000000003,
+        "diffusion_number_chi": 0.013562500000000002,
+        "diffusion_number_nu": 0.009375000000000001,
+        "overall_pass": true,
+        "passed_advection": true,
+        "passed_combined": true,
+        "passed_combined_chi": true,
+        "passed_combined_nu": true,
+        "passed_diffusion": true,
+        "passed_diffusion_chi": true,
+        "passed_diffusion_nu": true
+      },
+      "thermal_channel_defined": true,
+      "time_s": 0.0,
+      "time_us": 0.0,
+      "top_clearance_m": 0.0017499999999999903,
+      "weight_sum": 0.00029970824919157225,
+      "width_definition": "second_moment_sigma",
+      "xc": 2.965593778306589e-17,
+      "xc_m": 2.965593778306589e-17,
+      "y_max_m": 0.0025,
+      "yc": 0.0007500000000000099,
+      "yc_m": 0.0007500000000000099
+    },
+    {
+      "M0_negative_index_m2": 1.1988283636697151e-13,
+      "boundary_contaminated": false,
+      "boundary_contamination_criteria": {
+        "first_interior_ring_ratio": 1.3172636840320075e-06,
+        "first_interior_ring_ratio_limit": 0.001,
+        "formal_edge_boundary_ratio": 0.0,
+        "formal_edge_ratio_is_diagnostic_only": true,
+        "sigma_y_over_top_clearance": 0.05168515638404872,
+        "sigma_y_over_top_clearance_limit": 0.25
+      },
+      "boundary_contamination_reasons": [],
+      "edge_contamination_ratio": 0.0,
+      "edge_metric": 0.0,
+      "first_interior_ring_ratio": 1.3172636840320075e-06,
+      "formal_edge_boundary_ratio": 0.0,
+      "hydro_step_count": 800,
+      "max_abs_v": 1.3986026046094743e-05,
+      "max_abs_v_m_s": 1.3986026046094743e-05,
+      "max_abs_vx": 0.0,
+      "max_abs_vx_m_s": 0.0,
+      "max_abs_vy": 1.3986026046094743e-05,
+      "max_abs_vy_m_s": 1.3986026046094743e-05,
+      "max_boundary_abs_delta_n": 0.0,
+      "max_delta_n": 0.0,
+      "max_domain_abs_delta_n": 3.3138026305834824e-06,
+      "max_first_interior_ring_abs_delta_n": 4.3651518613173556e-12,
+      "min_delta_n": -3.3138026305834824e-06,
+      "sigma_x": 9.049916457642126e-05,
+      "sigma_x_m": 9.049916457642126e-05,
+      "sigma_y": 9.044901317264325e-05,
+      "sigma_y_m": 9.044901317264325e-05,
+      "sigma_y_over_top_clearance": 0.05168515638404872,
+      "stability": {
+        "advection_CFL": 8.741266278809214e-08,
+        "combined_number_chi": 0.027125087412662792,
+        "combined_number_nu": 0.01875008741266279,
+        "diffusion_number_chi": 0.013562500000000002,
+        "diffusion_number_nu": 0.009375000000000001,
+        "overall_pass": true,
+        "passed_advection": true,
+        "passed_combined": true,
+        "passed_combined_chi": true,
+        "passed_combined_nu": true,
+        "passed_diffusion": true,
+        "passed_diffusion_chi": true,
+        "passed_diffusion_nu": true
+      },
+      "thermal_channel_defined": true,
+      "time_s": 0.0001,
+      "time_us": 100.0,
+      "top_clearance_m": 0.0017499997968576909,
+      "weight_sum": 0.00029970709091742883,
+      "width_definition": "second_moment_sigma",
+      "xc": 2.966168013193207e-17,
+      "xc_m": 2.966168013193207e-17,
+      "y_max_m": 0.0025,
+      "yc": 0.0007500002031423091,
+      "yc_m": 0.0007500002031423091
+    }
+  ],
+  "source_provenance": {
+    "screen_identity": {
+      "screen_id": "rear",
+      "screen_index": 10338,
+      "screen_z_m": 0.9419249999999126
+    },
+    "source_full_state_array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+    "source_full_state_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+    "source_git_sha": "be280dc179904063425435ccf30ff0295df265af",
+    "source_grid": {
+      "Nx": 301,
+      "Ny": 351,
+      "dx_m": 1e-05,
+      "dy_m": 1e-05,
+      "grid_layout": "collocated_nodal_inclusive",
+      "x_max_m": 0.0015,
+      "x_min_m": -0.0015,
+      "y_max_m": 0.0025,
+      "y_min_m": -0.001
+    },
+    "source_manifest_path": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/post_reference_manifest.json",
+    "source_manifest_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
+    "source_post_array_sha256": "aaf2007a6aa88503d7dd86575748b4000caf800624e0aa48303bd0fc5cd529be",
+    "source_post_file_sha256": "30eedba9c83206b1b48d7bae7abee7759869b05d5e06bfce5e99b88d5ca560dd"
+  },
+  "stability": {
+    "advection_CFL": 8.741266278809214e-08,
+    "audit_count": 3,
+    "combined_number_chi": 0.027125087412662792,
+    "combined_number_nu": 0.01875008741266279,
+    "diffusion_number_chi": 0.013562500000000002,
+    "diffusion_number_nu": 0.009375000000000001,
+    "last_audit": {
+      "advection_CFL": 8.741266278809214e-08,
+      "combined_number_chi": 0.027125087412662792,
+      "combined_number_nu": 0.01875008741266279,
+      "diffusion_number_chi": 0.013562500000000002,
+      "diffusion_number_nu": 0.009375000000000001,
+      "overall_pass": true,
+      "passed_advection": true,
+      "passed_combined": true,
+      "passed_combined_chi": true,
+      "passed_combined_nu": true,
+      "passed_diffusion": true,
+      "passed_diffusion_chi": true,
+      "passed_diffusion_nu": true
+    },
+    "overall_pass": true,
+    "passed_advection": true,
+    "passed_combined": true,
+    "passed_diffusion": true
+  },
+  "status": "PASS",
+  "target_state_sha256": "0a88e3d8c5b51a4b49cb8b09bc3ee2ef3bef19fe6bd48ff4823722b48b55d7c7",
+  "target_velocity_sha256": {
+    "vx": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739",
+    "vy": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739"
+  },
+  "validation_representation": {
+    "delta_n_rule": "bilinear_uniform_no_filter_no_smoothing_no_clipping",
+    "full_chain_transverse_convergence_claimed": false,
+    "kind": "bilinear_uniform_validation_only",
+    "production_multigrid_mapping_modified": false,
+    "same_continuous_reference_used_for_20_10_5": true,
+    "scope_is_hydro_only_validation": true,
+    "validation_representation_source_is_single_frozen_real_POST": true,
+    "velocity_rule": "exact_zero_preserved"
+  },
+  "wall_time_s": 7.749945165007375
+}

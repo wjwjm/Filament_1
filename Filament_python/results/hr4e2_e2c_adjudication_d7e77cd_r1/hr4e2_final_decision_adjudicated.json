@@ -1,0 +1,16 @@
+{
+  "configuration_and_boundary_guards_pass": true,
+  "decision": "A2_WARNING_A_NOT_GRANTED",
+  "e2a_status": "PASS",
+  "e2b_status": "PASS",
+  "full_chain_transverse_convergence_claimed": false,
+  "hard_10_vs_5_tolerances_pass": true,
+  "has_material_hydro_or_mixed_warning": true,
+  "near_limit": false,
+  "production_candidate_statement": null,
+  "production_multigrid_mapping_modified": false,
+  "schema": "khz_filament.hr4e2c.mapping_vs_evolution_adjudication.v1",
+  "scope_is_hydro_only_validation": true,
+  "status": "WARNING",
+  "validation_only_statement": "The 5 um initial field adds no physical information beyond the frozen native 10 um POST morphology; the bilinear representation is validation-only and not a production HR-3B-to-HR-4 mapper."
+}

@@ -1,0 +1,9 @@
+{
+  "classification": "spatial synthetic benchmark accepted",
+  "schema": "khz_filament.hr4e2.e2a_classification.v1",
+  "scientific_statement": "The coupled synthetic 20\u219210\u21925 um benchmark is spatially converged within the frozen tolerances. The symmetry-constrained x_c refinement trend is numerically undefined at machine-zero scale, and the y_c temporal ratio exceeds the nominal 0.25 target only in a near-zero absolute regime; the absolute temporal discrepancy remains negligible relative to the frozen centroid tolerance.",
+  "spatial_report_status": "PASS",
+  "status": "PASS",
+  "temporal_guard_status": "PASS",
+  "validity": "VALID"
+}

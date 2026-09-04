@@ -1,0 +1,24 @@
+{
+  "analysis_only": true,
+  "decision": "A2_WARNING_A_NOT_GRANTED",
+  "field_diagnostic": "FIELD_DIAGNOSTIC_BLOCKED_BY_MISSING_RAW_ARTIFACT",
+  "gpu_jobs_submitted": false,
+  "outcome": "S2_KEEP_A2_WARNING",
+  "raw_case_manifests": [
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_51e4969\\E2C_front_dx10um_dt0p125us\\E2C_front_dx10um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_51e4969\\E2C_front_dx20um_dt0p125us\\E2C_front_dx20um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_51e4969\\E2C_front_dx5um_dt0p125us\\E2C_front_dx5um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_51e4969\\E2C_peak_dx20um_dt0p125us\\E2C_peak_dx20um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_d7e77cd\\E2C_peak_dx10um_dt0p125us\\E2C_peak_dx10um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_d7e77cd\\E2C_peak_dx5um_dt0p125us\\E2C_peak_dx5um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_d7e77cd\\E2C_rear_dx10um_dt0p125us\\E2C_rear_dx10um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_d7e77cd\\E2C_rear_dx20um_dt0p125us\\E2C_rear_dx20um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_d7e77cd\\E2C_rear_dx5um_dt0p125us\\E2C_rear_dx5um_dt0p125us.json"
+  ],
+  "raw_index": null,
+  "reason": "The scheduler manifests are terminal and valid, but no authoritative persisted vy(x,y,100 us) arrays exist in either E2-C run root. Scalar maxima are not substituted for field evidence.",
+  "schema": "khz_filament.hr4e2c.velocity_followup_decision.v1",
+  "scoped_class_a_reconsideration_supported": false,
+  "sha_equivalence": "PASS",
+  "supplementary_2p5um_study_justified": false
+}

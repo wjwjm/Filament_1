@@ -1,0 +1,31 @@
+{
+  "analysis_only": true,
+  "configuration_and_boundary_guards_pass": true,
+  "decision": "A2_WARNING_A_NOT_GRANTED",
+  "e2a_status": "PASS",
+  "e2b_status": "PASS",
+  "execution_sha_note": "The manifest Git SHAs are recorded per screen. Any differing SHA must be audited independently; this adjudication does not treat a submission-only wrapper difference as a frozen HR-4 operator change.",
+  "full_chain_transverse_convergence_claimed": false,
+  "gpu_jobs_submitted": false,
+  "hard_10_vs_5_tolerances_pass": true,
+  "has_material_hydro_or_mixed_warning": true,
+  "input_case_manifests": [
+    "Filament_python\\results\\hr4e2_e2c_51e4969\\E2C_front_dx20um_dt0p125us\\E2C_front_dx20um_dt0p125us.json",
+    "Filament_python\\results\\hr4e2_e2c_51e4969\\E2C_front_dx10um_dt0p125us\\E2C_front_dx10um_dt0p125us.json",
+    "Filament_python\\results\\hr4e2_e2c_51e4969\\E2C_front_dx5um_dt0p125us\\E2C_front_dx5um_dt0p125us.json",
+    "Filament_python\\results\\hr4e2_e2c_51e4969\\E2C_peak_dx20um_dt0p125us\\E2C_peak_dx20um_dt0p125us.json",
+    "Filament_python\\results\\hr4e2_e2c_d7e77cd\\E2C_peak_dx10um_dt0p125us\\E2C_peak_dx10um_dt0p125us.json",
+    "Filament_python\\results\\hr4e2_e2c_d7e77cd\\E2C_peak_dx5um_dt0p125us\\E2C_peak_dx5um_dt0p125us.json",
+    "Filament_python\\results\\hr4e2_e2c_d7e77cd\\E2C_rear_dx20um_dt0p125us\\E2C_rear_dx20um_dt0p125us.json",
+    "Filament_python\\results\\hr4e2_e2c_d7e77cd\\E2C_rear_dx10um_dt0p125us\\E2C_rear_dx10um_dt0p125us.json",
+    "Filament_python\\results\\hr4e2_e2c_d7e77cd\\E2C_rear_dx5um_dt0p125us\\E2C_rear_dx5um_dt0p125us.json"
+  ],
+  "near_limit": false,
+  "production_candidate_statement": null,
+  "production_multigrid_mapping_modified": false,
+  "raw_fields_downloaded": false,
+  "schema": "khz_filament.hr4e2c.mapping_vs_evolution_adjudication.v1",
+  "scope_is_hydro_only_validation": true,
+  "status": "WARNING",
+  "validation_only_statement": "The 5 um initial field adds no physical information beyond the frozen native 10 um POST morphology; the bilinear representation is validation-only and not a production HR-3B-to-HR-4 mapper."
+}

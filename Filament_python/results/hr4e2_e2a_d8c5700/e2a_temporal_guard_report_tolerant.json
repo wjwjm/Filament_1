@@ -1,0 +1,73 @@
+{
+  "config_guard": {
+    "pass": true,
+    "problems": []
+  },
+  "rows": [
+    {
+      "D_space_10_5": 2.1277666819960594e-21,
+      "D_time_5um": 6.715196168068025e-22,
+      "observable": "xc_m",
+      "pass": false,
+      "rule": "ratio"
+    },
+    {
+      "D_space_10_5": 5.701158947596913e-13,
+      "D_time_5um": 1.862159074298183e-13,
+      "observable": "yc_m",
+      "pass": false,
+      "rule": "ratio"
+    },
+    {
+      "D_space_10_5": 2.052070224357362e-12,
+      "D_time_5um": 4.092456625318097e-16,
+      "observable": "sigma_x_m",
+      "pass": true,
+      "rule": "ratio"
+    },
+    {
+      "D_space_10_5": 5.766677906677772e-12,
+      "D_time_5um": 2.4584284261108813e-15,
+      "observable": "sigma_y_m",
+      "pass": true,
+      "rule": "ratio"
+    },
+    {
+      "D_space_10_5": 4.2110245654013395e-09,
+      "D_time_5um": 6.083312489077098e-10,
+      "observable": "min_delta_n",
+      "pass": true,
+      "rule": "ratio"
+    },
+    {
+      "D_space_10_5": 0.0,
+      "D_time_5um": 0.0,
+      "observable": "max_abs_vx_m_s",
+      "pass": true,
+      "rule": "absolute_or_relative"
+    },
+    {
+      "D_space_10_5": 1.564128265912879e-08,
+      "D_time_5um": 3.3350332601000585e-09,
+      "observable": "max_abs_vy_m_s",
+      "pass": true,
+      "rule": "ratio"
+    },
+    {
+      "D_space_10_5": 1.564128265912879e-08,
+      "D_time_5um": 3.3350332601000585e-09,
+      "observable": "max_abs_v_m_s",
+      "pass": true,
+      "rule": "ratio"
+    },
+    {
+      "D_space_10_5": 3.680383620502391e-20,
+      "D_time_5um": 1.1352023970492448e-23,
+      "observable": "M0_negative_index_m2",
+      "pass": true,
+      "rule": "ratio"
+    }
+  ],
+  "schema": "khz_filament.hr4e2.temporal_guard.v1",
+  "status": "FAIL"
+}

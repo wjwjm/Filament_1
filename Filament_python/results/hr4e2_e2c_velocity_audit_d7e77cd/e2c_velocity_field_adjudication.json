@@ -1,0 +1,110 @@
+{
+  "analysis_only": true,
+  "gpu_jobs_submitted": false,
+  "missing": [
+    {
+      "dx_um": 20,
+      "provided": [],
+      "required": [
+        "vy",
+        "x",
+        "y"
+      ],
+      "screen": "front"
+    },
+    {
+      "dx_um": 10,
+      "provided": [],
+      "required": [
+        "vy",
+        "x",
+        "y"
+      ],
+      "screen": "front"
+    },
+    {
+      "dx_um": 5,
+      "provided": [],
+      "required": [
+        "vy",
+        "x",
+        "y"
+      ],
+      "screen": "front"
+    },
+    {
+      "dx_um": 20,
+      "provided": [],
+      "required": [
+        "vy",
+        "x",
+        "y"
+      ],
+      "screen": "peak"
+    },
+    {
+      "dx_um": 10,
+      "provided": [],
+      "required": [
+        "vy",
+        "x",
+        "y"
+      ],
+      "screen": "peak"
+    },
+    {
+      "dx_um": 5,
+      "provided": [],
+      "required": [
+        "vy",
+        "x",
+        "y"
+      ],
+      "screen": "peak"
+    },
+    {
+      "dx_um": 20,
+      "provided": [],
+      "required": [
+        "vy",
+        "x",
+        "y"
+      ],
+      "screen": "rear"
+    },
+    {
+      "dx_um": 10,
+      "provided": [],
+      "required": [
+        "vy",
+        "x",
+        "y"
+      ],
+      "screen": "rear"
+    },
+    {
+      "dx_um": 5,
+      "provided": [],
+      "required": [
+        "vy",
+        "x",
+        "y"
+      ],
+      "screen": "rear"
+    }
+  ],
+  "raw_case_manifests": [
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_51e4969\\E2C_front_dx10um_dt0p125us\\E2C_front_dx10um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_51e4969\\E2C_front_dx20um_dt0p125us\\E2C_front_dx20um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_51e4969\\E2C_front_dx5um_dt0p125us\\E2C_front_dx5um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_51e4969\\E2C_peak_dx20um_dt0p125us\\E2C_peak_dx20um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_d7e77cd\\E2C_peak_dx10um_dt0p125us\\E2C_peak_dx10um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_d7e77cd\\E2C_peak_dx5um_dt0p125us\\E2C_peak_dx5um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_d7e77cd\\E2C_rear_dx10um_dt0p125us\\E2C_rear_dx10um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_d7e77cd\\E2C_rear_dx20um_dt0p125us\\E2C_rear_dx20um_dt0p125us.json",
+    "D:\\Filament_1\\Filament_python\\results\\hr4e2_e2c_d7e77cd\\E2C_rear_dx5um_dt0p125us\\E2C_rear_dx5um_dt0p125us.json"
+  ],
+  "raw_index": null,
+  "schema": "khz_filament.hr4e2c.velocity_field.v1",
+  "status": "FIELD_DIAGNOSTIC_BLOCKED_BY_MISSING_RAW_ARTIFACT"
+}

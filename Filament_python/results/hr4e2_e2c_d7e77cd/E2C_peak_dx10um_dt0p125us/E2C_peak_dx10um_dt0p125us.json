@@ -1,0 +1,353 @@
+{
+  "backend": "cupy",
+  "case_id": "E2C_peak_dx10um_dt0p125us",
+  "configuration": {
+    "dt_hydro_s": 1.25e-07,
+    "execution": {
+      "backend": "cupy",
+      "dtype": "float64",
+      "git_sha": "d7e77cd380d48dafdab04d307a06264159afa958"
+    },
+    "family": "E2-C",
+    "grid": {
+      "Nx": 301,
+      "Ny": 351,
+      "dx_m": 9.999999999999999e-06,
+      "dy_m": 9.999999999999999e-06,
+      "grid_layout": "collocated_nodal_inclusive",
+      "x_max_m": 0.0015,
+      "x_min_m": -0.0015,
+      "y_max_m": 0.0025,
+      "y_min_m": -0.001
+    },
+    "initial_state": {
+      "analytic_definition": {
+        "amplitude": 1e-05,
+        "center_x_m": 0.0,
+        "center_y_m": 0.0,
+        "sigma_m": 8e-05
+      },
+      "delta_n_sha256": "124e6bff9d6c535336217cfb88e83deeb7310938733d5f0824758aa95e002539",
+      "dtype": "float64",
+      "kind": "real_hr3b_post_validation_representation",
+      "shape": [
+        351,
+        301
+      ],
+      "source_provenance": {
+        "screen_identity": {
+          "screen_id": "peak",
+          "screen_index": 8022,
+          "screen_z_m": 0.802249999999928
+        },
+        "source_full_state_array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+        "source_full_state_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+        "source_git_sha": "be280dc179904063425435ccf30ff0295df265af",
+        "source_grid": {
+          "Nx": 301,
+          "Ny": 351,
+          "dx_m": 1e-05,
+          "dy_m": 1e-05,
+          "grid_layout": "collocated_nodal_inclusive",
+          "x_max_m": 0.0015,
+          "x_min_m": -0.0015,
+          "y_max_m": 0.0025,
+          "y_min_m": -0.001
+        },
+        "source_manifest_path": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/post_reference_manifest.json",
+        "source_manifest_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
+        "source_post_array_sha256": "1585a60a2617d19808d1925afd4f60210db215908c878f336377ac6e89cc0f96",
+        "source_post_file_sha256": "8b9fb3bd62224a9bdbd6dbb01d5a2945ffcf30b5e181775a26a90908fb8aff02"
+      },
+      "target_state_sha256": "124e6bff9d6c535336217cfb88e83deeb7310938733d5f0824758aa95e002539",
+      "target_velocity_sha256": {
+        "vx": "81cd6e9d91287d0f8b2a936725fa7b1cb219ffb082300f11dc8eda7e66a7f401",
+        "vy": "81cd6e9d91287d0f8b2a936725fa7b1cb219ffb082300f11dc8eda7e66a7f401"
+      },
+      "validation_representation": {
+        "delta_n_rule": "bilinear_uniform_no_filter_no_smoothing_no_clipping",
+        "full_chain_transverse_convergence_claimed": false,
+        "kind": "bilinear_uniform_validation_only",
+        "production_multigrid_mapping_modified": false,
+        "same_continuous_reference_used_for_20_10_5": true,
+        "scope_is_hydro_only_validation": true,
+        "validation_representation_source_is_single_frozen_real_POST": true,
+        "velocity_rule": "exact_zero_preserved"
+      }
+    },
+    "operator": {
+      "advection_scheme": "first_order_upwind",
+      "boundary_delta_n": "ambient_dirichlet_zero",
+      "boundary_velocity": "open_zero_gradient_outflow_ambient_inflow",
+      "cfl_limit": 1.0,
+      "chi_m2_s": 2.17e-05,
+      "diffusion_scheme": "explicit_central_fd",
+      "gravity_x_m_s2": 0.0,
+      "gravity_y_m_s2": -9.81,
+      "n0": 1.00027,
+      "nu_m2_s": 1.5e-05,
+      "time_integrator": "explicit_euler"
+    },
+    "snapshot_times_s": [
+      0.0,
+      0.0001
+    ]
+  },
+  "configuration_sha256": "fc7278ef315860a09dfabf42dfb98c9d8590bea295e1a49083df0bd65b85c5f2",
+  "dtype": "float64",
+  "failure_reason": null,
+  "family": "E2-C",
+  "git_sha": "d7e77cd380d48dafdab04d307a06264159afa958",
+  "hydro_step_count": 800,
+  "initial_state": {
+    "analytic_definition": {
+      "amplitude": 1e-05,
+      "center_x_m": 0.0,
+      "center_y_m": 0.0,
+      "sigma_m": 8e-05
+    },
+    "delta_n_sha256": "124e6bff9d6c535336217cfb88e83deeb7310938733d5f0824758aa95e002539",
+    "dtype": "float64",
+    "kind": "real_hr3b_post_validation_representation",
+    "shape": [
+      351,
+      301
+    ],
+    "source_provenance": {
+      "screen_identity": {
+        "screen_id": "peak",
+        "screen_index": 8022,
+        "screen_z_m": 0.802249999999928
+      },
+      "source_full_state_array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+      "source_full_state_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+      "source_git_sha": "be280dc179904063425435ccf30ff0295df265af",
+      "source_grid": {
+        "Nx": 301,
+        "Ny": 351,
+        "dx_m": 1e-05,
+        "dy_m": 1e-05,
+        "grid_layout": "collocated_nodal_inclusive",
+        "x_max_m": 0.0015,
+        "x_min_m": -0.0015,
+        "y_max_m": 0.0025,
+        "y_min_m": -0.001
+      },
+      "source_manifest_path": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/post_reference_manifest.json",
+      "source_manifest_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
+      "source_post_array_sha256": "1585a60a2617d19808d1925afd4f60210db215908c878f336377ac6e89cc0f96",
+      "source_post_file_sha256": "8b9fb3bd62224a9bdbd6dbb01d5a2945ffcf30b5e181775a26a90908fb8aff02"
+    },
+    "target_state_sha256": "124e6bff9d6c535336217cfb88e83deeb7310938733d5f0824758aa95e002539",
+    "target_velocity_sha256": {
+      "vx": "81cd6e9d91287d0f8b2a936725fa7b1cb219ffb082300f11dc8eda7e66a7f401",
+      "vy": "81cd6e9d91287d0f8b2a936725fa7b1cb219ffb082300f11dc8eda7e66a7f401"
+    },
+    "validation_representation": {
+      "delta_n_rule": "bilinear_uniform_no_filter_no_smoothing_no_clipping",
+      "full_chain_transverse_convergence_claimed": false,
+      "kind": "bilinear_uniform_validation_only",
+      "production_multigrid_mapping_modified": false,
+      "same_continuous_reference_used_for_20_10_5": true,
+      "scope_is_hydro_only_validation": true,
+      "validation_representation_source_is_single_frozen_real_POST": true,
+      "velocity_rule": "exact_zero_preserved"
+    }
+  },
+  "initial_state_sha256": "124e6bff9d6c535336217cfb88e83deeb7310938733d5f0824758aa95e002539",
+  "requested_dt_us": 0.125,
+  "requested_dx_um": 10.0,
+  "schema": "khz_filament.hr4e2.real_spatial_case.v1",
+  "slow_time_history_stored": false,
+  "snapshots": [
+    {
+      "M0_negative_index_m2": 6.793001372670299e-13,
+      "boundary_contaminated": false,
+      "boundary_contamination_criteria": {
+        "first_interior_ring_ratio": 5.641814147831289e-08,
+        "first_interior_ring_ratio_limit": 0.001,
+        "formal_edge_boundary_ratio": 5.803999625950249e-08,
+        "formal_edge_ratio_is_diagnostic_only": true,
+        "sigma_y_over_top_clearance": 0.01909096856976544,
+        "sigma_y_over_top_clearance_limit": 0.25
+      },
+      "boundary_contamination_reasons": [],
+      "edge_contamination_ratio": 5.803999625950249e-08,
+      "edge_metric": 5.803999625950249e-08,
+      "first_interior_ring_ratio": 5.641814147831289e-08,
+      "formal_edge_boundary_ratio": 5.803999625950249e-08,
+      "hydro_step_count": 0,
+      "max_abs_v": 0.0,
+      "max_abs_v_m_s": 0.0,
+      "max_abs_vx": 0.0,
+      "max_abs_vx_m_s": 0.0,
+      "max_abs_vy": 0.0,
+      "max_abs_vy_m_s": 0.0,
+      "max_boundary_abs_delta_n": 8.18264205686046e-12,
+      "max_delta_n": -4.009838885451688e-18,
+      "max_domain_abs_delta_n": 0.00014098281502767623,
+      "max_first_interior_ring_abs_delta_n": 7.953988404242255e-12,
+      "min_delta_n": -0.00014098281502767623,
+      "sigma_x": 2.8006363735546317e-05,
+      "sigma_x_m": 2.8006363735546317e-05,
+      "sigma_y": 3.3409194997094906e-05,
+      "sigma_y_m": 3.3409194997094906e-05,
+      "sigma_y_over_top_clearance": 0.01909096856976544,
+      "stability": {
+        "advection_CFL": 0.0,
+        "combined_number_chi": 0.10850000000000001,
+        "combined_number_nu": 0.07500000000000001,
+        "diffusion_number_chi": 0.05425000000000001,
+        "diffusion_number_nu": 0.037500000000000006,
+        "overall_pass": true,
+        "passed_advection": true,
+        "passed_combined": true,
+        "passed_combined_chi": true,
+        "passed_combined_nu": true,
+        "passed_diffusion": true,
+        "passed_diffusion_chi": true,
+        "passed_diffusion_nu": true
+      },
+      "thermal_channel_defined": true,
+      "time_s": 0.0,
+      "time_us": 0.0,
+      "top_clearance_m": 0.0017500000000002821,
+      "weight_sum": 0.006793001372670301,
+      "width_definition": "second_moment_sigma",
+      "xc": 9.423384986448916e-17,
+      "xc_m": 9.423384986448916e-17,
+      "y_max_m": 0.0025,
+      "yc": 0.000749999999999718,
+      "yc_m": 0.000749999999999718
+    },
+    {
+      "M0_negative_index_m2": 6.792974830001474e-13,
+      "boundary_contaminated": false,
+      "boundary_contamination_criteria": {
+        "first_interior_ring_ratio": 1.0501934448832568e-07,
+        "first_interior_ring_ratio_limit": 0.001,
+        "formal_edge_boundary_ratio": 0.0,
+        "formal_edge_ratio_is_diagnostic_only": true,
+        "sigma_y_over_top_clearance": 0.042207414512823824,
+        "sigma_y_over_top_clearance_limit": 0.25
+      },
+      "boundary_contamination_reasons": [],
+      "edge_contamination_ratio": 0.0,
+      "edge_metric": 0.0,
+      "first_interior_ring_ratio": 1.0501934448832568e-07,
+      "formal_edge_boundary_ratio": 0.0,
+      "hydro_step_count": 800,
+      "max_abs_v": 9.14112715114748e-05,
+      "max_abs_v_m_s": 9.14112715114748e-05,
+      "max_abs_vx": 0.0,
+      "max_abs_vx_m_s": 0.0,
+      "max_abs_vy": 9.14112715114748e-05,
+      "max_abs_vy_m_s": 9.14112715114748e-05,
+      "max_boundary_abs_delta_n": 0.0,
+      "max_delta_n": 0.0,
+      "max_domain_abs_delta_n": 2.1545021405549677e-05,
+      "max_first_interior_ring_abs_delta_n": 2.262644024997772e-12,
+      "min_delta_n": -2.1545021405549677e-05,
+      "sigma_x": 7.15774653449058e-05,
+      "sigma_x_m": 7.15774653449058e-05,
+      "sigma_y": 7.386291096196677e-05,
+      "sigma_y_m": 7.386291096196677e-05,
+      "sigma_y_over_top_clearance": 0.042207414512823824,
+      "stability": {
+        "advection_CFL": 1.142640893893435e-06,
+        "combined_number_chi": 0.1085011426408939,
+        "combined_number_nu": 0.0750011426408939,
+        "diffusion_number_chi": 0.05425000000000001,
+        "diffusion_number_nu": 0.037500000000000006,
+        "overall_pass": true,
+        "passed_advection": true,
+        "passed_combined": true,
+        "passed_combined_chi": true,
+        "passed_combined_nu": true,
+        "passed_diffusion": true,
+        "passed_diffusion_chi": true,
+        "passed_diffusion_nu": true
+      },
+      "thermal_channel_defined": true,
+      "time_s": 0.0001,
+      "time_us": 100.0,
+      "top_clearance_m": 0.0017499984733612406,
+      "weight_sum": 0.006792974830001475,
+      "width_definition": "second_moment_sigma",
+      "xc": 9.423249602206977e-17,
+      "xc_m": 9.423249602206977e-17,
+      "y_max_m": 0.0025,
+      "yc": 0.0007500015266387594,
+      "yc_m": 0.0007500015266387594
+    }
+  ],
+  "source_provenance": {
+    "screen_identity": {
+      "screen_id": "peak",
+      "screen_index": 8022,
+      "screen_z_m": 0.802249999999928
+    },
+    "source_full_state_array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+    "source_full_state_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+    "source_git_sha": "be280dc179904063425435ccf30ff0295df265af",
+    "source_grid": {
+      "Nx": 301,
+      "Ny": 351,
+      "dx_m": 1e-05,
+      "dy_m": 1e-05,
+      "grid_layout": "collocated_nodal_inclusive",
+      "x_max_m": 0.0015,
+      "x_min_m": -0.0015,
+      "y_max_m": 0.0025,
+      "y_min_m": -0.001
+    },
+    "source_manifest_path": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/post_reference_manifest.json",
+    "source_manifest_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
+    "source_post_array_sha256": "1585a60a2617d19808d1925afd4f60210db215908c878f336377ac6e89cc0f96",
+    "source_post_file_sha256": "8b9fb3bd62224a9bdbd6dbb01d5a2945ffcf30b5e181775a26a90908fb8aff02"
+  },
+  "stability": {
+    "advection_CFL": 1.142640893893435e-06,
+    "audit_count": 3,
+    "combined_number_chi": 0.1085011426408939,
+    "combined_number_nu": 0.0750011426408939,
+    "diffusion_number_chi": 0.05425000000000001,
+    "diffusion_number_nu": 0.037500000000000006,
+    "last_audit": {
+      "advection_CFL": 1.142640893893435e-06,
+      "combined_number_chi": 0.1085011426408939,
+      "combined_number_nu": 0.0750011426408939,
+      "diffusion_number_chi": 0.05425000000000001,
+      "diffusion_number_nu": 0.037500000000000006,
+      "overall_pass": true,
+      "passed_advection": true,
+      "passed_combined": true,
+      "passed_combined_chi": true,
+      "passed_combined_nu": true,
+      "passed_diffusion": true,
+      "passed_diffusion_chi": true,
+      "passed_diffusion_nu": true
+    },
+    "overall_pass": true,
+    "passed_advection": true,
+    "passed_combined": true,
+    "passed_diffusion": true
+  },
+  "status": "PASS",
+  "target_state_sha256": "124e6bff9d6c535336217cfb88e83deeb7310938733d5f0824758aa95e002539",
+  "target_velocity_sha256": {
+    "vx": "81cd6e9d91287d0f8b2a936725fa7b1cb219ffb082300f11dc8eda7e66a7f401",
+    "vy": "81cd6e9d91287d0f8b2a936725fa7b1cb219ffb082300f11dc8eda7e66a7f401"
+  },
+  "validation_representation": {
+    "delta_n_rule": "bilinear_uniform_no_filter_no_smoothing_no_clipping",
+    "full_chain_transverse_convergence_claimed": false,
+    "kind": "bilinear_uniform_validation_only",
+    "production_multigrid_mapping_modified": false,
+    "same_continuous_reference_used_for_20_10_5": true,
+    "scope_is_hydro_only_validation": true,
+    "validation_representation_source_is_single_frozen_real_POST": true,
+    "velocity_rule": "exact_zero_preserved"
+  },
+  "wall_time_s": 7.918700324022211
+}

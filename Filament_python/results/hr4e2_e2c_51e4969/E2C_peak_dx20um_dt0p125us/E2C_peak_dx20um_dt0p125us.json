@@ -1,0 +1,353 @@
+{
+  "backend": "cupy",
+  "case_id": "E2C_peak_dx20um_dt0p125us",
+  "configuration": {
+    "dt_hydro_s": 1.25e-07,
+    "execution": {
+      "backend": "cupy",
+      "dtype": "float64",
+      "git_sha": "51e4969fb8c54c3ba5272196aa767c22c587fbcc"
+    },
+    "family": "E2-C",
+    "grid": {
+      "Nx": 151,
+      "Ny": 176,
+      "dx_m": 1.9999999999999998e-05,
+      "dy_m": 1.9999999999999998e-05,
+      "grid_layout": "collocated_nodal_inclusive",
+      "x_max_m": 0.0015,
+      "x_min_m": -0.0015,
+      "y_max_m": 0.0025,
+      "y_min_m": -0.001
+    },
+    "initial_state": {
+      "analytic_definition": {
+        "amplitude": 1e-05,
+        "center_x_m": 0.0,
+        "center_y_m": 0.0,
+        "sigma_m": 8e-05
+      },
+      "delta_n_sha256": "cb518819f66af09cf4d5fcf99393d8ec582aca59269f387c7ee274673d7e4689",
+      "dtype": "float64",
+      "kind": "real_hr3b_post_validation_representation",
+      "shape": [
+        176,
+        151
+      ],
+      "source_provenance": {
+        "screen_identity": {
+          "screen_id": "peak",
+          "screen_index": 8022,
+          "screen_z_m": 0.802249999999928
+        },
+        "source_full_state_array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+        "source_full_state_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+        "source_git_sha": "be280dc179904063425435ccf30ff0295df265af",
+        "source_grid": {
+          "Nx": 301,
+          "Ny": 351,
+          "dx_m": 1e-05,
+          "dy_m": 1e-05,
+          "grid_layout": "collocated_nodal_inclusive",
+          "x_max_m": 0.0015,
+          "x_min_m": -0.0015,
+          "y_max_m": 0.0025,
+          "y_min_m": -0.001
+        },
+        "source_manifest_path": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/post_reference_manifest.json",
+        "source_manifest_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
+        "source_post_array_sha256": "1585a60a2617d19808d1925afd4f60210db215908c878f336377ac6e89cc0f96",
+        "source_post_file_sha256": "8b9fb3bd62224a9bdbd6dbb01d5a2945ffcf30b5e181775a26a90908fb8aff02"
+      },
+      "target_state_sha256": "cb518819f66af09cf4d5fcf99393d8ec582aca59269f387c7ee274673d7e4689",
+      "target_velocity_sha256": {
+        "vx": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739",
+        "vy": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739"
+      },
+      "validation_representation": {
+        "delta_n_rule": "bilinear_uniform_no_filter_no_smoothing_no_clipping",
+        "full_chain_transverse_convergence_claimed": false,
+        "kind": "bilinear_uniform_validation_only",
+        "production_multigrid_mapping_modified": false,
+        "same_continuous_reference_used_for_20_10_5": true,
+        "scope_is_hydro_only_validation": true,
+        "validation_representation_source_is_single_frozen_real_POST": true,
+        "velocity_rule": "exact_zero_preserved"
+      }
+    },
+    "operator": {
+      "advection_scheme": "first_order_upwind",
+      "boundary_delta_n": "ambient_dirichlet_zero",
+      "boundary_velocity": "open_zero_gradient_outflow_ambient_inflow",
+      "cfl_limit": 1.0,
+      "chi_m2_s": 2.17e-05,
+      "diffusion_scheme": "explicit_central_fd",
+      "gravity_x_m_s2": 0.0,
+      "gravity_y_m_s2": -9.81,
+      "n0": 1.00027,
+      "nu_m2_s": 1.5e-05,
+      "time_integrator": "explicit_euler"
+    },
+    "snapshot_times_s": [
+      0.0,
+      0.0001
+    ]
+  },
+  "configuration_sha256": "039aa4fd1ce1c2ca30936ba4a14605f1ec86b50eda7d90f3d78b2b0bfe9f986e",
+  "dtype": "float64",
+  "failure_reason": null,
+  "family": "E2-C",
+  "git_sha": "51e4969fb8c54c3ba5272196aa767c22c587fbcc",
+  "hydro_step_count": 800,
+  "initial_state": {
+    "analytic_definition": {
+      "amplitude": 1e-05,
+      "center_x_m": 0.0,
+      "center_y_m": 0.0,
+      "sigma_m": 8e-05
+    },
+    "delta_n_sha256": "cb518819f66af09cf4d5fcf99393d8ec582aca59269f387c7ee274673d7e4689",
+    "dtype": "float64",
+    "kind": "real_hr3b_post_validation_representation",
+    "shape": [
+      176,
+      151
+    ],
+    "source_provenance": {
+      "screen_identity": {
+        "screen_id": "peak",
+        "screen_index": 8022,
+        "screen_z_m": 0.802249999999928
+      },
+      "source_full_state_array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+      "source_full_state_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+      "source_git_sha": "be280dc179904063425435ccf30ff0295df265af",
+      "source_grid": {
+        "Nx": 301,
+        "Ny": 351,
+        "dx_m": 1e-05,
+        "dy_m": 1e-05,
+        "grid_layout": "collocated_nodal_inclusive",
+        "x_max_m": 0.0015,
+        "x_min_m": -0.0015,
+        "y_max_m": 0.0025,
+        "y_min_m": -0.001
+      },
+      "source_manifest_path": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/post_reference_manifest.json",
+      "source_manifest_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
+      "source_post_array_sha256": "1585a60a2617d19808d1925afd4f60210db215908c878f336377ac6e89cc0f96",
+      "source_post_file_sha256": "8b9fb3bd62224a9bdbd6dbb01d5a2945ffcf30b5e181775a26a90908fb8aff02"
+    },
+    "target_state_sha256": "cb518819f66af09cf4d5fcf99393d8ec582aca59269f387c7ee274673d7e4689",
+    "target_velocity_sha256": {
+      "vx": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739",
+      "vy": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739"
+    },
+    "validation_representation": {
+      "delta_n_rule": "bilinear_uniform_no_filter_no_smoothing_no_clipping",
+      "full_chain_transverse_convergence_claimed": false,
+      "kind": "bilinear_uniform_validation_only",
+      "production_multigrid_mapping_modified": false,
+      "same_continuous_reference_used_for_20_10_5": true,
+      "scope_is_hydro_only_validation": true,
+      "validation_representation_source_is_single_frozen_real_POST": true,
+      "velocity_rule": "exact_zero_preserved"
+    }
+  },
+  "initial_state_sha256": "cb518819f66af09cf4d5fcf99393d8ec582aca59269f387c7ee274673d7e4689",
+  "requested_dt_us": 0.125,
+  "requested_dx_um": 20.0,
+  "schema": "khz_filament.hr4e2.real_spatial_case.v1",
+  "slow_time_history_stored": false,
+  "snapshots": [
+    {
+      "M0_negative_index_m2": 6.790084418963663e-13,
+      "boundary_contaminated": false,
+      "boundary_contamination_criteria": {
+        "first_interior_ring_ratio": 5.1232020585508486e-08,
+        "first_interior_ring_ratio_limit": 0.001,
+        "formal_edge_boundary_ratio": 5.9010227785621364e-08,
+        "formal_edge_ratio_is_diagnostic_only": true,
+        "sigma_y_over_top_clearance": 0.019058124882472025,
+        "sigma_y_over_top_clearance_limit": 0.25
+      },
+      "boundary_contamination_reasons": [],
+      "edge_contamination_ratio": 5.9010227785621364e-08,
+      "edge_metric": 5.9010227785621364e-08,
+      "first_interior_ring_ratio": 5.1232020585508486e-08,
+      "formal_edge_boundary_ratio": 5.9010227785621364e-08,
+      "hydro_step_count": 0,
+      "max_abs_v": 0.0,
+      "max_abs_v_m_s": 0.0,
+      "max_abs_vx": 0.0,
+      "max_abs_vx_m_s": 0.0,
+      "max_abs_vy": 0.0,
+      "max_abs_vy_m_s": 0.0,
+      "max_boundary_abs_delta_n": 8.071671703737039e-12,
+      "max_delta_n": -4.009838885451688e-18,
+      "max_domain_abs_delta_n": 0.00013678428310869543,
+      "max_first_interior_ring_abs_delta_n": 7.007735207998705e-12,
+      "min_delta_n": -0.00013678428310869543,
+      "sigma_x": 2.8102658042746476e-05,
+      "sigma_x_m": 2.8102658042746476e-05,
+      "sigma_y": 3.335171854433149e-05,
+      "sigma_y_m": 3.335171854433149e-05,
+      "sigma_y_over_top_clearance": 0.019058124882472025,
+      "stability": {
+        "advection_CFL": 0.0,
+        "combined_number_chi": 0.027125000000000003,
+        "combined_number_nu": 0.018750000000000003,
+        "diffusion_number_chi": 0.013562500000000002,
+        "diffusion_number_nu": 0.009375000000000001,
+        "overall_pass": true,
+        "passed_advection": true,
+        "passed_combined": true,
+        "passed_combined_chi": true,
+        "passed_combined_nu": true,
+        "passed_diffusion": true,
+        "passed_diffusion_chi": true,
+        "passed_diffusion_nu": true
+      },
+      "thermal_channel_defined": true,
+      "time_s": 0.0,
+      "time_us": 0.0,
+      "top_clearance_m": 0.0017500000000002858,
+      "weight_sum": 0.001697521104740916,
+      "width_definition": "second_moment_sigma",
+      "xc": 9.527197596876604e-17,
+      "xc_m": 9.527197596876604e-17,
+      "y_max_m": 0.0025,
+      "yc": 0.0007499999999997142,
+      "yc_m": 0.0007499999999997142
+    },
+    {
+      "M0_negative_index_m2": 6.790034258866336e-13,
+      "boundary_contaminated": false,
+      "boundary_contamination_criteria": {
+        "first_interior_ring_ratio": 2.0598673693593917e-07,
+        "first_interior_ring_ratio_limit": 0.001,
+        "formal_edge_boundary_ratio": 0.0,
+        "formal_edge_ratio_is_diagnostic_only": true,
+        "sigma_y_over_top_clearance": 0.04219229005995059,
+        "sigma_y_over_top_clearance_limit": 0.25
+      },
+      "boundary_contamination_reasons": [],
+      "edge_contamination_ratio": 0.0,
+      "edge_metric": 0.0,
+      "first_interior_ring_ratio": 2.0598673693593917e-07,
+      "formal_edge_boundary_ratio": 0.0,
+      "hydro_step_count": 800,
+      "max_abs_v": 9.170738541342769e-05,
+      "max_abs_v_m_s": 9.170738541342769e-05,
+      "max_abs_vx": 0.0,
+      "max_abs_vx_m_s": 0.0,
+      "max_abs_vy": 9.170738541342769e-05,
+      "max_abs_vy_m_s": 9.170738541342769e-05,
+      "max_boundary_abs_delta_n": 0.0,
+      "max_delta_n": 0.0,
+      "max_domain_abs_delta_n": 2.1609935380353345e-05,
+      "max_first_interior_ring_abs_delta_n": 4.451360074395489e-12,
+      "min_delta_n": -2.1609935380353345e-05,
+      "sigma_x": 7.161477165369549e-05,
+      "sigma_x_m": 7.161477165369549e-05,
+      "sigma_y": 7.383644451518413e-05,
+      "sigma_y_m": 7.383644451518413e-05,
+      "sigma_y_over_top_clearance": 0.04219229005995059,
+      "stability": {
+        "advection_CFL": 5.731711588339231e-07,
+        "combined_number_chi": 0.027125573171158837,
+        "combined_number_nu": 0.018750573171158837,
+        "diffusion_number_chi": 0.013562500000000002,
+        "diffusion_number_nu": 0.009375000000000001,
+        "overall_pass": true,
+        "passed_advection": true,
+        "passed_combined": true,
+        "passed_combined_chi": true,
+        "passed_combined_nu": true,
+        "passed_diffusion": true,
+        "passed_diffusion_chi": true,
+        "passed_diffusion_nu": true
+      },
+      "thermal_channel_defined": true,
+      "time_s": 0.0001,
+      "time_us": 100.0,
+      "top_clearance_m": 0.001749998504709526,
+      "weight_sum": 0.0016975085647165842,
+      "width_definition": "second_moment_sigma",
+      "xc": 9.525685786505037e-17,
+      "xc_m": 9.525685786505037e-17,
+      "y_max_m": 0.0025,
+      "yc": 0.0007500014952904741,
+      "yc_m": 0.0007500014952904741
+    }
+  ],
+  "source_provenance": {
+    "screen_identity": {
+      "screen_id": "peak",
+      "screen_index": 8022,
+      "screen_z_m": 0.802249999999928
+    },
+    "source_full_state_array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+    "source_full_state_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+    "source_git_sha": "be280dc179904063425435ccf30ff0295df265af",
+    "source_grid": {
+      "Nx": 301,
+      "Ny": 351,
+      "dx_m": 1e-05,
+      "dy_m": 1e-05,
+      "grid_layout": "collocated_nodal_inclusive",
+      "x_max_m": 0.0015,
+      "x_min_m": -0.0015,
+      "y_max_m": 0.0025,
+      "y_min_m": -0.001
+    },
+    "source_manifest_path": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/post_reference/post_reference_manifest.json",
+    "source_manifest_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
+    "source_post_array_sha256": "1585a60a2617d19808d1925afd4f60210db215908c878f336377ac6e89cc0f96",
+    "source_post_file_sha256": "8b9fb3bd62224a9bdbd6dbb01d5a2945ffcf30b5e181775a26a90908fb8aff02"
+  },
+  "stability": {
+    "advection_CFL": 5.731711588339231e-07,
+    "audit_count": 3,
+    "combined_number_chi": 0.027125573171158837,
+    "combined_number_nu": 0.018750573171158837,
+    "diffusion_number_chi": 0.013562500000000002,
+    "diffusion_number_nu": 0.009375000000000001,
+    "last_audit": {
+      "advection_CFL": 5.731711588339231e-07,
+      "combined_number_chi": 0.027125573171158837,
+      "combined_number_nu": 0.018750573171158837,
+      "diffusion_number_chi": 0.013562500000000002,
+      "diffusion_number_nu": 0.009375000000000001,
+      "overall_pass": true,
+      "passed_advection": true,
+      "passed_combined": true,
+      "passed_combined_chi": true,
+      "passed_combined_nu": true,
+      "passed_diffusion": true,
+      "passed_diffusion_chi": true,
+      "passed_diffusion_nu": true
+    },
+    "overall_pass": true,
+    "passed_advection": true,
+    "passed_combined": true,
+    "passed_diffusion": true
+  },
+  "status": "PASS",
+  "target_state_sha256": "cb518819f66af09cf4d5fcf99393d8ec582aca59269f387c7ee274673d7e4689",
+  "target_velocity_sha256": {
+    "vx": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739",
+    "vy": "520fb51f7c394825107dd6b93850236a05431c168f461f744ac08f0b86ad4739"
+  },
+  "validation_representation": {
+    "delta_n_rule": "bilinear_uniform_no_filter_no_smoothing_no_clipping",
+    "full_chain_transverse_convergence_claimed": false,
+    "kind": "bilinear_uniform_validation_only",
+    "production_multigrid_mapping_modified": false,
+    "same_continuous_reference_used_for_20_10_5": true,
+    "scope_is_hydro_only_validation": true,
+    "validation_representation_source_is_single_frozen_real_POST": true,
+    "velocity_rule": "exact_zero_preserved"
+  },
+  "wall_time_s": 7.40508548298385
+}
