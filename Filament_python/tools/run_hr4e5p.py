@@ -12,7 +12,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 
 from KHz_filament.hr4c_state import HR4CThreeFieldStore, evolve_hr4_full_z
-from KHz_filament.hr4e3_domain import e3_geometry
+from KHz_filament.hr4e_domain import e3_geometry
 from KHz_filament.hr4e5_parallel import (
     build_screen_blocks,
     compare_store_states,
