@@ -9,6 +9,7 @@ readonly SOURCE_STATE="$SOURCE_ROOT/E1B_hr3b_source.hr3b_delta_n_th.npy"
 test "$(git -C "$REPO" rev-parse HEAD)" = "$EXPECTED_SHA"
 test -z "$(git -C "$REPO" status --porcelain=v1 --untracked-files=all)"
 test -f "$BATCH" && test -f "$SOURCE_MANIFEST" && test -f "$SOURCE_STATE" && test ! -e "$RUN_ROOT"
+"$PYTHON" "$REPO/Filament_python/tools/hpc_ops/audit_batch_entry.py" --batch "$BATCH" --fixed-python "$PYTHON" >/dev/null
 source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
 conda activate Filament_python
 export UPPE_USE_GPU=1 PYTHONPATH="$REPO/Filament_python"
