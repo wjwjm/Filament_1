@@ -91,7 +91,12 @@ def command_prepare(args: argparse.Namespace) -> int:
         raise ValueError("source manifest does not prove the accepted D0 target grid")
     indices = _parse_indices(args.screen_index)
     state_file = Path(args.source_state)
-    if sha256_file(state_file) != str(source_manifest.get("hr3b_state_file_sha256", "")):
+    expected_state_sha = str(source_manifest.get("hr3b_state_file_sha256", ""))
+    verified_sha = args.verified_source_state_file_sha256
+    if verified_sha is not None and str(verified_sha).lower() != expected_state_sha.lower():
+        raise ValueError("verified source state hash does not match source manifest")
+    observed_state_sha = expected_state_sha if verified_sha is not None else sha256_file(state_file)
+    if observed_state_sha != expected_state_sha:
         raise ValueError("source HR-3B state file hash does not match source manifest")
     source = np.load(state_file, mmap_mode="r", allow_pickle=False)
     try:
@@ -123,7 +128,7 @@ def command_prepare(args: argparse.Namespace) -> int:
     prepared = {
         "schema": "khz_filament.hr4e5p.validation_input.v1", "source_manifest": str(Path(args.source_manifest)),
         "source_manifest_sha256": sha256_file(args.source_manifest), "source_state": str(state_file),
-        "source_state_file_sha256": sha256_file(state_file), "source_state_array_sha256": source_manifest["hr3b_state_sha256"],
+        "source_state_file_sha256": observed_state_sha, "source_state_integrity": "preflight_verified_external_raw_sha256" if verified_sha is not None else "verified_during_prepare_raw_sha256", "source_state_array_sha256": source_manifest["hr3b_state_sha256"],
         "geometry": geometry, "dtype": "float64", "screen_records": records,
         "serial_state": serial_state, "parallel_state": parallel_state,
     }
@@ -204,7 +209,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     audit = sub.add_parser("audit"); audit.add_argument("--out", type=Path, required=True); audit.set_defaults(func=command_audit)
     prepare = sub.add_parser("prepare")
     prepare.add_argument("--source-manifest", type=Path, required=True); prepare.add_argument("--source-state", type=Path, required=True)
-    prepare.add_argument("--screen-index", action="append", required=True); prepare.add_argument("--out-dir", type=Path, required=True); prepare.set_defaults(func=command_prepare)
+    prepare.add_argument("--screen-index", action="append", required=True); prepare.add_argument("--out-dir", type=Path, required=True); prepare.add_argument("--verified-source-state-file-sha256"); prepare.set_defaults(func=command_prepare)
     partition = sub.add_parser("partition"); partition.add_argument("--input", type=Path, required=True); partition.add_argument("--block-size", type=int, required=True); partition.add_argument("--n-workers", type=int, required=True); partition.add_argument("--out", type=Path, required=True); partition.set_defaults(func=command_partition)
     dry = sub.add_parser("dry-run"); dry.add_argument("--n-screens", type=int, required=True); dry.add_argument("--block-size", type=int, required=True); dry.add_argument("--n-workers", type=int, required=True); dry.add_argument("--out", type=Path, required=True); dry.set_defaults(func=command_dry_run)
     serial = sub.add_parser("serial"); serial.add_argument("--state", type=Path, required=True); serial.add_argument("--out", type=Path, required=True)
