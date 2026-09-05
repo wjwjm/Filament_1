@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-readonly BASE_REPO="$1" BUNDLE="$2" EXPECTED_SHA="$3" NEW_REPO="$4" NEW_BRANCH="$5"
+readonly BASE_REPO="$1" BUNDLE="$2" EXPECTED_SHA="$3" NEW_REPO="$4" NEW_BRANCH="$5" BASE_SHA="$6"
 test -d "$BASE_REPO" && test -f "$BUNDLE" && test ! -e "$NEW_REPO"
-test "$(git -C "$BASE_REPO" rev-parse HEAD)" = "17431cf09c127a657d47dd9729f0a1d819dcd2fb"
+test "$(git -C "$BASE_REPO" rev-parse HEAD)" = "$BASE_SHA"
 test -z "$(git -C "$BASE_REPO" status --porcelain=v1 --untracked-files=all)"
 git -C "$BASE_REPO" bundle verify "$BUNDLE" >/dev/null
 git -C "$BASE_REPO" fetch "$BUNDLE" "refs/heads/HR-4E:refs/heads/$NEW_BRANCH" >/dev/null
