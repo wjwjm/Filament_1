@@ -38,6 +38,7 @@ def test_valid_p3_plan_reaches_mocked_sbatch_and_finalizes_receipt(tmp_path):
     seen = []
     result = submit_submission_plan(_plan(tmp_path), attempt_path=tmp_path / "attempt.json", receipt_path=tmp_path / "receipt.tsv", submitter=lambda command: (seen.append(command) or f"{100 + len(seen)};cluster"))
     assert len(seen) == len(P3_CASES)
+    assert [f"--ntasks={gpu_count}" in command for command, (_, gpu_count, _) in zip(seen, P3_CASES, strict=True)] == [True] * len(P3_CASES)
     assert [item["job_id"] for item in result["jobs"]] == [str(101 + index) for index in range(len(P3_CASES))]
     assert (tmp_path / "receipt.tsv").is_file()
 
@@ -81,3 +82,23 @@ def test_strict_provenance_and_frozen_screen_set_reject_mismatch(tmp_path):
 def test_shell_launcher_declares_case_name_before_deriving_its_directory():
     source = (Path(__file__).parents[1] / "tools" / "hpc_ops" / "submit_hr4e5p_p3.sh").read_text(encoding="utf-8")
     assert 'local name="$1"\n  local workers="$2"\n  local dir="$RUN_ROOT/$name"' in source
+
+
+def test_cli_wires_execution_subcommands_and_batch_interval_arguments():
+    import importlib.util
+
+    path = Path(__file__).parents[1] / "tools" / "run_hr4e5p.py"
+    spec = importlib.util.spec_from_file_location("hr4e5p_cli_dispatch_test", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    commands = {
+        "serial": ["--state", "state.json", "--out", "result.json", "--batch-intervals", "1"],
+        "worker": ["--partition", "partition.json", "--out-dir", "workers"],
+        "gather": ["--partition", "partition.json", "--worker-dir", "workers", "--out", "gather.json", "--batch-intervals", "1"],
+        "compare": ["--input", "input.json", "--serial", "serial.json", "--gather", "gather.json", "--out", "report.json"],
+    }
+    for command, arguments in commands.items():
+        seen = []
+        setattr(module, f"command_{command}", lambda args, seen=seen: (seen.append(args), 0)[1])
+        assert module.main([command, *arguments]) == 0
+        assert len(seen) == 1

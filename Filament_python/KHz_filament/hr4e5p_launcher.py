@@ -99,7 +99,7 @@ def _submission_command(plan: Mapping[str, Any], case: Mapping[str, Any]) -> lis
     state = str(case["state_json"])
     case_dir = str(Path(state).parent)
     exports = ["ALL", f"EXPECTED_GIT_SHA={plan['expected_git_sha']}", f"REPO_DIR={plan['repo']}", f"CASE_DIR={case_dir}", f"MODE={case['mode']}", f"STATE_JSON={state}", f"PARTITION_JSON={case['partition_json']}", f"GPU_COUNT={case['gpu_count']}", "N_HYDRO_STEPS=1000", "BATCH_INTERVALS=1"]
-    return ["sbatch", "--parsable", f"--job-name=e5p-{case['case_id']}", f"--gres=gpu:{case['gpu_count']}", f"--output={case_dir}/slurm-%j.out", f"--error={case_dir}/slurm-%j.err", "--export=" + ",".join(exports), str(plan["batch"])]
+    return ["sbatch", "--parsable", f"--job-name=e5p-{case['case_id']}", f"--gres=gpu:{case['gpu_count']}", f"--ntasks={case['gpu_count']}", f"--output={case_dir}/slurm-%j.out", f"--error={case_dir}/slurm-%j.err", "--export=" + ",".join(exports), str(plan["batch"])]
 
 
 def submit_submission_plan(plan: Mapping[str, Any], *, attempt_path: str | Path, receipt_path: str | Path, submitter: Callable[[Sequence[str]], str] | None = None) -> dict[str, Any]:
