@@ -16,6 +16,7 @@ source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
 conda activate Filament_python
 export UPPE_USE_GPU=1 PYTHONPATH="$REPO/Filament_python"
 mkdir -m 700 -- "$RUN_ROOT"
+cp -- "$PREFLIGHT" "$RUN_ROOT/p3_submission_preflight.json"
 "$PYTHON" - "$PREFLIGHT" "$EXPECTED_SHA" <<'PY'
 import json,sys
 preflight=json.load(open(sys.argv[1],encoding='utf-8'))
