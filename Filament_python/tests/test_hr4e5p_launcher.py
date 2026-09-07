@@ -145,3 +145,38 @@ def test_p4_async_launcher_uses_the_p4_submitter_after_preflight():
     source = (Path(__file__).parents[1] / "tools" / "hpc_ops" / "launch_hr4e5p_p4_async.sh").read_text(encoding="utf-8")
     assert 'P4_LAUNCHER="$REPO/Filament_python/tools/hpc_ops/submit_hr4e5p_p4.sh"' in source
     assert 'bash "$P4_LAUNCHER" "$REPO" "$RUN_ROOT" "$EXPECTED_SHA" "$PREFLIGHT_OUT" "$LAUNCH_MODE"' in source
+
+
+def test_p5_manifest_reuses_all_p4_screens_and_freezes_192_inputs(monkeypatch):
+    from KHz_filament import hr4e5p_p5 as p5
+    from KHz_filament.hr4e5p_launcher import P3_SOURCE_FILE_SHA256
+
+    class Store:
+        def read_authoritative_batch(self, start, stop):
+            assert stop == start + 1
+            value = np.full((1, 3, 3), float(start), dtype=np.float64)
+            return {field: value for field in ("delta_n", "vx", "vy")}
+        def close(self):
+            pass
+
+    import numpy as np
+    monkeypatch.setattr(p5, "open_store_from_spec", lambda _: Store())
+    value = {
+        "source_manifest_sha256": "manifest", "source_state_file_sha256": P3_SOURCE_FILE_SHA256,
+        "source_state_array_sha256": "array", "geometry": {"Nx": 301, "Ny": 351}, "dtype": "float64",
+        "parallel_state": {"unused": True}, "screen_records": [
+            {"ordinal": ordinal, "screen_id": f"source_index_{index:05d}", "source_index": index,
+             "z_m": float(index), "source_array_sha256": f"hash-{index}"}
+            for ordinal, index in enumerate(p5.P5_SOURCE_INDICES)
+        ],
+    }
+    result = p5.build_input_manifest(value)
+    assert len(result["screens"]) == 192 and result["block_size"] == 8
+    assert set(p5.P4_SOURCE_INDICES).issubset({row["source_index"] for row in result["screens"]})
+    assert all(row["dtype"] == "float64" for row in result["screens"])
+
+
+def test_p5_async_launcher_uses_only_the_p5_submitter():
+    source = (Path(__file__).parents[1] / "tools" / "hpc_ops" / "launch_hr4e5p_p5_async.sh").read_text(encoding="utf-8")
+    assert 'P5_LAUNCHER="$REPO/Filament_python/tools/hpc_ops/submit_hr4e5p_p5.sh"' in source
+    assert 'bash "$P5_LAUNCHER" "$REPO" "$RUN_ROOT" "$EXPECTED_SHA" "$PREFLIGHT_OUT" "$LAUNCH_MODE"' in source

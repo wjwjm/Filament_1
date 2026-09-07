@@ -26,6 +26,18 @@ if [[ -n "${P4_RESOURCE_MONITOR_OUT:-}" ]]; then
   resource_monitor_pid="$!"
   trap 'if [[ -n "${resource_monitor_pid}" ]]; then kill "${resource_monitor_pid}" 2>/dev/null || true; wait "${resource_monitor_pid}" 2>/dev/null || true; fi' EXIT
 fi
+if [[ -n "${P5_RESOURCE_MONITOR_OUT:-}" ]]; then
+  : "${CUDA_VISIBLE_DEVICES:?P5 resource monitor requires CUDA_VISIBLE_DEVICES}"
+  : > "${P5_RESOURCE_MONITOR_OUT}"
+  (
+    while true; do
+      nvidia-smi --id "${CUDA_VISIBLE_DEVICES}" --query-gpu=index,memory.used --format=csv,noheader,nounits >> "${P5_RESOURCE_MONITOR_OUT}"
+      sleep 0.2
+    done
+  ) &
+  p5_resource_monitor_pid="$!"
+  trap 'if [[ -n "${p5_resource_monitor_pid}" ]]; then kill "${p5_resource_monitor_pid}" 2>/dev/null || true; wait "${p5_resource_monitor_pid}" 2>/dev/null || true; fi' EXIT
+fi
 "${PYTHON}" -c 'from KHz_filament.device import debug_backend; assert debug_backend()["backend"] == "cupy", debug_backend()'
 if [[ "${MODE}" == "serial" ]]; then
   "${PYTHON}" "${REPO_DIR}/Filament_python/tools/run_hr4e5p.py" serial --state "${STATE_JSON}" --out "${CASE_DIR}/serial_result.json" --n-hydro-steps "${N_HYDRO_STEPS:-1000}" --batch-intervals "${BATCH_INTERVALS:-1}"
