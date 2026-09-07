@@ -22,6 +22,11 @@ from KHz_filament.hr4e5_parallel import (
     screen_independence_audit,
     store_spec,
 )
+from KHz_filament.hr4e5p_launcher import (
+    build_submission_plan,
+    submit_submission_plan,
+    validate_p3_case_payloads,
+)
 from KHz_filament.hr4e_timestep import json_safe, sha256_array, sha256_file
 
 
@@ -203,6 +208,34 @@ def command_compare(args: argparse.Namespace) -> int:
     return 0
 
 
+def _parse_named_paths(values: Sequence[str]) -> dict[str, Path]:
+    result: dict[str, Path] = {}
+    for value in values:
+        name, separator, raw_path = value.partition("=")
+        if not separator or not name or name in result:
+            raise ValueError("P3 case paths must be unique NAME=PATH values")
+        result[name] = Path(raw_path)
+    return result
+
+
+def command_validate_p3(args: argparse.Namespace) -> int:
+    _write_json(args.out, validate_p3_case_payloads(_parse_named_paths(args.case)))
+    return 0
+
+
+def command_p3_plan(args: argparse.Namespace) -> int:
+    payload = _read_json(args.payload_validation)
+    _write_json(args.out, build_submission_plan(
+        payload_validation=payload, expected_git_sha=args.expected_git_sha, repo=args.repo, batch=args.batch,
+    ))
+    return 0
+
+
+def command_submit_p3_plan(args: argparse.Namespace) -> int:
+    submit_submission_plan(_read_json(args.plan), attempt_path=args.attempt, receipt_path=args.receipt)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -216,6 +249,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     worker = sub.add_parser("worker"); worker.add_argument("--partition", type=Path, required=True); worker.add_argument("--worker-index", type=int); worker.add_argument("--out-dir", type=Path, required=True)
     gather = sub.add_parser("gather"); gather.add_argument("--partition", type=Path, required=True); gather.add_argument("--worker-dir", type=Path, required=True); gather.add_argument("--out", type=Path, required=True)
     compare = sub.add_parser("compare"); compare.add_argument("--input", type=Path, required=True); compare.add_argument("--serial", type=Path, required=True); compare.add_argument("--gather", type=Path, required=True); compare.add_argument("--out", type=Path, required=True)
+    validate_p3 = sub.add_parser("validate-p3"); validate_p3.add_argument("--case", action="append", required=True); validate_p3.add_argument("--out", type=Path, required=True); validate_p3.set_defaults(func=command_validate_p3)
+    p3_plan = sub.add_parser("p3-plan"); p3_plan.add_argument("--payload-validation", type=Path, required=True); p3_plan.add_argument("--expected-git-sha", required=True); p3_plan.add_argument("--repo", type=Path, required=True); p3_plan.add_argument("--batch", type=Path, required=True); p3_plan.add_argument("--out", type=Path, required=True); p3_plan.set_defaults(func=command_p3_plan)
+    submit_p3 = sub.add_parser("submit-p3-plan"); submit_p3.add_argument("--plan", type=Path, required=True); submit_p3.add_argument("--attempt", type=Path, required=True); submit_p3.add_argument("--receipt", type=Path, required=True); submit_p3.set_defaults(func=command_submit_p3_plan)
     for command in (serial, worker, gather):
         command.add_argument("--dt-hydro", type=float, default=1.0e-6); command.add_argument("--n-hydro-steps", type=int, default=1000)
         command.add_argument("--chi", type=float, default=21.7e-6); command.add_argument("--nu", type=float, default=1.5e-5); command.add_argument("--n0", type=float, default=1.00027)
