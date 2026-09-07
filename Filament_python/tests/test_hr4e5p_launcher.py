@@ -133,3 +133,9 @@ def test_p4_manifest_freezes_the_p3_plus_stratified_48_screen_contract(monkeypat
     assert [row["source_index"] for row in result["screens"]] == list(p4.P4_SOURCE_INDICES)
     assert set(p4.P3_INDICES).issubset({row["source_index"] for row in result["screens"]})
     assert all(row["input_delta_n_sha256"] for row in result["screens"])
+
+
+def test_p4_async_launcher_uses_the_p4_submitter_after_preflight():
+    source = (Path(__file__).parents[1] / "tools" / "hpc_ops" / "launch_hr4e5p_p4_async.sh").read_text(encoding="utf-8")
+    assert 'P4_LAUNCHER="$REPO/Filament_python/tools/hpc_ops/submit_hr4e5p_p4.sh"' in source
+    assert 'bash "$P4_LAUNCHER" "$REPO" "$RUN_ROOT" "$EXPECTED_SHA" "$PREFLIGHT_OUT" "$LAUNCH_MODE"' in source
