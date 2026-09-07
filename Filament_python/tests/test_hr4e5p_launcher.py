@@ -102,3 +102,34 @@ def test_cli_wires_execution_subcommands_and_batch_interval_arguments():
         setattr(module, f"command_{command}", lambda args, seen=seen: (seen.append(args), 0)[1])
         assert module.main([command, *arguments]) == 0
         assert len(seen) == 1
+
+
+def test_p4_manifest_freezes_the_p3_plus_stratified_48_screen_contract(monkeypatch):
+    from KHz_filament import hr4e5p_p4 as p4
+    from KHz_filament.hr4e5p_launcher import P3_SOURCE_FILE_SHA256
+
+    class Store:
+        def read_authoritative_batch(self, start, stop):
+            assert stop == start + 1
+            payload = np.full((1, 3, 3), float(start), dtype=np.float64)
+            return {field: payload for field in ("delta_n", "vx", "vy")}
+        def close(self):
+            pass
+
+    import numpy as np
+    monkeypatch.setattr(p4, "open_store_from_spec", lambda _: Store())
+    input_value = {
+        "source_state_file_sha256": P3_SOURCE_FILE_SHA256, "source_state_array_sha256": "array",
+        "source_manifest_sha256": "manifest", "dtype": "float64", "geometry": {"Nx": 301, "Ny": 351},
+        "parallel_state": {"unused": True},
+        "screen_records": [
+            {"ordinal": ordinal, "screen_id": f"source_index_{index:05d}", "source_index": index,
+             "z_m": float(index), "source_array_sha256": f"hash-{index}"}
+            for ordinal, index in enumerate(p4.P4_SOURCE_INDICES)
+        ],
+    }
+    result = p4.build_input_manifest(input_value)
+    assert len(result["screens"]) == 48
+    assert [row["source_index"] for row in result["screens"]] == list(p4.P4_SOURCE_INDICES)
+    assert set(p4.P3_INDICES).issubset({row["source_index"] for row in result["screens"]})
+    assert all(row["input_delta_n_sha256"] for row in result["screens"])

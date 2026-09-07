@@ -27,6 +27,7 @@ from KHz_filament.hr4e5p_launcher import (
     submit_submission_plan,
     validate_p3_case_payloads,
 )
+from KHz_filament.hr4e5p_p4 import finalize_p4, write_input_manifest
 from KHz_filament.hr4e_timestep import json_safe, sha256_array, sha256_file
 
 
@@ -236,6 +237,16 @@ def command_submit_p3_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_p4_manifest(args: argparse.Namespace) -> int:
+    write_input_manifest(args.input, args.out_json, args.out_csv)
+    return 0
+
+
+def command_p4_finalize(args: argparse.Namespace) -> int:
+    finalize_p4(args.root, args.manifest, args.receipt)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -252,6 +263,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     validate_p3 = sub.add_parser("validate-p3"); validate_p3.add_argument("--case", action="append", required=True); validate_p3.add_argument("--out", type=Path, required=True); validate_p3.set_defaults(func=command_validate_p3)
     p3_plan = sub.add_parser("p3-plan"); p3_plan.add_argument("--payload-validation", type=Path, required=True); p3_plan.add_argument("--expected-git-sha", required=True); p3_plan.add_argument("--repo", type=Path, required=True); p3_plan.add_argument("--batch", type=Path, required=True); p3_plan.add_argument("--out", type=Path, required=True); p3_plan.set_defaults(func=command_p3_plan)
     submit_p3 = sub.add_parser("submit-p3-plan"); submit_p3.add_argument("--plan", type=Path, required=True); submit_p3.add_argument("--attempt", type=Path, required=True); submit_p3.add_argument("--receipt", type=Path, required=True); submit_p3.set_defaults(func=command_submit_p3_plan)
+    p4_manifest = sub.add_parser("p4-manifest"); p4_manifest.add_argument("--input", type=Path, required=True); p4_manifest.add_argument("--out-json", type=Path, required=True); p4_manifest.add_argument("--out-csv", type=Path, required=True); p4_manifest.set_defaults(func=command_p4_manifest)
+    p4_finalize = sub.add_parser("p4-finalize"); p4_finalize.add_argument("--root", type=Path, required=True); p4_finalize.add_argument("--manifest", type=Path, required=True); p4_finalize.add_argument("--receipt", type=Path, required=True); p4_finalize.set_defaults(func=command_p4_finalize)
     for command in (serial, worker, gather):
         command.add_argument("--dt-hydro", type=float, default=1.0e-6); command.add_argument("--n-hydro-steps", type=int, default=1000)
         command.add_argument("--chi", type=float, default=21.7e-6); command.add_argument("--nu", type=float, default=1.5e-5); command.add_argument("--n0", type=float, default=1.00027)
