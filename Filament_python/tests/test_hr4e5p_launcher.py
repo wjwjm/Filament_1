@@ -133,6 +133,12 @@ def test_p4_manifest_freezes_the_p3_plus_stratified_48_screen_contract(monkeypat
     assert [row["source_index"] for row in result["screens"]] == list(p4.P4_SOURCE_INDICES)
     assert set(p4.P3_INDICES).issubset({row["source_index"] for row in result["screens"]})
     assert all(row["input_delta_n_sha256"] for row in result["screens"])
+    contract = p4.frozen_input_contract(result)
+    assert len(contract) == 48
+    altered = dict(result); altered["screens"] = [dict(row) for row in result["screens"]]
+    altered["screens"][0]["input_vx_sha256"] = "bad"
+    with pytest.raises(ValueError, match="per-field"):
+        p4.frozen_input_contract(altered)
 
 
 def test_p4_async_launcher_uses_the_p4_submitter_after_preflight():

@@ -125,7 +125,33 @@ def _input_hashes(case_dir: Path) -> dict[tuple[int, str], dict[str, str]]:
     return result
 
 
-def _load_case(root: Path, block_size: int, repetition: int, receipt: Mapping[str, str]) -> dict[str, Any]:
+def frozen_input_contract(manifest: Mapping[str, Any]) -> dict[tuple[int, str], dict[str, Any]]:
+    """Validate and index the immutable P4 manifest at field-hash granularity."""
+    screens = manifest.get("screens")
+    if not isinstance(screens, list) or len(screens) != 48:
+        raise ValueError("P4 frozen input manifest lacks exactly 48 screens")
+    result: dict[tuple[int, str], dict[str, Any]] = {}
+    for expected_ordinal, item in enumerate(screens):
+        key = (int(item.get("ordinal", -1)), str(item.get("screen_id", "")))
+        if key[0] != expected_ordinal or not key[1] or key in result:
+            raise ValueError("P4 frozen input manifest has non-deterministic screen identity")
+        hashes = {
+            "delta_n": str(item.get("input_delta_n_sha256", "")),
+            "vx": str(item.get("input_vx_sha256", "")),
+            "vy": str(item.get("input_vy_sha256", "")),
+        }
+        if any(len(value) != 64 for value in hashes.values()):
+            raise ValueError("P4 frozen input manifest lacks canonical per-field input hashes")
+        result[key] = {
+            "source_index": int(item.get("source_index", -1)), "z_m": float(item.get("z_m")),
+            "source_array_sha256": str(item.get("source_array_sha256", "")), "hashes": hashes,
+        }
+    if tuple(value["source_index"] for value in result.values()) != P4_SOURCE_INDICES:
+        raise ValueError("P4 frozen input manifest source order is invalid")
+    return result
+
+
+def _load_case(root: Path, block_size: int, repetition: int, receipt: Mapping[str, str], frozen_inputs: Mapping[tuple[int, str], Mapping[str, Any]]) -> dict[str, Any]:
     case_id = p4_case_id(block_size, repetition)
     directory = root / case_id
     required = (directory / "validation_input.json", directory / "partition.json", directory / "worker_0000.json", directory / "gather_result.json")
@@ -137,6 +163,13 @@ def _load_case(root: Path, block_size: int, repetition: int, receipt: Mapping[st
     records = validation.get("screen_records", [])
     if len(records) != 48 or tuple(int(item["source_index"]) for item in records) != P4_SOURCE_INDICES:
         raise ValueError("P4 case input manifest differs from frozen 48 screens")
+    record_keys = [(int(item["ordinal"]), str(item["screen_id"])) for item in records]
+    if set(record_keys) != set(frozen_inputs) or record_keys != list(frozen_inputs):
+        raise ValueError("P4 case screen identity differs from the frozen input manifest")
+    for item, key in zip(records, record_keys, strict=True):
+        expected = frozen_inputs[key]
+        if int(item["source_index"]) != expected["source_index"] or float(item["z_m"]) != expected["z_m"] or str(item["source_array_sha256"]) != expected["source_array_sha256"]:
+            raise ValueError("P4 case source identity differs from the frozen input manifest")
     if gather.get("status") != "PASS" or int(gather.get("n_screens", -1)) != 48:
         raise ValueError("P4 gather did not complete all 48 screens")
     if str(validation.get("source_state_file_sha256", "")) != P3_SOURCE_FILE_SHA256:
@@ -153,12 +186,16 @@ def _load_case(root: Path, block_size: int, repetition: int, receipt: Mapping[st
     timings = [float(item["walltime_s"]) for item in outputs]
     if len(outputs) != 48 // block_size or len(worker.get("screen_timings", [])) != 48:
         raise ValueError("P4 worker block or screen timing count is invalid")
+    input_hashes = _input_hashes(directory)
+    if set(input_hashes) != set(frozen_inputs) or any(input_hashes[key] != frozen_inputs[key]["hashes"] for key in frozen_inputs):
+        raise ValueError("P4 worker input hashes differ from the frozen input manifest")
     memory = dict(worker.get("memory", {}))
     worker_time = float(worker["walltime_s"]); gather_time = float(gather["walltime_s"])
     return {
         "case_id": case_id, "block_size": block_size, "repetition": repetition, "job_id": receipt[case_id],
         "directory": str(directory), "validation": validation, "gather": gather, "worker": worker,
-        "input_hashes": _input_hashes(directory), "executor_walltime_s": worker_time + gather_time,
+        "validation_input_sha256": sha256_file(required[0]), "gather_result_sha256": sha256_file(required[3]),
+        "input_hashes": input_hashes, "input_provenance_status": "PASS", "executor_walltime_s": worker_time + gather_time,
         "scientific_execution_time_s": worker_time, "gather_time_s": gather_time, "screens_per_s": 48.0 / worker_time,
         "seconds_per_screen": worker_time / 48.0, "n_blocks": len(outputs),
         "first_block_time_s": timings[0], "median_block_time_s": statistics.median(timings),
@@ -183,20 +220,28 @@ def _comparison(reference: Mapping[str, Any], candidate: Mapping[str, Any]) -> t
         reference_state=reference["gather"]["output_state"], candidate_state=candidate["gather"]["output_state"],
         records=reference["validation"]["screen_records"],
     )
-    input_equal = reference["input_hashes"] == candidate["input_hashes"]
+    input_equal = reference["input_hashes"] == candidate["input_hashes"] and reference["input_provenance_status"] == candidate["input_provenance_status"] == "PASS"
+    reference_shape, candidate_shape = list(reference["gather"]["output_state"]["shape"]), list(candidate["gather"]["output_state"]["shape"])
+    reference_dtype, candidate_dtype = str(reference["gather"]["output_state"]["dtype"]), str(candidate["gather"]["output_state"]["dtype"])
     rows: list[dict[str, Any]] = []
     for screen in report["screens"]:
         for field, comparison in screen["fields"].items():
             rows.append({
+                "reference_job_id": reference["job_id"], "candidate_job_id": candidate["job_id"],
                 "reference_case_id": reference["case_id"], "candidate_case_id": candidate["case_id"],
+                "candidate_block_size": candidate["block_size"], "candidate_repeat_index": candidate["repetition"],
                 "ordinal": screen["ordinal"], "screen_id": screen["screen_id"], "field": field,
+                "reference_shape": reference_shape, "candidate_shape": candidate_shape, "reference_dtype": reference_dtype, "candidate_dtype": candidate_dtype,
                 "shape_equal": comparison["shape_equal"], "dtype_equal": comparison["dtype_equal"],
-                "input_hash_equal": input_equal, "canonical_output_hash_equal": comparison.get("reference_sha256") == comparison.get("candidate_sha256"),
+                "input_provenance_status": "PASS" if input_equal else "FAIL", "input_hash_equal": input_equal,
+                "canonical_hash_equal": comparison.get("reference_sha256") == comparison.get("candidate_sha256"),
                 "array_equal": comparison["exact_equal"], "reference_sha256": comparison.get("reference_sha256"),
                 "candidate_sha256": comparison.get("candidate_sha256"), "differing_elements": comparison.get("differing_elements"),
+                "final_field_status": "PASS" if input_equal and comparison["shape_equal"] and comparison["dtype_equal"] and comparison["exact_equal"] and comparison.get("reference_sha256") == comparison.get("candidate_sha256") else "FAIL",
+                "mismatch_reason": "" if input_equal and comparison["shape_equal"] and comparison["dtype_equal"] and comparison["exact_equal"] and comparison.get("reference_sha256") == comparison.get("candidate_sha256") else "exact_comparison_or_input_provenance_mismatch",
             })
-    exact = bool(report["exact_equal"]) and input_equal and all(row["canonical_output_hash_equal"] for row in rows)
-    return {"candidate_case_id": candidate["case_id"], "exact_equal": exact, "raw_comparison": report}, rows
+    exact = bool(report["exact_equal"]) and input_equal and all(row["final_field_status"] == "PASS" for row in rows)
+    return {"candidate_case_id": candidate["case_id"], "candidate_job_id": candidate["job_id"], "comparisons_expected": 144, "comparisons_completed": len(rows), "array_equal_pass_count": sum(bool(row["array_equal"]) for row in rows), "canonical_hash_pass_count": sum(bool(row["canonical_hash_equal"]) for row in rows), "mismatch_count": sum(row["final_field_status"] != "PASS" for row in rows), "missing_artifact_count": 0, "provenance_mismatch_count": sum(not bool(row["input_hash_equal"]) for row in rows), "exact_equal": exact, "raw_comparison": report}, rows
 
 
 def finalize_p4(root_path: str | Path, manifest_path: str | Path, receipt_path: str | Path) -> dict[str, Any]:
@@ -204,7 +249,15 @@ def finalize_p4(root_path: str | Path, manifest_path: str | Path, receipt_path: 
     root = Path(root_path); manifest = _read_json(manifest_path); receipt = _receipt(Path(receipt_path))
     if manifest.get("schema") != "khz_filament.hr4e5p.p4_input_manifest.v1" or len(manifest.get("screens", [])) != 48:
         raise ValueError("P4 input manifest is invalid")
-    cases = [_load_case(root, block, repeat, receipt) for block in P4_BLOCK_SIZES for repeat in P4_REPETITIONS]
+    frozen_inputs = frozen_input_contract(manifest)
+    cases = [_load_case(root, block, repeat, receipt, frozen_inputs) for block in P4_BLOCK_SIZES for repeat in P4_REPETITIONS]
+    for case in cases:
+        validation = case["validation"]
+        if validation.get("dtype") != manifest.get("dtype") or validation.get("geometry") != manifest.get("geometry"):
+            raise ValueError("P4 case grid or dtype differs from the frozen input manifest")
+        for key in ("source_manifest_sha256", "source_state_file_sha256", "source_state_array_sha256"):
+            if validation.get(key) != manifest.get(key):
+                raise ValueError("P4 case source provenance differs from the frozen input manifest")
     reference = next(case for case in cases if case["case_id"] == p4_case_id(1, 1))
     equivalence, flattened = [], []
     for case in cases:
@@ -212,6 +265,8 @@ def finalize_p4(root_path: str | Path, manifest_path: str | Path, receipt_path: 
             continue
         report, rows = _comparison(reference, case)
         equivalence.append(report); flattened.extend(rows)
+    if len(flattened) != 1584:
+        raise RuntimeError("P4 adjudication did not produce the required 1584 field comparisons")
     if not all(item["exact_equal"] for item in equivalence):
         raise RuntimeError("P4_BLOCK_SIZE_EQUIVALENCE_FAIL")
     timing_rows = [{key: case[key] for key in (
@@ -238,14 +293,21 @@ def finalize_p4(root_path: str | Path, manifest_path: str | Path, receipt_path: 
     for row in summaries:
         row["relative_throughput_vs_block_1"] = row["median_screens_per_s"] / baseline
         row["within_95_percent_of_best"] = row in plateau
-    _write_json(root / "p4_run_manifest.json", {"schema": "khz_filament.hr4e5p.p4_run_manifest.v1", "input_manifest_sha256": sha256_file(manifest_path), "receipt": receipt, "runs": timing_rows})
+    run_manifest = {"schema": "khz_filament.hr4e5p.p4_run_manifest.v1", "input_manifest_sha256": sha256_file(manifest_path), "receipt": receipt, "runs": timing_rows}
+    _write_json(root / "p4_run_manifest.json", run_manifest)
     _write_json(root / "p4_timing_results.json", {"schema": "khz_filament.hr4e5p.p4_timing.v1", "runs": timing_rows}); _write_csv(root / "p4_timing_results.csv", timing_rows, tuple(timing_rows[0]))
     _write_json(root / "p4_resource_results.json", {"schema": "khz_filament.hr4e5p.p4_resource.v1", "runs": resource_rows}); _write_csv(root / "p4_resource_results.csv", resource_rows, tuple(resource_rows[0]))
-    _write_json(root / "p4_equivalence_results.json", {"schema": "khz_filament.hr4e5p.p4_equivalence.v1", "reference_case_id": reference["case_id"], "comparisons": equivalence, "field_comparisons": flattened})
+    equivalence_payload = {"schema": "khz_filament.hr4e5p.p4_exact_equivalence.v1", "reference": {"case_id": reference["case_id"], "job_id": reference["job_id"], "block_size": reference["block_size"], "repeat_index": reference["repetition"], "output_directory": reference["directory"], "run_manifest_sha256": sha256_file(root / "p4_run_manifest.json"), "validation_input_sha256": reference["validation_input_sha256"], "gather_result_sha256": reference["gather_result_sha256"]}, "comparisons": equivalence, "field_comparisons": flattened}
+    _write_json(root / "p4_exact_equivalence_results.json", equivalence_payload)
+    _write_csv(root / "p4_exact_equivalence_results.csv", flattened, tuple(flattened[0]))
+    _write_json(root / "p4_equivalence_results.json", equivalence_payload)
     _write_csv(root / "p4_equivalence_results.csv", flattened, tuple(flattened[0]))
+    exact_summary = {"schema": "khz_filament.hr4e5p.p4_exact_equivalence_summary.v1", "canonical_reference": equivalence_payload["reference"], "compared_run_count": len(equivalence), "expected_comparison_count": 1584, "completed_comparison_count": len(flattened), "shape_mismatch_count": sum(not bool(row["shape_equal"]) for row in flattened), "dtype_mismatch_count": sum(not bool(row["dtype_equal"]) for row in flattened), "canonical_hash_mismatch_count": sum(not bool(row["canonical_hash_equal"]) for row in flattened), "array_mismatch_count": sum(not bool(row["array_equal"]) for row in flattened), "provenance_mismatch_count": sum(not bool(row["input_hash_equal"]) for row in flattened), "missing_or_corrupt_artifact_count": 0, "status": "PASS"}
+    _write_json(root / "p4_exact_equivalence_summary.json", exact_summary)
     _write_csv(root / "p4_block_scaling_summary.csv", summaries, tuple(summaries[0]))
-    decision = {"schema": "khz_filament.hr4e5p.p4_final_decision.v1", "decision": "HR-4E-5P-P4 = CLOSED / SINGLE_GPU_BLOCK_SCALING_PASS", "candidate_block_size": candidate, "best_median_screens_per_s": best, "plateau_threshold_screens_per_s": 0.95 * best, "plateau_block_sizes": [row["block_size"] for row in plateau], "exact_field_comparisons": len(flattened), "mismatch_count": 0, "p5_started": False}
+    preflight = _read_json(root / "p4_submission_preflight.json")
+    decision = {"schema": "khz_filament.hr4e5p.p4_final_decision.v1", "decision": "HR-4E-5P-P4 = CLOSED / SINGLE_GPU_BLOCK_SCALING_PASS", "p4_status": "CLOSED / SINGLE_GPU_BLOCK_SCALING_PASS", "code_sha": preflight["git_sha"], "frozen_input_manifest_sha256": sha256_file(manifest_path), "canonical_reference": equivalence_payload["reference"], "compared_run_count": len(equivalence), "expected_comparison_count": 1584, "completed_comparison_count": len(flattened), "shape_mismatch_count": 0, "dtype_mismatch_count": 0, "canonical_hash_mismatch_count": 0, "array_mismatch_count": 0, "provenance_mismatch_count": 0, "candidate_block_size": candidate, "selection_rationale": "smallest tested block size within 95 percent of the best median throughput after exact-equivalence PASS", "best_median_screens_per_s": best, "plateau_threshold_screens_per_s": 0.95 * best, "plateau_block_sizes": [row["block_size"] for row in plateau], "p5_status": "PENDING", "p5_started": False}
     _write_json(root / "p4_final_decision.json", decision)
     table = "\n".join(f"| {row['block_size']} | {row['median_scientific_execution_time_s']:.3f} | {row['median_screens_per_s']:.4f} | {row['relative_throughput_vs_block_1']:.3f} | {row['max_gpu_peak_memory_bytes']} |" for row in summaries)
-    (root / "HR4E5P_P4_CLOSEOUT.md").write_text("# HR-4E-5P P4 Closeout\n\n**HR-4E-5P-P4 = CLOSED / SINGLE_GPU_BLOCK_SCALING_PASS**\n\nP3 prerequisite: `EXACT_EQUIVALENCE_PASS`; P4 used the fixed 48-screen manifest and two one-GPU runs per block size.\n\n| block | median scientific s | screens/s | relative to block 1 | peak GPU bytes |\n|---:|---:|---:|---:|---:|\n" + table + f"\n\nSelected block size: **{candidate}** (smallest within 95% of best median throughput).\n\nExact field comparisons: {len(flattened)}; mismatches: 0. P5 was not run.\n", encoding="utf-8", newline="\n")
+    (root / "HR4E5P_P4_CLOSEOUT.md").write_text("# HR-4E-5P P4 Closeout\n\n**HR-4E-5P-P4 = CLOSED / SINGLE_GPU_BLOCK_SCALING_PASS**\n\nP3 prerequisite: `EXACT_EQUIVALENCE_PASS`; P4 used the fixed 48-screen manifest and two one-GPU runs per block size.\n\n| block | median scientific s | screens/s | relative to block 1 | peak GPU bytes |\n|---:|---:|---:|---:|---:|\n" + table + f"\n\nCanonical reference: `{reference['case_id']}` / Slurm `{reference['job_id']}`.\n\nExact field comparisons: {len(flattened)} / 1584; shape, dtype, canonical-hash and array mismatches: 0.\n\nSelected block size: **{candidate}** (smallest within 95% of best median throughput). P5 was not run.\n", encoding="utf-8", newline="\n")
     return decision
