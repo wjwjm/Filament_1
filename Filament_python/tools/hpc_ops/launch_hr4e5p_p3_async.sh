@@ -9,6 +9,7 @@ readonly PYTHON="/data/home/scvi806/.conda/envs/Filament_python/bin/python"
 readonly PREFLIGHT_RUNNER="$REPO/Filament_python/tools/hpc_ops/run_hr4e5p_preflight.sh"
 readonly P3_LAUNCHER="$REPO/Filament_python/tools/hpc_ops/submit_hr4e5p_p3.sh"
 readonly STATUS="${PREFLIGHT_OUT%.json}_async_status.json"
+readonly ASYNC_DIR="$(dirname -- "$PREFLIGHT_OUT")"
 readonly PREFLIGHT_STDOUT="${PREFLIGHT_OUT%.json}_preflight.stdout"
 readonly PREFLIGHT_STDERR="${PREFLIGHT_OUT%.json}_preflight.stderr"
 readonly LAUNCHER_STDOUT="${PREFLIGHT_OUT%.json}_launcher.stdout"
@@ -17,8 +18,9 @@ readonly LAUNCHER_STDERR="${PREFLIGHT_OUT%.json}_launcher.stderr"
 test "$(git -C "$REPO" rev-parse HEAD)" = "$EXPECTED_SHA"
 test -z "$(git -C "$REPO" status --porcelain=v1 --untracked-files=all)"
 test -x "$PYTHON" && test -f "$PREFLIGHT_RUNNER" && test -f "$P3_LAUNCHER"
-test ! -e "$RUN_ROOT" && test ! -e "$PREFLIGHT_OUT" && test ! -e "$STATUS"
+test ! -e "$RUN_ROOT" && test ! -e "$ASYNC_DIR"
 case "$LAUNCH_MODE" in submit|no-submit) ;; *) exit 64 ;; esac
+mkdir -m 700 -- "$ASYNC_DIR"
 
 write_status() {
   "$PYTHON" - "$STATUS" "$1" "$2" "$3" <<'PY'
@@ -55,9 +57,7 @@ PY
   bash "$P3_LAUNCHER" "$REPO" "$RUN_ROOT" "$EXPECTED_SHA" "$PREFLIGHT_OUT" "$LAUNCH_MODE" >"$LAUNCHER_STDOUT" 2>"$LAUNCHER_STDERR"
   launcher_rc=$?
   if [[ "$launcher_rc" == 0 ]]; then write_status COMPLETED launcher 0; else write_status FAILED launcher "$launcher_rc"; fi
-  if [[ -d "$RUN_ROOT" ]]; then
-    cp -- "$STATUS" "$PREFLIGHT_STDOUT" "$PREFLIGHT_STDERR" "$LAUNCHER_STDOUT" "$LAUNCHER_STDERR" "$RUN_ROOT/"
-  fi
+  if [[ -d "$RUN_ROOT" ]]; then cp -- "$ASYNC_DIR"/* "$RUN_ROOT/"; fi
   exit 0
 ) </dev/null >/dev/null 2>&1 &
 child_pid=$!
