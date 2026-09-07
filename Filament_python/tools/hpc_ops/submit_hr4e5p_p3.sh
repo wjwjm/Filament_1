@@ -31,7 +31,9 @@ P3_NAMES=(p3_serial p3_parallel_g1 p3_parallel_g2 p3_parallel_g4 p3_parallel_g7)
 P3_GPUS=(1 1 2 4 7)
 P3_MODES=(serial parallel parallel parallel parallel)
 prepare_case() {
-  local name="$1" workers="$2" dir="$RUN_ROOT/$name"
+  local name="$1"
+  local workers="$2"
+  local dir="$RUN_ROOT/$name"
   "$PYTHON" "$REPO/Filament_python/tools/run_hr4e5p.py" prepare --source-manifest "$SOURCE_MANIFEST" --source-state "$SOURCE_STATE" --verified-source-state-file-sha256 70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467 --screen-index "$P3_INDICES" --out-dir "$dir"
   "$PYTHON" "$REPO/Filament_python/tools/run_hr4e5p.py" partition --input "$dir/validation_input.json" --block-size 4 --n-workers "$workers" --out "$dir/partition.json"
 }

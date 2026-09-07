@@ -76,3 +76,8 @@ def test_strict_provenance_and_frozen_screen_set_reject_mismatch(tmp_path):
     path.write_text(json.dumps(value), encoding="utf-8")
     with pytest.raises(ValueError, match="identity/order"):
         validate_p3_case_payloads(cases)
+
+
+def test_shell_launcher_declares_case_name_before_deriving_its_directory():
+    source = (Path(__file__).parents[1] / "tools" / "hpc_ops" / "submit_hr4e5p_p3.sh").read_text(encoding="utf-8")
+    assert 'local name="$1"\n  local workers="$2"\n  local dir="$RUN_ROOT/$name"' in source
