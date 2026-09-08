@@ -247,11 +247,14 @@ def propagate_one_pulse(
     thermal_slow_state=None,
     hr3b_parameters=None,
     hr3b_sink=None,
+    post_commit_hook=None,
 ):
     """极简稳定版：固定一步只做一次安全缩步（可选近焦加密），标准 Strang 分裂。
        产出统一的 diag 契约（见函数尾部）。"""
     import time
     import numpy as _np
+    if post_commit_hook is not None and not callable(post_commit_hook):
+        raise TypeError("post_commit_hook must be callable or None")
 
     # ---------- dtype ----------
     ctype = E.dtype
@@ -1199,6 +1202,17 @@ def propagate_one_pulse(
                     interval.index,
                     hr3b_interval["delta_n_increment"],
                     state_after,
+                )
+            # S2 infrastructure hook: this is the first point at which the
+            # interval POST source exists and later optical steps cannot alter
+            # it.  Pass an owned host copy only; the hook cannot alias or
+            # mutate the optical field, deposition maps, ledger, or CURRENT.
+            if post_commit_hook is not None:
+                post_commit_hook(
+                    interval=interval,
+                    state_after=_np.asarray(to_cpu(state_after), dtype=_np.float64).copy(),
+                    hr3a_authoritative=bool(thermal_interval["authoritative"]),
+                    hr3b_authoritative=bool(hr3b_interval["authoritative"]),
                 )
             del hr3b_interval
 
