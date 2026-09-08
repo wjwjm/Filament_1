@@ -7,15 +7,19 @@
 set -euo pipefail
 
 readonly PYTHON=/data/home/scvi806/.conda/envs/Filament_python/bin/python
-: "${EXPECTED_GIT_SHA:?}" "${REPO_DIR:?}" "${RUN_ROOT:?}" "${MODE:?}" "${INPUT_MANIFEST:?}"
+: "${EXPECTED_GIT_SHA:?}" "${REPO_DIR:?}" "${RUN_ROOT:?}" "${LUT_WORKSPACE:?}" "${MODE:?}" "${INPUT_MANIFEST:?}"
 test "$(git -C "$REPO_DIR" rev-parse HEAD)" = "$EXPECTED_GIT_SHA"
 test -z "$(git -C "$REPO_DIR" status --porcelain=v1 --untracked-files=all)"
 test -f "$INPUT_MANIFEST"
+test "$LUT_WORKSPACE" = "$RUN_ROOT/lut_workspace"
+test -d "$LUT_WORKSPACE" && test -w "$LUT_WORKSPACE"
+test "$(stat -c '%a' "$LUT_WORKSPACE")" = 700
 source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
 conda activate Filament_python
 export UPPE_USE_GPU=1 PYTHONPATH="$REPO_DIR/Filament_python" PYTHONUNBUFFERED=1
 export PYTHONPYCACHEPREFIX="$RUN_ROOT/pycache" CUPY_CACHE_DIR="$RUN_ROOT/cupy_cache" XDG_CACHE_HOME="$RUN_ROOT/xdg_cache"
 export OMP_NUM_THREADS="$SLURM_CPUS_PER_TASK" OPENBLAS_NUM_THREADS="$SLURM_CPUS_PER_TASK" MKL_NUM_THREADS="$SLURM_CPUS_PER_TASK"
+cd "$LUT_WORKSPACE"
 test "$("$PYTHON" -c 'from KHz_filament.device import debug_backend; print(debug_backend()["backend"])')" = cupy
 
 case "$MODE" in

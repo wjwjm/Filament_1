@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 
@@ -53,3 +54,18 @@ def test_s3_exact_comparison_covers_all_48_screen_scientific_fields(tmp_path):
     result = compare_exact(input_manifest_path=input_path, batch_optical_dir=batch_optical, batch_hydro_dir=batch_hydro, streaming_optical_dir=stream_optical, streaming_root=tmp_path / "stream", out_dir=tmp_path / "comparison")
     assert result["status"] == "PASS"
     assert result["expected_field_comparisons"] == result["completed_field_comparisons"] == 432
+
+
+def test_s3_launcher_preflights_the_private_lut_workspace_and_submits_in_two_phases():
+    root = Path(__file__).resolve().parents[1]
+    batch = (root / "tools" / "hr4e5s_s3.sbatch").read_text(encoding="utf-8")
+    preflight = (root / "tools" / "hpc_ops" / "run_hr4e5s_s3_preflight.sh").read_text(encoding="utf-8")
+    submit = (root / "tools" / "hpc_ops" / "submit_hr4e5s_s3.sh").read_text(encoding="utf-8")
+
+    assert 'readonly LUT_WORKSPACE="$RUN_ROOT/lut_workspace"' in preflight
+    assert "audit_hr4e5s_s3_lut_workspace.py" in preflight
+    assert 'cd "$LUT_WORKSPACE"' in batch
+    assert "LUT_WORKSPACE=$RUN_ROOT/lut_workspace" in submit
+    assert 'case "$SUBMIT_PHASE" in' in submit
+    assert "afterok:" not in submit
+    assert "sacct -j" in submit
