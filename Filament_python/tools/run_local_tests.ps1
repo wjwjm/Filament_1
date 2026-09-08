@@ -41,6 +41,7 @@ $targetedTests = @(
     (Join-Path $filamentPythonRoot 'tests\test_hr4e4_reduced_limits.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5_parallel.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5s_streaming.py'),
+    (Join-Path $filamentPythonRoot 'tests\test_hr4e5s_s3.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5p_launcher.py'),
     (Join-Path $filamentPythonRoot 'tests\test_runner_multipulse_orchestration.py'),
     (Join-Path $filamentPythonRoot 'tests\test_phase8b_raman_diagnostics.py'),
