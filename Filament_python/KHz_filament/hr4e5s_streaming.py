@@ -255,7 +255,7 @@ class StreamingLifecycle:
             lifecycle_records.append({
                 "ordinal": entry["ordinal"], "screen_id": entry["screen_id"], "z_m": entry["z_m"],
                 "state": "CURRENT_READY", "retry_count": 0, "current": entry, "post": None, "next": None,
-                "transitions": [{"state": "CURRENT_READY", "timestamp_utc": _utc(), "actor": actor, "ordinal": entry["ordinal"], "screen_id": entry["screen_id"], "current_generation": str(current_generation), "current_content_sha256": current_content_sha, "source_file_sha256": entry["file_sha256"]}],
+                "transitions": [{"state": "CURRENT_READY", "status": "PASS", "timestamp_utc": _utc(), "actor": actor, "ordinal": entry["ordinal"], "screen_id": entry["screen_id"], "current_generation": str(current_generation), "next_generation": str(current_generation) + ":next", "retry_count": 0, "current_content_sha256": current_content_sha, "source_file_sha256": entry["file_sha256"], "output_file_sha256": entry["file_sha256"]}],
             })
         manifest = {
             "schema": SCHEMA, "current_generation": str(current_generation), "current_content_sha256": current_content_sha,
