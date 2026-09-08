@@ -258,6 +258,40 @@ def test_hydro_block_explicitly_materializes_device_arrays_before_next_commit(tm
         np.testing.assert_array_equal(fields["delta_n"], np.ones((8, 8), dtype=np.float64))
 
 
+def test_s4_monotonic_telemetry_is_persisted_without_changing_next_fields(tmp_path):
+    from KHz_filament.hr4e5s_s4 import summarize_telemetry
+
+    lifecycle, _ = _lifecycle(tmp_path, count=8, queue_depth=8)
+    lifecycle.record_telemetry("OPTICAL_START", actor="optical")
+    for ordinal in range(8):
+        _commit(lifecycle, ordinal)
+    assert lifecycle.run_one_hydro_block(dt_hydro=1.0e-6, n_hydro_steps=1, chi=0.0, nu=0.0, n0=1.00027, gravity_y=0.0) == list(range(8))
+    lifecycle.record_telemetry("OPTICAL_COMPLETE", actor="optical")
+    lifecycle.validate_barrier(actor="s4_barrier")
+    lifecycle.promote_next_to_current(actor="s4_barrier")
+    report = summarize_telemetry(lifecycle_root=lifecycle.root, out_dir=tmp_path / "s4_metrics")
+    assert report["status"] == "PASS"
+    assert report["event_count"] > 0
+    assert (tmp_path / "s4_metrics" / "hr4e5s_s4_runtime_events.csv").is_file()
+    assert all(lifecycle.manifest["records"][ordinal]["next"] is not None for ordinal in range(8))
+
+
+def test_s4_replay_telemetry_reports_hydro_rate_without_optical_events(tmp_path):
+    from KHz_filament.hr4e5s_s4 import summarize_telemetry
+
+    lifecycle, _ = _lifecycle(tmp_path, count=8, queue_depth=8)
+    for ordinal in range(8):
+        _commit(lifecycle, ordinal)
+    assert lifecycle.run_one_hydro_block(dt_hydro=1.0e-6, n_hydro_steps=1, chi=0.0, nu=0.0, n0=1.00027, gravity_y=0.0) == list(range(8))
+    lifecycle.validate_barrier(actor="s4_replay_barrier")
+    report = summarize_telemetry(lifecycle_root=lifecycle.root, out_dir=tmp_path / "s4_replay_metrics")
+    assert report["status"] == "PASS"
+    assert report["mode"] == "replay"
+    assert report["R_opt_screens_per_s"] is None
+    assert report["R_hydro_screens_per_s"] is not None
+    assert report["T_tail_s"] is None
+
+
 def test_restart_rejects_post_from_another_current_generation(tmp_path):
     from KHz_filament.hr4e5s_streaming import StreamingLifecycle, StreamingLifecycleError
 

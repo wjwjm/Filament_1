@@ -43,7 +43,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     batch = sub.add_parser("batch-hydro")
     batch.add_argument("--input", type=Path, required=True); batch.add_argument("--optical-dir", type=Path, required=True); batch.add_argument("--out-dir", type=Path, required=True)
     consumer = sub.add_parser("consume")
-    consumer.add_argument("--input", type=Path, required=True); consumer.add_argument("--stream-root", type=Path, required=True); consumer.add_argument("--producer-complete", type=Path, required=True); consumer.add_argument("--out", type=Path, required=True)
+    consumer.add_argument("--input", type=Path, required=True); consumer.add_argument("--stream-root", type=Path, required=True); consumer.add_argument("--producer-complete", type=Path, required=True); consumer.add_argument("--out", type=Path, required=True); consumer.add_argument("--actor", default="hydro_consumer")
     final = sub.add_parser("finalize-stream")
     final.add_argument("--stream-root", type=Path, required=True); final.add_argument("--out", type=Path, required=True)
     compare = sub.add_parser("compare")
@@ -59,7 +59,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif args.command == "batch-hydro":
         result = run_batch_hydro(input_manifest_path=args.input, optical_dir=args.optical_dir, out_dir=args.out_dir)
     elif args.command == "consume":
-        result = consume_streaming(lifecycle_root=args.stream_root, hydro=_read(args.input)["hydro"], producer_complete=args.producer_complete)
+        result = consume_streaming(lifecycle_root=args.stream_root, hydro=_read(args.input)["hydro"], producer_complete=args.producer_complete, actor=args.actor)
         if args.out.exists():
             raise FileExistsError(args.out)
         args.out.parent.mkdir(parents=True, exist_ok=True)

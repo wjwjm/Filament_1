@@ -264,7 +264,7 @@ class StreamingLifecycle:
             "shape": list(shape), "dtype": "float64", "dx_m": float(dx_m), "dy_m": float(dy_m), "expected_screen_count": count,
             "queue_depth": int(queue_depth), "block_size": FROZEN_BLOCK_SIZE, "queue": [], "records": lifecycle_records,
             "hydro_worker": {"qualification": "HR-4E-5P/P5", "screen_solver": "advance_hr4_single_screen", "block_size": FROZEN_BLOCK_SIZE},
-            "barrier": None, "promotion": None, "rate_events": [], "created_utc": _utc(),
+            "barrier": None, "promotion": None, "rate_events": [], "telemetry_events": [], "created_utc": _utc(),
         }
         _atomic_json(base / "streaming_manifest.json", manifest)
         return cls(base, manifest)
@@ -299,6 +299,36 @@ class StreamingLifecycle:
     def _save(self) -> None:
         self._validate_manifest()
         _atomic_json(self.manifest_path, self.manifest)
+
+    def _telemetry_locked(self, event: str, *, actor: str, ordinal: int | None = None, block: Sequence[int] | None = None, **extra: Any) -> dict[str, Any]:
+        """Append non-invasive scheduling telemetry while the manifest is owned.
+
+        ``perf_counter`` is Linux's system-wide monotonic clock in the target
+        environment.  Recording it neither reads device state nor inserts a
+        CUDA synchronization.
+        """
+        entry = {
+            "event": str(event), "monotonic_s": time.perf_counter(), "actor": str(actor),
+            "worker_id": os.environ.get("HR4E5S_WORKER_ID", str(actor)),
+            "gpu_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES", ""),
+            "queue_occupancy": len(self.manifest["queue"]), "queue_capacity": int(self.manifest["queue_depth"]),
+            "producer_blocked": bool(extra.pop("producer_blocked", False)),
+            **extra,
+        }
+        if ordinal is not None:
+            record = self._record(int(ordinal))
+            entry.update({"ordinal": int(ordinal), "screen_id": record["screen_id"], "z_m": record["z_m"]})
+        if block is not None:
+            entry["block"] = [int(value) for value in block]
+        self.manifest.setdefault("telemetry_events", []).append(entry)
+        return entry
+
+    def record_telemetry(self, event: str, *, actor: str, ordinal: int | None = None, block: Sequence[int] | None = None, **extra: Any) -> dict[str, Any]:
+        """Persist one monotonic event without touching scientific arrays."""
+        with self._locked_manifest():
+            entry = self._telemetry_locked(event, actor=actor, ordinal=ordinal, block=block, **extra)
+            self._save()
+            return entry
 
     @contextmanager
     def _locked_manifest(self):
@@ -505,6 +535,7 @@ class StreamingLifecycle:
             committed = time.perf_counter()
             optical_finalized = next((event.get("optical_finalized_s") for event in reversed(record["transitions"]) if event["state"] == "DEPOSITION_FINALIZED"), None)
             self.manifest["rate_events"].append({"ordinal": int(ordinal), "screen_id": record["screen_id"], "z_m": record["z_m"], "event": "POST_COMMITTED", "time_s": committed, "optical_finalized_s": optical_finalized, "queue_depth": len(self.manifest["queue"]), "backpressure": False})
+            self._telemetry_locked("POST_COMMITTED", actor=actor, ordinal=ordinal)
             self._transition(record, "POST_COMMITTED", actor=actor, source_file_sha256=record["current"]["file_sha256"], output_file_sha256=file_hash, post_committed_s=committed)
             self._save()
             return entry
@@ -535,12 +566,16 @@ class StreamingLifecycle:
                     queue_full = True
                     if not experienced_backpressure:
                         self.manifest["rate_events"].append({"ordinal": int(ordinal), "screen_id": record["screen_id"], "z_m": record["z_m"], "event": "BACKPRESSURE", "time_s": time.perf_counter(), "queue_depth": len(self.manifest["queue"]), "backpressure": True})
+                        self._telemetry_locked("PRODUCER_BACKPRESSURE_BEGIN", actor=actor, ordinal=ordinal, producer_blocked=True)
                         self._save()
                 else:
                     self.manifest["queue"].append(int(ordinal))
                     self.manifest["queue"].sort()
                     now = time.perf_counter()
                     self.manifest["rate_events"].append({"ordinal": int(ordinal), "screen_id": record["screen_id"], "z_m": record["z_m"], "event": "ENQUEUED", "time_s": now, "queue_depth": len(self.manifest["queue"]), "backpressure": experienced_backpressure})
+                    self._telemetry_locked("ENQUEUE", actor=actor, ordinal=ordinal, producer_blocked=experienced_backpressure)
+                    if experienced_backpressure:
+                        self._telemetry_locked("PRODUCER_BACKPRESSURE_END", actor=actor, ordinal=ordinal)
                     self._transition(record, "HYDRO_QUEUED", actor=actor, source_file_sha256=record["post"]["file_sha256"], enqueue_s=now, queue_depth=len(self.manifest["queue"]), backpressure=experienced_backpressure)
                     self._save()
                     return
@@ -563,6 +598,7 @@ class StreamingLifecycle:
                     raise StreamingLifecycleError("queue lifecycle state is inconsistent")
                 self._transition(record, "HYDRO_RUNNING", actor=actor, source_file_sha256=record["post"]["file_sha256"])
             self.manifest["queue"] = [value for value in self.manifest["queue"] if int(value) not in set(block)]
+            self._telemetry_locked("HYDRO_CLAIM", actor=actor, block=block)
             self._save()
             return block
 
@@ -593,13 +629,19 @@ class StreamingLifecycle:
 
     def run_one_hydro_block(self, *, dt_hydro: float, n_hydro_steps: int, chi: float, nu: float, n0: float, gravity_x: float = 0.0, gravity_y: float = -9.81, cfl_limit: float = 1.0, actor: str = "hydro") -> list[int]:
         block = self.claim_block(actor=actor)
+        if block:
+            self.record_telemetry("HYDRO_BLOCK_START", actor=actor, block=block)
         for ordinal in block:
             incoming = self._artifact_fields(self._record(ordinal)["post"], namespace="POST")
+            self.record_telemetry("HYDRO_SCREEN_START", actor=actor, ordinal=ordinal, block=block)
             result = advance_hr4_single_screen(incoming["delta_n"], incoming["vx"], incoming["vy"], dx=float(self.manifest["dx_m"]), dy=float(self.manifest["dy_m"]), dt_hydro=float(dt_hydro), chi=float(chi), nu=float(nu), n0=float(n0), gravity_x=float(gravity_x), gravity_y=float(gravity_y), cfl_limit=float(cfl_limit), n_steps=int(n_hydro_steps), require_stable=True)
             # ``advance_hr4_single_screen`` returns the active backend's arrays.
             # NEXT is a disk-backed, NumPy-float64 artifact, so this is the
             # explicit device-to-host persistence boundary.
             self.commit_next(ordinal, {name: np.asarray(to_cpu(result[name]), dtype=np.float64) for name in FIELDS}, actor=actor)
+            self.record_telemetry("HYDRO_SCREEN_END", actor=actor, ordinal=ordinal, block=block)
+        if block:
+            self.record_telemetry("HYDRO_BLOCK_END", actor=actor, block=block)
         return block
 
     def reconstruct_queue(self, *, actor: str = "restart") -> list[int]:
@@ -640,6 +682,7 @@ class StreamingLifecycle:
             return list(self.manifest["queue"])
 
     def validate_barrier(self, *, actor: str = "barrier") -> dict[str, Any]:
+        self.record_telemetry("BARRIER_START", actor=actor)
         with self._locked_manifest():
             failures = []
             seen_next_identities: set[tuple[int, str, float]] = set()
@@ -669,7 +712,11 @@ class StreamingLifecycle:
                     self._transition(record, "BARRIER_VALIDATED", actor=actor, source_file_sha256=record["next"]["file_sha256"], output_file_sha256=record["next"]["file_sha256"])
             self._save()
             if failures:
+                self._telemetry_locked("BARRIER_FAIL", actor=actor)
+                self._save()
                 raise BarrierError("streaming barrier rejected generation: " + ",".join(failures))
+            self._telemetry_locked("BARRIER_PASS", actor=actor)
+            self._save()
             return result
 
     def promote_next_to_current(self, *, actor: str = "barrier") -> dict[str, Any]:
@@ -680,6 +727,7 @@ class StreamingLifecycle:
             pointer = {"schema": SCHEMA, "authoritative_namespace": "NEXT", "source_current_generation": self.manifest["current_generation"], "authoritative_generation": self.manifest["next_generation"], "barrier": dict(barrier), "promoted_utc": _utc(), "actor": actor}
             _atomic_json(self.root / "authoritative_generation.json", pointer)
             self.manifest["promotion"] = pointer
+            self._telemetry_locked("PROMOTION", actor=actor)
             self._save()
             self._authoritative_namespace = "NEXT"
             self._authoritative_generation = str(pointer["authoritative_generation"])

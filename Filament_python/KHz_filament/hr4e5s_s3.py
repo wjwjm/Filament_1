@@ -253,6 +253,7 @@ def run_optical_path(*, input_manifest_path: str | Path, out_dir: str | Path,
         }
         if ownership_before["next_pointer_exists"] or ownership_before["authoritative_namespace"] != "CURRENT":
             raise ValueError("S3 optical producer refuses a pre-promoted or NEXT authoritative generation")
+        streaming_before.record_telemetry("OPTICAL_START", actor="optical")
         hook = _SelectedStreamingHook(streaming_before, records)
     try:
         final_E, _, diag = propagate_one_pulse(E, kperp2=axes.kperp2, k0=k0, omega0=omega0, dz=prop.dz, z_max=prop.z_max, n0=beam.n0, n2=float(getattr(prop, "n2", getattr(beam, "n2_air", n2_air))), Ui=Ui_N2, N0=N0_air, ion_conf=ion, dn_gas=None, dt=axes.dt, axes=axes, prop_conf=prop, raman_conf=raman, record_onaxis_rho_time=True, record_every_z=1, longitudinal_schedule=schedule, deposition_contract=build_deposition_contract(schedule, axes=axes), thermal_sink=thermal_sink, thermal_slow_state=current, hr3b_parameters={"rho0": float(heat.rho0), "Cv": float(heat.Cv), "T0": float(prop.air_T), "n0": float(beam.n0), "beta_th": beta}, hr3b_sink=hr3b_sink, post_commit_hook=hook)
@@ -263,6 +264,7 @@ def run_optical_path(*, input_manifest_path: str | Path, out_dir: str | Path,
     np.savez(destination / "scientific_ledger.npz", **ledger)
     ownership_after = None
     if streaming_root is not None:
+        streaming_before.record_telemetry("OPTICAL_COMPLETE", actor="optical")
         streaming_after = StreamingLifecycle.open(streaming_root)
         ownership_after = {
             "authoritative_namespace": streaming_after._authoritative_namespace,
@@ -304,21 +306,29 @@ def run_batch_hydro(*, input_manifest_path: str | Path, optical_dir: str | Path,
     return result
 
 
-def consume_streaming(*, lifecycle_root: str | Path, hydro: Mapping[str, Any], producer_complete: str | Path, poll_s: float = 0.05) -> dict[str, Any]:
+def consume_streaming(*, lifecycle_root: str | Path, hydro: Mapping[str, Any], producer_complete: str | Path, poll_s: float = 0.05, actor: str = "hydro_consumer") -> dict[str, Any]:
     """One actual hydro process: wait for full blocks while optical continues."""
     lifecycle = StreamingLifecycle.open(lifecycle_root)
     completed: list[list[int]] = []
     marker = Path(producer_complete)
+    idle = False
     while True:
-        block = lifecycle.run_one_hydro_block(dt_hydro=float(hydro["dt_hydro"]), n_hydro_steps=int(hydro["n_hydro_steps"]), chi=float(hydro["chi"]), nu=float(hydro["nu"]), n0=float(hydro["n0"]), gravity_x=float(hydro["gravity_x"]), gravity_y=float(hydro["gravity_y"]), cfl_limit=float(hydro["cfl_limit"]), actor="hydro_consumer")
+        block = lifecycle.run_one_hydro_block(dt_hydro=float(hydro["dt_hydro"]), n_hydro_steps=int(hydro["n_hydro_steps"]), chi=float(hydro["chi"]), nu=float(hydro["nu"]), n0=float(hydro["n0"]), gravity_x=float(hydro["gravity_x"]), gravity_y=float(hydro["gravity_y"]), cfl_limit=float(hydro["cfl_limit"]), actor=actor)
         if block:
+            if idle:
+                lifecycle.record_telemetry("CONSUMER_IDLE_END", actor=actor)
+                idle = False
             completed.append(block)
             continue
         lifecycle = StreamingLifecycle.open(lifecycle_root)
         if marker.is_file() and not lifecycle.manifest["queue"]:
             incomplete = [item["ordinal"] for item in lifecycle.manifest["records"] if item["next"] is None]
             if not incomplete:
-                return {"completed_blocks": completed, "status": "PASS"}
+                lifecycle.record_telemetry("CONSUMER_COMPLETE", actor=actor)
+                return {"completed_blocks": completed, "status": "PASS", "actor": actor}
+        if not idle:
+            lifecycle.record_telemetry("CONSUMER_IDLE_BEGIN", actor=actor)
+            idle = True
         time.sleep(float(poll_s))
 
 
