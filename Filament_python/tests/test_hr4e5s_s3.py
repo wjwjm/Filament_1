@@ -67,9 +67,12 @@ def test_s3_launcher_preflights_the_private_lut_workspace_and_submits_in_two_pha
     assert 'cd "$LUT_WORKSPACE"' in batch
     assert 'mkdir -m 700 -- "$stream_root/consumer"' in batch
     assert 'mkdir -m 700 -- "$stream_root/optical" "$stream_root/consumer"' not in batch
-    assert 'if [[ "$producer_status" -ne 0 ]]; then' in batch
+    assert 'wait -n -p finished_pid "$producer_pid" "$consumer_pid"' in batch
+    assert 'if [[ "$finished_pid" == "$producer_pid" ]]; then' in batch
     assert 'kill "$consumer_pid" 2>/dev/null || true' in batch
+    assert 'kill "$producer_pid" 2>/dev/null || true' in batch
     assert 'exit "$producer_status"' in batch
+    assert 'exit "$consumer_status"' in batch
     assert 'BATCH_REFERENCE_ROOT:?}' in batch
     assert '"$BATCH_REFERENCE_ROOT/batch_optical"' in batch
     assert "LUT_WORKSPACE=$RUN_ROOT/lut_workspace" in submit

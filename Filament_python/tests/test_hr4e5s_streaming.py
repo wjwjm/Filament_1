@@ -225,6 +225,39 @@ def test_restart_reconstructs_only_missing_next_work(tmp_path):
     assert all(reopened.manifest["records"][ordinal]["state"] == "NEXT_COMMITTED" for ordinal in first)
 
 
+def test_hydro_block_explicitly_materializes_device_arrays_before_next_commit(tmp_path, monkeypatch):
+    import KHz_filament.hr4e5s_streaming as streaming
+
+    lifecycle, _ = _lifecycle(tmp_path, count=8, queue_depth=8)
+    for ordinal in range(8):
+        _commit(lifecycle, ordinal)
+
+    class DeviceArray:
+        def __init__(self, values):
+            self.host = np.asarray(values, dtype=np.float64)
+
+        def __array__(self, *args, **kwargs):
+            raise AssertionError("implicit device-to-host conversion is forbidden")
+
+    converted = []
+
+    def fake_advance(*args, **kwargs):
+        return {name: DeviceArray(np.full((8, 8), index + 1.0)) for index, name in enumerate(("delta_n", "vx", "vy"))}
+
+    def explicit_to_cpu(value):
+        converted.append(value)
+        return value.host
+
+    monkeypatch.setattr(streaming, "advance_hr4_single_screen", fake_advance)
+    monkeypatch.setattr(streaming, "to_cpu", explicit_to_cpu)
+    assert lifecycle.run_one_hydro_block(dt_hydro=1.0e-6, n_hydro_steps=1, chi=0.0, nu=0.0, n0=1.00027, gravity_y=0.0) == list(range(8))
+    assert len(converted) == 24
+    for ordinal in range(8):
+        fields = lifecycle._artifact_fields(lifecycle.manifest["records"][ordinal]["next"], namespace="NEXT")
+        assert all(values.dtype == np.float64 for values in fields.values())
+        np.testing.assert_array_equal(fields["delta_n"], np.ones((8, 8), dtype=np.float64))
+
+
 def test_restart_rejects_post_from_another_current_generation(tmp_path):
     from KHz_filament.hr4e5s_streaming import StreamingLifecycle, StreamingLifecycleError
 

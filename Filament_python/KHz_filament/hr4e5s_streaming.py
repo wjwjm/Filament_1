@@ -17,6 +17,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 import numpy as np
 
+from .device import to_cpu
 from .hr4 import advance_hr4_single_screen
 from .hr4e_timestep import sha256_array, sha256_file
 
@@ -595,7 +596,10 @@ class StreamingLifecycle:
         for ordinal in block:
             incoming = self._artifact_fields(self._record(ordinal)["post"], namespace="POST")
             result = advance_hr4_single_screen(incoming["delta_n"], incoming["vx"], incoming["vy"], dx=float(self.manifest["dx_m"]), dy=float(self.manifest["dy_m"]), dt_hydro=float(dt_hydro), chi=float(chi), nu=float(nu), n0=float(n0), gravity_x=float(gravity_x), gravity_y=float(gravity_y), cfl_limit=float(cfl_limit), n_steps=int(n_hydro_steps), require_stable=True)
-            self.commit_next(ordinal, {name: np.asarray(result[name], dtype=np.float64) for name in FIELDS}, actor=actor)
+            # ``advance_hr4_single_screen`` returns the active backend's arrays.
+            # NEXT is a disk-backed, NumPy-float64 artifact, so this is the
+            # explicit device-to-host persistence boundary.
+            self.commit_next(ordinal, {name: np.asarray(to_cpu(result[name]), dtype=np.float64) for name in FIELDS}, actor=actor)
         return block
 
     def reconstruct_queue(self, *, actor: str = "restart") -> list[int]:

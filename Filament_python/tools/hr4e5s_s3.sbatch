@@ -43,16 +43,32 @@ case "$MODE" in
     producer_pid=$!
     srun --exclusive --ntasks=1 --gpus-per-task=1 --cpus-per-task="$SLURM_CPUS_PER_TASK" "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" consume --input "$INPUT_MANIFEST" --stream-root "$stream_root/lifecycle" --producer-complete "$stream_root/producer_complete" --out "$stream_root/consumer/result.json" >"$stream_root/consumer.out" 2>"$stream_root/consumer.err" &
     consumer_pid=$!
-    wait "$producer_pid" || producer_status=$?
-    if [[ "$producer_status" -ne 0 ]]; then
-      # Without producer_complete the consumer intentionally waits; terminate
-      # its srun wrapper so a producer failure cannot consume an allocation.
-      kill "$consumer_pid" 2>/dev/null || true
+    # Reap whichever concurrent side exits first.  A consumer can fail before
+    # the producer is complete, so both failure directions must release the
+    # sibling srun promptly instead of holding the second GPU allocation.
+    first_status=0
+    finished_pid=""
+    wait -n -p finished_pid "$producer_pid" "$consumer_pid" || first_status=$?
+    if [[ "$finished_pid" == "$producer_pid" ]]; then
+      producer_status="$first_status"
+      if [[ "$producer_status" -ne 0 ]]; then
+        kill "$consumer_pid" 2>/dev/null || true
+        wait "$consumer_pid" || consumer_status=$?
+        exit "$producer_status"
+      fi
+      touch "$stream_root/producer_complete"
       wait "$consumer_pid" || consumer_status=$?
-      exit "$producer_status"
+    else
+      consumer_status="$first_status"
+      if [[ "$consumer_status" -ne 0 ]]; then
+        kill "$producer_pid" 2>/dev/null || true
+        wait "$producer_pid" || producer_status=$?
+        exit "$consumer_status"
+      fi
+      # Successful consumption requires producer_complete, which is created
+      # only after a successful producer exit above.
+      wait "$producer_pid" || producer_status=$?
     fi
-    touch "$stream_root/producer_complete"
-    wait "$consumer_pid" || consumer_status=$?
     test "$producer_status" -eq 0 && test "$consumer_status" -eq 0
     "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" finalize-stream --stream-root "$stream_root/lifecycle" --out "$stream_root/hr4e5s_s3_stream_final.json"
     "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" compare --input "$INPUT_MANIFEST" --batch-optical-dir "$BATCH_REFERENCE_ROOT/batch_optical" --batch-hydro-dir "$BATCH_REFERENCE_ROOT/batch_hydro" --stream-optical-dir "$stream_root/optical" --stream-root "$stream_root/lifecycle" --out-dir "$stream_root/comparison"
