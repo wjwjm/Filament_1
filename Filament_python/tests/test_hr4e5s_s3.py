@@ -70,7 +70,10 @@ def test_s3_launcher_preflights_the_private_lut_workspace_and_submits_in_two_pha
     assert 'if [[ "$producer_status" -ne 0 ]]; then' in batch
     assert 'kill "$consumer_pid" 2>/dev/null || true' in batch
     assert 'exit "$producer_status"' in batch
+    assert 'BATCH_REFERENCE_ROOT:?}' in batch
+    assert '"$BATCH_REFERENCE_ROOT/batch_optical"' in batch
     assert "LUT_WORKSPACE=$RUN_ROOT/lut_workspace" in submit
     assert 'case "$SUBMIT_PHASE" in' in submit
     assert "afterok:" not in submit
     assert "sacct -j" in submit
+    assert "BATCH_REFERENCE_ROOT=$BATCH_REFERENCE_ROOT" in submit

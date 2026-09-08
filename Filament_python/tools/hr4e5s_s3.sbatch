@@ -29,7 +29,8 @@ case "$MODE" in
     "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" batch-hydro --input "$INPUT_MANIFEST" --optical-dir "$RUN_ROOT/batch_optical" --out-dir "$RUN_ROOT/batch_hydro"
     ;;
   stream)
-    : "${STREAM_ID:?}"
+    : "${STREAM_ID:?}" "${BATCH_REFERENCE_ROOT:?}"
+    test -d "$BATCH_REFERENCE_ROOT/batch_optical" && test -d "$BATCH_REFERENCE_ROOT/batch_hydro"
     test "${SLURM_GPUS_ON_NODE:-0}" -ge 2
     stream_root="$RUN_ROOT/$STREAM_ID"
     test ! -e "$stream_root"
@@ -54,7 +55,7 @@ case "$MODE" in
     wait "$consumer_pid" || consumer_status=$?
     test "$producer_status" -eq 0 && test "$consumer_status" -eq 0
     "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" finalize-stream --stream-root "$stream_root/lifecycle" --out "$stream_root/hr4e5s_s3_stream_final.json"
-    "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" compare --input "$INPUT_MANIFEST" --batch-optical-dir "$RUN_ROOT/batch_optical" --batch-hydro-dir "$RUN_ROOT/batch_hydro" --stream-optical-dir "$stream_root/optical" --stream-root "$stream_root/lifecycle" --out-dir "$stream_root/comparison"
+    "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" compare --input "$INPUT_MANIFEST" --batch-optical-dir "$BATCH_REFERENCE_ROOT/batch_optical" --batch-hydro-dir "$BATCH_REFERENCE_ROOT/batch_hydro" --stream-optical-dir "$stream_root/optical" --stream-root "$stream_root/lifecycle" --out-dir "$stream_root/comparison"
     ;;
   *) echo "invalid S3 MODE=$MODE" >&2; exit 64 ;;
 esac
