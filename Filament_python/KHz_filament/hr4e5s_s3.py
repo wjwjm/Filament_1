@@ -126,7 +126,8 @@ def prepare_input_manifest(*, source_manifest_path: str | Path, source_state_pat
         focus_halfwidth_m=float(getattr(prop, "focus_halfwidth_m", 0.0)),
         dz_focus=float(getattr(prop, "dz_focus", prop.dz)),
     )
-    if schedule.n_intervals != len(z) or not np.array_equal(0.5 * (schedule.z_edges[:-1] + schedule.z_edges[1:]), z):
+    schedule_mids = 0.5 * (np.asarray(schedule.z_edges[:-1], dtype=np.float64) + np.asarray(schedule.z_edges[1:], dtype=np.float64))
+    if schedule.n_intervals != len(z) or not np.array_equal(schedule_mids, z):
         raise ValueError("S3 source z identity does not exactly match the frozen optical schedule")
     result = {
         "schema": S3_SCHEMA, "stage": "HR-4E-5S-S3", "source_manifest": str(source_manifest_file),
@@ -235,7 +236,8 @@ def run_optical_path(*, input_manifest_path: str | Path, out_dir: str | Path,
     records = manifest["screen_records"]
     if schedule.n_intervals != int(np.load(str(manifest["source_state"]), mmap_mode="r").shape[0]):
         raise ValueError("S3 optical schedule differs from frozen CURRENT schedule")
-    plan = _selected_plan(0.5 * (schedule.z_edges[:-1] + schedule.z_edges[1:]), [int(item["source_index"]) for item in records])
+    schedule_mids = 0.5 * (np.asarray(schedule.z_edges[:-1], dtype=np.float64) + np.asarray(schedule.z_edges[1:], dtype=np.float64))
+    plan = _selected_plan(schedule_mids, [int(item["source_index"]) for item in records])
     thermal_sink = ThermalDiagnosticSink(plan=plan, output_path=str(destination / "s3_optical"), shape=(grid.Ny, grid.Nx), dtype=np.float64, enabled=True, mode="validation")
     hr3b_sink = HR3BDiagnosticSink(plan=plan, output_path=str(destination / "s3_optical"), shape=(grid.Ny, grid.Nx), dtype=np.float64, enabled=True)
     beta = validate_hr3b_parameters(rho0=float(heat.rho0), Cv=float(heat.Cv), T0=float(prop.air_T), n0=float(beam.n0))
