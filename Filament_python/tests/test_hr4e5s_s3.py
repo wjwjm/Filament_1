@@ -65,6 +65,11 @@ def test_s3_launcher_preflights_the_private_lut_workspace_and_submits_in_two_pha
     assert 'readonly LUT_WORKSPACE="$RUN_ROOT/lut_workspace"' in preflight
     assert "audit_hr4e5s_s3_lut_workspace.py" in preflight
     assert 'cd "$LUT_WORKSPACE"' in batch
+    assert 'mkdir -m 700 -- "$stream_root/consumer"' in batch
+    assert 'mkdir -m 700 -- "$stream_root/optical" "$stream_root/consumer"' not in batch
+    assert 'if [[ "$producer_status" -ne 0 ]]; then' in batch
+    assert 'kill "$consumer_pid" 2>/dev/null || true' in batch
+    assert 'exit "$producer_status"' in batch
     assert "LUT_WORKSPACE=$RUN_ROOT/lut_workspace" in submit
     assert 'case "$SUBMIT_PHASE" in' in submit
     assert "afterok:" not in submit

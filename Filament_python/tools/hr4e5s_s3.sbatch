@@ -34,7 +34,8 @@ case "$MODE" in
     stream_root="$RUN_ROOT/$STREAM_ID"
     test ! -e "$stream_root"
     "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" initialize-stream --input "$INPUT_MANIFEST" --root "$stream_root/lifecycle"
-    mkdir -m 700 -- "$stream_root/optical" "$stream_root/consumer"
+    # run_optical_path owns its destination and atomically creates optical/.
+    mkdir -m 700 -- "$stream_root/consumer"
     producer_status=0
     consumer_status=0
     srun --exclusive --ntasks=1 --gpus-per-task=1 --cpus-per-task="$SLURM_CPUS_PER_TASK" "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" optical --input "$INPUT_MANIFEST" --out-dir "$stream_root/optical" --stream-root "$stream_root/lifecycle" >"$stream_root/producer.out" 2>"$stream_root/producer.err" &
@@ -42,7 +43,14 @@ case "$MODE" in
     srun --exclusive --ntasks=1 --gpus-per-task=1 --cpus-per-task="$SLURM_CPUS_PER_TASK" "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" consume --input "$INPUT_MANIFEST" --stream-root "$stream_root/lifecycle" --producer-complete "$stream_root/producer_complete" --out "$stream_root/consumer/result.json" >"$stream_root/consumer.out" 2>"$stream_root/consumer.err" &
     consumer_pid=$!
     wait "$producer_pid" || producer_status=$?
-    if [[ "$producer_status" -eq 0 ]]; then touch "$stream_root/producer_complete"; fi
+    if [[ "$producer_status" -ne 0 ]]; then
+      # Without producer_complete the consumer intentionally waits; terminate
+      # its srun wrapper so a producer failure cannot consume an allocation.
+      kill "$consumer_pid" 2>/dev/null || true
+      wait "$consumer_pid" || consumer_status=$?
+      exit "$producer_status"
+    fi
+    touch "$stream_root/producer_complete"
     wait "$consumer_pid" || consumer_status=$?
     test "$producer_status" -eq 0 && test "$consumer_status" -eq 0
     "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" finalize-stream --stream-root "$stream_root/lifecycle" --out "$stream_root/hr4e5s_s3_stream_final.json"
