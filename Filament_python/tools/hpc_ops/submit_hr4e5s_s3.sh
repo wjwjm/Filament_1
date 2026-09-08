@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Submit one S3 phase only: batch first, streaming only after terminal batch success.
 set -euo pipefail
-readonly REPO="$1" RUN_ROOT="$2" EXPECTED_SHA="$3" PREFLIGHT="$4" SOURCE_MANIFEST="$5" SOURCE_STATE="$6" SOURCE_CONFIG="$7" SUBMIT_PHASE="$8" BATCH_REFERENCE_ROOT="$9"
+readonly REPO="$1" RUN_ROOT="$2" EXPECTED_SHA="$3" PREFLIGHT="$4" SOURCE_MANIFEST="$5" SOURCE_STATE="$6" SOURCE_CONFIG="$7" SUBMIT_PHASE="$8" BATCH_REFERENCE_ROOT="$9" BATCH_REFERENCE_JOB="${10}"
 readonly PYTHON=/data/home/scvi806/.conda/envs/Filament_python/bin/python
 readonly BATCH="$REPO/Filament_python/tools/hr4e5s_s3.sbatch"
 test "$(git -C "$REPO" rev-parse HEAD)" = "$EXPECTED_SHA"
@@ -32,9 +32,8 @@ case "$SUBMIT_PHASE" in
     ;;
   streaming)
     test -d "$BATCH_REFERENCE_ROOT/batch_optical" && test -d "$BATCH_REFERENCE_ROOT/batch_hydro"
-    test -f "$RUN_ROOT/hr4e5s_s3_batch_submission_receipt.tsv"
     test ! -e "$RUN_ROOT/hr4e5s_s3_streaming_submission_receipt.tsv"
-    batch_job="$(awk 'NR==2 {print $2}' "$RUN_ROOT/hr4e5s_s3_batch_submission_receipt.tsv")"
+    batch_job="$BATCH_REFERENCE_JOB"
     [[ "$batch_job" =~ ^[0-9]+$ ]] || exit 1
     test "$(sacct -j "$batch_job" --format=State,ExitCode --parsable2 --noheader | head -n 1)" = 'COMPLETED|0:0'
     printf 'case_id\tjob_id\tgpu_count\tdependency\n' > "$RUN_ROOT/hr4e5s_s3_streaming_submission_attempt.tsv"

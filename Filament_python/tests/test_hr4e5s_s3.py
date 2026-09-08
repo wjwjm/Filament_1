@@ -77,3 +77,5 @@ def test_s3_launcher_preflights_the_private_lut_workspace_and_submits_in_two_pha
     assert "afterok:" not in submit
     assert "sacct -j" in submit
     assert "BATCH_REFERENCE_ROOT=$BATCH_REFERENCE_ROOT" in submit
+    assert 'BATCH_REFERENCE_JOB="${10}"' in submit
+    assert 'batch_job="$BATCH_REFERENCE_JOB"' in submit
