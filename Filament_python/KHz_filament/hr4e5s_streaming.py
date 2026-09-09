@@ -60,6 +60,7 @@ class _ManifestFileLock:
             self._handle.write(b"0")
             self._handle.flush()
             os.fsync(self._handle.fileno())
+        _timing_emit("MANIFEST_LOCK_WAIT", "begin", lock_path=str(self.path))
         deadline = time.monotonic() + self.timeout_s
         while True:
             try:
@@ -72,6 +73,8 @@ class _ManifestFileLock:
                     import fcntl
 
                     fcntl.flock(self._handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                _timing_emit("MANIFEST_LOCK_WAIT", "end", lock_path=str(self.path))
+                _timing_emit("MANIFEST_LOCK_HOLD", "begin", lock_path=str(self.path))
                 return self
             except OSError as error:
                 if time.monotonic() >= deadline:
@@ -96,6 +99,7 @@ class _ManifestFileLock:
         finally:
             self._handle.close()
             self._handle = None
+            _timing_emit("MANIFEST_LOCK_HOLD", "end", lock_path=str(self.path))
 
 
 def _utc() -> str:
@@ -143,11 +147,13 @@ def _atomic_npz(path: Path, fields: Mapping[str, Any], metadata: Mapping[str, An
     payload["metadata_json"] = np.asarray(json.dumps(metadata, sort_keys=True, separators=(",", ":")))
     descriptor, temporary = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
     try:
-        with os.fdopen(descriptor, "wb") as handle:
-            np.savez(handle, **payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        with _timed_phase("ARTIFACT_WRITE", artifact=str(path)):
+            with os.fdopen(descriptor, "wb") as handle:
+                np.savez(handle, **payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+        with _timed_phase("ARTIFACT_ATOMIC_RENAME", artifact=str(path)):
+            os.replace(temporary, path)
         _fsync_directory(path.parent)
     except Exception:
         try:
@@ -156,6 +162,49 @@ def _atomic_npz(path: Path, fields: Mapping[str, Any], metadata: Mapping[str, An
             pass
         raise
     return sha256_file(path)
+
+
+def _timing_directory() -> Path | None:
+    """Return the opt-in S4R timing directory without touching science state."""
+    configured = os.environ.get("HR4E5S_TIMING_DIR", "").strip()
+    return Path(configured) if configured else None
+
+
+def _timing_emit(phase: str, boundary: str, **extra: Any) -> None:
+    """Append a process-local timing boundary when S4R explicitly enables it.
+
+    The log is deliberately outside the lifecycle manifest: collecting a timing
+    datum must not add a shared-manifest transition or a GPU synchronization.
+    One worker owns one append-only file, so no telemetry lock is introduced.
+    """
+    directory = _timing_directory()
+    if directory is None:
+        return
+    directory.mkdir(parents=True, exist_ok=True)
+    actor = os.environ.get("HR4E5S_WORKER_ID", "coordinator")
+    safe_actor = "".join(character if character.isalnum() or character in "._-" else "_" for character in actor)
+    record = {
+        "schema": "khz_filament.hr4e5s.s4r.timing.v1",
+        "phase": phase,
+        "boundary": boundary,
+        "monotonic_s": time.perf_counter(),
+        "pid": os.getpid(),
+        "worker_id": actor,
+        "gpu_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES", ""),
+        **extra,
+    }
+    path = directory / f"{safe_actor}.{os.getpid()}.jsonl"
+    with path.open("a", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
+
+
+@contextmanager
+def _timed_phase(phase: str, **extra: Any):
+    _timing_emit(phase, "begin", **extra)
+    try:
+        yield
+    finally:
+        _timing_emit(phase, "end", **extra)
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -519,8 +568,10 @@ class StreamingLifecycle:
                 raise StreamingLifecycleError("POST commit requires authoritative HR-3A and HR-3B")
             if record["post"] is not None:
                 raise DuplicateCommitError("duplicate POST commit")
-            payload = _validated_fields(fields, shape=self.manifest["shape"], dtype=np.float64)
-            hashes = _field_hashes(payload)
+            with _timed_phase("POST_HOST_PREPARATION", ordinal=int(ordinal)):
+                payload = _validated_fields(fields, shape=self.manifest["shape"], dtype=np.float64)
+            with _timed_phase("POST_CANONICAL_HASH", ordinal=int(ordinal)):
+                hashes = _field_hashes(payload)
             metadata = {
                 "schema": SCHEMA, "namespace": "POST", "ordinal": int(ordinal), "screen_id": record["screen_id"], "z_m": record["z_m"],
                 "current_generation": self.manifest["current_generation"], "current_content_sha256": self.manifest["current_content_sha256"],
@@ -609,8 +660,10 @@ class StreamingLifecycle:
                 raise StreamingLifecycleError("NEXT commit requires an owned running POST")
             if record["next"] is not None:
                 raise DuplicateCommitError("duplicate NEXT commit")
-            payload = _validated_fields(fields, shape=self.manifest["shape"], dtype=np.float64)
-            hashes = _field_hashes(payload)
+            with _timed_phase("NEXT_HOST_PREPARATION", ordinal=int(ordinal)):
+                payload = _validated_fields(fields, shape=self.manifest["shape"], dtype=np.float64)
+            with _timed_phase("NEXT_CANONICAL_HASH", ordinal=int(ordinal)):
+                hashes = _field_hashes(payload)
             metadata = {
                 "schema": SCHEMA, "namespace": "NEXT", "ordinal": int(ordinal), "screen_id": record["screen_id"], "z_m": record["z_m"],
                 "current_generation": self.manifest["current_generation"], "current_content_sha256": self.manifest["current_content_sha256"],
@@ -621,7 +674,8 @@ class StreamingLifecycle:
             path = self.root / "next" / f"screen_{int(ordinal):06d}.npz"
             file_hash = _atomic_npz(path, payload, metadata)
             entry = {"artifact": str(path.relative_to(self.root)), "file_sha256": file_hash, "field_sha256": hashes, "metadata": metadata}
-            self._artifact_fields(entry, namespace="NEXT")
+            with _timed_phase("NEXT_VALIDATION_READ", ordinal=int(ordinal)):
+                self._artifact_fields(entry, namespace="NEXT")
             record["next"] = entry
             self._transition(record, "NEXT_COMMITTED", actor=actor, source_file_sha256=record["post"]["file_sha256"], output_file_sha256=file_hash)
             self._save()
@@ -632,13 +686,20 @@ class StreamingLifecycle:
         if block:
             self.record_telemetry("HYDRO_BLOCK_START", actor=actor, block=block)
         for ordinal in block:
-            incoming = self._artifact_fields(self._record(ordinal)["post"], namespace="POST")
+            with _timed_phase("POST_ARTIFACT_READ", ordinal=int(ordinal), block=list(block)):
+                incoming = self._artifact_fields(self._record(ordinal)["post"], namespace="POST")
             self.record_telemetry("HYDRO_SCREEN_START", actor=actor, ordinal=ordinal, block=block)
-            result = advance_hr4_single_screen(incoming["delta_n"], incoming["vx"], incoming["vy"], dx=float(self.manifest["dx_m"]), dy=float(self.manifest["dy_m"]), dt_hydro=float(dt_hydro), chi=float(chi), nu=float(nu), n0=float(n0), gravity_x=float(gravity_x), gravity_y=float(gravity_y), cfl_limit=float(cfl_limit), n_steps=int(n_hydro_steps), require_stable=True)
+            # The frozen solver owns host-to-device transfer and GPU kernels as
+            # one call boundary.  Splitting it would add device events or
+            # synchronizations, so S4R records this non-invasive envelope.
+            with _timed_phase("HR4_SOLVER_ENVELOPE", ordinal=int(ordinal), block=list(block)):
+                result = advance_hr4_single_screen(incoming["delta_n"], incoming["vx"], incoming["vy"], dx=float(self.manifest["dx_m"]), dy=float(self.manifest["dy_m"]), dt_hydro=float(dt_hydro), chi=float(chi), nu=float(nu), n0=float(n0), gravity_x=float(gravity_x), gravity_y=float(gravity_y), cfl_limit=float(cfl_limit), n_steps=int(n_hydro_steps), require_stable=True)
             # ``advance_hr4_single_screen`` returns the active backend's arrays.
             # NEXT is a disk-backed, NumPy-float64 artifact, so this is the
             # explicit device-to-host persistence boundary.
-            self.commit_next(ordinal, {name: np.asarray(to_cpu(result[name]), dtype=np.float64) for name in FIELDS}, actor=actor)
+            with _timed_phase("GPU_TO_HOST_MATERIALIZATION", ordinal=int(ordinal), block=list(block)):
+                outgoing = {name: np.asarray(to_cpu(result[name]), dtype=np.float64) for name in FIELDS}
+            self.commit_next(ordinal, outgoing, actor=actor)
             self.record_telemetry("HYDRO_SCREEN_END", actor=actor, ordinal=ordinal, block=block)
         if block:
             self.record_telemetry("HYDRO_BLOCK_END", actor=actor, block=block)
