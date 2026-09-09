@@ -9,6 +9,11 @@ test -z "$(git -C "$REPO" status --porcelain=v1 --untracked-files=all)"
 test -f "$PREFLIGHT" && test -f "$INPUT_MANIFEST"
 [[ "$HYDRO_WORKERS" =~ ^(1|2|4|8)$ ]]
 test ! -e "$RUN_ROOT/${CASE_ID}_submission_receipt.tsv"
+if [[ "$HYDRO_WORKERS" == 8 ]]; then
+  test ! -e "$RUN_ROOT/hr4e5s_s4r_submission_order.csv"
+else
+  test -f "$RUN_ROOT/replay_8gpu_submission_receipt.tsv"
+fi
 "$PYTHON" "$REPO/Filament_python/tools/hpc_ops/audit_batch_entry.py" --batch "$BATCH" --fixed-python "$PYTHON" >/dev/null
 "$PYTHON" - "$PREFLIGHT" "$EXPECTED_SHA" "$RUN_ROOT" "$INPUT_MANIFEST" "$HYDRO_WORKERS" <<'PY'
 import json,sys
@@ -20,4 +25,14 @@ PY
 job="$(sbatch --parsable --job-name="e5s-s4r-${CASE_ID}" --gres="gpu:${HYDRO_WORKERS}" --ntasks="$HYDRO_WORKERS" --output="$RUN_ROOT/${CASE_ID}-%j.out" --error="$RUN_ROOT/${CASE_ID}-%j.err" --export="ALL,EXPECTED_GIT_SHA=$EXPECTED_SHA,REPO_DIR=$REPO,RUN_ROOT=$RUN_ROOT,CASE_ID=$CASE_ID,HYDRO_WORKERS=$HYDRO_WORKERS,INPUT_MANIFEST=$INPUT_MANIFEST" "$BATCH")"
 job="${job%%;*}"; [[ "$job" =~ ^[0-9]+$ ]] || exit 1
 printf 'case_id\thydro_workers\tgpu_count\tjob_id\n%s\t%s\t%s\t%s\n' "$CASE_ID" "$HYDRO_WORKERS" "$HYDRO_WORKERS" "$job" > "$RUN_ROOT/${CASE_ID}_submission_receipt.tsv"
+order="$RUN_ROOT/hr4e5s_s4r_submission_order.csv"
+if [[ "$HYDRO_WORKERS" == 8 ]]; then
+  printf 'submission_ordinal\tsubmitted_utc\tcase_id\thydro_workers\tgpu_count\tcpus\tpartition\tjob_id\texecution_sha\tinput_manifest\n1\t%s\t%s\t%s\t%s\t%s\tgpu\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$CASE_ID" "$HYDRO_WORKERS" "$HYDRO_WORKERS" "$((HYDRO_WORKERS*8))" "$job" "$EXPECTED_SHA" "$INPUT_MANIFEST" > "$order"
+else
+  ordinal="$(( $(wc -l < "$order") ))"
+  temporary="$order.tmp"
+  cp -- "$order" "$temporary"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\tgpu\t%s\t%s\t%s\n' "$ordinal" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$CASE_ID" "$HYDRO_WORKERS" "$HYDRO_WORKERS" "$((HYDRO_WORKERS*8))" "$job" "$EXPECTED_SHA" "$INPUT_MANIFEST" >> "$temporary"
+  mv -f -- "$temporary" "$order"
+fi
 printf '{"schema":"filament.hpc_ops.write_receipt.v1","ok":true,"state":"completed","job_id":"%s"}\n' "$job"
