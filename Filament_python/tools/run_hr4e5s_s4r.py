@@ -47,7 +47,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     compare = sub.add_parser("compare")
     compare.add_argument("--reference-stream-root", type=Path, required=True); compare.add_argument("--stream-root", type=Path, required=True); compare.add_argument("--out", type=Path, required=True)
     summarize = sub.add_parser("summarize")
-    summarize.add_argument("--stream-root", type=Path, required=True); summarize.add_argument("--timing-dir", type=Path, required=True); summarize.add_argument("--out-dir", type=Path, required=True); summarize.add_argument("--hydro-workers", type=int, choices=(1, 2, 4, 8), required=True)
+    summarize.add_argument("--stream-root", type=Path, required=True); summarize.add_argument("--timing-dir", type=Path, required=True); summarize.add_argument("--out-dir", type=Path, required=True); summarize.add_argument("--hydro-workers", type=int, choices=(1, 2, 4, 6, 8), required=True)
     args = parser.parse_args(argv)
     if args.command == "prepare-input":
         result = prepare_input_manifest(source_manifest_path=args.source_manifest, source_state_path=args.source_state, config_path=args.config, out_path=args.out)

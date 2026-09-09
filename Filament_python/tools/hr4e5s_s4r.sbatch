@@ -12,7 +12,7 @@ readonly PYTHON=/data/home/scvi806/.conda/envs/Filament_python/bin/python
 test "$(git -C "$REPO_DIR" rev-parse HEAD)" = "$EXPECTED_GIT_SHA"
 test -z "$(git -C "$REPO_DIR" status --porcelain=v1 --untracked-files=all)"
 test -f "$INPUT_MANIFEST"
-[[ "$HYDRO_WORKERS" =~ ^(1|2|4|8)$ ]]
+[[ "$HYDRO_WORKERS" =~ ^(1|2|4|6|8)$ ]]
 test "${SLURM_GPUS_ON_NODE:-0}" -ge "$HYDRO_WORKERS"
 
 source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
@@ -65,4 +65,8 @@ done
 
 "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s4r.py" finalize --stream-root "$case_root/lifecycle" --out "$case_root/stream_final.json" >"$case_root/finalize.out" 2>"$case_root/finalize.err"
 "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s4r.py" summarize --stream-root "$case_root/lifecycle" --timing-dir "$case_root/timing" --out-dir "$case_root/telemetry" --hydro-workers "$HYDRO_WORKERS" >"$case_root/telemetry.out" 2>"$case_root/telemetry.err"
+if [[ -n "${REFERENCE_STREAM_ROOT:-}" ]]; then
+  test -d "$REFERENCE_STREAM_ROOT"
+  "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s4r.py" compare --reference-stream-root "$REFERENCE_STREAM_ROOT" --stream-root "$case_root/lifecycle" --out "$case_root/exact_replay_next.json" >"$case_root/exact.out" 2>"$case_root/exact.err"
+fi
 printf '{"schema":"khz_filament.hr4e5s.s4r.case.v1","status":"PASS","case_id":"%s","hydro_workers":%s,"completed_utc":"%s"}\n' "$CASE_ID" "$HYDRO_WORKERS" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$case_root/case_result.json"
