@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and attest the frozen S3 ionization LUTs in a private workspace."""
+"""Build or attest the frozen S3 ionization LUTs in a private workspace."""
 
 from __future__ import annotations
 
@@ -28,6 +28,19 @@ def _within(child: Path, parent: Path) -> bool:
     return True
 
 
+def _prepare_private_workspace(workspace: Path) -> Path:
+    """Create a new private workspace or validate an explicitly seeded one."""
+    if workspace.exists():
+        if workspace.is_symlink() or not workspace.is_dir():
+            raise RuntimeError(f"LUT workspace is not a regular directory: {workspace}")
+        if (workspace.stat().st_mode & 0o777) != 0o700:
+            raise PermissionError(f"LUT workspace must have mode 700: {workspace}")
+    else:
+        workspace.mkdir(mode=0o700, parents=True, exist_ok=False)
+    os.chmod(workspace, 0o700)
+    return workspace.resolve()
+
+
 def audit(config_path: Path, workspace: Path, out_path: Path) -> dict:
     """Exercise the frozen relative cache path and return persistent evidence."""
     repo_root = Path(__file__).resolve().parents[3]
@@ -44,9 +57,7 @@ def audit(config_path: Path, workspace: Path, out_path: Path) -> dict:
 
     if out_path.exists():
         raise FileExistsError(out_path)
-    workspace.mkdir(mode=0o700, parents=True, exist_ok=False)
-    os.chmod(workspace, 0o700)
-    workspace = workspace.resolve()
+    workspace = _prepare_private_workspace(workspace)
     probe = workspace / ".hr4e5s_s3_lut_write_probe"
     with probe.open("x", encoding="utf-8") as handle:
         handle.write("HR-4E-5S S3 LUT workspace write probe\n")

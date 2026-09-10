@@ -82,3 +82,15 @@ def test_s3_launcher_preflights_the_private_lut_workspace_and_submits_in_two_pha
     assert "BATCH_REFERENCE_ROOT=$BATCH_REFERENCE_ROOT" in submit
     assert 'BATCH_REFERENCE_JOB="${10}"' in submit
     assert 'batch_job="$BATCH_REFERENCE_JOB"' in submit
+
+
+def test_s4_preflight_can_attest_a_strictly_private_seeded_lut_workspace():
+    root = Path(__file__).resolve().parents[1]
+    preflight = (root / "tools" / "hpc_ops" / "run_hr4e5s_s4_preflight.sh").read_text(encoding="utf-8")
+    audit = (root / "tools" / "hpc_ops" / "audit_hr4e5s_s3_lut_workspace.py").read_text(encoding="utf-8")
+
+    assert 'cp -a -- "$LUT_SEED_WORKSPACE/cache" "$LUT_WORKSPACE"' in preflight
+    assert "def _prepare_private_workspace" in audit
+    assert "if workspace.exists():" in audit
+    assert "workspace.is_symlink() or not workspace.is_dir()" in audit
+    assert "LUT workspace must have mode 700" in audit
