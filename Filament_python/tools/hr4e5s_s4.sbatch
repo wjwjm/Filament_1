@@ -13,7 +13,7 @@ test -z "$(git -C "$REPO_DIR" status --porcelain=v1 --untracked-files=all)"
 test -f "$INPUT_MANIFEST" && test -d "$LUT_WORKSPACE" && test -w "$LUT_WORKSPACE"
 test "$(stat -c '%a' "$LUT_WORKSPACE")" = 700
 test -d "$BATCH_REFERENCE_ROOT/batch_optical" && test -d "$BATCH_REFERENCE_ROOT/batch_hydro"
-[[ "$HYDRO_WORKERS" =~ ^(1|2|4)$ ]]
+[[ "$HYDRO_WORKERS" =~ ^(1|2|4|6)$ ]]
 source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
 conda activate Filament_python
 export UPPE_USE_GPU=1 PYTHONPATH="$REPO_DIR/Filament_python" PYTHONUNBUFFERED=1

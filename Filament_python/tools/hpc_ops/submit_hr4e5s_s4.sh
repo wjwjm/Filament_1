@@ -7,7 +7,7 @@ readonly PYTHON=/data/home/scvi806/.conda/envs/Filament_python/bin/python
 test "$(git -C "$REPO" rev-parse HEAD)" = "$EXPECTED_SHA"
 test -z "$(git -C "$REPO" status --porcelain=v1 --untracked-files=all)"
 test -f "$PREFLIGHT" && test -f "$INPUT_MANIFEST" && test -d "$BATCH_REFERENCE_ROOT/batch_optical" && test -d "$BATCH_REFERENCE_ROOT/batch_hydro"
-[[ "$MODE" =~ ^(replay|stream)$ ]] && [[ "$HYDRO_WORKERS" =~ ^(1|2|4)$ ]]
+[[ "$MODE" =~ ^(replay|stream)$ ]] && [[ "$HYDRO_WORKERS" =~ ^(1|2|4|6)$ ]]
 test ! -e "$RUN_ROOT/${CASE_ID}_submission_receipt.tsv"
 "$PYTHON" "$REPO/Filament_python/tools/hpc_ops/audit_batch_entry.py" --batch "$BATCH" --fixed-python "$PYTHON" >/dev/null
 source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh

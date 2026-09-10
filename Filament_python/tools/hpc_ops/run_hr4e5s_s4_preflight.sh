@@ -27,6 +27,6 @@ def digest(path):
  return h.hexdigest()
 case=json.load(open(input_path,encoding='utf-8'))
 assert len(case['screen_records'])==48 and case['screen_indices']==list(range(7998,8046))
-json.dump({'schema':'khz_filament.hr4e5s.s4.preflight.v1','status':'PASS','git_sha':sha,'run_root':root,'input_manifest':input_path,'input_manifest_sha256':digest(input_path),'lut_workspace':lut,'current_generation':case['current_generation'],'screen_indices':case['screen_indices'],'gpu_matrix':{'replay_hydro':[1,2,4],'streaming':'1 optical + selected hydro'}},open(out,'w',encoding='utf-8'),indent=2,sort_keys=True)
+json.dump({'schema':'khz_filament.hr4e5s.s4.preflight.v1','status':'PASS','git_sha':sha,'run_root':root,'input_manifest':input_path,'input_manifest_sha256':digest(input_path),'lut_workspace':lut,'current_generation':case['current_generation'],'screen_indices':case['screen_indices'],'gpu_matrix':{'replay_hydro':[1,2,4,6],'streaming_hydro':[2,4,6]}},open(out,'w',encoding='utf-8'),indent=2,sort_keys=True)
 PY
 printf '{"schema":"filament.hpc_ops.write_receipt.v1","ok":true,"state":"completed","preflight":"%s"}\n' "$OUT"
