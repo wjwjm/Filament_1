@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # S4 no-submit provenance, telemetry-entry, and private-LUT validation.
 set -euo pipefail
-readonly REPO="$1" RUN_ROOT="$2" OUT="$3" EXPECTED_SHA="$4" INPUT_MANIFEST="$5" SOURCE_MANIFEST="$6" SOURCE_STATE="$7" SOURCE_CONFIG="$8"
+readonly REPO="$1" RUN_ROOT="$2" OUT="$3" EXPECTED_SHA="$4" INPUT_MANIFEST="$5" SOURCE_MANIFEST="$6" SOURCE_STATE="$7" SOURCE_CONFIG="$8" LUT_SEED_WORKSPACE="${9:-}"
 readonly PYTHON=/data/home/scvi806/.conda/envs/Filament_python/bin/python
 readonly LUT_WORKSPACE="$RUN_ROOT/lut_workspace"
 test "$(git -C "$REPO" rev-parse HEAD)" = "$EXPECTED_SHA"
@@ -10,6 +10,11 @@ test -f "$INPUT_MANIFEST" && test -f "$SOURCE_MANIFEST" && test -f "$SOURCE_STAT
 test ! -e "$RUN_ROOT" && test ! -e "$OUT"
 umask 077
 mkdir -m 700 -- "$RUN_ROOT"
+if [[ -n "$LUT_SEED_WORKSPACE" ]]; then
+  test -d "$LUT_SEED_WORKSPACE" && test "$(stat -c '%a' "$LUT_SEED_WORKSPACE")" = 700
+  cp -a -- "$LUT_SEED_WORKSPACE/cache" "$LUT_WORKSPACE"
+  chmod -R go-rwx -- "$LUT_WORKSPACE"
+fi
 source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
 conda activate Filament_python
 export UPPE_USE_GPU=1 PYTHONPATH="$REPO/Filament_python" PYTHONPYCACHEPREFIX="$RUN_ROOT/pycache" CUPY_CACHE_DIR="$RUN_ROOT/cupy_cache" XDG_CACHE_HOME="$RUN_ROOT/xdg_cache"
