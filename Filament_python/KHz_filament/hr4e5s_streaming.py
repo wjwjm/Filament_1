@@ -44,6 +44,74 @@ class BarrierError(StreamingLifecycleError):
     pass
 
 
+S5_FAULT_SPECS = {
+    "F01_OPTICAL_PRE_POST_COMMIT": {
+        "stage": "OPTICAL_PRE_POST_COMMIT",
+        "expected_authoritative_state": "CURRENT_ONLY_POST_ABSENT",
+    },
+    "F02_POST_COMMITTED_PRE_HYDRO": {
+        "stage": "POST_COMMITTED_PRE_HYDRO",
+        "expected_authoritative_state": "CURRENT_AND_POST_NEXT_ABSENT",
+    },
+    "F03_HYDRO_PRE_NEXT_COMMIT": {
+        "stage": "HYDRO_PRE_NEXT_COMMIT",
+        "expected_authoritative_state": "CURRENT_AND_POST_NEXT_ABSENT",
+    },
+    "F04_NEXT_TEMP_PRE_ATOMIC_RENAME": {
+        "stage": "NEXT_TEMP_PRE_ATOMIC_RENAME",
+        "expected_authoritative_state": "CURRENT_AND_POST_NEXT_ABSENT_TEMP_ALLOWED",
+    },
+    "F05_NEXT_COMMITTED_PRE_BARRIER": {
+        "stage": "NEXT_COMMITTED_PRE_BARRIER",
+        "expected_authoritative_state": "CURRENT_POST_AND_NEXT_BARRIER_ABSENT",
+    },
+    "F06_BARRIER_PASS_PRE_PROMOTION": {
+        "stage": "BARRIER_PASS_PRE_PROMOTION",
+        "expected_authoritative_state": "CURRENT_POST_NEXT_AND_BARRIER_PASS_PROMOTION_ABSENT",
+    },
+    "F07_NEXT_RENAMED_PRE_MANIFEST": {
+        "stage": "NEXT_RENAMED_PRE_MANIFEST",
+        "expected_authoritative_state": "CURRENT_AND_POST_NEXT_MANIFEST_ABSENT_ORPHAN_NEXT_FILE_ALLOWED",
+    },
+    "F08_PROMOTION_TRANSACTION_BOUNDARY": {
+        "stage": "PROMOTION_POINTER_PRE_MANIFEST",
+        "expected_authoritative_state": "NEXT_POINTER_PRESENT_MANIFEST_PROMOTION_ABSENT",
+    },
+    "F09_POST_RENAMED_PRE_MANIFEST": {
+        "stage": "POST_RENAMED_PRE_MANIFEST",
+        "expected_authoritative_state": "CURRENT_ONLY_POST_MANIFEST_ABSENT_ORPHAN_POST_FILE_ALLOWED",
+    },
+}
+
+
+class S5FaultInjectedError(StreamingLifecycleError):
+    """A deterministic, test-only lifecycle interruption with persisted context."""
+
+    def __init__(self, record: Mapping[str, Any]):
+        self.record = dict(record)
+        super().__init__(
+            "S5 deterministic fault "
+            f"{self.record['fault_id']} at {self.record['lifecycle_stage']} "
+            f"for screen {self.record['target_screen']}"
+        )
+
+
+def _s5_fault_config() -> dict[str, Any] | None:
+    """Read and validate the opt-in S5 hook without affecting normal runs."""
+    fault_id = os.environ.get("HR4_S5_FAULT_ID", "").strip()
+    if not fault_id:
+        return None
+    if fault_id not in S5_FAULT_SPECS:
+        raise ValueError(f"unknown HR4 S5 fault ID: {fault_id}")
+    target_screen = os.environ.get("HR4_S5_FAULT_SCREEN", "").strip()
+    if not target_screen:
+        raise ValueError("HR4_S5_FAULT_SCREEN is required when HR4_S5_FAULT_ID is set")
+    once = os.environ.get("HR4_S5_FAULT_ONCE", "1").strip()
+    if once not in ("", "1"):
+        raise ValueError("HR4_S5_FAULT_ONCE must be omitted or set to 1")
+    return {"fault_id": fault_id, "target_screen": target_screen, "once": True}
+
+
 class _ManifestFileLock:
     """Small cross-platform advisory lock for one lifecycle manifest."""
 
@@ -140,7 +208,13 @@ def _atomic_json(path: Path, value: Mapping[str, Any]) -> None:
         raise
 
 
-def _atomic_npz(path: Path, fields: Mapping[str, Any], metadata: Mapping[str, Any]) -> str:
+def _atomic_npz(
+    path: Path,
+    fields: Mapping[str, Any],
+    metadata: Mapping[str, Any],
+    *,
+    before_atomic_rename: Callable[[Path], None] | None = None,
+) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     arrays = _validated_fields(fields)
     payload = {name: arrays[name] for name in FIELDS}
@@ -152,9 +226,16 @@ def _atomic_npz(path: Path, fields: Mapping[str, Any], metadata: Mapping[str, An
                 np.savez(handle, **payload)
                 handle.flush()
                 os.fsync(handle.fileno())
+        if before_atomic_rename is not None:
+            before_atomic_rename(Path(temporary))
         with _timed_phase("ARTIFACT_ATOMIC_RENAME", artifact=str(path)):
             os.replace(temporary, path)
         _fsync_directory(path.parent)
+    except S5FaultInjectedError:
+        # F04 models a crash after a durable temporary write.  Its staged file
+        # is deliberately retained so formal restart reconstruction, rather
+        # than exception cleanup, proves it is non-authoritative.
+        raise
     except Exception:
         try:
             os.unlink(temporary)
@@ -250,7 +331,9 @@ class StreamingLifecycle:
         self.manifest = dict(manifest)
         self._authoritative_namespace = "CURRENT"
         self._authoritative_generation = ""
+        self._s5_fault = _s5_fault_config()
         self._validate_manifest()
+        self._validate_s5_fault_target()
         self._load_authoritative_pointer()
 
     @classmethod
@@ -409,6 +492,65 @@ class StreamingLifecycle:
         self._authoritative_namespace = "NEXT"
         self._authoritative_generation = str(pointer["authoritative_generation"])
 
+    def _validate_s5_fault_target(self) -> None:
+        configured = self._s5_fault
+        if configured is None:
+            return
+        screens = [str(record["screen_id"]) for record in self.manifest["records"]]
+        if configured["target_screen"] not in screens:
+            raise ValueError("HR4_S5_FAULT_SCREEN is not an authoritative screen in this lifecycle")
+        if configured["fault_id"] in {"F06_BARRIER_PASS_PRE_PROMOTION", "F08_PROMOTION_TRANSACTION_BOUNDARY"}:
+            if configured["target_screen"] != screens[-1]:
+                raise ValueError("generation-level S5 promotion faults require the final authoritative screen")
+
+    def _maybe_inject_s5_fault(
+        self,
+        fault_id: str,
+        *,
+        ordinal: int,
+        lifecycle_stage: str,
+        temporary_path: Path | None = None,
+    ) -> None:
+        """Persist and raise one explicitly selected deterministic S5 fault.
+
+        The marker is test provenance, not science state.  It is intentionally
+        written before the exception so a fresh process cannot inject the same
+        ``FAULT_ONCE`` case forever during recovery.
+        """
+        configured = self._s5_fault
+        if configured is None or configured["fault_id"] != fault_id:
+            return
+        specification = S5_FAULT_SPECS[fault_id]
+        if specification["stage"] != lifecycle_stage:
+            raise StreamingLifecycleError("S5 fault hook stage does not match its frozen contract")
+        record = self._record(ordinal)
+        if str(record["screen_id"]) != configured["target_screen"]:
+            return
+        consumed_path = self.root / ".s5_fault_consumed.json"
+        if consumed_path.is_file():
+            consumed = _read_json(consumed_path)
+            if (
+                consumed.get("fault_id") == fault_id
+                and consumed.get("target_screen") == configured["target_screen"]
+                and consumed.get("lifecycle_stage") == lifecycle_stage
+            ):
+                return
+            raise StreamingLifecycleError("S5 fault provenance belongs to a different case")
+        event = {
+            "schema": "khz_filament.hr4e5s.s5.fault_provenance.v1",
+            "fault_id": fault_id,
+            "target_screen": configured["target_screen"],
+            "ordinal": int(ordinal),
+            "lifecycle_stage": lifecycle_stage,
+            "expected_authoritative_state": specification["expected_authoritative_state"],
+            "fault_once": True,
+            "temporary_artifact": None if temporary_path is None else str(temporary_path.relative_to(self.root)),
+            "triggered_utc": _utc(),
+        }
+        _atomic_json(consumed_path, event)
+        _atomic_json(self.root / "s5_fault_provenance.json", event)
+        raise S5FaultInjectedError(event)
+
     def _record(self, ordinal: int) -> dict[str, Any]:
         index = int(ordinal)
         if index < 0:
@@ -468,6 +610,94 @@ class StreamingLifecycle:
         unexpected = sorted(actual - expected)
         if unexpected:
             raise StreamingLifecycleError("orphaned committed artifact is not represented in the manifest: " + ",".join(unexpected))
+
+    def _discard_restartable_staged_artifacts(self, *, actor: str) -> list[str]:
+        """Remove only atomic NPZ staging files that cannot be authoritative.
+
+        A temp file is safe to discard because it lacks both the atomic rename
+        and a manifest reference.  Other temporary files remain fail-closed.
+        """
+        staged = []
+        # A completed predecessor remains authoritative when atomic JSON has
+        # left an unrenamed temporary sibling.  These exact names are the
+        # only root-level JSON staging paths produced by this lifecycle.
+        for name in ("streaming_manifest.json", "authoritative_generation.json"):
+            for path in sorted(self.root.glob(name + ".*.tmp")):
+                path.unlink()
+                _fsync_directory(path.parent)
+                staged.append(path.relative_to(self.root).as_posix())
+        for namespace in ("post", "next"):
+            directory = self.root / namespace
+            for path in sorted(directory.glob("screen_*.npz.*.tmp")):
+                prefix = path.name.split(".npz.", maxsplit=1)[0]
+                try:
+                    ordinal = int(prefix.removeprefix("screen_"))
+                except ValueError:
+                    continue
+                if prefix != f"screen_{ordinal:06d}":
+                    continue
+                try:
+                    record = self._record(ordinal)
+                except IndexError:
+                    continue
+                restartable = (
+                    namespace == "post"
+                    and record["post"] is None
+                    and record["state"] == "DEPOSITION_FINALIZED"
+                ) or (
+                    namespace == "next"
+                    and record["next"] is None
+                    and record["state"] == "HYDRO_RUNNING"
+                )
+                if restartable:
+                    path.unlink()
+                    _fsync_directory(path.parent)
+                    staged.append(path.relative_to(self.root).as_posix())
+        # A POST rename which crashes before the manifest save is just as
+        # non-authoritative as a NEXT orphan.  It may only be discarded when
+        # the durable record is still at the pre-POST boundary.
+        for path in sorted((self.root / "post").glob("screen_*.npz")):
+            try:
+                ordinal = int(path.stem.removeprefix("screen_"))
+            except ValueError:
+                continue
+            if path.name != f"screen_{ordinal:06d}.npz":
+                continue
+            try:
+                record = self._record(ordinal)
+            except IndexError:
+                continue
+            if record["post"] is None and record["state"] == "DEPOSITION_FINALIZED":
+                path.unlink()
+                _fsync_directory(path.parent)
+                staged.append(path.relative_to(self.root).as_posix())
+        # An interrupted commit can cross the NPZ rename but not the manifest
+        # save.  The file remains non-authoritative because no record refers
+        # to it; when and only when it is the expected missing NEXT for a
+        # durable HYDRO_RUNNING record, recomputation from POST is safe.
+        for path in sorted((self.root / "next").glob("screen_*.npz")):
+            try:
+                ordinal = int(path.stem.removeprefix("screen_"))
+            except ValueError:
+                continue
+            if path.name != f"screen_{ordinal:06d}.npz":
+                continue
+            try:
+                record = self._record(ordinal)
+            except IndexError:
+                continue
+            if record["next"] is None and record["state"] == "HYDRO_RUNNING":
+                path.unlink()
+                _fsync_directory(path.parent)
+                staged.append(path.relative_to(self.root).as_posix())
+        if staged:
+            self.manifest.setdefault("s5_recovery_events", []).append({
+                "event": "DISCARDED_NONAUTHORITATIVE_STAGED_ARTIFACTS",
+                "actor": actor,
+                "artifacts": staged,
+                "timestamp_utc": _utc(),
+            })
+        return staged
 
     def _validate_record_provenance(self, record: Mapping[str, Any], *, require_post: bool, require_next: bool) -> None:
         expected_ordinal = int(record["ordinal"])
@@ -540,6 +770,19 @@ class StreamingLifecycle:
             return self._artifact_fields(record["next"], namespace="NEXT")
         return self._artifact_fields(record["current"], namespace="CURRENT")
 
+    def has_authoritative_post(self, ordinal: int) -> bool:
+        """Return whether a restart may reuse this screen's validated POST."""
+        with self._locked_manifest():
+            record = self._record(ordinal)
+            if record["post"] is None:
+                return False
+            if record["state"] not in (
+                "POST_COMMITTED", "HYDRO_QUEUED", "HYDRO_RUNNING", "NEXT_COMMITTED", "BARRIER_VALIDATED",
+            ):
+                raise StreamingLifecycleError("POST artifact has invalid lifecycle state")
+            self._validate_record_provenance(record, require_post=True, require_next=record["next"] is not None)
+            return True
+
     def begin_optical(self, ordinal: int, *, actor: str = "optical") -> None:
         with self._locked_manifest():
             record = self._record(ordinal)
@@ -551,6 +794,13 @@ class StreamingLifecycle:
     def deposition_finalized(self, ordinal: int, *, actor: str = "optical", optical_finalized_s: float | None = None) -> None:
         with self._locked_manifest():
             record = self._record(ordinal)
+            if record["post"] is not None:
+                self._validate_record_provenance(record, require_post=True, require_next=record["next"] is not None)
+                return
+            if record["state"] == "DEPOSITION_FINALIZED":
+                # A fault can occur after durable optical finalization but
+                # before POST commit.  It is safe to finish that missing POST.
+                return
             if record["state"] not in ("CURRENT_READY", "OPTICAL_IN_PROGRESS"):
                 raise StreamingLifecycleError("deposition finalization has invalid predecessor state")
             if record["state"] == "CURRENT_READY":
@@ -579,7 +829,17 @@ class StreamingLifecycle:
                 "shape": self.manifest["shape"], "dtype": "float64", "hr3a_authoritative": True, "hr3b_authoritative": True,
             }
             path = self.root / "post" / f"screen_{int(ordinal):06d}.npz"
+            self._maybe_inject_s5_fault(
+                "F01_OPTICAL_PRE_POST_COMMIT",
+                ordinal=int(ordinal),
+                lifecycle_stage="OPTICAL_PRE_POST_COMMIT",
+            )
             file_hash = _atomic_npz(path, payload, metadata)
+            self._maybe_inject_s5_fault(
+                "F09_POST_RENAMED_PRE_MANIFEST",
+                ordinal=int(ordinal),
+                lifecycle_stage="POST_RENAMED_PRE_MANIFEST",
+            )
             entry = {"artifact": str(path.relative_to(self.root)), "file_sha256": file_hash, "field_sha256": hashes, "metadata": metadata}
             self._artifact_fields(entry, namespace="POST")
             record["post"] = entry
@@ -589,6 +849,11 @@ class StreamingLifecycle:
             self._telemetry_locked("POST_COMMITTED", actor=actor, ordinal=ordinal)
             self._transition(record, "POST_COMMITTED", actor=actor, source_file_sha256=record["current"]["file_sha256"], output_file_sha256=file_hash, post_committed_s=committed)
             self._save()
+            self._maybe_inject_s5_fault(
+                "F02_POST_COMMITTED_PRE_HYDRO",
+                ordinal=int(ordinal),
+                lifecycle_stage="POST_COMMITTED_PRE_HYDRO",
+            )
             return entry
 
     def commit_post_from_delta_n(self, ordinal: int, post_delta_n: Any, **kwargs: Any) -> dict[str, Any]:
@@ -672,13 +937,33 @@ class StreamingLifecycle:
                 "field_sha256": hashes, "shape": self.manifest["shape"], "dtype": "float64",
             }
             path = self.root / "next" / f"screen_{int(ordinal):06d}.npz"
-            file_hash = _atomic_npz(path, payload, metadata)
+            file_hash = _atomic_npz(
+                path,
+                payload,
+                metadata,
+                before_atomic_rename=lambda temporary: self._maybe_inject_s5_fault(
+                    "F04_NEXT_TEMP_PRE_ATOMIC_RENAME",
+                    ordinal=int(ordinal),
+                    lifecycle_stage="NEXT_TEMP_PRE_ATOMIC_RENAME",
+                    temporary_path=temporary,
+                ),
+            )
+            self._maybe_inject_s5_fault(
+                "F07_NEXT_RENAMED_PRE_MANIFEST",
+                ordinal=int(ordinal),
+                lifecycle_stage="NEXT_RENAMED_PRE_MANIFEST",
+            )
             entry = {"artifact": str(path.relative_to(self.root)), "file_sha256": file_hash, "field_sha256": hashes, "metadata": metadata}
             with _timed_phase("NEXT_VALIDATION_READ", ordinal=int(ordinal)):
                 self._artifact_fields(entry, namespace="NEXT")
             record["next"] = entry
             self._transition(record, "NEXT_COMMITTED", actor=actor, source_file_sha256=record["post"]["file_sha256"], output_file_sha256=file_hash)
             self._save()
+            self._maybe_inject_s5_fault(
+                "F05_NEXT_COMMITTED_PRE_BARRIER",
+                ordinal=int(ordinal),
+                lifecycle_stage="NEXT_COMMITTED_PRE_BARRIER",
+            )
             return entry
 
     def run_one_hydro_block(self, *, dt_hydro: float, n_hydro_steps: int, chi: float, nu: float, n0: float, gravity_x: float = 0.0, gravity_y: float = -9.81, cfl_limit: float = 1.0, actor: str = "hydro") -> list[int]:
@@ -699,6 +984,11 @@ class StreamingLifecycle:
             # explicit device-to-host persistence boundary.
             with _timed_phase("GPU_TO_HOST_MATERIALIZATION", ordinal=int(ordinal), block=list(block)):
                 outgoing = {name: np.asarray(to_cpu(result[name]), dtype=np.float64) for name in FIELDS}
+            self._maybe_inject_s5_fault(
+                "F03_HYDRO_PRE_NEXT_COMMIT",
+                ordinal=int(ordinal),
+                lifecycle_stage="HYDRO_PRE_NEXT_COMMIT",
+            )
             self.commit_next(ordinal, outgoing, actor=actor)
             self.record_telemetry("HYDRO_SCREEN_END", actor=actor, ordinal=ordinal, block=block)
         if block:
@@ -707,6 +997,7 @@ class StreamingLifecycle:
 
     def reconstruct_queue(self, *, actor: str = "restart") -> list[int]:
         with self._locked_manifest():
+            self._discard_restartable_staged_artifacts(actor=actor)
             self._assert_no_staged_or_orphaned_artifacts()
             if self._authoritative_namespace == "NEXT":
                 # A promoted generation is already terminal; it must not be
@@ -745,6 +1036,14 @@ class StreamingLifecycle:
     def validate_barrier(self, *, actor: str = "barrier") -> dict[str, Any]:
         self.record_telemetry("BARRIER_START", actor=actor)
         with self._locked_manifest():
+            existing = self.manifest.get("barrier")
+            if isinstance(existing, Mapping) and existing.get("status") == "PASS":
+                self._assert_no_staged_or_orphaned_artifacts()
+                for record in self.manifest["records"]:
+                    if record["state"] != "BARRIER_VALIDATED" or record["post"] is None or record["next"] is None:
+                        raise BarrierError("stored PASS barrier has incomplete lifecycle state")
+                    self._validate_record_provenance(record, require_post=True, require_next=True)
+                return dict(existing)
             failures = []
             seen_next_identities: set[tuple[int, str, float]] = set()
             try:
@@ -785,14 +1084,46 @@ class StreamingLifecycle:
             barrier = self.manifest.get("barrier")
             if not isinstance(barrier, Mapping) or barrier.get("status") != "PASS":
                 raise BarrierError("NEXT cannot become CURRENT before barrier PASS")
+            pointer_path = self.root / "authoritative_generation.json"
+            if pointer_path.is_file():
+                pointer = _read_json(pointer_path)
+                if self._authoritative_namespace != "NEXT":
+                    raise StreamingLifecycleError("existing promotion pointer is not authoritative")
+                promotion = self.manifest.get("promotion")
+                if promotion is None:
+                    # A crash after the durable pointer write but before the
+                    # manifest save completes this one transaction; it never
+                    # writes a second promotion pointer.
+                    self.manifest["promotion"] = pointer
+                    self._telemetry_locked("PROMOTION_RECOVERED", actor=actor)
+                    self._save()
+                elif dict(promotion) != pointer:
+                    raise StreamingLifecycleError("manifest promotion conflicts with authoritative pointer")
+                return pointer
+            if self.manifest.get("promotion") is not None:
+                raise StreamingLifecycleError("manifest records a promotion without its authoritative pointer")
             pointer = {"schema": SCHEMA, "authoritative_namespace": "NEXT", "source_current_generation": self.manifest["current_generation"], "authoritative_generation": self.manifest["next_generation"], "barrier": dict(barrier), "promoted_utc": _utc(), "actor": actor}
-            _atomic_json(self.root / "authoritative_generation.json", pointer)
+            _atomic_json(pointer_path, pointer)
+            self._maybe_inject_s5_fault(
+                "F08_PROMOTION_TRANSACTION_BOUNDARY",
+                ordinal=int(self.manifest["expected_screen_count"]) - 1,
+                lifecycle_stage="PROMOTION_POINTER_PRE_MANIFEST",
+            )
             self.manifest["promotion"] = pointer
             self._telemetry_locked("PROMOTION", actor=actor)
             self._save()
             self._authoritative_namespace = "NEXT"
             self._authoritative_generation = str(pointer["authoritative_generation"])
             return pointer
+
+    def inject_s5_fault(self, fault_id: str, *, ordinal: int, lifecycle_stage: str) -> None:
+        """Expose one locked, deterministic S5 test boundary to the runner."""
+        with self._locked_manifest():
+            self._maybe_inject_s5_fault(
+                fault_id,
+                ordinal=int(ordinal),
+                lifecycle_stage=lifecycle_stage,
+            )
 
     def rate_metrics(self) -> dict[str, Any]:
         times = [float(item["time_s"]) for item in self.manifest["rate_events"] if item["event"] == "POST_COMMITTED"]

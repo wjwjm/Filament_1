@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# One S5 lifecycle case: one optical GPU and one hydro GPU.  No scaling modes.
+#SBATCH --job-name=hr4e5s-s5
+#SBATCH --partition=gpu
+#SBATCH --ntasks=2
+#SBATCH --cpus-per-task=8
+#SBATCH --time=12:00:00
+set -euo pipefail
+
+readonly PYTHON=/data/home/scvi806/.conda/envs/Filament_python/bin/python
+: "${EXPECTED_GIT_SHA:?}" "${REPO_DIR:?}" "${RUN_ROOT:?}" "${CASE_ID:?}" "${CASE_MODE:?}" "${INPUT_MANIFEST:?}" "${LUT_WORKSPACE:?}"
+test "$(git -C "$REPO_DIR" rev-parse HEAD)" = "$EXPECTED_GIT_SHA"
+test -z "$(git -C "$REPO_DIR" status --porcelain=v1 --untracked-files=all)"
+test -f "$INPUT_MANIFEST" && test -d "$LUT_WORKSPACE" && test "$(stat -c '%a' "$LUT_WORKSPACE")" = 700
+case "$CASE_ID" in clean|F01|F02|F03|F04|F05|F06) ;; *) exit 64 ;; esac
+case "$CASE_MODE" in clean|fault) ;; *) exit 64 ;; esac
+source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
+conda activate Filament_python
+export UPPE_USE_GPU=1 PYTHONPATH="$REPO_DIR/Filament_python" PYTHONUNBUFFERED=1
+export PYTHONPYCACHEPREFIX="$RUN_ROOT/pycache" CUPY_CACHE_DIR="$RUN_ROOT/cupy_cache" XDG_CACHE_HOME="$RUN_ROOT/xdg_cache"
+export OMP_NUM_THREADS="$SLURM_CPUS_PER_TASK" OPENBLAS_NUM_THREADS="$SLURM_CPUS_PER_TASK" MKL_NUM_THREADS="$SLURM_CPUS_PER_TASK"
+test "$("$PYTHON" -c 'from KHz_filament.device import debug_backend; print(debug_backend()["backend"])')" = cupy
+
+readonly CASE_ROOT="$RUN_ROOT/$CASE_ID"
+test ! -e "$CASE_ROOT"
+mkdir -m 700 -- "$CASE_ROOT"
+
+pair_run() {
+  local lifecycle="$1" optical="$2" consumer="$3" marker="$4" resume="$5" status="$6"
+  mkdir -m 700 -- "$consumer"
+  local -a optical_cmd=("$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" optical --input "$INPUT_MANIFEST" --out-dir "$optical" --stream-root "$lifecycle")
+  if [[ "$resume" == 1 ]]; then optical_cmd+=(--resume); fi
+  srun --exclusive --ntasks=1 --gpus-per-task=1 --cpus-per-task="$SLURM_CPUS_PER_TASK" "${optical_cmd[@]}" >"$consumer/producer.out" 2>"$consumer/producer.err" &
+  local producer_pid=$!
+  srun --exclusive --ntasks=1 --gpus-per-task=1 --cpus-per-task="$SLURM_CPUS_PER_TASK" "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" consume --input "$INPUT_MANIFEST" --stream-root "$lifecycle" --producer-complete "$marker" --out "$consumer/result.json" >"$consumer/consumer.out" 2>"$consumer/consumer.err" &
+  local consumer_pid=$! finished='' first_status=0 producer_status=0 consumer_status=0
+  wait -n -p finished "$producer_pid" "$consumer_pid" || first_status=$?
+  if [[ "$finished" == "$producer_pid" ]]; then
+    producer_status="$first_status"
+    if [[ "$producer_status" -ne 0 ]]; then kill "$consumer_pid" 2>/dev/null || true; wait "$consumer_pid" || consumer_status=$?; else touch "$marker"; wait "$consumer_pid" || consumer_status=$?; fi
+  else
+    consumer_status="$first_status"
+    if [[ "$consumer_status" -ne 0 ]]; then kill "$producer_pid" 2>/dev/null || true; wait "$producer_pid" || producer_status=$?; else wait "$producer_pid" || producer_status=$?; if [[ "$producer_status" -eq 0 ]]; then touch "$marker"; fi; fi
+  fi
+  "$PYTHON" - "$status" "$producer_status" "$consumer_status" <<'PY'
+import json,sys
+path,producer,consumer=sys.argv[1:]
+with open(path+'.tmp','w',encoding='utf-8',newline='\n') as f:
+    json.dump({'producer_exit_code':int(producer),'consumer_exit_code':int(consumer)},f,sort_keys=True); f.write('\n'); f.flush()
+import os
+os.replace(path+'.tmp',path)
+PY
+  [[ "$producer_status" -eq 0 && "$consumer_status" -eq 0 ]]
+}
+
+initialize() {
+  "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" initialize-stream --input "$INPUT_MANIFEST" --root "$CASE_ROOT/injected/lifecycle"
+}
+
+if [[ "$CASE_MODE" == clean ]]; then
+  unset HR4_S5_FAULT_ID HR4_S5_FAULT_SCREEN HR4_S5_FAULT_ONCE || true
+  "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" initialize-stream --input "$INPUT_MANIFEST" --root "$CASE_ROOT/lifecycle"
+  if ! pair_run "$CASE_ROOT/lifecycle" "$CASE_ROOT/optical" "$CASE_ROOT/consumer" "$CASE_ROOT/producer_complete" 0 "$CASE_ROOT/pair_status.json"; then exit 1; fi
+  "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" finalize-stream --stream-root "$CASE_ROOT/lifecycle" --out "$CASE_ROOT/final.json"
+  "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s5.py" inspect --lifecycle-root "$CASE_ROOT/lifecycle" --out "$CASE_ROOT/final_lifecycle_audit.json"
+  exit 0
+fi
+
+: "${HR4_S5_FAULT_ID:?}" "${HR4_S5_FAULT_SCREEN:?}"
+initialize
+if [[ "$CASE_ID" == F06 ]]; then
+  if ! pair_run "$CASE_ROOT/injected/lifecycle" "$CASE_ROOT/injected/optical" "$CASE_ROOT/injected/consumer" "$CASE_ROOT/injected/producer_complete" 0 "$CASE_ROOT/injected/pair_status.json"; then exit 1; fi
+  if "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" finalize-stream --stream-root "$CASE_ROOT/injected/lifecycle" --out "$CASE_ROOT/injected/final.json"; then exit 1; fi
+else
+  if pair_run "$CASE_ROOT/injected/lifecycle" "$CASE_ROOT/injected/optical" "$CASE_ROOT/injected/consumer" "$CASE_ROOT/injected/producer_complete" 0 "$CASE_ROOT/injected/pair_status.json"; then exit 1; fi
+fi
+"$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s5.py" inspect --lifecycle-root "$CASE_ROOT/injected/lifecycle" --out "$CASE_ROOT/injected/disk_state_audit.json"
+"$PYTHON" - "$CASE_ROOT/injected/disk_state_audit.json" "$HR4_S5_FAULT_ID" <<'PY'
+import json,sys
+x=json.load(open(sys.argv[1],encoding='utf-8')); expected=sys.argv[2]
+assert x['fault_provenance'][0]['fault_id']==expected
+assert x['fault_provenance'][0]['fault_once'] is True
+PY
+unset HR4_S5_FAULT_ID HR4_S5_FAULT_SCREEN HR4_S5_FAULT_ONCE
+if [[ "$CASE_ID" == F06 ]]; then
+  mkdir -m 700 -- "$CASE_ROOT/recovery"
+  "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" finalize-stream --stream-root "$CASE_ROOT/injected/lifecycle" --out "$CASE_ROOT/recovery/final.json"
+  candidate_optical="$CASE_ROOT/injected/optical"
+else
+  if ! pair_run "$CASE_ROOT/injected/lifecycle" "$CASE_ROOT/recovery/optical" "$CASE_ROOT/recovery/consumer" "$CASE_ROOT/recovery/producer_complete" 1 "$CASE_ROOT/recovery/pair_status.json"; then exit 1; fi
+  "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" finalize-stream --stream-root "$CASE_ROOT/injected/lifecycle" --out "$CASE_ROOT/recovery/final.json"
+  candidate_optical="$CASE_ROOT/recovery/optical"
+fi
+: "${REFERENCE_CASE_ROOT:?}"
+"$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s5.py" compare --reference-lifecycle-root "$REFERENCE_CASE_ROOT/lifecycle" --reference-optical-dir "$REFERENCE_CASE_ROOT/optical" --candidate-lifecycle-root "$CASE_ROOT/injected/lifecycle" --candidate-optical-dir "$candidate_optical" --out-dir "$CASE_ROOT/comparison"

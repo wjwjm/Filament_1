@@ -1,0 +1,92 @@
+{
+  "schema": "khz_filament.hr4e5s.s5.baseline_receipt.v1",
+  "generated_utc": "2026-09-11T16:44:41Z",
+  "s5_base_sha": "d4bd96ca21c5815b57f1a3c2ee8f8cec54dfb220",
+  "branch": "codex/hr4e5s-s5-lifecycle",
+  "baseline_branch_before_s5": "HR-4E",
+  "fault_injection_default_state": "DISABLED",
+  "science_operator_change_at_baseline": false,
+  "git_status_porcelain_v1_before_s5_artifacts": [
+    "?? .codex_tmp_e2c/",
+    "?? .hr4e5p_p4_8afc0bf.bundle",
+    "?? .hr4e5p_p4_adj_39f6f3d.bundle",
+    "?? .hr4e5p_p4_d1dd31.bundle",
+    "?? .hr4e5p_p5_99e2406.bundle",
+    "?? .hr4e5s_s3_043fa34.bundle",
+    "?? .hr4e5s_s3_480d000.bundle",
+    "?? .hr4e5s_s3_4b0aa1a.bundle",
+    "?? .hr4e5s_s3_568318b.bundle",
+    "?? .hr4e5s_s3_6c09f61.bundle",
+    "?? .hr4e5s_s3_c1f35b2.bundle",
+    "?? .hr4e5s_s3_dcf6cd9.bundle",
+    "?? .hr4e5s_s3_df80192.bundle",
+    "?? .hr4e5s_s4_e7e900e.bundle",
+    "?? .hr4e5s_s4r_4768795.bundle",
+    "?? .hr4e5s_s4r_725dbfb.bundle",
+    "?? .hr4e5s_s4r_7ef1136.bundle",
+    "?? .hr4e5s_s4r_cbc47bc.bundle",
+    "?? .hr4e5s_s4stream_6ed8df8.bundle",
+    "?? .hr4e5s_s4stream_d4bd96c.bundle",
+    "?? .hr4e5s_s4stream_d4bd96c_hr4e.bundle",
+    "?? .hr4e5s_s4stream_fdfa6a5.bundle",
+    "?? .p4_report_readback/",
+    "?? Filament_python/results/hr4e3_e3_closeout_025643f/",
+    "?? Filament_python/results/hr4e3_e3_final_025643f/",
+    "?? Filament_python/results/hr4e4_closeout_17431cf/",
+    "?? Filament_python/results/hr4e4_final_17431cf/",
+    "?? Filament_python/results/hr4e5s_s1_99e2406/",
+    "?? Filament_python/results/hr4e5s_s2_92fd8e2/",
+    "?? Filament_python/results/hr4e5s_s3_c1f35b2/",
+    "?? Filament_python/results/hr4e5s_s4_e7e900e/"
+  ],
+  "tracked_modified_paths_before_s5_artifacts": [],
+  "preexisting_untracked_classification": {
+    "s5_owned": [],
+    "preserved_historical_evidence": [
+      ".codex_tmp_e2c/",
+      ".hr4e5p_*.bundle",
+      ".hr4e5s_s3_*.bundle",
+      ".hr4e5s_s4*.bundle",
+      ".p4_report_readback/",
+      "Filament_python/results/hr4e3_*/",
+      "Filament_python/results/hr4e4_*/",
+      "Filament_python/results/hr4e5s_s1_*/",
+      "Filament_python/results/hr4e5s_s2_*/",
+      "Filament_python/results/hr4e5s_s3_*/",
+      "Filament_python/results/hr4e5s_s4_*/"
+    ],
+    "action": "preserved_without_reset_checkout_clean_move_or_overwrite"
+  },
+  "local_environment": {
+    "python": "3.13.7 | packaged by conda-forge | (main, Sep 3 2025, 14:18:04) [MSC v.1944 64 bit (AMD64)]",
+    "numpy": "2.3.3",
+    "cupy": "UNAVAILABLE: ModuleNotFoundError",
+    "cuda_runtime": "UNAVAILABLE: CuPy is not installed in the Windows CPU test environment"
+  },
+  "frozen_s3_science_inputs": {
+    "source_config_sha256": "eaec83ad326a29af95881912db76a7e5c26943dec9e0d6876ca9c9cc2a100c22",
+    "source_state_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+    "source_state_array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+    "source_input_manifest_sha256": "1be727ecebcf7a635953d7c22393001d1d33254175a51a9eb984409cf63270b7",
+    "screen_range": [7998, 8045],
+    "source": "Filament_python/results/hr4e5s_s3_c1f35b2/hr4e5s_s3_run_manifest.json"
+  },
+  "key_source_files": [
+    {"path": "Filament_python/KHz_filament/hr4e5s_streaming.py", "sha256": "390fc317dda188d1aaa6dd4b4f8a10b55d16dbadfb089ddb75a1768e1fff8eed", "git_blob": "b84d597225329fdabfccd7103f76cd62f714484a"},
+    {"path": "Filament_python/KHz_filament/hr4e5s_s3.py", "sha256": "26b004cd18bf26e68ba863d01966bd42664810eebc07895c1d014a871cf1431a", "git_blob": "f72f31dce129c85a8e81d41241fcf8a192142ee9"},
+    {"path": "Filament_python/KHz_filament/hr4e5s_s4r.py", "sha256": "c05ca5f69982678c3841db96623b9e03ad77a7ff2cff55468d9e26aa9d9015c8", "git_blob": "1beac56debc31c32312f0dc5fdf9b75b99f21bd3"},
+    {"path": "Filament_python/KHz_filament/hr4.py", "sha256": "3d429158f484733cba7595a587d87719aed757b55ee8d8110c04b64714cd3bce", "git_blob": "af7520cd2a6fdfe0141055e4118686296ccdce8f"},
+    {"path": "Filament_python/KHz_filament/hr4c_state.py", "sha256": "384e8db11c688b778df6a01ace70ec4efa3a864699ff8437d0356f266d0d9735", "git_blob": "6f82e2a6291d3ac42deb5a15a56ef5f570ca87d0"},
+    {"path": "Filament_python/tools/run_hr4e5s_s3.py", "sha256": "6138efec09252814dc7cb4f49ebdf6dc2a88bd735ac650239cef5a42eae804be", "git_blob": "eea09ffbe382ac56ea14812110541b20ded5dd78"},
+    {"path": "Filament_python/tools/run_hr4e5s_s4r.py", "sha256": "4627b2baf180b540ff31d7c00ebe58f61af8a93340018a020e2fb52b672b8551", "git_blob": "536c97d86d4c3449753c6fd94980e2d9c8ab91e5"},
+    {"path": "Filament_python/tools/hr4e5s_s3.sbatch", "sha256": "59549d7d98f1f7a483ba010aed5570f81f525e2e62839d792a18787e7e030745", "git_blob": "b5089d70337ba72b1d82a805e50c71af922aeb4d"},
+    {"path": "Filament_python/tests/test_hr4e5s_streaming.py", "sha256": "ab554d46525d771ee244d7354d77a79a908b856e9a76c8db6b75ad577722da44", "git_blob": "2cf6cea3a17b4d5a27e8f846b39e757268b30d1d"},
+    {"path": "Filament_python/tests/test_hr4e5s_s3.py", "sha256": "ec8859d01683176ebe420885a5febb8dc7f807829fb305fa23cc6d5b546ae8fd", "git_blob": "4c1e444f94a8b5d217fde9b7b5d0760532340c34"},
+    {"path": "Filament_python/config_ref.json", "sha256": "9c1718db049f23bd2e4e46809cc9236deeb09fe4b33badf29a4e11cea8a26723", "git_blob": "262d0cc6ee7073260883aa38c5bc65d7fedcef84"}
+  ],
+  "advance_hr4_single_screen": {
+    "path": "Filament_python/KHz_filament/hr4.py",
+    "line": 388,
+    "sha256": "3d429158f484733cba7595a587d87719aed757b55ee8d8110c04b64714cd3bce"
+  }
+}

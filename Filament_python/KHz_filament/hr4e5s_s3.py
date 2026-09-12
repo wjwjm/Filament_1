@@ -175,13 +175,19 @@ class S3ReadOnlyCurrentState:
 
 
 class _SelectedStreamingHook:
-    def __init__(self, lifecycle: StreamingLifecycle, records: Sequence[Mapping[str, Any]]):
+    def __init__(self, lifecycle: StreamingLifecycle, records: Sequence[Mapping[str, Any]], *, resume: bool = False):
         self.lifecycle = lifecycle
         self.ordinals = {int(item["source_index"]): int(item["ordinal"]) for item in records}
+        self.resume = bool(resume)
 
     def __call__(self, *, interval, state_after, hr3a_authoritative: bool, hr3b_authoritative: bool) -> None:
         ordinal = self.ordinals.get(int(interval.index))
         if ordinal is None:
+            return
+        # A recovery replays the deterministic optical propagation but never
+        # replaces a durable POST.  The lifecycle validates the saved POST
+        # before this skip, so only unfinished records may be committed.
+        if self.resume and self.lifecycle.has_authoritative_post(ordinal):
             return
         self.lifecycle.deposition_finalized(ordinal, actor="optical")
         self.lifecycle.commit_post_from_delta_n(ordinal, state_after, actor="optical", hr3a_authoritative=hr3a_authoritative, hr3b_authoritative=hr3b_authoritative)
@@ -211,7 +217,7 @@ def _ledger_payload(diag: Mapping[str, Any]) -> dict[str, np.ndarray]:
 
 
 def run_optical_path(*, input_manifest_path: str | Path, out_dir: str | Path,
-                     streaming_root: str | Path | None = None, dtype: str = "fp64") -> dict[str, Any]:
+                     streaming_root: str | Path | None = None, dtype: str = "fp64", resume: bool = False) -> dict[str, Any]:
     """Run the complete frozen optical trajectory, capturing only S3 screens."""
     manifest, destination = _read_json(Path(input_manifest_path)), Path(out_dir)
     if destination.exists():
@@ -253,8 +259,11 @@ def run_optical_path(*, input_manifest_path: str | Path, out_dir: str | Path,
         }
         if ownership_before["next_pointer_exists"] or ownership_before["authoritative_namespace"] != "CURRENT":
             raise ValueError("S3 optical producer refuses a pre-promoted or NEXT authoritative generation")
+        if resume:
+            streaming_before.reconstruct_queue(actor="s5_restart")
+            streaming_before.record_telemetry("RESTART_RECONSTRUCTED", actor="s5_restart")
         streaming_before.record_telemetry("OPTICAL_START", actor="optical")
-        hook = _SelectedStreamingHook(streaming_before, records)
+        hook = _SelectedStreamingHook(streaming_before, records, resume=resume)
     try:
         final_E, _, diag = propagate_one_pulse(E, kperp2=axes.kperp2, k0=k0, omega0=omega0, dz=prop.dz, z_max=prop.z_max, n0=beam.n0, n2=float(getattr(prop, "n2", getattr(beam, "n2_air", n2_air))), Ui=Ui_N2, N0=N0_air, ion_conf=ion, dn_gas=None, dt=axes.dt, axes=axes, prop_conf=prop, raman_conf=raman, record_onaxis_rho_time=True, record_every_z=1, longitudinal_schedule=schedule, deposition_contract=build_deposition_contract(schedule, axes=axes), thermal_sink=thermal_sink, thermal_slow_state=current, hr3b_parameters={"rho0": float(heat.rho0), "Cv": float(heat.Cv), "T0": float(prop.air_T), "n0": float(beam.n0), "beta_th": beta}, hr3b_sink=hr3b_sink, post_commit_hook=hook)
     finally:
@@ -335,6 +344,11 @@ def consume_streaming(*, lifecycle_root: str | Path, hydro: Mapping[str, Any], p
 def finalize_streaming(*, lifecycle_root: str | Path, out_path: str | Path) -> dict[str, Any]:
     lifecycle = StreamingLifecycle.open(lifecycle_root)
     barrier = lifecycle.validate_barrier(actor="s3_barrier")
+    lifecycle.inject_s5_fault(
+        "F06_BARRIER_PASS_PRE_PROMOTION",
+        ordinal=int(lifecycle.manifest["expected_screen_count"]) - 1,
+        lifecycle_stage="BARRIER_PASS_PRE_PROMOTION",
+    )
     promotion = lifecycle.promote_next_to_current(actor="s3_barrier")
     result = {"schema": S3_SCHEMA, "barrier": barrier, "promotion": promotion, "streaming_manifest_sha256": sha256_file(lifecycle.manifest_path)}
     _atomic_json(Path(out_path), result)

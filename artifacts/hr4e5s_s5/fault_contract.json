@@ -1,0 +1,133 @@
+{
+  "schema": "khz_filament.hr4e5s.s5.fault_contract.v1",
+  "fault_contract_version": "1.0.0",
+  "s5_base_sha": "d4bd96ca21c5815b57f1a3c2ee8f8cec54dfb220",
+  "scope": "test-only deterministic lifecycle fault qualification; no HR-2, HR-3, HR-4 science operator, grid, domain, precision, hydro step, deposition, or thermalization change",
+  "fault_injection": {
+    "default_state": "DISABLED",
+    "environment": {
+      "id": "HR4_S5_FAULT_ID",
+      "screen": "HR4_S5_FAULT_SCREEN",
+      "once": "HR4_S5_FAULT_ONCE"
+    },
+    "exit": "deterministic non-zero S5FaultInjectedError",
+    "provenance": "lifecycle_root/s5_fault_provenance.json and lifecycle_root/.s5_fault_consumed.json",
+    "random_crash_or_wall_clock_kill": false
+  },
+  "authoritative_states": {
+    "CURRENT": "A current/screen_*.npz artifact is authoritative only when its record is present in streaming_manifest.json and its file hash, canonical field hashes, identity, and current_generation provenance validate.",
+    "POST": "A post/screen_*.npz artifact is authoritative only after its fully fsynced atomic rename and the matching manifest record stores its file/field hashes with state POST_COMMITTED or a later permitted state.",
+    "NEXT": "A next/screen_*.npz artifact is authoritative only after its fully fsynced atomic rename, validation read, and the matching manifest record stores its file/field hashes with state NEXT_COMMITTED or BARRIER_VALIDATED.",
+    "BARRIER": "The manifest barrier is authoritative only with status PASS after every expected record has one validated POST and NEXT, no unresolved queue, no staged temporary artifact, and no duplicate NEXT identity.",
+    "PROMOTION": "NEXT owns the next CURRENT generation only when authoritative_generation.json validates against a PASS barrier and exactly matches the manifest promotion record. A restart must complete a previously persisted pointer-to-manifest transaction without creating another pointer transition."
+  },
+  "non_authoritative_states": [
+    "*.tmp created by atomic JSON or NPZ staging",
+    "unreferenced or hash-unvalidated NPZ files",
+    "worker-local arrays and RAM queues",
+    "a temporary file that has not been atomically renamed and referenced by the manifest",
+    "a manifest transaction that lacks its required artifact or promotion pointer",
+    "telemetry and timing records"
+  ],
+  "replay_safe_stages": [
+    "F01: recompute optical/POST for a record without an authoritative POST",
+    "F02: retain the authoritative POST and reconstruct its hydro queue entry",
+    "F03: recompute hydro for a claimed record without an authoritative NEXT",
+    "F04: discard only a staged temporary NEXT artifact and recompute hydro",
+    "F05: rebuild/validate the barrier from committed NEXT records",
+    "F06: complete the one pending promotion after a persisted PASS barrier",
+    "F07: discard only the expected unreferenced renamed NEXT and recompute hydro",
+    "F08: complete a persisted promotion pointer transaction without replacing the pointer",
+    "F09: discard only the expected unreferenced renamed POST and recompute optical/POST"
+  ],
+  "exactly_once_transitions": [
+    "POST artifact atomic commit plus manifest reference",
+    "NEXT artifact atomic commit plus manifest reference",
+    "NEXT-to-CURRENT promotion pointer plus manifest promotion record"
+  ],
+  "forbidden_recovery_behaviors": [
+    "Treat a temporary, orphaned, partial, or hash-invalid artifact as authoritative",
+    "Write a second authoritative POST or NEXT for the same screen identity",
+    "Promote without a PASS barrier",
+    "Overwrite a valid authoritative artifact during recovery",
+    "Depend on a prior process RAM queue",
+    "Manually edit scientific state files to complete recovery",
+    "Weaken exact/hash comparison to a tolerance comparison"
+  ],
+  "fault_ids": [
+    {
+      "id": "F01_OPTICAL_PRE_POST_COMMIT",
+      "stage": "OPTICAL_PRE_POST_COMMIT",
+      "injection_boundary": "after authoritative deposition finalization and before POST temporary write",
+      "expected_authoritative_state": "CURRENT only; POST absent",
+      "recovery": "rerun optical deterministically for the missing POST and continue hydro",
+      "comparison": "POST, NEXT, final optical, deposition ledger, normalized manifest, ownership, barrier, and promotion exactly equal to clean reference"
+    },
+    {
+      "id": "F02_POST_COMMITTED_PRE_HYDRO",
+      "stage": "POST_COMMITTED_PRE_HYDRO",
+      "injection_boundary": "after POST artifact and manifest commit, before enqueue/hydro claim",
+      "expected_authoritative_state": "CURRENT and one POST; NEXT absent",
+      "recovery": "validate and retain POST, reconstruct queue, then run hydro",
+      "comparison": "NEXT and all clean-reference exact comparisons"
+    },
+    {
+      "id": "F03_HYDRO_PRE_NEXT_COMMIT",
+      "stage": "HYDRO_PRE_NEXT_COMMIT",
+      "injection_boundary": "after durable HYDRO_RUNNING claim and before frozen single-screen solver result commit",
+      "expected_authoritative_state": "CURRENT and POST; NEXT absent",
+      "recovery": "requeue from validated POST and recompute only missing NEXT work",
+      "comparison": "NEXT and all clean-reference exact comparisons"
+    },
+    {
+      "id": "F04_NEXT_TEMP_PRE_ATOMIC_RENAME",
+      "stage": "NEXT_TEMP_PRE_ATOMIC_RENAME",
+      "injection_boundary": "after temporary NEXT is fsynced and before atomic rename",
+      "expected_authoritative_state": "CURRENT and POST; NEXT absent; one matching staged NEXT temporary file may remain",
+      "recovery": "formal reconstruction discards only the staged temporary artifact, requeues validated POST, and creates one authoritative NEXT",
+      "comparison": "NEXT and all clean-reference exact comparisons"
+    },
+    {
+      "id": "F05_NEXT_COMMITTED_PRE_BARRIER",
+      "stage": "NEXT_COMMITTED_PRE_BARRIER",
+      "injection_boundary": "after NEXT artifact and manifest commit, before barrier validation",
+      "expected_authoritative_state": "CURRENT, POST, and NEXT; barrier absent or non-PASS; promotion absent",
+      "recovery": "retain NEXT, rerun full barrier validation, then promote only after PASS",
+      "comparison": "ownership, barrier, promotion, and all clean-reference exact comparisons"
+    },
+    {
+      "id": "F06_BARRIER_PASS_PRE_PROMOTION",
+      "stage": "BARRIER_PASS_PRE_PROMOTION",
+      "injection_boundary": "after durable PASS barrier and before the promotion pointer transaction",
+      "expected_authoritative_state": "CURRENT, POST, NEXT, and PASS barrier; promotion absent",
+      "recovery": "reuse the PASS barrier and execute one promotion transaction",
+      "comparison": "CURRENT ownership, promotion generation, and all clean-reference exact comparisons"
+    },
+    {
+      "id": "F07_NEXT_RENAMED_PRE_MANIFEST",
+      "stage": "NEXT_RENAMED_PRE_MANIFEST",
+      "injection_boundary": "after durable NEXT atomic rename and before its manifest reference",
+      "expected_authoritative_state": "CURRENT and POST; NEXT manifest reference absent; one unreferenced final NEXT file may remain",
+      "recovery": "formal reconstruction discards only the expected orphan NEXT for a HYDRO_RUNNING record, then recomputes and commits one NEXT",
+      "comparison": "NEXT and all clean-reference exact comparisons"
+    },
+    {
+      "id": "F08_PROMOTION_TRANSACTION_BOUNDARY",
+      "stage": "PROMOTION_POINTER_PRE_MANIFEST",
+      "injection_boundary": "after durable authoritative_generation.json replacement and before manifest promotion save",
+      "expected_authoritative_state": "valid NEXT pointer and PASS barrier; manifest promotion absent",
+      "recovery": "reuse the persisted pointer verbatim and finish its manifest transaction without writing another promotion pointer",
+      "comparison": "CURRENT ownership, promotion generation, and pointer bytes remain exact"
+    },
+    {
+      "id": "F09_POST_RENAMED_PRE_MANIFEST",
+      "stage": "POST_RENAMED_PRE_MANIFEST",
+      "injection_boundary": "after durable POST atomic rename and before its manifest reference",
+      "expected_authoritative_state": "CURRENT only; POST manifest reference absent; one unreferenced final POST file may remain",
+      "recovery": "formal reconstruction discards only the expected orphan POST for a DEPOSITION_FINALIZED record, then recomputes and commits one POST",
+      "comparison": "POST, NEXT, and all clean-reference exact comparisons"
+    }
+  ],
+  "pass_condition": "Every injected run exits at its declared deterministic boundary with only the declared authoritative state; every recovery completes through the normal reconstruction entry; all required scientific, ownership, barrier, promotion, and normalized-manifest comparisons are exact PASS.",
+  "hard_fail_condition": "Any scientific array mismatch, duplicate authoritative commit, temp-as-authoritative recovery, premature or duplicate promotion, mixed generation ownership, lost screen, silent recovery, or fault-off regression."
+}

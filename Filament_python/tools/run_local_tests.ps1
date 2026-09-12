@@ -4,6 +4,8 @@ param(
     [ValidateSet('import', 'backend', 'targeted', 'sanity')]
     [string]$Mode,
 
+    [string]$TargetedFilter = '',
+
     [string]$PythonExe = 'C:\Users\wangj\.conda\envs\filament-local-test\python.exe'
 )
 
@@ -41,6 +43,7 @@ $targetedTests = @(
     (Join-Path $filamentPythonRoot 'tests\test_hr4e4_reduced_limits.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5_parallel.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5s_streaming.py'),
+    (Join-Path $filamentPythonRoot 'tests\test_hr4e5s_s5_faults.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5s_s3.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5s_s4r.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5p_launcher.py'),
@@ -107,7 +110,12 @@ print(f"backend_probe_passed dtype={y.dtype} shape={reshaped.shape} max_error={e
             & $PythonExe -s -B -m pytest -p no:cacheprovider -q $sanityTest
         }
         'targeted' {
-            & $PythonExe -s -B -m pytest -p no:cacheprovider -q @targetedTests
+            $pytestArgs = @('-s', '-B', '-m', 'pytest', '-p', 'no:cacheprovider', '-q')
+            if ($TargetedFilter) {
+                $pytestArgs += @('-k', $TargetedFilter)
+            }
+            $pytestArgs += $targetedTests
+            & $PythonExe @pytestArgs
         }
     }
 

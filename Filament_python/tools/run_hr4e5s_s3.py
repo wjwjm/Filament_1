@@ -39,7 +39,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     initialize = sub.add_parser("initialize-stream")
     initialize.add_argument("--input", type=Path, required=True); initialize.add_argument("--root", type=Path, required=True)
     optical = sub.add_parser("optical")
-    optical.add_argument("--input", type=Path, required=True); optical.add_argument("--out-dir", type=Path, required=True); optical.add_argument("--stream-root", type=Path)
+    optical.add_argument("--input", type=Path, required=True); optical.add_argument("--out-dir", type=Path, required=True); optical.add_argument("--stream-root", type=Path); optical.add_argument("--resume", action="store_true")
     batch = sub.add_parser("batch-hydro")
     batch.add_argument("--input", type=Path, required=True); batch.add_argument("--optical-dir", type=Path, required=True); batch.add_argument("--out-dir", type=Path, required=True)
     consumer = sub.add_parser("consume")
@@ -55,7 +55,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         lifecycle = create_streaming_lifecycle(input_manifest=_read(args.input), root=args.root)
         result = {"root": str(lifecycle.root), "manifest": str(lifecycle.manifest_path)}
     elif args.command == "optical":
-        result = run_optical_path(input_manifest_path=args.input, out_dir=args.out_dir, streaming_root=args.stream_root)
+        result = run_optical_path(input_manifest_path=args.input, out_dir=args.out_dir, streaming_root=args.stream_root, resume=bool(args.resume))
     elif args.command == "batch-hydro":
         result = run_batch_hydro(input_manifest_path=args.input, optical_dir=args.optical_dir, out_dir=args.out_dir)
     elif args.command == "consume":
