@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -357,3 +358,8 @@ def test_s5_snapshot_and_comparator_exactly_compares_real_window_cardinality(tmp
     )
     assert result["status"] == "PASS"
     assert result["completed_field_comparisons"] == result["expected_field_comparisons"] == 48 * 9
+
+
+def test_s5_submit_wrapper_pins_batch_workdir_to_run_root():
+    submit = (Path(__file__).resolve().parents[1] / "tools" / "hpc_ops" / "submit_hr4e5s_s5.sh").read_text(encoding="utf-8")
+    assert '--chdir="$RUN_ROOT"' in submit

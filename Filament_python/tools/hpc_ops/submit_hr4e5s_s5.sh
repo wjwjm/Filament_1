@@ -31,7 +31,7 @@ assert (case=='clean' and mode=='clean' and not fault and not screen) or (case==
 PY
 export_args="ALL,EXPECTED_GIT_SHA=$EXPECTED_SHA,REPO_DIR=$REPO,RUN_ROOT=$RUN_ROOT,CASE_ID=$CASE_ID,CASE_MODE=$CASE_MODE,INPUT_MANIFEST=$RUN_ROOT/hr4e5s_s5_input_manifest.json,LUT_WORKSPACE=$RUN_ROOT/lut_workspace,REFERENCE_CASE_ROOT=$REFERENCE_CASE_ROOT"
 if [[ "$CASE_MODE" == fault ]]; then export_args+=",HR4_S5_FAULT_ID=$FAULT_ID,HR4_S5_FAULT_SCREEN=$FAULT_SCREEN,HR4_S5_FAULT_ONCE=1"; fi
-job="$(sbatch --parsable --job-name="e5s-s5-$CASE_ID" --gres=gpu:2 --ntasks=2 --output="$RUN_ROOT/$CASE_ID-%j.out" --error="$RUN_ROOT/$CASE_ID-%j.err" --export="$export_args" "$BATCH")"
+job="$(sbatch --parsable --job-name="e5s-s5-$CASE_ID" --chdir="$RUN_ROOT" --gres=gpu:2 --ntasks=2 --output="$RUN_ROOT/$CASE_ID-%j.out" --error="$RUN_ROOT/$CASE_ID-%j.err" --export="$export_args" "$BATCH")"
 job="${job%%;*}"; [[ "$job" =~ ^[0-9]+$ ]]
 printf 'case_id\tcase_mode\tfault_id\tfault_screen\tjob_id\toptical_gpus\thydro_gpus\texecution_sha\n%s\t%s\t%s\t%s\t%s\t1\t1\t%s\n' "$CASE_ID" "$CASE_MODE" "$FAULT_ID" "$FAULT_SCREEN" "$job" "$EXPECTED_SHA" > "$RUN_ROOT/${CASE_ID}_submission_receipt.tsv"
 printf '{"schema":"filament.hpc_ops.write_receipt.v1","ok":true,"state":"completed","case_id":"%s","job_id":"%s"}\n' "$CASE_ID" "$job"
