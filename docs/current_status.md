@@ -1,5 +1,31 @@
 # 当前项目状态 (Round 1 Restructuring)
 
+## 2026-09-12: HR-4E-5S 当前权威状态
+
+- HR-4E-5S-S3 = **CLOSED / EXACT PASS**。HR-4E-5S-S4R = **CLOSED /
+  REDUCED-SCOPE / SCIENTIFICALLY_QUALIFIED /
+  PERFORMANCE_OPTIMIZATION_DEFERRED**：6-GPU hydro replay 的 1,152/1,152
+  exact comparison、formal Streaming 1+2 与 1+4 的各 432/432 full-S3 exact
+  comparison，以及 ownership、barrier/promotion 等生命周期证据均 PASS。
+- Preferred tested production topology：**1 optical + 4 hydro GPUs**；
+  validated low-resource fallback：**1 optical + 2 hydro GPUs**。formal
+  Streaming 1+6 为 **NOT TESTED / RESOURCE_UNAVAILABLE**（job `237234`
+  在执行前取消）；完整 2/4/6 matrix 未关闭，且不得将该缺口写为 PASS 或 FAIL。
+- `capacity_ratio >= 1.10` 仅为 production-performance target，不是
+  scientific hard gate。其未达成记录为 `PERFORMANCE_OPTIMIZATION_DEFERRED`；
+  hydro capacity margin、topology efficiency、I/O/hash/lock/coordinator
+  overhead、block scheduling efficiency 与 optional 1+6 re-test 均登记至
+  **HR-5 performance backlog**，`HR-5 = NOT STARTED`。
+- S4R 的科学资格不再阻塞 S5；1+6 缺口不是 S5-1 前置依赖。S5-0 = **CLOSED /
+  RESTART_FAULT_QUALIFICATION_CONTRACT_FROZEN**。S5 lifecycle baseline/head 为
+  `96558e6e79a9c0adae63a62963e3a11d1189a084`（frozen S3 science base 仍为
+  `d4bd96ca21c5815b57f1a3c2ee8f8cec54dfb220`）。
+- S5-1 clean reference job `238355` 的实时 scheduler 终态为 **FAILED / 1:0**
+  （2026-09-12，elapsed 40 s），故 S5-1 = **OPEN / CLEAN_REFERENCE_TERMINAL_REVIEW_REQUIRED**。
+  本状态更新没有取消、修改、替代或重提该作业，未提交 F01–F06，也未作 clean-reference PASS 判断。
+
+此节覆盖本文件较早历史条目中“HR-4 未开始”或“未运行 HPC/Slurm”的当时性叙述；那些条目保留为历史记录。
+
 ## 2026-08-31: HR-4B single-screen isobaric flow operator
 
 - HR-4 branch = **ACTIVE**; HR-4A = **CLOSED**; HR-4B =

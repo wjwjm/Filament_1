@@ -1,0 +1,80 @@
+{
+  "schema": "khz_filament.hr4e5s.s4r.reduced_closeout.v1",
+  "stage": "HR-4E-5S-S4R",
+  "status": "CLOSED / REDUCED-SCOPE / SCIENTIFICALLY_QUALIFIED / PERFORMANCE_OPTIMIZATION_DEFERRED",
+  "closure_scope": "REDUCED-SCOPE: user-authorized evidence is 6-GPU hydro replay plus formal Streaming 1+2 and 1+4",
+  "full_2_4_6_formal_streaming_matrix": "NOT_COMPLETED: 1+6 NOT_TESTED_RESOURCE_UNAVAILABLE",
+  "missing_topology": {
+    "topology": "1 optical + 6 hydro",
+    "job_id": "237234",
+    "state": "NOT TESTED / RESOURCE_UNAVAILABLE",
+    "scheduler_provenance": "CANCELLED by 1812",
+    "exit_code": "0:0",
+    "elapsed": "00:00:00",
+    "interpretation": "cancelled while PENDING before execution; no scientific or performance result exists and this is neither PASS nor FAIL"
+  },
+  "replay_6gpu": {
+    "job_id": "236541",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "screen_count": 384,
+    "exact_comparisons": {
+      "expected": 1152,
+      "completed": 1152,
+      "mismatch_count": 0,
+      "status": "PASS"
+    },
+    "barrier_promotion": "PASS",
+    "hydro_screens_per_s": 0.7943238387440086,
+    "capacity_ratio": 1.050428294944188,
+    "performance_target_status": "below former 1.10 production-performance target by 4.5065 percent; not a scientific hard gate"
+  },
+  "formal_streaming": {
+    "stream_1p2": {
+      "job_id": "237236",
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "total_gpus": 3,
+      "hydro_workers": 2,
+      "exact_comparisons": 432,
+      "mismatch_count": 0,
+      "ownership": "PASS",
+      "barrier_promotion": "PASS",
+      "ledger": "PASS",
+      "normalized_manifest": "PASS",
+      "optical": "PASS",
+      "hydro_screens_per_s": 0.3208881285125027,
+      "application_walltime_s": 13431.190273861983
+    },
+    "stream_1p4": {
+      "job_id": "237235",
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "total_gpus": 5,
+      "hydro_workers": 4,
+      "exact_comparisons": 432,
+      "mismatch_count": 0,
+      "ownership": "PASS",
+      "barrier_promotion": "PASS",
+      "ledger": "PASS",
+      "normalized_manifest": "PASS",
+      "optical": "PASS",
+      "hydro_screens_per_s": 0.5755701288831402,
+      "application_walltime_s": 10720.670286805951
+    }
+  },
+  "recommendation": {
+    "preferred_tested_production_topology": "1 optical + 4 hydro GPUs",
+    "validated_low_resource_fallback": "1 optical + 2 hydro GPUs",
+    "one_plus_six_status": "NOT TESTED / RESOURCE_UNAVAILABLE; no performance or topology conclusion",
+    "full_z_endurance_claim": false
+  },
+  "boundaries": {
+    "s5_handoff": "S4R scientific qualification no longer blocks S5; missing 1+6 is a deferred performance-matrix point, not an S5-1 prerequisite",
+    "s5_1_clean_reference_job": "238355: FAILED / 1:0; terminal review required; no F01-F06 submitted by this closeout",
+    "formal_hr4e5_started": false,
+    "hr4f_started": false,
+    "hr5_started": false,
+    "push_or_merge_performed": false
+  }
+}

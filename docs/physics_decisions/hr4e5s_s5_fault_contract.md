@@ -9,6 +9,25 @@ thermalization, grid, precision, `dt_hydro`, block size, or the frozen
 `d4bd96ca21c5815b57f1a3c2ee8f8cec54dfb220`; the source and input receipt is
 [`baseline_receipt.json`](../../artifacts/hr4e5s_s5/baseline_receipt.json).
 
+## Current qualification status and S4R handoff (non-normative)
+
+This status note does not alter the frozen contract, its S3 science base, the
+fault hooks, or the 1+1 configuration. S4R is
+`CLOSED / REDUCED-SCOPE / SCIENTIFICALLY_QUALIFIED /
+PERFORMANCE_OPTIMIZATION_DEFERRED`. Its missing formal Streaming 1+6 point is
+`NOT TESTED / RESOURCE_UNAVAILABLE`, a deferred performance-matrix point rather
+than an S5-1 prerequisite. S4R scientific qualification therefore no longer
+blocks S5; performance optimization and any optional higher-resource topology
+re-evaluation defer to HR-5.
+
+S5-0 is `CLOSED / RESTART_FAULT_QUALIFICATION_CONTRACT_FROZEN`. The current S5
+lifecycle branch/head is `96558e6e79a9c0adae63a62963e3a11d1189a084`; this is a
+lifecycle baseline/head distinct from the frozen S3 science base above. Live
+Slurm readback on 2026-09-12 records the 1 optical + 1 hydro clean reference
+job `238355` as `FAILED / 1:0` after 40 s. Consequently S5-1 is
+`OPEN / CLEAN_REFERENCE_TERMINAL_REVIEW_REQUIRED`, not PASS; no F01-F06 case is
+submitted, replaced, or advanced by this documentation update.
+
 Fault injection is test-only and disabled by default.  It is enabled only by
 the three explicit environment variables recorded in
 [`fault_contract.json`](../../artifacts/hr4e5s_s5/fault_contract.json).  It

@@ -10,6 +10,32 @@ The one local-parent commit preserves only user-authorized workspace artifacts;
 it changes no production physics, configuration, or baseline result. This
 document is written before any HR-4A code change.
 
+## Current HR-4E-5S execution status (non-physics)
+
+This status section supersedes the historical statements below that HR-4E or
+HPC/Slurm work had not started; it does not change any frozen physical or
+numerical contract in this document.
+
+`HR-4E-5S-S4R = CLOSED / REDUCED-SCOPE / SCIENTIFICALLY_QUALIFIED /
+PERFORMANCE_OPTIMIZATION_DEFERRED`. The qualified evidence is the 6-GPU hydro
+replay (1,152/1,152 exact PASS) and formal Streaming 1+2 and 1+4 (each
+432/432 full-S3 exact PASS with ownership, barrier, and promotion PASS).
+Formal Streaming 1+6 is `NOT TESTED / RESOURCE_UNAVAILABLE`: job `237234` was
+cancelled before execution. The full 2/4/6 matrix is therefore not closed.
+
+Preferred tested production topology: **1 optical + 4 hydro GPUs**. Validated
+low-resource fallback: **1 optical + 2 hydro GPUs**. No topology or performance
+conclusion is drawn for 1+6. `capacity_ratio >= 1.10` remains a
+production-performance target, not a scientific hard gate; its optimization,
+and optional 1+6 re-test, defer to HR-5 (`HR-5 = NOT STARTED`).
+
+S4R scientific qualification no longer blocks S5. S5-0 is
+`CLOSED / RESTART_FAULT_QUALIFICATION_CONTRACT_FROZEN`; the lifecycle baseline
+head is `96558e6e79a9c0adae63a62963e3a11d1189a084`. Live scheduler readback
+shows S5-1 clean reference job `238355` is `FAILED / 1:0` (40 s), so S5-1 is
+`OPEN / CLEAN_REFERENCE_TERMINAL_REVIEW_REQUIRED`. No F01–F06 task is submitted
+or advanced by this status update.
+
 ## Scope and model level
 
 **FROZEN — `REFERENCE_EXPLICIT` / `REFERENCE_DERIVED`.** HR-4 reproduces the
