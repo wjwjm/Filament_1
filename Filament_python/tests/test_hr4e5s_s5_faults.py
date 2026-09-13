@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
 from KHz_filament.hr4e5s_s3 import _SelectedStreamingHook, finalize_streaming
-from KHz_filament.hr4e5s_s5 import compare_clean_reference, inspect_lifecycle
+from KHz_filament.hr4e5s_s5 import compare_clean_reference, inspect_lifecycle, validate_fault_contract, validate_recovery_provenance
 from KHz_filament.hr4e5s_streaming import S5FaultInjectedError, S5_FAULT_SPECS, StreamingLifecycle
 
 
@@ -107,6 +109,67 @@ def _enable(monkeypatch, fault_id: str, screen: str = "z00000") -> None:
     monkeypatch.setenv("HR4_S5_FAULT_ONCE", "1")
 
 
+def _faulted_lifecycle(tmp_path, monkeypatch, fault_id: str):
+    """Build one persisted crash state without using recovery/reconstruction."""
+    target = "z00007" if fault_id in {"F05_NEXT_COMMITTED_PRE_BARRIER", "F06_BARRIER_PASS_PRE_PROMOTION"} else "z00000"
+    _enable(monkeypatch, fault_id, target)
+    lifecycle = _lifecycle(tmp_path, f"contract-{fault_id}-{len(list(tmp_path.iterdir()))}")
+    if fault_id == "F01_OPTICAL_PRE_POST_COMMIT":
+        lifecycle.deposition_finalized(0, actor="s5_contract_test")
+        with pytest.raises(S5FaultInjectedError):
+            lifecycle.commit_post_from_delta_n(0, lifecycle.current_fields(0)["delta_n"] - 1.0e-8, actor="s5_contract_test")
+    elif fault_id == "F02_POST_COMMITTED_PRE_HYDRO":
+        lifecycle.deposition_finalized(0, actor="s5_contract_test")
+        with pytest.raises(S5FaultInjectedError):
+            lifecycle.commit_post_from_delta_n(0, lifecycle.current_fields(0)["delta_n"] - 1.0e-8, actor="s5_contract_test")
+    elif fault_id == "F03_HYDRO_PRE_NEXT_COMMIT":
+        import KHz_filament.hr4e5s_streaming as streaming
+
+        _prepare_posts(lifecycle)
+        monkeypatch.setattr(streaming, "advance_hr4_single_screen", lambda delta_n, vx, vy, **kwargs: {"delta_n": delta_n, "vx": vx, "vy": vy})
+        with pytest.raises(S5FaultInjectedError):
+            lifecycle.run_one_hydro_block(dt_hydro=1.0e-6, n_hydro_steps=1, chi=0.0, nu=0.0, n0=1.0, gravity_y=0.0)
+    elif fault_id == "F04_NEXT_TEMP_PRE_ATOMIC_RENAME":
+        _prepare_posts(lifecycle)
+        assert lifecycle.claim_block(actor="s5_contract_test") == list(range(8))
+        with pytest.raises(S5FaultInjectedError):
+            lifecycle.commit_next(0, _post_fields(lifecycle, 0), actor="s5_contract_test")
+    elif fault_id == "F05_NEXT_COMMITTED_PRE_BARRIER":
+        _prepare_posts(lifecycle)
+        assert lifecycle.claim_block(actor="s5_contract_test") == list(range(8))
+        for ordinal in range(7):
+            lifecycle.commit_next(ordinal, _post_fields(lifecycle, ordinal), actor="s5_contract_test")
+        with pytest.raises(S5FaultInjectedError):
+            lifecycle.commit_next(7, _post_fields(lifecycle, 7), actor="s5_contract_test")
+    elif fault_id == "F06_BARRIER_PASS_PRE_PROMOTION":
+        _prepare_posts(lifecycle)
+        _commit_all_next(lifecycle)
+        with pytest.raises(S5FaultInjectedError):
+            finalize_streaming(lifecycle_root=lifecycle.root, out_path=tmp_path / f"{fault_id}.json")
+    else:
+        raise AssertionError(fault_id)
+    return lifecycle.root, target
+
+
+def _contract_failure(tmp_path, monkeypatch, fault_id: str, mutate) -> None:
+    root, target = _faulted_lifecycle(tmp_path, monkeypatch, fault_id)
+    monkeypatch.delenv("HR4_S5_FAULT_ID", raising=False)
+    monkeypatch.delenv("HR4_S5_FAULT_SCREEN", raising=False)
+    monkeypatch.delenv("HR4_S5_FAULT_ONCE", raising=False)
+    mutate(root)
+    result = validate_fault_contract(lifecycle_root=root, fault_id=fault_id, target_screen=target)
+    assert result["status"] == "FAIL", result
+
+
+def _monitor_module():
+    path = Path(__file__).resolve().parents[1] / "tools" / "monitor_hr4e5s_s5_fault_matrix.py"
+    spec = importlib.util.spec_from_file_location("s5_fault_matrix_monitor", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_s5_contract_fault_ids_are_unique_and_invalid_id_is_rejected(tmp_path, monkeypatch):
     required = {
         "F01_OPTICAL_PRE_POST_COMMIT",
@@ -136,6 +199,84 @@ def test_s5_fault_off_preserves_normal_lifecycle(tmp_path, monkeypatch):
     finished = _finish(lifecycle)
     assert not (finished.root / "s5_fault_provenance.json").exists()
     assert finished._authoritative_namespace == "NEXT"
+
+
+@pytest.mark.parametrize("fault_id", [
+    "F01_OPTICAL_PRE_POST_COMMIT",
+    "F02_POST_COMMITTED_PRE_HYDRO",
+    "F03_HYDRO_PRE_NEXT_COMMIT",
+    "F04_NEXT_TEMP_PRE_ATOMIC_RENAME",
+    "F05_NEXT_COMMITTED_PRE_BARRIER",
+    "F06_BARRIER_PASS_PRE_PROMOTION",
+])
+def test_s5_contract_gate_accepts_each_declared_persisted_crash_state(tmp_path, monkeypatch, fault_id):
+    root, target = _faulted_lifecycle(tmp_path, monkeypatch, fault_id)
+    out = root.parent / "contract_check.json"
+    result = validate_fault_contract(lifecycle_root=root, fault_id=fault_id, target_screen=target, out_path=out)
+    assert result["status"] == "PASS", result
+    assert result["contract_match"] is True
+    assert json.loads(out.read_text(encoding="utf-8"))["checks"] == result["checks"]
+
+
+def test_s5_contract_gate_rejects_required_authoritative_state_and_provenance_violations(tmp_path, monkeypatch):
+    def f01_post(root):
+        lifecycle = StreamingLifecycle.open(root)
+        lifecycle.commit_post_from_delta_n(0, lifecycle.current_fields(0)["delta_n"] - 1.0e-8, actor="negative")
+
+    _contract_failure(tmp_path, monkeypatch, "F01_OPTICAL_PRE_POST_COMMIT", f01_post)
+
+    def f02_missing_post(root):
+        lifecycle = StreamingLifecycle.open(root)
+        record = lifecycle.manifest["records"][0]
+        record["post"] = None
+        record["state"] = "DEPOSITION_FINALIZED"
+        lifecycle._save()
+
+    _contract_failure(tmp_path, monkeypatch, "F02_POST_COMMITTED_PRE_HYDRO", f02_missing_post)
+
+    def f03_next_present(root):
+        lifecycle = StreamingLifecycle.open(root)
+        lifecycle.commit_next(0, _post_fields(lifecycle, 0), actor="negative")
+
+    _contract_failure(tmp_path, monkeypatch, "F03_HYDRO_PRE_NEXT_COMMIT", f03_next_present)
+
+    def f04_missing_temp(root):
+        provenance = json.loads((root / "s5_fault_provenance.json").read_text(encoding="utf-8"))
+        (root / provenance["temporary_artifact"]).unlink()
+
+    _contract_failure(tmp_path, monkeypatch, "F04_NEXT_TEMP_PRE_ATOMIC_RENAME", f04_missing_temp)
+
+    def f04_extra_temp(root):
+        (root / "next" / "screen_000001.npz.unrelated.tmp").write_text("not-authoritative", encoding="utf-8")
+
+    _contract_failure(tmp_path, monkeypatch, "F04_NEXT_TEMP_PRE_ATOMIC_RENAME", f04_extra_temp)
+
+    def f05_barrier_pass(root):
+        StreamingLifecycle.open(root).validate_barrier(actor="negative")
+
+    _contract_failure(tmp_path, monkeypatch, "F05_NEXT_COMMITTED_PRE_BARRIER", f05_barrier_pass)
+
+    def f05_promotion_present(root):
+        lifecycle = StreamingLifecycle.open(root)
+        lifecycle.validate_barrier(actor="negative")
+        lifecycle.promote_next_to_current(actor="negative")
+
+    _contract_failure(tmp_path, monkeypatch, "F05_NEXT_COMMITTED_PRE_BARRIER", f05_promotion_present)
+
+    def f06_promotion_present(root):
+        finalize_streaming(lifecycle_root=root, out_path=root.parent / "f06-recovered.json")
+
+    _contract_failure(tmp_path, monkeypatch, "F06_BARRIER_PASS_PRE_PROMOTION", f06_promotion_present)
+
+    def provenance_mismatch(root):
+        marker = root / ".s5_fault_consumed.json"
+        value = json.loads(marker.read_text(encoding="utf-8"))
+        value["fault_id"] = "F99_TAMPERED"
+        marker.write_text(json.dumps(value), encoding="utf-8")
+
+    _contract_failure(tmp_path, monkeypatch, "F01_OPTICAL_PRE_POST_COMMIT", provenance_mismatch)
+    root, _ = _faulted_lifecycle(tmp_path, monkeypatch, "F01_OPTICAL_PRE_POST_COMMIT")
+    assert validate_fault_contract(lifecycle_root=root, fault_id="F01_OPTICAL_PRE_POST_COMMIT", target_screen="z00001")["status"] == "FAIL"
 
 
 def test_f01_replays_missing_post_once_and_matches_clean_reference(tmp_path, monkeypatch):
@@ -217,6 +358,97 @@ def test_f04_discards_only_staged_next_and_matches_clean_reference(tmp_path, mon
     assert recovered.reconstruct_queue(actor="s5_restart") == list(range(8))
     assert not list((recovered.root / "next").glob("screen_*.npz.*.tmp"))
     assert _exact_lifecycle_view(_finish(recovered)) == _exact_lifecycle_view(clean)
+
+
+@pytest.mark.parametrize("fault_id", ["F03_HYDRO_PRE_NEXT_COMMIT", "F04_NEXT_TEMP_PRE_ATOMIC_RENAME"])
+def test_recovery_provenance_requires_exact_target_retry_for_f03_and_f04(tmp_path, monkeypatch, fault_id):
+    clean = _clean_reference(tmp_path)
+    _enable(monkeypatch, fault_id)
+    lifecycle = _lifecycle(tmp_path, f"provenance-{fault_id}")
+    _prepare_posts(lifecycle)
+    if fault_id == "F03_HYDRO_PRE_NEXT_COMMIT":
+        import KHz_filament.hr4e5s_streaming as streaming
+
+        monkeypatch.setattr(
+            streaming,
+            "advance_hr4_single_screen",
+            lambda delta_n, vx, vy, **kwargs: {"delta_n": delta_n, "vx": vx, "vy": vy},
+        )
+        with pytest.raises(S5FaultInjectedError, match=fault_id):
+            lifecycle.run_one_hydro_block(dt_hydro=1.0e-6, n_hydro_steps=1, chi=0.0, nu=0.0, n0=1.0, gravity_y=0.0)
+    else:
+        assert lifecycle.claim_block(actor="provenance") == list(range(8))
+        with pytest.raises(S5FaultInjectedError, match=fault_id):
+            lifecycle.commit_next(0, _post_fields(lifecycle, 0), actor="provenance")
+    recovered = StreamingLifecycle.open(lifecycle.root)
+    assert recovered.reconstruct_queue(actor="provenance") == list(range(8))
+    finished = _finish(recovered)
+    result = validate_recovery_provenance(
+        reference_lifecycle_root=clean.root,
+        candidate_lifecycle_root=finished.root,
+        fault_id=fault_id,
+        target_screen="z00000",
+    )
+    assert result["status"] == "PASS", result
+    assert result["retry_deltas"] == {ordinal: (1 if ordinal == 0 else 0) for ordinal in range(8)}
+    assert [attempt["ordinal"] for attempt in result["recovery_attempts"]] == [0]
+
+
+def test_recovery_provenance_rejects_unrelated_or_wrong_retry_count(tmp_path, monkeypatch):
+    clean = _clean_reference(tmp_path)
+    _enable(monkeypatch, "F03_HYDRO_PRE_NEXT_COMMIT")
+    lifecycle = _lifecycle(tmp_path, "provenance-negative")
+    _prepare_posts(lifecycle)
+    import KHz_filament.hr4e5s_streaming as streaming
+
+    monkeypatch.setattr(
+        streaming,
+        "advance_hr4_single_screen",
+        lambda delta_n, vx, vy, **kwargs: {"delta_n": delta_n, "vx": vx, "vy": vy},
+    )
+    with pytest.raises(S5FaultInjectedError):
+        lifecycle.run_one_hydro_block(dt_hydro=1.0e-6, n_hydro_steps=1, chi=0.0, nu=0.0, n0=1.0, gravity_y=0.0)
+    recovered = StreamingLifecycle.open(lifecycle.root)
+    recovered.reconstruct_queue(actor="provenance")
+    finished = _finish(recovered)
+    finished.manifest["records"][1]["retry_count"] = 1
+    finished._save()
+    unrelated = validate_recovery_provenance(
+        reference_lifecycle_root=clean.root,
+        candidate_lifecycle_root=finished.root,
+        fault_id="F03_HYDRO_PRE_NEXT_COMMIT",
+        target_screen="z00000",
+    )
+    assert unrelated["status"] == "FAIL"
+    finished.manifest["records"][1]["retry_count"] = 0
+    finished.manifest["records"][0]["retry_count"] = 2
+    finished._save()
+    wrong_target_count = validate_recovery_provenance(
+        reference_lifecycle_root=clean.root,
+        candidate_lifecycle_root=finished.root,
+        fault_id="F03_HYDRO_PRE_NEXT_COMMIT",
+        target_screen="z00000",
+    )
+    assert wrong_target_count["status"] == "FAIL"
+
+
+@pytest.mark.parametrize("fault_id", [
+    "F01_OPTICAL_PRE_POST_COMMIT", "F02_POST_COMMITTED_PRE_HYDRO",
+    "F05_NEXT_COMMITTED_PRE_BARRIER", "F06_BARRIER_PASS_PRE_PROMOTION",
+])
+def test_recovery_provenance_rejects_retry_for_zero_retry_faults(tmp_path, monkeypatch, fault_id):
+    monkeypatch.delenv("HR4_S5_FAULT_ID", raising=False)
+    clean = _clean_reference(tmp_path / "reference")
+    candidate = _clean_reference(tmp_path / "candidate")
+    candidate.manifest["records"][0]["retry_count"] = 1
+    candidate._save()
+    result = validate_recovery_provenance(
+        reference_lifecycle_root=clean.root,
+        candidate_lifecycle_root=candidate.root,
+        fault_id=fault_id,
+        target_screen="z00000",
+    )
+    assert result["status"] == "FAIL"
 
 
 def test_f05_retains_next_until_barrier_then_matches_clean_reference(tmp_path, monkeypatch):
@@ -358,8 +590,98 @@ def test_s5_snapshot_and_comparator_exactly_compares_real_window_cardinality(tmp
     )
     assert result["status"] == "PASS"
     assert result["completed_field_comparisons"] == result["expected_field_comparisons"] == 48 * 9
+    assert result["authoritative_manifest_exact"] is True
+    assert result["recovery_provenance"]["status"] == "PASS"
 
 
 def test_s5_submit_wrapper_pins_batch_workdir_to_run_root():
     submit = (Path(__file__).resolve().parents[1] / "tools" / "hpc_ops" / "submit_hr4e5s_s5.sh").read_text(encoding="utf-8")
     assert '--chdir="$RUN_ROOT"' in submit
+    assert '"$RUN_ROOT/${CASE_ID}_fault_submission_receipt.tsv"' in submit
+    assert '"$RUN_ROOT/${CASE_ID}_recovery_submission_receipt.tsv"' in submit
+    assert 'CASE_MODE" == recovery' in submit
+
+
+def test_s5_recovery_creates_parent_once_before_consumer_and_never_uses_mkdir_p():
+    batch = (Path(__file__).resolve().parents[1] / "tools" / "hr4e5s_s5.sbatch").read_text(encoding="utf-8")
+    recovery = batch.index('if [[ "$CASE_MODE" == recovery ]]')
+    parent = batch.index('mkdir -m 700 -- "$CASE_ROOT/recovery"', recovery)
+    pair = batch.index('pair_run "$CASE_ROOT/injected/lifecycle" "$CASE_ROOT/recovery/optical"', recovery)
+    contract = batch.index("check['contract_match'] is True", recovery)
+    consumer = batch.index('mkdir -m 700 -- "$consumer"')
+    assert contract < parent
+    assert parent < pair
+    assert consumer < pair
+    assert "\n  mkdir -p" not in batch
+
+
+def _write_monitor_manifest(tmp_path, monitor):
+    run_root = tmp_path / "rerun"
+    run_root.mkdir()
+    cases = [
+        {"case_id": f"F0{index}", "fault_id": fault_id, "fault_screen": "z00000" if index < 5 else "z00007"}
+        for index, fault_id in enumerate((
+            "F01_OPTICAL_PRE_POST_COMMIT", "F02_POST_COMMITTED_PRE_HYDRO", "F03_HYDRO_PRE_NEXT_COMMIT",
+            "F04_NEXT_TEMP_PRE_ATOMIC_RENAME", "F05_NEXT_COMMITTED_PRE_BARRIER",
+            "F06_BARRIER_PASS_PRE_PROMOTION",
+        ), start=1)
+    ]
+    manifest = {
+        "schema": monitor.SCHEMA, "run_root": str(run_root), "repo": "/repo", "expected_sha": "a" * 40,
+        "preflight": str(run_root / "preflight.json"), "reference_case_root": str(run_root / "clean"),
+        "submit_script": "/submit_hr4e5s_s5.sh", "cases": cases,
+        "clean_reference_job": "7000", "historical_clean_reference_job": "238465",
+    }
+    path = run_root / "matrix_manifest.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    return path, manifest
+
+
+def _monitor_receipt(path, case_id, stage, sha, job_id):
+    path.write_text(
+        "case_id\tcase_mode\tfault_id\tfault_screen\tjob_id\toptical_gpus\thydro_gpus\texecution_sha\n"
+        f"{case_id}\t{stage}\t\t\t{job_id}\t1\t1\t{sha}\n",
+        encoding="utf-8",
+    )
+
+
+def test_s5_monitor_resume_reuses_known_fault_and_submits_recovery_only_after_contract_pass(tmp_path):
+    monitor = _monitor_module()
+    manifest_path, manifest = _write_monitor_manifest(tmp_path, monitor)
+    run_root = Path(manifest["run_root"])
+    _monitor_receipt(run_root / "F01_fault_submission_receipt.tsv", "F01", "fault", manifest["expected_sha"], "7001")
+    state = monitor._fresh_state(manifest_path, manifest)
+    for case_id in ("F02", "F03", "F04", "F05", "F06"):
+        state["cases"][case_id]["state"] = "PASS"
+    monitor._atomic_json(run_root / "monitor_state.json", state)
+    calls = []
+
+    def submitter(argv, cwd):
+        calls.append(list(argv))
+        case_id, stage = argv[5], argv[6]
+        _monitor_receipt(monitor._receipt_path(cwd, case_id, stage), case_id, stage, manifest["expected_sha"], "7002")
+        return subprocess.CompletedProcess(argv, 0, "submitted", "")
+
+    monitor.advance_matrix(manifest_path, submitter=submitter)
+    assert calls == []
+    resumed = monitor._read_json(run_root / "monitor_state.json")
+    assert resumed["cases"]["F01"]["state"] == "SUBMITTED_FAULT"
+
+    injected = run_root / "F01" / "injected"
+    injected.mkdir(parents=True)
+    (injected / "disk_state_audit.json").write_text(json.dumps({"fault_provenance": []}), encoding="utf-8")
+    (run_root / "F01" / "contract_check.json").write_text(json.dumps({
+        "status": "PASS", "contract_match": True, "fault_id": manifest["cases"][0]["fault_id"], "target_screen": "z00000",
+    }), encoding="utf-8")
+    resumed["cases"]["F01"]["state"] = "FAULT_AUDIT_PENDING"
+    monitor._atomic_json(run_root / "monitor_state.json", resumed)
+    monitor.advance_matrix(manifest_path, submitter=submitter)
+    assert calls == []
+    monitor.advance_matrix(manifest_path, submitter=submitter)
+    assert [call[6] for call in calls] == ["recovery"]
+    monitor.advance_matrix(
+        manifest_path,
+        submitter=submitter,
+        scheduler_query=lambda job: {"state": "RUNNING", "terminal": False, "job_id": job},
+    )
+    assert [call[6] for call in calls] == ["recovery"]

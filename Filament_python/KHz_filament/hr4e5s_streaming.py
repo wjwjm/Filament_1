@@ -23,6 +23,7 @@ from .hr4e_timestep import sha256_array, sha256_file
 
 
 SCHEMA = "khz_filament.hr4e5s.streaming.v1"
+RECOVERY_ATTEMPT_SCHEMA = "khz_filament.hr4e5s.streaming.recovery_attempt.v1"
 FIELDS = ("delta_n", "vx", "vy")
 DEFAULT_QUEUE_DEPTH = 16
 FROZEN_BLOCK_SIZE = 8
@@ -329,6 +330,7 @@ class StreamingLifecycle:
         self.root = Path(root)
         self.manifest_path = self.root / "streaming_manifest.json"
         self.manifest = dict(manifest)
+        self._normalize_recovery_fields()
         self._authoritative_namespace = "CURRENT"
         self._authoritative_generation = ""
         self._s5_fault = _s5_fault_config()
@@ -387,14 +389,16 @@ class StreamingLifecycle:
         for entry in current_records:
             lifecycle_records.append({
                 "ordinal": entry["ordinal"], "screen_id": entry["screen_id"], "z_m": entry["z_m"],
-                "state": "CURRENT_READY", "retry_count": 0, "current": entry, "post": None, "next": None,
+                "state": "CURRENT_READY", "retry_count": 0, "hydro_attempt_started": False,
+                "current": entry, "post": None, "next": None,
                 "transitions": [{"state": "CURRENT_READY", "status": "PASS", "timestamp_utc": _utc(), "actor": actor, "ordinal": entry["ordinal"], "screen_id": entry["screen_id"], "current_generation": str(current_generation), "next_generation": str(current_generation) + ":next", "retry_count": 0, "current_content_sha256": current_content_sha, "source_file_sha256": entry["file_sha256"], "output_file_sha256": entry["file_sha256"]}],
             })
         manifest = {
             "schema": SCHEMA, "current_generation": str(current_generation), "current_content_sha256": current_content_sha,
             "next_generation": str(current_generation) + ":next",
             "shape": list(shape), "dtype": "float64", "dx_m": float(dx_m), "dy_m": float(dy_m), "expected_screen_count": count,
-            "queue_depth": int(queue_depth), "block_size": FROZEN_BLOCK_SIZE, "queue": [], "records": lifecycle_records,
+            "queue_depth": int(queue_depth), "block_size": FROZEN_BLOCK_SIZE,
+            "queue": [], "recovery_active": False, "recovery_backlog": [], "recovery_attempts": [], "records": lifecycle_records,
             "hydro_worker": {"qualification": "HR-4E-5P/P5", "screen_solver": "advance_hr4_single_screen", "block_size": FROZEN_BLOCK_SIZE},
             "barrier": None, "promotion": None, "rate_events": [], "telemetry_events": [], "created_utc": _utc(),
         }
@@ -405,6 +409,22 @@ class StreamingLifecycle:
     def open(cls, root: str | Path) -> "StreamingLifecycle":
         base = Path(root)
         return cls(base, _read_json(base / "streaming_manifest.json"))
+
+    def _normalize_recovery_fields(self) -> None:
+        """Supply empty recovery fields when opening a pre-repair clean root.
+
+        Historical clean evidence is read-only and lacks these fields.  Empty
+        values are semantically identical, and are only written if that root
+        later performs a lifecycle transition under the current runtime.
+        """
+        self.manifest.setdefault("recovery_backlog", [])
+        self.manifest.setdefault("recovery_attempts", [])
+        self.manifest.setdefault("recovery_active", False)
+        for record in self.manifest.get("records", []):
+            # A pre-repair HYDRO_RUNNING record may already have entered the
+            # solver; retaining that conservative interpretation prevents a
+            # historical interrupted run from silently losing its retry audit.
+            record.setdefault("hydro_attempt_started", record.get("state") == "HYDRO_RUNNING")
 
     def _validate_manifest(self) -> None:
         if self.manifest.get("schema") != SCHEMA or self.manifest.get("dtype") != "float64" or not self.manifest.get("current_generation") or not self.manifest.get("next_generation") or self.manifest["current_generation"] == self.manifest["next_generation"]:
@@ -425,6 +445,48 @@ class StreamingLifecycle:
             raise ValueError("streaming manifest authoritative screen identity is invalid")
         if int(self.manifest.get("queue_depth", 0)) <= 0 or int(self.manifest.get("block_size", 0)) != FROZEN_BLOCK_SIZE or float(self.manifest.get("dx_m", 0.0)) <= 0.0 or float(self.manifest.get("dy_m", 0.0)) <= 0.0:
             raise ValueError("streaming queue or frozen block contract is invalid")
+        queue = self.manifest.get("queue")
+        backlog = self.manifest.get("recovery_backlog")
+        attempts = self.manifest.get("recovery_attempts")
+        if not isinstance(queue, list) or not isinstance(backlog, list) or not isinstance(attempts, list) or not isinstance(self.manifest.get("recovery_active"), bool):
+            raise ValueError("streaming recovery queue state is invalid")
+        try:
+            queued = [int(value) for value in queue]
+            deferred = [int(value) for value in backlog]
+        except (TypeError, ValueError):
+            raise ValueError("streaming recovery queue ordinal is invalid") from None
+        if (
+            len(queued) > int(self.manifest["queue_depth"])
+            or len(queued) != len(set(queued))
+            or len(deferred) != len(set(deferred))
+            or set(queued) & set(deferred)
+            or any(value < 0 or value >= count for value in queued + deferred)
+        ):
+            raise ValueError("streaming recovery queue membership is invalid")
+        for ordinal in queued:
+            record = records[ordinal]
+            if record.get("state") != "HYDRO_QUEUED" or record.get("post") is None or record.get("next") is not None:
+                raise ValueError("streaming queue record is not a queued POST")
+        for ordinal in deferred:
+            record = records[ordinal]
+            if record.get("state") != "POST_COMMITTED" or record.get("post") is None or record.get("next") is not None:
+                raise ValueError("streaming recovery backlog record is not a pending POST")
+        if any(not isinstance(record.get("hydro_attempt_started"), bool) for record in records):
+            raise ValueError("streaming hydro attempt state is invalid")
+        for attempt in attempts:
+            if not isinstance(attempt, Mapping):
+                raise ValueError("streaming recovery attempt is invalid")
+            ordinal = int(attempt.get("ordinal", -1))
+            if (
+                attempt.get("schema") != RECOVERY_ATTEMPT_SCHEMA
+                or ordinal < 0 or ordinal >= count
+                or attempt.get("screen_id") != records[ordinal]["screen_id"]
+                or attempt.get("reason") != "STALE_HYDRO_RUNNING_RECONSTRUCTED"
+                or not isinstance(attempt.get("post_file_sha256"), str)
+                or not isinstance(attempt.get("post_field_sha256"), Mapping)
+                or int(attempt.get("retry_count", -1)) <= 0
+            ):
+                raise ValueError("streaming recovery attempt provenance is invalid")
         if _content_hash([item["current"] for item in records]) != self.manifest.get("current_content_sha256"):
             raise ValueError("CURRENT content provenance hash is invalid")
 
@@ -467,6 +529,7 @@ class StreamingLifecycle:
         """Serialize every shared manifest read-modify-write transition."""
         with _ManifestFileLock(self.root / ".streaming_manifest.lock"):
             self.manifest = _read_json(self.manifest_path)
+            self._normalize_recovery_fields()
             self._validate_manifest()
             self._load_authoritative_pointer()
             yield
@@ -902,18 +965,81 @@ class StreamingLifecycle:
                 raise BackpressureError("timed out waiting for bounded POST queue capacity")
             time.sleep(max(0.001, float(poll_s)))
 
+    def _refill_recovery_queue_locked(self, *, actor: str) -> list[int]:
+        """Project durable recovered POST work into the bounded hydro queue.
+
+        The backlog is authoritative restart metadata, never an in-memory
+        spillover. It is consumed only while holding the same manifest lock
+        that owns queue membership and record state transitions.
+        """
+        capacity = int(self.manifest["queue_depth"]) - len(self.manifest["queue"])
+        if capacity <= 0 or not self.manifest["recovery_backlog"]:
+            return []
+        queued = {int(value) for value in self.manifest["queue"]}
+        ordered = sorted(int(value) for value in self.manifest["recovery_backlog"])
+        selected = ordered[:capacity]
+        remainder = ordered[capacity:]
+        for ordinal in selected:
+            record = self._record(ordinal)
+            if (
+                ordinal in queued
+                or record["state"] != "POST_COMMITTED"
+                or record["post"] is None
+                or record["next"] is not None
+            ):
+                raise StreamingLifecycleError("recovery backlog record is not an eligible pending POST")
+            self.manifest["queue"].append(ordinal)
+            queued.add(ordinal)
+            self._transition(
+                record,
+                "HYDRO_QUEUED",
+                actor=actor,
+                source_file_sha256=record["post"]["file_sha256"],
+                reconstructed=True,
+                recovered_backlog_refill=True,
+            )
+        self.manifest["queue"].sort()
+        self.manifest["recovery_backlog"] = remainder
+        self._telemetry_locked("RECOVERY_BACKLOG_REFILL", actor=actor, block=selected)
+        return selected
+
+    def _begin_hydro_attempt_locked(self, ordinal: int, *, actor: str) -> None:
+        """Durably mark entry into the frozen single-screen solver boundary."""
+        record = self._record(ordinal)
+        if record["state"] != "HYDRO_RUNNING" or record["post"] is None:
+            raise StreamingLifecycleError("hydro attempt requires an owned running POST")
+        if record["hydro_attempt_started"]:
+            return
+        record["hydro_attempt_started"] = True
+        self._transition(
+            record,
+            "HYDRO_RUNNING",
+            actor=actor,
+            source_file_sha256=record["post"]["file_sha256"],
+            hydro_attempt_started=True,
+        )
+        self._save()
+
+    def begin_hydro_screen(self, ordinal: int, *, actor: str = "hydro") -> None:
+        """Persist the per-screen attempt boundary before invoking HR-4."""
+        with self._locked_manifest():
+            self._begin_hydro_attempt_locked(ordinal, actor=actor)
+
     def claim_block(self, *, actor: str = "hydro") -> list[int]:
         with self._locked_manifest():
+            self._refill_recovery_queue_locked(actor=actor)
             ordered = sorted(int(value) for value in self.manifest["queue"])
-            if len(ordered) < FROZEN_BLOCK_SIZE:
+            if not ordered or (len(ordered) < FROZEN_BLOCK_SIZE and not self.manifest["recovery_active"]):
                 return []
             block = ordered[:FROZEN_BLOCK_SIZE]
             for ordinal in block:
                 record = self._record(ordinal)
                 if record["state"] != "HYDRO_QUEUED":
                     raise StreamingLifecycleError("queue lifecycle state is inconsistent")
+                record["hydro_attempt_started"] = False
                 self._transition(record, "HYDRO_RUNNING", actor=actor, source_file_sha256=record["post"]["file_sha256"])
             self.manifest["queue"] = [value for value in self.manifest["queue"] if int(value) not in set(block)]
+            self._refill_recovery_queue_locked(actor=actor)
             self._telemetry_locked("HYDRO_CLAIM", actor=actor, block=block)
             self._save()
             return block
@@ -925,6 +1051,7 @@ class StreamingLifecycle:
                 raise StreamingLifecycleError("NEXT commit requires an owned running POST")
             if record["next"] is not None:
                 raise DuplicateCommitError("duplicate NEXT commit")
+            self._begin_hydro_attempt_locked(ordinal, actor=actor)
             with _timed_phase("NEXT_HOST_PREPARATION", ordinal=int(ordinal)):
                 payload = _validated_fields(fields, shape=self.manifest["shape"], dtype=np.float64)
             with _timed_phase("NEXT_CANONICAL_HASH", ordinal=int(ordinal)):
@@ -957,6 +1084,7 @@ class StreamingLifecycle:
             with _timed_phase("NEXT_VALIDATION_READ", ordinal=int(ordinal)):
                 self._artifact_fields(entry, namespace="NEXT")
             record["next"] = entry
+            record["hydro_attempt_started"] = False
             self._transition(record, "NEXT_COMMITTED", actor=actor, source_file_sha256=record["post"]["file_sha256"], output_file_sha256=file_hash)
             self._save()
             self._maybe_inject_s5_fault(
@@ -971,6 +1099,7 @@ class StreamingLifecycle:
         if block:
             self.record_telemetry("HYDRO_BLOCK_START", actor=actor, block=block)
         for ordinal in block:
+            self.begin_hydro_screen(ordinal, actor=actor)
             with _timed_phase("POST_ARTIFACT_READ", ordinal=int(ordinal), block=list(block)):
                 incoming = self._artifact_fields(self._record(ordinal)["post"], namespace="POST")
             self.record_telemetry("HYDRO_SCREEN_START", actor=actor, ordinal=ordinal, block=block)
@@ -1009,6 +1138,7 @@ class StreamingLifecycle:
             if any(record.get("state") not in allowed_states for record in self.manifest["records"]):
                 raise StreamingLifecycleError("restart found an unknown lifecycle state")
             self.manifest["queue"] = []
+            self.manifest["recovery_backlog"] = []
             candidates = []
             for record in self.manifest["records"]:
                 if record["next"] is not None:
@@ -1024,12 +1154,24 @@ class StreamingLifecycle:
                 if record["state"] not in ("POST_COMMITTED", "HYDRO_QUEUED", "HYDRO_RUNNING"):
                     raise StreamingLifecycleError("POST artifact has invalid lifecycle state")
                 candidates.append(int(record["ordinal"]))
-                record["retry_count"] = int(record["retry_count"]) + int(record["state"] == "HYDRO_RUNNING")
+                prior_state = str(record["state"])
+                if prior_state == "HYDRO_RUNNING" and record["hydro_attempt_started"]:
+                    record["retry_count"] = int(record["retry_count"]) + 1
+                    self.manifest["recovery_attempts"].append({
+                        "schema": RECOVERY_ATTEMPT_SCHEMA,
+                        "ordinal": int(record["ordinal"]),
+                        "screen_id": str(record["screen_id"]),
+                        "reason": "STALE_HYDRO_RUNNING_RECONSTRUCTED",
+                        "retry_count": int(record["retry_count"]),
+                        "post_file_sha256": str(record["post"]["file_sha256"]),
+                        "post_field_sha256": dict(record["post"]["field_sha256"]),
+                        "recorded_utc": _utc(),
+                    })
+                record["hydro_attempt_started"] = False
                 self._transition(record, "POST_COMMITTED", actor=actor, source_file_sha256=record["post"]["file_sha256"], reconstructed=True)
-            for ordinal in sorted(candidates)[:int(self.manifest["queue_depth"])]:
-                record = self._record(ordinal)
-                self.manifest["queue"].append(ordinal)
-                self._transition(record, "HYDRO_QUEUED", actor=actor, source_file_sha256=record["post"]["file_sha256"], reconstructed=True)
+            self.manifest["recovery_active"] = bool(candidates)
+            self.manifest["recovery_backlog"] = sorted(candidates)
+            self._refill_recovery_queue_locked(actor=actor)
             self._save()
             return list(self.manifest["queue"])
 
@@ -1039,6 +1181,8 @@ class StreamingLifecycle:
             existing = self.manifest.get("barrier")
             if isinstance(existing, Mapping) and existing.get("status") == "PASS":
                 self._assert_no_staged_or_orphaned_artifacts()
+                if self.manifest["queue"] or self.manifest["recovery_backlog"]:
+                    raise BarrierError("stored PASS barrier has unresolved recovery work")
                 for record in self.manifest["records"]:
                     if record["state"] != "BARRIER_VALIDATED" or record["post"] is None or record["next"] is None:
                         raise BarrierError("stored PASS barrier has incomplete lifecycle state")
@@ -1052,6 +1196,8 @@ class StreamingLifecycle:
                 failures.append(f"artifact_inventory_{type(error).__name__}:{error}")
             if self.manifest["queue"]:
                 failures.append("unresolved_queue")
+            if self.manifest["recovery_backlog"]:
+                failures.append("unresolved_recovery_backlog")
             for record in self.manifest["records"]:
                 if record["state"] != "NEXT_COMMITTED" or record["next"] is None or record["post"] is None:
                     failures.append(f"screen_{record['ordinal']}_not_next_committed")

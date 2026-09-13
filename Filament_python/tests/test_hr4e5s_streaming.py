@@ -225,6 +225,102 @@ def test_restart_reconstructs_only_missing_next_work(tmp_path):
     assert all(reopened.manifest["records"][ordinal]["state"] == "NEXT_COMMITTED" for ordinal in first)
 
 
+def _drain_recovered_queue(lifecycle):
+    claimed = []
+    while True:
+        block = lifecycle.claim_block(actor="recovery_test")
+        if not block:
+            return claimed
+        assert 1 <= len(block) <= 8
+        assert len(lifecycle.manifest["queue"]) <= lifecycle.manifest["queue_depth"]
+        assert not set(lifecycle.manifest["queue"]) & set(lifecycle.manifest["recovery_backlog"])
+        claimed.extend(block)
+        for ordinal in block:
+            lifecycle.commit_next(
+                ordinal,
+                lifecycle._artifact_fields(lifecycle.manifest["records"][ordinal]["post"], namespace="POST"),
+                actor="recovery_test",
+            )
+
+
+@pytest.mark.parametrize("pending_count", [15, 16, 17, 33])
+def test_restart_backlog_drains_queue_depth_boundaries_without_stranded_post(tmp_path, pending_count):
+    """Recovery retains every pending POST, including non-block-aligned tails."""
+    lifecycle, _ = _lifecycle(tmp_path, count=pending_count, queue_depth=16)
+    for ordinal in range(pending_count):
+        _commit(lifecycle, ordinal, enqueue=False)
+
+    recovered = type(lifecycle).open(lifecycle.root)
+    assert recovered.reconstruct_queue(actor="restart_boundary") == list(range(min(16, pending_count)))
+    assert recovered.manifest["recovery_backlog"] == list(range(min(16, pending_count), pending_count))
+    assert recovered.manifest["recovery_active"] is True
+    assert _drain_recovered_queue(recovered) == list(range(pending_count))
+    finished = type(recovered).open(recovered.root)
+    assert finished.manifest["queue"] == []
+    assert finished.manifest["recovery_backlog"] == []
+    assert all(record["next"] is not None and record["state"] == "NEXT_COMMITTED" for record in finished.manifest["records"])
+    assert finished.validate_barrier(actor="restart_boundary")["status"] == "PASS"
+
+
+def test_restart_during_recovered_backlog_drain_rebuilds_pending_projection_without_loss(tmp_path):
+    lifecycle, _ = _lifecycle(tmp_path, count=33, queue_depth=16)
+    for ordinal in range(33):
+        _commit(lifecycle, ordinal, enqueue=False)
+    recovered = type(lifecycle).open(lifecycle.root)
+    assert recovered.reconstruct_queue(actor="restart_initial") == list(range(16))
+    first = recovered.claim_block(actor="restart_initial")
+    assert first == list(range(8))
+    assert recovered.manifest["queue"] == list(range(8, 24))
+    assert recovered.manifest["recovery_backlog"] == list(range(24, 33))
+    for ordinal in first:
+        recovered.commit_next(ordinal, recovered._artifact_fields(recovered.manifest["records"][ordinal]["post"], namespace="POST"), actor="restart_initial")
+
+    resumed = type(recovered).open(recovered.root)
+    assert resumed.reconstruct_queue(actor="restart_mid_drain") == list(range(8, 24))
+    assert resumed.manifest["recovery_backlog"] == list(range(24, 33))
+    assert _drain_recovered_queue(resumed) == list(range(8, 33))
+    finished = type(resumed).open(resumed.root)
+    assert finished.manifest["queue"] == [] and finished.manifest["recovery_backlog"] == []
+    assert len({record["next"]["artifact"] for record in finished.manifest["records"]}) == 33
+    assert finished.validate_barrier(actor="restart_mid_drain")["status"] == "PASS"
+
+
+def test_restart_mixed_next_pending_post_and_stale_running_records_is_deterministic(tmp_path):
+    lifecycle, _ = _lifecycle(tmp_path, count=33, queue_depth=16)
+    for ordinal in range(8):
+        _commit(lifecycle, ordinal)
+    first = lifecycle.claim_block(actor="mixed")
+    assert first == list(range(8))
+    for ordinal in first:
+        lifecycle.commit_next(ordinal, lifecycle._artifact_fields(lifecycle.manifest["records"][ordinal]["post"], namespace="POST"), actor="mixed")
+    for ordinal in range(8, 16):
+        _commit(lifecycle, ordinal)
+    assert lifecycle.claim_block(actor="mixed") == list(range(8, 16))
+    lifecycle.begin_hydro_screen(8, actor="mixed")
+    for ordinal in range(16, 33):
+        _commit(lifecycle, ordinal, enqueue=False)
+
+    recovered = type(lifecycle).open(lifecycle.root)
+    assert recovered.reconstruct_queue(actor="mixed_restart") == list(range(8, 24))
+    assert recovered.manifest["recovery_backlog"] == list(range(24, 33))
+    assert [recovered.manifest["records"][ordinal]["retry_count"] for ordinal in range(8, 16)] == [1] + [0] * 7
+    attempts = recovered.manifest["recovery_attempts"]
+    assert [attempt["ordinal"] for attempt in attempts] == [8]
+    assert all(
+        attempt["schema"] == "khz_filament.hr4e5s.streaming.recovery_attempt.v1"
+        and attempt["reason"] == "STALE_HYDRO_RUNNING_RECONSTRUCTED"
+        and attempt["screen_id"] == recovered.manifest["records"][attempt["ordinal"]]["screen_id"]
+        and attempt["retry_count"] == 1
+        and attempt["post_file_sha256"] == recovered.manifest["records"][attempt["ordinal"]]["post"]["file_sha256"]
+        and attempt["post_field_sha256"] == recovered.manifest["records"][attempt["ordinal"]]["post"]["field_sha256"]
+        for attempt in attempts
+    )
+    assert _drain_recovered_queue(recovered) == list(range(8, 33))
+    finished = type(recovered).open(recovered.root)
+    assert all(record["next"] is not None for record in finished.manifest["records"])
+    assert finished.validate_barrier(actor="mixed_restart")["status"] == "PASS"
+
+
 def test_hydro_block_explicitly_materializes_device_arrays_before_next_commit(tmp_path, monkeypatch):
     import KHz_filament.hr4e5s_streaming as streaming
 
