@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from KHz_filament.hr4e5s_s3 import (  # noqa: E402
+    bootstrap_recovery,
     compare_exact,
     consume_streaming,
     create_streaming_lifecycle,
@@ -21,6 +22,7 @@ from KHz_filament.hr4e5s_s3 import (  # noqa: E402
     prepare_input_manifest,
     run_batch_hydro,
     run_optical_path,
+    validate_recovery_bootstrap_receipt,
 )
 
 
@@ -39,7 +41,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     initialize = sub.add_parser("initialize-stream")
     initialize.add_argument("--input", type=Path, required=True); initialize.add_argument("--root", type=Path, required=True)
     optical = sub.add_parser("optical")
-    optical.add_argument("--input", type=Path, required=True); optical.add_argument("--out-dir", type=Path, required=True); optical.add_argument("--stream-root", type=Path); optical.add_argument("--resume", action="store_true")
+    optical.add_argument("--input", type=Path, required=True); optical.add_argument("--out-dir", type=Path, required=True); optical.add_argument("--stream-root", type=Path); optical.add_argument("--resume", action="store_true"); optical.add_argument("--bootstrap-receipt", type=Path)
+    bootstrap = sub.add_parser("bootstrap-recovery")
+    bootstrap.add_argument("--stream-root", type=Path, required=True); bootstrap.add_argument("--out", type=Path, required=True); bootstrap.add_argument("--runtime-sha", required=True); bootstrap.add_argument("--case-id", required=True)
+    validate_bootstrap = sub.add_parser("validate-bootstrap")
+    validate_bootstrap.add_argument("--stream-root", type=Path, required=True); validate_bootstrap.add_argument("--receipt", type=Path, required=True); validate_bootstrap.add_argument("--runtime-sha", required=True); validate_bootstrap.add_argument("--case-id", required=True)
     batch = sub.add_parser("batch-hydro")
     batch.add_argument("--input", type=Path, required=True); batch.add_argument("--optical-dir", type=Path, required=True); batch.add_argument("--out-dir", type=Path, required=True)
     consumer = sub.add_parser("consume")
@@ -55,7 +61,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         lifecycle = create_streaming_lifecycle(input_manifest=_read(args.input), root=args.root)
         result = {"root": str(lifecycle.root), "manifest": str(lifecycle.manifest_path)}
     elif args.command == "optical":
-        result = run_optical_path(input_manifest_path=args.input, out_dir=args.out_dir, streaming_root=args.stream_root, resume=bool(args.resume))
+        result = run_optical_path(input_manifest_path=args.input, out_dir=args.out_dir, streaming_root=args.stream_root, resume=bool(args.resume), bootstrap_receipt_path=args.bootstrap_receipt)
+    elif args.command == "bootstrap-recovery":
+        result = bootstrap_recovery(lifecycle_root=args.stream_root, out_path=args.out, runtime_sha=args.runtime_sha, case_id=args.case_id)
+    elif args.command == "validate-bootstrap":
+        result = validate_recovery_bootstrap_receipt(receipt_path=args.receipt, lifecycle_root=args.stream_root, runtime_sha=args.runtime_sha, case_id=args.case_id)
     elif args.command == "batch-hydro":
         result = run_batch_hydro(input_manifest_path=args.input, optical_dir=args.optical_dir, out_dir=args.out_dir)
     elif args.command == "consume":

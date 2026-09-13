@@ -24,6 +24,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 SCHEMA = "khz_filament.hr4e5s.s5.fault_matrix_monitor.v1"
 FAULT_CASES = ("F01", "F02", "F03", "F04", "F05", "F06")
+REPAIR_CASES = ("F03", "F04", "F05")
 INITIAL = "PENDING_FAULT_SUBMISSION"
 TERMINAL_SACCT = {
     "BOOT_FAIL", "CANCELLED", "COMPLETED", "DEADLINE", "FAILED", "NODE_FAIL",
@@ -101,7 +102,7 @@ def load_manifest(path: str | Path) -> dict[str, Any]:
     cases = value["cases"]
     _require(isinstance(cases, list), "matrix manifest cases must be a list")
     identifiers = [str(item.get("case_id", "")) for item in cases if isinstance(item, Mapping)]
-    _require(tuple(identifiers) == FAULT_CASES, "matrix manifest must contain F01--F06 in order exactly once")
+    _require(tuple(identifiers) in (FAULT_CASES, REPAIR_CASES), "matrix manifest must contain F01--F06 or the ordered F03--F05 repair subset")
     for item in cases:
         _require(isinstance(item, Mapping), "matrix case must be an object")
         case_id, fault_id, fault_screen = (str(item.get(key, "")) for key in ("case_id", "fault_id", "fault_screen"))
@@ -146,7 +147,8 @@ def load_or_create_state(manifest_path: Path, manifest: Mapping[str, Any]) -> di
     _require(state.get("schema") == SCHEMA, "invalid monitor state schema")
     _require(state.get("manifest_sha256") == _sha256_file(manifest_path), "monitor manifest changed after state creation")
     _require(state.get("expected_sha") == str(manifest["expected_sha"]), "monitor state execution SHA mismatch")
-    _require(set(state.get("cases", {})) == set(FAULT_CASES), "monitor state case set mismatch")
+    case_ids = {str(item["case_id"]) for item in manifest["cases"]}
+    _require(set(state.get("cases", {})) == case_ids, "monitor state case set mismatch")
     return state
 
 
@@ -297,13 +299,59 @@ def _contract_pass(path: Path, case: Mapping[str, Any]) -> bool:
     )
 
 
-def _exact_pass(case_root: Path) -> tuple[bool, str]:
+def _recovery_bootstrap_order(case_root: Path, *, expected_sha: str, case_id: str) -> tuple[bool, dict[str, Any]]:
+    """Read-only proof that the serial bootstrap precedes every hydro claim."""
+    receipt_path = case_root / "recovery" / "restart_reconstructed.json"
+    manifest_path = case_root / "injected" / "lifecycle" / "streaming_manifest.json"
+    try:
+        receipt, manifest = _read_json(receipt_path), _read_json(manifest_path)
+    except (OSError, json.JSONDecodeError) as exc:
+        return False, {"reason": "missing_or_invalid_recovery_bootstrap_receipt", "error_type": type(exc).__name__}
+    if (
+        receipt.get("schema") != "khz_filament.hr4e5s.s5.recovery_bootstrap.v1"
+        or receipt.get("status") != "PASS"
+        or receipt.get("bootstrap_event") != "RESTART_RECONSTRUCTED"
+        or receipt.get("runtime_sha") != expected_sha
+        or receipt.get("case_id") != case_id
+    ):
+        return False, {"reason": "recovery_bootstrap_receipt_identity_invalid"}
+    events = manifest.get("telemetry_events")
+    index = receipt.get("telemetry_event_index")
+    if isinstance(index, bool) or not isinstance(index, int) or not isinstance(events, list) or not 0 <= index < len(events):
+        return False, {"reason": "recovery_bootstrap_receipt_telemetry_invalid"}
+    event = events[index]
+    if not isinstance(event, Mapping) or event.get("event") != "RESTART_RECONSTRUCTED" or event.get("actor") != "s5_restart" or event.get("bootstrap") is not True:
+        return False, {"reason": "recovery_bootstrap_event_missing"}
+    bootstrap_indexes = [
+        event_index for event_index, item in enumerate(events)
+        if isinstance(item, Mapping) and item.get("event") == "RESTART_RECONSTRUCTED"
+    ]
+    claim_indexes = [
+        event_index for event_index, item in enumerate(events)
+        if isinstance(item, Mapping) and item.get("event") == "HYDRO_CLAIM" and item.get("actor") == "hydro_consumer"
+    ]
+    if bootstrap_indexes != [index] or not claim_indexes or index >= min(claim_indexes):
+        return False, {
+            "reason": "RECOVERY_BOOTSTRAP_ORDER_VIOLATION",
+            "bootstrap_indexes": bootstrap_indexes,
+            "hydro_claim_indexes": claim_indexes,
+        }
+    return True, {
+        "receipt": str(receipt_path), "bootstrap_event_index": index,
+        "first_hydro_claim_index": min(claim_indexes), "bootstrap_before_first_claim": True,
+        "queue_size": receipt.get("queue_size"), "backlog_size": receipt.get("backlog_size"),
+        "reconstructed_pending_post_count": receipt.get("reconstructed_pending_post_count"),
+        "reconstructed_stale_hydro_running_count": receipt.get("reconstructed_stale_hydro_running_count"),
+    }
+
+
+def _exact_pass(case_root: Path, *, expected_sha: str | None = None, case_id: str | None = None) -> tuple[bool, str, dict[str, Any] | None]:
     audit_path = case_root / "recovery" / "final_lifecycle_audit.json"
     comparison_path = case_root / "comparison" / "s5_1_exact_comparison.json"
     try:
         audit, comparison = _read_json(audit_path), _read_json(comparison_path)
     except (OSError, json.JSONDecodeError) as exc:
-        return False, f"missing_or_invalid_final_evidence:{type(exc).__name__}"
+        return False, f"missing_or_invalid_final_evidence:{type(exc).__name__}", None
     audit_ok = (
         audit.get("pointer_present") is True
         and isinstance(audit.get("barrier"), Mapping) and audit["barrier"].get("status") == "PASS"
@@ -320,7 +368,13 @@ def _exact_pass(case_root: Path) -> tuple[bool, str]:
         and comparison["recovery_provenance"].get("status") == "PASS"
         and comparison["recovery_provenance"].get("recovery_provenance_exact") is True
     )
-    return (audit_ok and comparison_ok, "exact_evidence_pass" if audit_ok and comparison_ok else "exact_evidence_requirement_failed")
+    if expected_sha is not None and case_id is not None:
+        bootstrap_ok, bootstrap_detail = _recovery_bootstrap_order(case_root, expected_sha=expected_sha, case_id=case_id)
+        if not bootstrap_ok:
+            return False, "RECOVERY_BOOTSTRAP_ORDER_VIOLATION", bootstrap_detail
+    else:
+        bootstrap_detail = None
+    return (audit_ok and comparison_ok, "exact_evidence_pass" if audit_ok and comparison_ok else "exact_evidence_requirement_failed", bootstrap_detail)
 
 
 def _scheduler_success(snapshot: Mapping[str, Any]) -> bool:
@@ -331,7 +385,7 @@ def _scheduler_success(snapshot: Mapping[str, Any]) -> bool:
 def _update_final_reports(manifest_path: Path, manifest: Mapping[str, Any], state: dict[str, Any]) -> None:
     _, _, csv_path, summary_path, report_path = _state_paths(manifest_path)
     rows = []
-    for case_id in FAULT_CASES:
+    for case_id in (str(item["case_id"]) for item in manifest["cases"]):
         case = state["cases"][case_id]
         rows.append({
             "case_id": case_id, "state": case["state"],
@@ -361,10 +415,13 @@ def _update_final_reports(manifest_path: Path, manifest: Mapping[str, Any], stat
         "premature_promotion_count": 0 if all_pass else None,
         "mixed_generation_count": 0 if all_pass else None,
         "science_mismatch": False if all_pass else None,
+        "recovery_bootstrap_order": {
+            row["case_id"]: state["cases"][row["case_id"]].get("recovery_bootstrap_order") for row in rows
+        },
     }
     _atomic_json(summary_path, summary)
     report = [
-        "# HR-4E-5S S5-1R2 F01--F06 requalification monitor", "",
+        f"# HR-4E-5S S5-1 recovery monitor ({','.join(row['case_id'] for row in rows)})", "",
         f"- execution SHA: `{manifest['expected_sha']}`",
         f"- new clean reference: `{manifest['clean_reference_job']}` (exact-equivalent to historical `238465`)",
         f"- monitor status: `{state['monitor_status']}`", "",
@@ -463,8 +520,13 @@ def advance_matrix(
             _persist(state_path, event_path, state, event)
             continue
         if current == "EXACT_COMPARE_PENDING":
-            passed, reason = _exact_pass(Path(str(manifest["run_root"])) / case_id)
-            event = _transition(state, case_id, "PASS", reason) if passed else _mark_fail(state, case_id, reason)
+            passed, reason, bootstrap_detail = _exact_pass(
+                Path(str(manifest["run_root"])) / case_id,
+                expected_sha=str(manifest["expected_sha"]), case_id=case_id,
+            )
+            if bootstrap_detail is not None:
+                entry["recovery_bootstrap_order"] = bootstrap_detail
+            event = _transition(state, case_id, "PASS", reason) if passed else _mark_fail(state, case_id, reason, recovery_bootstrap_order=bootstrap_detail)
             _persist(state_path, event_path, state, event)
             continue
         event = _mark_fail(state, case_id, "UNKNOWN_MONITOR_STATE", observed=current)

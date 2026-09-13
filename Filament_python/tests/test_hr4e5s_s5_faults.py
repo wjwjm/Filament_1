@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from KHz_filament.hr4e5s_s3 import _SelectedStreamingHook, finalize_streaming
+from KHz_filament.hr4e5s_s3 import _SelectedStreamingHook, bootstrap_recovery, finalize_streaming, validate_recovery_bootstrap_receipt
 from KHz_filament.hr4e5s_s5 import compare_clean_reference, inspect_lifecycle, validate_fault_contract, validate_recovery_provenance
 from KHz_filament.hr4e5s_streaming import S5FaultInjectedError, S5_FAULT_SPECS, StreamingLifecycle
 
@@ -51,6 +51,27 @@ def _commit_post(lifecycle: StreamingLifecycle, ordinal: int) -> None:
 def _prepare_posts(lifecycle: StreamingLifecycle) -> None:
     for ordinal in range(int(lifecycle.manifest["expected_screen_count"])):
         _commit_post(lifecycle, ordinal)
+
+
+def _commit_durable_posts_without_queue(lifecycle: StreamingLifecycle) -> None:
+    """Build persisted POST candidates for serial-bootstrap tests only."""
+    for ordinal in range(int(lifecycle.manifest["expected_screen_count"])):
+        lifecycle.deposition_finalized(ordinal, actor="s5_test")
+        lifecycle.commit_post_from_delta_n(ordinal, lifecycle.current_fields(ordinal)["delta_n"] - 1.0e-8, actor="s5_test")
+
+
+def _recovery_lifecycle(tmp_path, name: str, *, count: int, queue_depth: int) -> StreamingLifecycle:
+    coordinate = np.linspace(-1.0, 1.0, 8)
+    mode = np.outer(1.0 - coordinate**2, 1.0 - coordinate**2)
+    current = {
+        "delta_n": np.stack([-1.0e-6 * (index + 1) * mode for index in range(count)]).astype(np.float64),
+        "vx": np.zeros((count, 8, 8), dtype=np.float64),
+        "vy": np.zeros((count, 8, 8), dtype=np.float64),
+    }
+    return StreamingLifecycle.create(
+        root=tmp_path / name, current=current, screen_records=_records(count), current_generation="s5-current",
+        dx_m=1.0e-4, dy_m=1.0e-4, queue_depth=queue_depth, actor="s5_test",
+    )
 
 
 def _commit_all_next(lifecycle: StreamingLifecycle) -> None:
@@ -594,28 +615,136 @@ def test_s5_snapshot_and_comparator_exactly_compares_real_window_cardinality(tmp
     assert result["recovery_provenance"]["status"] == "PASS"
 
 
+@pytest.mark.parametrize("count", [15, 16, 17, 33])
+def test_serial_recovery_bootstrap_refills_all_pending_posts_before_any_claim(tmp_path, count):
+    lifecycle = _recovery_lifecycle(tmp_path, f"bootstrap-{count}", count=count, queue_depth=16)
+    _commit_durable_posts_without_queue(lifecycle)
+    assert lifecycle.reconstruct_queue(actor="precrash") == list(range(min(16, count)))
+    assert lifecycle.claim_block(actor="precrash") == list(range(8))
+    lifecycle.begin_hydro_screen(0, actor="precrash")
+
+    receipt_path = tmp_path / f"bootstrap-{count}.json"
+    receipt = bootstrap_recovery(
+        lifecycle_root=lifecycle.root, out_path=receipt_path,
+        runtime_sha="a" * 40, case_id="F03",
+    )
+    assert receipt["pending_post_count"] == count
+    assert receipt["queue_size"] == min(16, count)
+    assert receipt["backlog_size"] == max(0, count - 16)
+    assert receipt["stale_hydro_running_count_before"] == 1
+    assert receipt["reconstructed_stale_hydro_running_count"] == 1
+    validate_recovery_bootstrap_receipt(
+        receipt_path=receipt_path, lifecycle_root=lifecycle.root,
+        runtime_sha="a" * 40, case_id="F03",
+    )
+
+    recovered = StreamingLifecycle.open(lifecycle.root)
+    events = recovered.manifest["telemetry_events"]
+    bootstrap_index = receipt["telemetry_event_index"]
+    assert events[bootstrap_index]["event"] == "RESTART_RECONSTRUCTED"
+    claimed = recovered.claim_block(actor="hydro_consumer")
+    assert claimed == list(range(min(8, count)))
+    claimed_events = [
+        index for index, event in enumerate(recovered.manifest["telemetry_events"])
+        if event["event"] == "HYDRO_CLAIM" and event["actor"] == "hydro_consumer"
+    ]
+    assert claimed_events and bootstrap_index < claimed_events[0]
+    with pytest.raises(ValueError, match="telemetry length"):
+        validate_recovery_bootstrap_receipt(
+            receipt_path=receipt_path, lifecycle_root=lifecycle.root,
+            runtime_sha="a" * 40, case_id="F03",
+        )
+    validate_recovery_bootstrap_receipt(
+        receipt_path=receipt_path, lifecycle_root=lifecycle.root,
+        runtime_sha="a" * 40, case_id="F03",
+        require_current_telemetry_count=False,
+    )
+    with pytest.raises(ValueError, match="already recorded"):
+        bootstrap_recovery(
+            lifecycle_root=lifecycle.root, out_path=tmp_path / f"second-{count}.json",
+            runtime_sha="a" * 40, case_id="F03",
+        )
+
+
+def test_serial_bootstrap_preserves_f05_target_next_and_never_retries_it(tmp_path, monkeypatch):
+    _enable(monkeypatch, "F05_NEXT_COMMITTED_PRE_BARRIER", "z00007")
+    lifecycle = _recovery_lifecycle(tmp_path, "bootstrap-f05", count=17, queue_depth=16)
+    _commit_durable_posts_without_queue(lifecycle)
+    assert lifecycle.reconstruct_queue(actor="fault") == list(range(16))
+    assert lifecycle.claim_block(actor="fault") == list(range(8))
+    for ordinal in range(7):
+        lifecycle.commit_next(ordinal, _post_fields(lifecycle, ordinal), actor="fault")
+    with pytest.raises(S5FaultInjectedError, match="F05_NEXT_COMMITTED_PRE_BARRIER"):
+        lifecycle.commit_next(7, _post_fields(lifecycle, 7), actor="fault")
+
+    receipt = bootstrap_recovery(
+        lifecycle_root=lifecycle.root, out_path=tmp_path / "f05-bootstrap.json",
+        runtime_sha="b" * 40, case_id="F05",
+    )
+    recovered = StreamingLifecycle.open(lifecycle.root)
+    target = recovered.manifest["records"][7]
+    assert target["state"] == "NEXT_COMMITTED" and target["next"] is not None and target["retry_count"] == 0
+    assert 7 not in recovered.manifest["queue"] and 7 not in recovered.manifest["recovery_backlog"]
+    assert receipt["stale_hydro_running_count_before"] == 0
+
+
+def test_monitor_rejects_bootstrap_receipt_when_hydro_claim_precedes_it(tmp_path):
+    monitor = _monitor_module()
+    case_root = tmp_path / "F03"
+    lifecycle_root = case_root / "injected" / "lifecycle"
+    lifecycle_root.mkdir(parents=True)
+    receipt_path = case_root / "recovery" / "restart_reconstructed.json"
+    receipt_path.parent.mkdir(parents=True)
+    receipt_path.write_text(json.dumps({
+        "schema": "khz_filament.hr4e5s.s5.recovery_bootstrap.v1", "status": "PASS",
+        "bootstrap_event": "RESTART_RECONSTRUCTED", "runtime_sha": "c" * 40, "case_id": "F03",
+        "telemetry_event_index": 1,
+    }), encoding="utf-8")
+    (lifecycle_root / "streaming_manifest.json").write_text(json.dumps({"telemetry_events": [
+        {"event": "HYDRO_CLAIM", "actor": "hydro_consumer"},
+        {"event": "RESTART_RECONSTRUCTED", "actor": "s5_restart", "bootstrap": True},
+    ]}), encoding="utf-8")
+    passed, detail = monitor._recovery_bootstrap_order(case_root, expected_sha="c" * 40, case_id="F03")
+    assert not passed and detail["reason"] == "RECOVERY_BOOTSTRAP_ORDER_VIOLATION"
+    receipt_path.write_text(json.dumps({
+        "schema": "khz_filament.hr4e5s.s5.recovery_bootstrap.v1", "status": "PASS",
+        "bootstrap_event": "RESTART_RECONSTRUCTED", "runtime_sha": "c" * 40, "case_id": "F03",
+        "telemetry_event_index": 0,
+    }), encoding="utf-8")
+    (lifecycle_root / "streaming_manifest.json").write_text(json.dumps({"telemetry_events": [
+        {"event": "RESTART_RECONSTRUCTED", "actor": "s5_restart", "bootstrap": True},
+        {"event": "HYDRO_CLAIM", "actor": "hydro_consumer"},
+    ]}), encoding="utf-8")
+    passed, detail = monitor._recovery_bootstrap_order(case_root, expected_sha="c" * 40, case_id="F03")
+    assert passed and detail["bootstrap_before_first_claim"] is True
+
+
 def test_s5_submit_wrapper_pins_batch_workdir_to_run_root():
     submit = (Path(__file__).resolve().parents[1] / "tools" / "hpc_ops" / "submit_hr4e5s_s5.sh").read_text(encoding="utf-8")
     assert '--chdir="$RUN_ROOT"' in submit
     assert '"$RUN_ROOT/${CASE_ID}_fault_submission_receipt.tsv"' in submit
     assert '"$RUN_ROOT/${CASE_ID}_recovery_submission_receipt.tsv"' in submit
     assert 'CASE_MODE" == recovery' in submit
+    assert 'reference_receipt="$(dirname -- "$REFERENCE_CASE_ROOT")/clean_submission_receipt.tsv"' in submit
 
 
 def test_s5_recovery_creates_parent_once_before_consumer_and_never_uses_mkdir_p():
     batch = (Path(__file__).resolve().parents[1] / "tools" / "hr4e5s_s5.sbatch").read_text(encoding="utf-8")
     recovery = batch.index('if [[ "$CASE_MODE" == recovery ]]')
     parent = batch.index('mkdir -m 700 -- "$CASE_ROOT/recovery"', recovery)
+    bootstrap = batch.index('bootstrap-recovery --stream-root "$CASE_ROOT/injected/lifecycle"', recovery)
+    validate = batch.index('validate-bootstrap --stream-root "$CASE_ROOT/injected/lifecycle"', recovery)
     pair = batch.index('pair_run "$CASE_ROOT/injected/lifecycle" "$CASE_ROOT/recovery/optical"', recovery)
     contract = batch.index("check['contract_match'] is True", recovery)
     consumer = batch.index('mkdir -m 700 -- "$consumer"')
     assert contract < parent
-    assert parent < pair
+    assert parent < bootstrap < validate < pair
     assert consumer < pair
     assert "\n  mkdir -p" not in batch
+    assert '--bootstrap-receipt "$bootstrap_receipt"' in batch
 
 
-def _write_monitor_manifest(tmp_path, monitor):
+def _write_monitor_manifest(tmp_path, monitor, *, case_ids=None):
     run_root = tmp_path / "rerun"
     run_root.mkdir()
     cases = [
@@ -626,6 +755,8 @@ def _write_monitor_manifest(tmp_path, monitor):
             "F06_BARRIER_PASS_PRE_PROMOTION",
         ), start=1)
     ]
+    if case_ids is not None:
+        cases = [case for case in cases if case["case_id"] in set(case_ids)]
     manifest = {
         "schema": monitor.SCHEMA, "run_root": str(run_root), "repo": "/repo", "expected_sha": "a" * 40,
         "preflight": str(run_root / "preflight.json"), "reference_case_root": str(run_root / "clean"),
@@ -635,6 +766,15 @@ def _write_monitor_manifest(tmp_path, monitor):
     path = run_root / "matrix_manifest.json"
     path.write_text(json.dumps(manifest), encoding="utf-8")
     return path, manifest
+
+
+def test_s5_monitor_allows_only_the_ordered_f03_f05_repair_subset(tmp_path):
+    monitor = _monitor_module()
+    path, manifest = _write_monitor_manifest(tmp_path, monitor, case_ids=("F03", "F04", "F05"))
+    assert tuple(case["case_id"] for case in monitor.load_manifest(path)["cases"]) == ("F03", "F04", "F05")
+    state = monitor._fresh_state(path, manifest)
+    monitor._atomic_json(Path(manifest["run_root"]) / "monitor_state.json", state)
+    assert set(monitor.load_or_create_state(path, manifest)["cases"]) == {"F03", "F04", "F05"}
 
 
 def _monitor_receipt(path, case_id, stage, sha, job_id):

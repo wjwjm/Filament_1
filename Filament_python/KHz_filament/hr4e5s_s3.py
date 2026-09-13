@@ -35,6 +35,7 @@ from .thermalization import ThermalDiagnosticSink, ThermalSamplePlan
 
 
 S3_SCHEMA = "khz_filament.hr4e5s.s3.v1"
+RECOVERY_BOOTSTRAP_SCHEMA = "khz_filament.hr4e5s.s5.recovery_bootstrap.v1"
 S3_WINDOW_COUNT = 48
 S3_BLOCK_SIZE = 8
 DEPOSITION_FIELDS = ("ion", "ib", "raman")
@@ -62,6 +63,182 @@ def _atomic_json(path: Path, value: Mapping[str, Any]) -> None:
 
 def _read_json(path: Path) -> dict[str, Any]:
     return dict(json.loads(path.read_text(encoding="utf-8")))
+
+
+def _recovery_pending_counts(lifecycle: StreamingLifecycle) -> tuple[int, int]:
+    """Count durable recovery work without changing the lifecycle root."""
+    pending = 0
+    stale = 0
+    for record in lifecycle.manifest["records"]:
+        if record.get("post") is not None and record.get("next") is None:
+            pending += 1
+            if record.get("state") == "HYDRO_RUNNING" and bool(record.get("hydro_attempt_started")):
+                stale += 1
+    return pending, stale
+
+
+def validate_recovery_bootstrap_receipt(
+    *, receipt_path: str | Path, lifecycle_root: str | Path,
+    runtime_sha: str | None = None, case_id: str | None = None,
+    require_current_telemetry_count: bool = True,
+) -> dict[str, Any]:
+    """Validate the durable serial-recovery bootstrap boundary.
+
+    This is intentionally a structural gate.  It does not reconstruct a
+    lifecycle and does not alter any authoritative field.  The producer uses
+    it before starting its optical continuation so a recovery pair cannot
+    silently acquire a second reconstruction owner.
+    """
+    receipt_file, root = Path(receipt_path), Path(lifecycle_root)
+    if not receipt_file.is_file():
+        raise ValueError("recovery bootstrap receipt is missing")
+    receipt = _read_json(receipt_file)
+    if receipt.get("schema") != RECOVERY_BOOTSTRAP_SCHEMA or receipt.get("status") != "PASS":
+        raise ValueError("recovery bootstrap receipt is invalid")
+    if receipt.get("bootstrap_event") != "RESTART_RECONSTRUCTED":
+        raise ValueError("recovery bootstrap receipt lacks RESTART_RECONSTRUCTED")
+    if not isinstance(receipt.get("case_id"), str) or not receipt["case_id"]:
+        raise ValueError("recovery bootstrap receipt case is invalid")
+    if case_id is not None and receipt["case_id"] != str(case_id):
+        raise ValueError("recovery bootstrap receipt case mismatch")
+    recorded_sha = receipt.get("runtime_sha")
+    if not isinstance(recorded_sha, str) or len(recorded_sha) != 40 or any(char not in "0123456789abcdef" for char in recorded_sha.lower()):
+        raise ValueError("recovery bootstrap receipt runtime SHA is invalid")
+    if runtime_sha is not None and recorded_sha != str(runtime_sha):
+        raise ValueError("recovery bootstrap receipt runtime SHA mismatch")
+    try:
+        recorded_root = Path(str(receipt["lifecycle_root"])).resolve()
+    except (KeyError, TypeError, ValueError):
+        raise ValueError("recovery bootstrap receipt lifecycle root is invalid") from None
+    if recorded_root != root.resolve():
+        raise ValueError("recovery bootstrap receipt lifecycle root mismatch")
+
+    integer_fields = (
+        "pending_post_count", "pending_post_count_before", "stale_hydro_running_count",
+        "stale_hydro_running_count_before", "reconstructed_pending_post_count",
+        "reconstructed_stale_hydro_running_count", "queue_size", "backlog_size",
+        "queue_depth", "telemetry_event_index", "bootstrap_event_index",
+        "telemetry_event_count",
+    )
+    for field in integer_fields:
+        value = receipt.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(f"recovery bootstrap receipt {field} is invalid")
+    if receipt["bootstrap_event_index"] != receipt["telemetry_event_index"]:
+        raise ValueError("recovery bootstrap receipt event indexes disagree")
+    if receipt["queue_size"] > receipt["queue_depth"]:
+        raise ValueError("recovery bootstrap queue exceeds its frozen depth")
+    if receipt["pending_post_count"] != receipt["queue_size"] + receipt["backlog_size"]:
+        raise ValueError("recovery bootstrap pending count disagrees with queue and backlog")
+    if receipt["reconstructed_pending_post_count"] != receipt["pending_post_count"]:
+        raise ValueError("recovery bootstrap reconstructed count disagrees with manifest")
+    if receipt["reconstructed_stale_hydro_running_count"] != receipt["stale_hydro_running_count_before"]:
+        raise ValueError("recovery bootstrap stale count disagrees with pre-bootstrap state")
+
+    lifecycle = StreamingLifecycle.open(root)
+    events = lifecycle.manifest.get("telemetry_events")
+    if not isinstance(events, list):
+        raise ValueError("recovery bootstrap telemetry is invalid")
+    if require_current_telemetry_count and receipt["telemetry_event_count"] != len(events):
+        raise ValueError("recovery bootstrap telemetry length is invalid")
+    if receipt["telemetry_event_count"] > len(events):
+        raise ValueError("recovery bootstrap telemetry was truncated")
+    index = receipt["telemetry_event_index"]
+    if index >= len(events):
+        raise ValueError("recovery bootstrap telemetry index is outside the manifest")
+    event = events[index]
+    if not isinstance(event, Mapping) or event.get("event") != "RESTART_RECONSTRUCTED" or event.get("actor") != "s5_restart":
+        raise ValueError("recovery bootstrap telemetry event is invalid")
+    if event.get("bootstrap") is not True:
+        raise ValueError("recovery bootstrap telemetry event is not marked bootstrap")
+    bootstrap_indexes = [
+        event_index for event_index, item in enumerate(events)
+        if isinstance(item, Mapping) and item.get("event") == "RESTART_RECONSTRUCTED"
+    ]
+    if bootstrap_indexes != [index]:
+        raise ValueError("recovery bootstrap telemetry event count is not exactly one")
+    claim_indexes = [
+        event_index for event_index, item in enumerate(events)
+        if isinstance(item, Mapping)
+        and item.get("event") == "HYDRO_CLAIM"
+        and item.get("actor") == "hydro_consumer"
+    ]
+    if claim_indexes and index >= min(claim_indexes):
+        raise ValueError("recovery bootstrap occurs after the first hydro-consumer claim")
+    return receipt
+
+
+def bootstrap_recovery(
+    *, lifecycle_root: str | Path, out_path: str | Path,
+    runtime_sha: str, case_id: str,
+) -> dict[str, Any]:
+    """Own the one serial reconstruction transaction for an S5 recovery.
+
+    The receipt is persisted only after ``reconstruct_queue`` and the
+    RESTART_RECONSTRUCTED telemetry event are durable.  A second invocation
+    against the same lifecycle is rejected rather than heuristically skipped.
+    """
+    root, receipt_path = Path(lifecycle_root), Path(out_path)
+    if receipt_path.exists():
+        raise FileExistsError(receipt_path)
+    if not isinstance(runtime_sha, str) or len(runtime_sha) != 40 or any(char not in "0123456789abcdef" for char in runtime_sha.lower()):
+        raise ValueError("runtime SHA must be a 40-character hexadecimal commit")
+    if not isinstance(case_id, str) or not case_id:
+        raise ValueError("recovery case id is required")
+
+    lifecycle = StreamingLifecycle.open(root)
+    events = lifecycle.manifest.get("telemetry_events", [])
+    if any(isinstance(event, Mapping) and event.get("event") == "RESTART_RECONSTRUCTED" for event in events):
+        raise ValueError("recovery bootstrap was already recorded")
+    pending_before, stale_before = _recovery_pending_counts(lifecycle)
+    lifecycle.reconstruct_queue(actor="s5_restart")
+    lifecycle = StreamingLifecycle.open(root)
+    pending_after, _ = _recovery_pending_counts(lifecycle)
+    event = lifecycle.record_telemetry(
+        "RESTART_RECONSTRUCTED", actor="s5_restart", bootstrap=True,
+        reconstructed_pending_post_count=pending_after,
+        reconstructed_stale_hydro_running_count=stale_before,
+    )
+    lifecycle = StreamingLifecycle.open(root)
+    telemetry = lifecycle.manifest.get("telemetry_events", [])
+    event_index = len(telemetry) - 1
+    if event_index < 0 or telemetry[event_index] != event:
+        raise RuntimeError("recovery bootstrap telemetry was not durably appended")
+    queue = [int(value) for value in lifecycle.manifest["queue"]]
+    backlog = [int(value) for value in lifecycle.manifest.get("recovery_backlog", [])]
+    receipt = {
+        "schema": RECOVERY_BOOTSTRAP_SCHEMA,
+        "status": "PASS",
+        "bootstrap_event": "RESTART_RECONSTRUCTED",
+        "runtime_sha": runtime_sha,
+        "case_id": case_id,
+        "lifecycle_root": str(root.resolve()),
+        "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "pending_post_count": len(queue) + len(backlog),
+        "pending_post_count_before": pending_before,
+        "stale_hydro_running_count": sum(
+            1 for record in lifecycle.manifest["records"]
+            if record.get("state") == "HYDRO_RUNNING" and record.get("post") is not None and record.get("next") is None
+        ),
+        "stale_hydro_running_count_before": stale_before,
+        "reconstructed_pending_post_count": pending_after,
+        "reconstructed_stale_hydro_running_count": stale_before,
+        "queue_size": len(queue),
+        "backlog_size": len(backlog),
+        "queue_depth": int(lifecycle.manifest["queue_depth"]),
+        "queue_ordinals": queue,
+        "backlog_ordinals": backlog,
+        "telemetry_event_index": event_index,
+        "bootstrap_event_index": event_index,
+        "telemetry_event_count": len(telemetry),
+        "manifest_sha256": sha256_file(lifecycle.manifest_path),
+    }
+    _atomic_json(receipt_path, receipt)
+    validate_recovery_bootstrap_receipt(
+        receipt_path=receipt_path, lifecycle_root=root,
+        runtime_sha=runtime_sha, case_id=case_id,
+    )
+    return receipt
 
 
 def _required(value: Mapping[str, Any], name: str) -> Any:
@@ -217,7 +394,8 @@ def _ledger_payload(diag: Mapping[str, Any]) -> dict[str, np.ndarray]:
 
 
 def run_optical_path(*, input_manifest_path: str | Path, out_dir: str | Path,
-                     streaming_root: str | Path | None = None, dtype: str = "fp64", resume: bool = False) -> dict[str, Any]:
+                     streaming_root: str | Path | None = None, dtype: str = "fp64", resume: bool = False,
+                     bootstrap_receipt_path: str | Path | None = None) -> dict[str, Any]:
     """Run the complete frozen optical trajectory, capturing only S3 screens."""
     manifest, destination = _read_json(Path(input_manifest_path)), Path(out_dir)
     if destination.exists():
@@ -260,8 +438,20 @@ def run_optical_path(*, input_manifest_path: str | Path, out_dir: str | Path,
         if ownership_before["next_pointer_exists"] or ownership_before["authoritative_namespace"] != "CURRENT":
             raise ValueError("S3 optical producer refuses a pre-promoted or NEXT authoritative generation")
         if resume:
-            streaming_before.reconstruct_queue(actor="s5_restart")
-            streaming_before.record_telemetry("RESTART_RECONSTRUCTED", actor="s5_restart")
+            if bootstrap_receipt_path is None:
+                raise ValueError("S3 recovery resume requires an explicit bootstrap receipt")
+            validate_recovery_bootstrap_receipt(
+                receipt_path=bootstrap_receipt_path,
+                lifecycle_root=streaming_root,
+                runtime_sha=os.environ.get("EXPECTED_GIT_SHA"),
+                # The launcher performed the strict no-new-event validation
+                # before either GPU process was started.  Once the pair is
+                # live, a consumer claim is legitimate and must not make the
+                # producer reject that already-durable bootstrap boundary.
+                require_current_telemetry_count=False,
+            )
+        elif bootstrap_receipt_path is not None:
+            raise ValueError("bootstrap receipt is only valid for recovery resume")
         streaming_before.record_telemetry("OPTICAL_START", actor="optical")
         hook = _SelectedStreamingHook(streaming_before, records, resume=resume)
     try:
@@ -424,4 +614,4 @@ def compare_exact(*, input_manifest_path: str | Path, batch_optical_dir: str | P
     return result
 
 
-__all__ = ["S3_BLOCK_SIZE", "S3_SCHEMA", "S3_WINDOW_COUNT", "S3ReadOnlyCurrentState", "compare_exact", "consume_streaming", "create_streaming_lifecycle", "finalize_streaming", "prepare_input_manifest", "run_batch_hydro", "run_optical_path"]
+__all__ = ["RECOVERY_BOOTSTRAP_SCHEMA", "S3_BLOCK_SIZE", "S3_SCHEMA", "S3_WINDOW_COUNT", "S3ReadOnlyCurrentState", "bootstrap_recovery", "compare_exact", "consume_streaming", "create_streaming_lifecycle", "finalize_streaming", "prepare_input_manifest", "run_batch_hydro", "run_optical_path", "validate_recovery_bootstrap_receipt"]

@@ -27,10 +27,11 @@ case "$CASE_MODE" in
   *) echo "invalid S5 case mode=$CASE_MODE" >&2; exit 64 ;;
 esac
 if [[ "$CASE_MODE" == fault || "$CASE_MODE" == recovery ]]; then
-  test "$REFERENCE_CASE_ROOT" = "$RUN_ROOT/clean"
+  test -n "$REFERENCE_CASE_ROOT" && test -d "$REFERENCE_CASE_ROOT"
   test -d "$REFERENCE_CASE_ROOT/lifecycle" && test -d "$REFERENCE_CASE_ROOT/optical" && test -f "$REFERENCE_CASE_ROOT/final_lifecycle_audit.json"
-  test -f "$RUN_ROOT/clean_submission_receipt.tsv"
-  reference_job="$(awk -F '\t' 'NR==2 {print $5}' "$RUN_ROOT/clean_submission_receipt.tsv")"
+  reference_receipt="$(dirname -- "$REFERENCE_CASE_ROOT")/clean_submission_receipt.tsv"
+  test -f "$reference_receipt"
+  reference_job="$(awk -F '\t' 'NR==2 {print $5}' "$reference_receipt")"
   [[ "$reference_job" =~ ^[0-9]+$ ]]
   test "$(sacct -X -j "$reference_job" --format=State,ExitCode --parsable2 --noheader | head -n 1)" = 'COMPLETED|0:0'
   "$PYTHON" - "$REFERENCE_CASE_ROOT/final_lifecycle_audit.json" <<'PY'

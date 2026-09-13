@@ -45,10 +45,16 @@ else
 fi
 
 pair_run() {
-  local lifecycle="$1" optical="$2" consumer="$3" marker="$4" resume="$5" status="$6"
+  local lifecycle="$1" optical="$2" consumer="$3" marker="$4" resume="$5" status="$6" bootstrap_receipt="$7"
   mkdir -m 700 -- "$consumer"
   local -a optical_cmd=("$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" optical --input "$INPUT_MANIFEST" --out-dir "$optical" --stream-root "$lifecycle")
-  if [[ "$resume" == 1 ]]; then optical_cmd+=(--resume); fi
+  if [[ "$resume" == 1 ]]; then
+    test -n "$bootstrap_receipt" && test -f "$bootstrap_receipt"
+    "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" validate-bootstrap --stream-root "$lifecycle" --receipt "$bootstrap_receipt" --runtime-sha "$EXPECTED_GIT_SHA" --case-id "$CASE_ID"
+    optical_cmd+=(--resume --bootstrap-receipt "$bootstrap_receipt")
+  else
+    test -z "$bootstrap_receipt"
+  fi
   srun --exclusive --ntasks=1 --gpus-per-task=1 --cpus-per-task="$SLURM_CPUS_PER_TASK" "${optical_cmd[@]}" >"$consumer/producer.out" 2>"$consumer/producer.err" &
   local producer_pid=$!
   srun --exclusive --ntasks=1 --gpus-per-task=1 --cpus-per-task="$SLURM_CPUS_PER_TASK" "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" consume --input "$INPUT_MANIFEST" --stream-root "$lifecycle" --producer-complete "$marker" --out "$consumer/result.json" >"$consumer/consumer.out" 2>"$consumer/consumer.err" &
@@ -79,7 +85,7 @@ initialize() {
 if [[ "$CASE_MODE" == clean ]]; then
   unset HR4_S5_FAULT_ID HR4_S5_FAULT_SCREEN HR4_S5_FAULT_ONCE || true
   "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" initialize-stream --input "$INPUT_MANIFEST" --root "$CASE_ROOT/lifecycle"
-  if ! pair_run "$CASE_ROOT/lifecycle" "$CASE_ROOT/optical" "$CASE_ROOT/consumer" "$CASE_ROOT/producer_complete" 0 "$CASE_ROOT/pair_status.json"; then exit 1; fi
+  if ! pair_run "$CASE_ROOT/lifecycle" "$CASE_ROOT/optical" "$CASE_ROOT/consumer" "$CASE_ROOT/producer_complete" 0 "$CASE_ROOT/pair_status.json" ""; then exit 1; fi
   "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" finalize-stream --stream-root "$CASE_ROOT/lifecycle" --out "$CASE_ROOT/final.json"
   "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s5.py" inspect --lifecycle-root "$CASE_ROOT/lifecycle" --out "$CASE_ROOT/final_lifecycle_audit.json"
   exit 0
@@ -89,10 +95,10 @@ if [[ "$CASE_MODE" == fault ]]; then
   : "${HR4_S5_FAULT_ID:?}" "${HR4_S5_FAULT_SCREEN:?}"
   initialize
   if [[ "$CASE_ID" == F06 ]]; then
-    if ! pair_run "$CASE_ROOT/injected/lifecycle" "$CASE_ROOT/injected/optical" "$CASE_ROOT/injected/consumer" "$CASE_ROOT/injected/producer_complete" 0 "$CASE_ROOT/injected/pair_status.json"; then exit 1; fi
+    if ! pair_run "$CASE_ROOT/injected/lifecycle" "$CASE_ROOT/injected/optical" "$CASE_ROOT/injected/consumer" "$CASE_ROOT/injected/producer_complete" 0 "$CASE_ROOT/injected/pair_status.json" ""; then exit 1; fi
     if "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" finalize-stream --stream-root "$CASE_ROOT/injected/lifecycle" --out "$CASE_ROOT/injected/final.json"; then exit 1; fi
   else
-    if pair_run "$CASE_ROOT/injected/lifecycle" "$CASE_ROOT/injected/optical" "$CASE_ROOT/injected/consumer" "$CASE_ROOT/injected/producer_complete" 0 "$CASE_ROOT/injected/pair_status.json"; then exit 1; fi
+    if pair_run "$CASE_ROOT/injected/lifecycle" "$CASE_ROOT/injected/optical" "$CASE_ROOT/injected/consumer" "$CASE_ROOT/injected/producer_complete" 0 "$CASE_ROOT/injected/pair_status.json" ""; then exit 1; fi
   fi
   "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s5.py" inspect --lifecycle-root "$CASE_ROOT/injected/lifecycle" --out "$CASE_ROOT/injected/disk_state_audit.json"
   "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s5.py" contract --lifecycle-root "$CASE_ROOT/injected/lifecycle" --fault-id "$HR4_S5_FAULT_ID" --target-screen "$HR4_S5_FAULT_SCREEN" --out "$CASE_ROOT/contract_check.json"
@@ -106,7 +112,10 @@ if [[ "$CASE_ID" == F06 ]]; then
   "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" finalize-stream --stream-root "$CASE_ROOT/injected/lifecycle" --out "$CASE_ROOT/recovery/final.json"
   candidate_optical="$CASE_ROOT/injected/optical"
 else
-  if ! pair_run "$CASE_ROOT/injected/lifecycle" "$CASE_ROOT/recovery/optical" "$CASE_ROOT/recovery/consumer" "$CASE_ROOT/recovery/producer_complete" 1 "$CASE_ROOT/recovery/pair_status.json"; then exit 1; fi
+  readonly BOOTSTRAP_RECEIPT="$CASE_ROOT/recovery/restart_reconstructed.json"
+  "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" bootstrap-recovery --stream-root "$CASE_ROOT/injected/lifecycle" --out "$BOOTSTRAP_RECEIPT" --runtime-sha "$EXPECTED_GIT_SHA" --case-id "$CASE_ID"
+  "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" validate-bootstrap --stream-root "$CASE_ROOT/injected/lifecycle" --receipt "$BOOTSTRAP_RECEIPT" --runtime-sha "$EXPECTED_GIT_SHA" --case-id "$CASE_ID"
+  if ! pair_run "$CASE_ROOT/injected/lifecycle" "$CASE_ROOT/recovery/optical" "$CASE_ROOT/recovery/consumer" "$CASE_ROOT/recovery/producer_complete" 1 "$CASE_ROOT/recovery/pair_status.json" "$BOOTSTRAP_RECEIPT"; then exit 1; fi
   "$PYTHON" "$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py" finalize-stream --stream-root "$CASE_ROOT/injected/lifecycle" --out "$CASE_ROOT/recovery/final.json"
   candidate_optical="$CASE_ROOT/recovery/optical"
 fi
