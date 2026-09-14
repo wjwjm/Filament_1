@@ -300,7 +300,12 @@ def _contract_pass(path: Path, case: Mapping[str, Any]) -> bool:
 
 
 def _recovery_bootstrap_order(case_root: Path, *, expected_sha: str, case_id: str) -> tuple[bool, dict[str, Any]]:
-    """Read-only proof that the serial bootstrap precedes every hydro claim."""
+    """Prove a unique bootstrap precedes the first recovery-era hydro claim.
+
+    Fault injection may legitimately leave historical consumer claims in the
+    durable manifest.  The receipt binds their count before bootstrap so this
+    audit distinguishes that history from claims made by the recovery pair.
+    """
     receipt_path = case_root / "recovery" / "restart_reconstructed.json"
     manifest_path = case_root / "injected" / "lifecycle" / "streaming_manifest.json"
     try:
@@ -330,15 +335,29 @@ def _recovery_bootstrap_order(case_root: Path, *, expected_sha: str, case_id: st
         event_index for event_index, item in enumerate(events)
         if isinstance(item, Mapping) and item.get("event") == "HYDRO_CLAIM" and item.get("actor") == "hydro_consumer"
     ]
-    if bootstrap_indexes != [index] or not claim_indexes or index >= min(claim_indexes):
+    historical_claim_count = receipt.get("pre_bootstrap_hydro_claim_count")
+    historical_claim_indexes = [event_index for event_index in claim_indexes if event_index < index]
+    recovery_claim_indexes = [event_index for event_index in claim_indexes if event_index > index]
+    if (
+        isinstance(historical_claim_count, bool)
+        or not isinstance(historical_claim_count, int)
+        or historical_claim_count < 0
+        or bootstrap_indexes != [index]
+        or len(historical_claim_indexes) != historical_claim_count
+        or not recovery_claim_indexes
+    ):
         return False, {
             "reason": "RECOVERY_BOOTSTRAP_ORDER_VIOLATION",
             "bootstrap_indexes": bootstrap_indexes,
-            "hydro_claim_indexes": claim_indexes,
+            "historical_hydro_claim_indexes": historical_claim_indexes,
+            "recovery_hydro_claim_indexes": recovery_claim_indexes,
+            "recorded_historical_hydro_claim_count": historical_claim_count,
         }
     return True, {
         "receipt": str(receipt_path), "bootstrap_event_index": index,
-        "first_hydro_claim_index": min(claim_indexes), "bootstrap_before_first_claim": True,
+        "historical_hydro_claim_count": historical_claim_count,
+        "first_recovery_hydro_claim_index": min(recovery_claim_indexes),
+        "bootstrap_before_first_recovery_claim": True,
         "queue_size": receipt.get("queue_size"), "backlog_size": receipt.get("backlog_size"),
         "reconstructed_pending_post_count": receipt.get("reconstructed_pending_post_count"),
         "reconstructed_stale_hydro_running_count": receipt.get("reconstructed_stale_hydro_running_count"),

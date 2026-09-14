@@ -163,8 +163,14 @@ def validate_recovery_bootstrap_receipt(
         and item.get("event") == "HYDRO_CLAIM"
         and item.get("actor") == "hydro_consumer"
     ]
-    if claim_indexes and index >= min(claim_indexes):
-        raise ValueError("recovery bootstrap occurs after the first hydro-consumer claim")
+    historical_claim_count = receipt.get("pre_bootstrap_hydro_claim_count")
+    if isinstance(historical_claim_count, bool) or not isinstance(historical_claim_count, int) or historical_claim_count < 0:
+        raise ValueError("recovery bootstrap receipt historical hydro-claim count is invalid")
+    historical_claim_indexes = [event_index for event_index in claim_indexes if event_index < index]
+    if len(historical_claim_indexes) != historical_claim_count:
+        raise ValueError("recovery bootstrap historical hydro-consumer claim count disagrees with telemetry")
+    if any(event_index == index for event_index in claim_indexes):
+        raise ValueError("recovery bootstrap telemetry event is a hydro-consumer claim")
     return receipt
 
 
@@ -190,6 +196,12 @@ def bootstrap_recovery(
     events = lifecycle.manifest.get("telemetry_events", [])
     if any(isinstance(event, Mapping) and event.get("event") == "RESTART_RECONSTRUCTED" for event in events):
         raise ValueError("recovery bootstrap was already recorded")
+    historical_hydro_claim_count = sum(
+        1 for event in events
+        if isinstance(event, Mapping)
+        and event.get("event") == "HYDRO_CLAIM"
+        and event.get("actor") == "hydro_consumer"
+    )
     pending_before, stale_before = _recovery_pending_counts(lifecycle)
     lifecycle.reconstruct_queue(actor="s5_restart")
     lifecycle = StreamingLifecycle.open(root)
@@ -231,6 +243,7 @@ def bootstrap_recovery(
         "telemetry_event_index": event_index,
         "bootstrap_event_index": event_index,
         "telemetry_event_count": len(telemetry),
+        "pre_bootstrap_hydro_claim_count": historical_hydro_claim_count,
         "manifest_sha256": sha256_file(lifecycle.manifest_path),
     }
     _atomic_json(receipt_path, receipt)

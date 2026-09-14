@@ -620,8 +620,8 @@ def test_serial_recovery_bootstrap_refills_all_pending_posts_before_any_claim(tm
     lifecycle = _recovery_lifecycle(tmp_path, f"bootstrap-{count}", count=count, queue_depth=16)
     _commit_durable_posts_without_queue(lifecycle)
     assert lifecycle.reconstruct_queue(actor="precrash") == list(range(min(16, count)))
-    assert lifecycle.claim_block(actor="precrash") == list(range(8))
-    lifecycle.begin_hydro_screen(0, actor="precrash")
+    assert lifecycle.claim_block(actor="hydro_consumer") == list(range(8))
+    lifecycle.begin_hydro_screen(0, actor="hydro_consumer")
 
     receipt_path = tmp_path / f"bootstrap-{count}.json"
     receipt = bootstrap_recovery(
@@ -633,6 +633,7 @@ def test_serial_recovery_bootstrap_refills_all_pending_posts_before_any_claim(tm
     assert receipt["backlog_size"] == max(0, count - 16)
     assert receipt["stale_hydro_running_count_before"] == 1
     assert receipt["reconstructed_stale_hydro_running_count"] == 1
+    assert receipt["pre_bootstrap_hydro_claim_count"] == 1
     validate_recovery_bootstrap_receipt(
         receipt_path=receipt_path, lifecycle_root=lifecycle.root,
         runtime_sha="a" * 40, case_id="F03",
@@ -648,7 +649,8 @@ def test_serial_recovery_bootstrap_refills_all_pending_posts_before_any_claim(tm
         index for index, event in enumerate(recovered.manifest["telemetry_events"])
         if event["event"] == "HYDRO_CLAIM" and event["actor"] == "hydro_consumer"
     ]
-    assert claimed_events and bootstrap_index < claimed_events[0]
+    assert len(claimed_events) == 2
+    assert claimed_events[0] < bootstrap_index < claimed_events[1]
     with pytest.raises(ValueError, match="telemetry length"):
         validate_recovery_bootstrap_receipt(
             receipt_path=receipt_path, lifecycle_root=lifecycle.root,
@@ -688,7 +690,7 @@ def test_serial_bootstrap_preserves_f05_target_next_and_never_retries_it(tmp_pat
     assert receipt["stale_hydro_running_count_before"] == 0
 
 
-def test_monitor_rejects_bootstrap_receipt_when_hydro_claim_precedes_it(tmp_path):
+def test_monitor_distinguishes_fault_history_from_recovery_claims(tmp_path):
     monitor = _monitor_module()
     case_root = tmp_path / "F03"
     lifecycle_root = case_root / "injected" / "lifecycle"
@@ -698,7 +700,7 @@ def test_monitor_rejects_bootstrap_receipt_when_hydro_claim_precedes_it(tmp_path
     receipt_path.write_text(json.dumps({
         "schema": "khz_filament.hr4e5s.s5.recovery_bootstrap.v1", "status": "PASS",
         "bootstrap_event": "RESTART_RECONSTRUCTED", "runtime_sha": "c" * 40, "case_id": "F03",
-        "telemetry_event_index": 1,
+        "telemetry_event_index": 1, "pre_bootstrap_hydro_claim_count": 1,
     }), encoding="utf-8")
     (lifecycle_root / "streaming_manifest.json").write_text(json.dumps({"telemetry_events": [
         {"event": "HYDRO_CLAIM", "actor": "hydro_consumer"},
@@ -706,17 +708,15 @@ def test_monitor_rejects_bootstrap_receipt_when_hydro_claim_precedes_it(tmp_path
     ]}), encoding="utf-8")
     passed, detail = monitor._recovery_bootstrap_order(case_root, expected_sha="c" * 40, case_id="F03")
     assert not passed and detail["reason"] == "RECOVERY_BOOTSTRAP_ORDER_VIOLATION"
-    receipt_path.write_text(json.dumps({
-        "schema": "khz_filament.hr4e5s.s5.recovery_bootstrap.v1", "status": "PASS",
-        "bootstrap_event": "RESTART_RECONSTRUCTED", "runtime_sha": "c" * 40, "case_id": "F03",
-        "telemetry_event_index": 0,
-    }), encoding="utf-8")
     (lifecycle_root / "streaming_manifest.json").write_text(json.dumps({"telemetry_events": [
+        {"event": "HYDRO_CLAIM", "actor": "hydro_consumer"},
         {"event": "RESTART_RECONSTRUCTED", "actor": "s5_restart", "bootstrap": True},
         {"event": "HYDRO_CLAIM", "actor": "hydro_consumer"},
     ]}), encoding="utf-8")
     passed, detail = monitor._recovery_bootstrap_order(case_root, expected_sha="c" * 40, case_id="F03")
-    assert passed and detail["bootstrap_before_first_claim"] is True
+    assert passed and detail["historical_hydro_claim_count"] == 1
+    assert detail["first_recovery_hydro_claim_index"] == 2
+    assert detail["bootstrap_before_first_recovery_claim"] is True
 
 
 def test_s5_submit_wrapper_pins_batch_workdir_to_run_root():
