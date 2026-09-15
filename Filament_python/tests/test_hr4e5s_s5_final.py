@@ -102,6 +102,10 @@ def test_s5_final_batch_has_separate_worker_identity_and_faults_off_contract():
     root = Path(__file__).resolve().parents[1]
     batch = (root / "tools" / "hr4e5s_s5_final.sbatch").read_text(encoding="utf-8")
     assert 'unset HR4_S5_FAULT_ID HR4_S5_FAULT_SCREEN HR4_S5_FAULT_ONCE' in batch
+    assert 'readonly FINAL_RUNNER="$REPO_DIR/Filament_python/tools/run_hr4e5s_s5_final.py"' in batch
+    assert 'readonly S3_RUNNER="$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py"' in batch
+    assert 'export FINAL_RUNNER S3_RUNNER' in batch
+    assert batch.index('readonly FINAL_RUNNER') < batch.index('export FINAL_RUNNER S3_RUNNER') < batch.index('launch_worker()')
     assert 'write-identity' in batch
     assert 'hydro_consumer_${index}' in batch
     assert 'S5_FINAL_RESTART_RECONSTRUCTED' not in batch  # receipt validation stays in the dedicated Python adapter
@@ -144,6 +148,22 @@ def test_s5_final_monitor_rejects_wrong_job_identity_and_duplicate_recovery_inte
     result = monitor.advance(manifest)
     assert result["status"] == "READY_FOR_S5_FINAL_DEFECT_REVIEW"
     assert result["defect"]["reason"] == "RECOVERY_SUBMISSION_UNCERTAIN"
+
+
+def test_s5_final_monitor_fails_closed_when_initial_job_terminates_before_identity_receipts(tmp_path, monkeypatch):
+    monitor = _monitor_module()
+    root = tmp_path / "run"
+    root.mkdir()
+    manifest = root / "s5_final_monitor_manifest.json"
+    manifest.write_text(json.dumps({"repo": str(tmp_path), "run_root": str(root), "expected_sha": "a" * 40, "preflight": str(root / "preflight.json"), "submit_script": str(root / "submit.sh"), "reference_case_root": str(root / "reference"), "initial_job_id": "700", "target_actor": "hydro_consumer_1"}), encoding="utf-8")
+    scheduler = {"queue_state": "", "sacct_state": "FAILED", "exit_code": "1:0", "terminal": True, "queue_returncode": 1, "sacct_returncode": 0}
+    monkeypatch.setattr(monitor, "_scheduler", lambda job_id, cwd: scheduler)
+    monkeypatch.setattr(monitor, "_step_has_pid", lambda *args: pytest.fail("terminal initial job must not be signalled"))
+    result = monitor.advance(manifest)
+    assert result["status"] == "READY_FOR_S5_FINAL_DEFECT_REVIEW"
+    assert result["defect"]["reason"] == "INITIAL_JOB_TERMINAL_BEFORE_SAFE_SIGNAL"
+    assert result["defect"]["identity_problem"] == "identity_receipts_incomplete"
+    assert not (root / "recovery_submission_intent.json").exists()
 
 
 def test_s5_final_provenance_rejects_retry_for_already_committed_next(tmp_path):

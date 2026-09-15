@@ -27,6 +27,7 @@ test "$("$PYTHON" -c 'from KHz_filament.device import debug_backend; print(debug
 readonly CASE_ROOT="$RUN_ROOT/scenario"
 readonly FINAL_RUNNER="$REPO_DIR/Filament_python/tools/run_hr4e5s_s5_final.py"
 readonly S3_RUNNER="$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py"
+export FINAL_RUNNER S3_RUNNER
 
 worker_pids=()
 consumer_pids=()

@@ -135,11 +135,20 @@ def advance(manifest_path: Path) -> dict[str, Any]:
     if state["status"] in TERMINAL:
         return state
     if state["status"] == "WAIT_FOR_DUAL_CLAIMS":
+        scheduler = _scheduler(str(manifest["initial_job_id"]), cwd)
         identities, problem = _identities(case_root, "initial", str(manifest["initial_job_id"]))
         claims = _live_claims(case_root)
         target = str(manifest["target_actor"])
         active = {item["actor"] for item in claims}
-        if problem or target not in active or len(active) < 2:
+        if scheduler["terminal"]:
+            event = _defect(
+                state,
+                "INITIAL_JOB_TERMINAL_BEFORE_SAFE_SIGNAL",
+                scheduler=scheduler,
+                identity_problem=problem,
+                active_actors=sorted(active),
+            )
+        elif problem or target not in active or len(active) < 2:
             event = _event(state, "awaiting_safe_target", identity_problem=problem, active_actors=sorted(active))
         else:
             identity = next(v for v in identities if v["actor"] == target)
