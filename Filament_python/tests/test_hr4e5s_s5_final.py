@@ -118,6 +118,14 @@ def test_s5_final_monitor_is_step_scoped_and_never_uses_process_name_kills():
     assert "RECOVERY_SUBMISSION_UNCERTAIN" in monitor
 
 
+def test_s5_final_async_preflight_keeps_start_receipt_outside_the_run_root():
+    root = Path(__file__).resolve().parents[1]
+    script = (root / "tools" / "hpc_ops" / "start_hr4e5s_s5_final_preflight_async.sh").read_text(encoding="utf-8")
+    assert 'STATUS_DIR="${RUN_ROOT}.s5_final_preflight_async"' in script
+    assert 'test ! -e "$RUN_ROOT" && test ! -e "$STATUS_DIR"' in script
+    assert 'nohup bash "$PREFLIGHT"' in script
+
+
 def test_s5_final_monitor_rejects_wrong_job_identity_and_duplicate_recovery_intent(tmp_path):
     monitor = _monitor_module()
     identities = tmp_path / "scenario" / "identities"
