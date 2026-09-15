@@ -1,0 +1,149 @@
+from __future__ import annotations
+
+import json
+import importlib.util
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from KHz_filament.hr4e5s_s5_final import (
+    S5_FINAL_SCHEMA,
+    bootstrap_recovery,
+    freeze_expected_recovery_effects,
+    snapshot_interrupted_state,
+    validate_bootstrap_receipt,
+    validate_recovery_provenance,
+)
+from KHz_filament.hr4e5s_streaming import StreamingLifecycle
+
+
+def _monitor_module():
+    path = Path(__file__).resolve().parents[1] / "tools" / "monitor_hr4e5s_s5_final.py"
+    spec = importlib.util.spec_from_file_location("s5_final_monitor", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _lifecycle(tmp_path: Path, name: str) -> StreamingLifecycle:
+    count = 16
+    current = {
+        "delta_n": np.full((count, 8, 8), -1.0e-6, dtype=np.float64),
+        "vx": np.zeros((count, 8, 8), dtype=np.float64),
+        "vy": np.zeros((count, 8, 8), dtype=np.float64),
+    }
+    records = [{"ordinal": i, "screen_id": f"z{i:05d}", "z_m": i * 1.0e-4} for i in range(count)]
+    return StreamingLifecycle.create(root=tmp_path / name, current=current, screen_records=records,
+                                     current_generation="s5-final-current", dx_m=1.0e-4, dy_m=1.0e-4,
+                                     queue_depth=16, actor="test")
+
+
+def _prepare_posts(lifecycle: StreamingLifecycle) -> None:
+    for ordinal in range(16):
+        lifecycle.deposition_finalized(ordinal, actor="optical")
+        lifecycle.commit_post_from_delta_n(ordinal, lifecycle.current_fields(ordinal)["delta_n"] - 1.0e-8, actor="optical")
+        lifecycle.enqueue_post(ordinal, actor="optical")
+
+
+def _finish(lifecycle: StreamingLifecycle) -> None:
+    while True:
+        block = lifecycle.claim_block(actor="hydro_consumer_0")
+        if not block:
+            break
+        for ordinal in block:
+            fields = lifecycle._artifact_fields(lifecycle.manifest["records"][ordinal]["post"], namespace="POST")
+            lifecycle.commit_next(ordinal, fields, actor="hydro_consumer_0")
+    assert lifecycle.validate_barrier(actor="barrier")["status"] == "PASS"
+    assert lifecycle.promote_next_to_current(actor="barrier")["authoritative_namespace"] == "NEXT"
+
+
+def test_s5_final_freezes_two_claims_before_single_bootstrap_and_checks_retry_history(tmp_path):
+    reference = _lifecycle(tmp_path, "reference")
+    _prepare_posts(reference)
+    _finish(reference)
+    candidate = _lifecycle(tmp_path, "candidate")
+    _prepare_posts(candidate)
+    assert candidate.claim_block(actor="hydro_consumer_0") == list(range(8))
+    assert candidate.claim_block(actor="hydro_consumer_1") == list(range(8, 16))
+    candidate.begin_hydro_screen(0, actor="hydro_consumer_0")
+    candidate.begin_hydro_screen(8, actor="hydro_consumer_1")
+    inventory = tmp_path / "inventory.json"
+    effects = tmp_path / "effects.json"
+    receipt = tmp_path / "bootstrap.json"
+    snapshot = snapshot_interrupted_state(lifecycle_root=candidate.root, out_path=inventory)
+    assert snapshot["active_hydro_actors"] == ["hydro_consumer_0", "hydro_consumer_1"]
+    frozen = freeze_expected_recovery_effects(lifecycle_root=candidate.root, inventory_path=inventory, out_path=effects)
+    assert frozen["status"] == "FROZEN"
+    assert frozen["retry_deltas"]["0"] == frozen["retry_deltas"]["8"] == 1
+    bootstrap_recovery(lifecycle_root=candidate.root, effects_path=effects, out_path=receipt, runtime_sha="a" * 40)
+    validate_bootstrap_receipt(receipt_path=receipt, lifecycle_root=candidate.root, runtime_sha="a" * 40)
+    with pytest.raises(ValueError, match="already recorded"):
+        bootstrap_recovery(lifecycle_root=candidate.root, effects_path=effects, out_path=tmp_path / "again.json", runtime_sha="a" * 40)
+    _finish(StreamingLifecycle.open(candidate.root))
+    result = validate_recovery_provenance(reference_lifecycle_root=reference.root, candidate_lifecycle_root=candidate.root, effects_path=effects)
+    assert result["status"] == "PASS"
+    assert result["retry_deltas"]["0"] == result["retry_deltas"]["8"] == 1
+
+
+def test_s5_final_rejects_effect_freeze_without_two_live_actors(tmp_path):
+    lifecycle = _lifecycle(tmp_path, "single")
+    _prepare_posts(lifecycle)
+    assert lifecycle.claim_block(actor="hydro_consumer_0") == list(range(8))
+    lifecycle.begin_hydro_screen(0, actor="hydro_consumer_0")
+    inventory = tmp_path / "inventory.json"
+    snapshot_interrupted_state(lifecycle_root=lifecycle.root, out_path=inventory)
+    with pytest.raises(ValueError, match="two distinct active"):
+        freeze_expected_recovery_effects(lifecycle_root=lifecycle.root, inventory_path=inventory, out_path=tmp_path / "effects.json")
+
+
+def test_s5_final_batch_has_separate_worker_identity_and_faults_off_contract():
+    root = Path(__file__).resolve().parents[1]
+    batch = (root / "tools" / "hr4e5s_s5_final.sbatch").read_text(encoding="utf-8")
+    assert 'unset HR4_S5_FAULT_ID HR4_S5_FAULT_SCREEN HR4_S5_FAULT_ONCE' in batch
+    assert 'write-identity' in batch
+    assert 'hydro_consumer_${index}' in batch
+    assert 'S5_FINAL_RESTART_RECONSTRUCTED' not in batch  # receipt validation stays in the dedicated Python adapter
+    assert 'test ! -e "$CASE_ROOT/recovery"' in batch
+
+
+def test_s5_final_monitor_is_step_scoped_and_never_uses_process_name_kills():
+    root = Path(__file__).resolve().parents[1]
+    monitor = (root / "tools" / "monitor_hr4e5s_s5_final.py").read_text(encoding="utf-8")
+    assert 'scontrol", "listpids"' in monitor
+    assert 'scancel", "--signal=KILL"' in monitor
+    assert "pkill" not in monitor
+    assert "WAIT_FOR_OLD_JOB_QUIESCENCE" in monitor
+    assert "RECOVERY_SUBMISSION_UNCERTAIN" in monitor
+
+
+def test_s5_final_monitor_rejects_wrong_job_identity_and_duplicate_recovery_intent(tmp_path):
+    monitor = _monitor_module()
+    identities = tmp_path / "scenario" / "identities"
+    identities.mkdir(parents=True)
+    for actor, step, pid in (("optical_producer", "0", 101), ("hydro_consumer_0", "1", 102), ("hydro_consumer_1", "2", 103)):
+        (identities / f"{actor}.json").write_text(json.dumps({"status": "READY", "actor": actor, "job_id": "wrong", "step_id": step, "worker_pid": pid, "gpu_visible_devices": "0"}), encoding="utf-8")
+    values, reason = monitor._identities(tmp_path / "scenario", "initial", "999")
+    assert values == [] and reason == "identity_receipts_invalid"
+    root = tmp_path / "run"
+    root.mkdir()
+    manifest = root / "s5_final_monitor_manifest.json"
+    manifest.write_text(json.dumps({"repo": str(tmp_path), "run_root": str(root), "expected_sha": "a" * 40, "preflight": str(root / "preflight.json"), "submit_script": str(root / "submit.sh"), "reference_case_root": str(root / "reference"), "initial_job_id": "700", "target_actor": "hydro_consumer_1"}), encoding="utf-8")
+    state_path, _ = monitor._state_paths(manifest)
+    state_path.write_text(json.dumps({"schema": monitor.SCHEMA, "status": "RECOVERY_SUBMISSION_PENDING", "run_root": str(root), "initial_job_id": "700", "recovery_job_id": None, "signal_sent": True, "updated_epoch": 0}), encoding="utf-8")
+    (root / "recovery_submission_intent.json").write_text("{}", encoding="utf-8")
+    result = monitor.advance(manifest)
+    assert result["status"] == "READY_FOR_S5_FINAL_DEFECT_REVIEW"
+    assert result["defect"]["reason"] == "RECOVERY_SUBMISSION_UNCERTAIN"
+
+
+def test_s5_final_provenance_rejects_retry_for_already_committed_next(tmp_path):
+    reference = _lifecycle(tmp_path, "reference-next")
+    _prepare_posts(reference)
+    _finish(reference)
+    effects = tmp_path / "effects-next.json"
+    effects.write_text(json.dumps({"schema": S5_FINAL_SCHEMA, "status": "FROZEN", "retry_deltas": {str(i): (1 if i == 0 else 0) for i in range(16)}, "expected_recovery_attempts": []}), encoding="utf-8")
+    result = validate_recovery_provenance(reference_lifecycle_root=reference.root, candidate_lifecycle_root=reference.root, effects_path=effects)
+    assert result["status"] == "FAIL"
+    assert any(item["name"] == "retry_count_delta_exact" and not item["pass"] for item in result["checks"])

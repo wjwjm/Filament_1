@@ -15,7 +15,7 @@ import tempfile
 import time
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 import numpy as np
 
@@ -408,7 +408,8 @@ def _ledger_payload(diag: Mapping[str, Any]) -> dict[str, np.ndarray]:
 
 def run_optical_path(*, input_manifest_path: str | Path, out_dir: str | Path,
                      streaming_root: str | Path | None = None, dtype: str = "fp64", resume: bool = False,
-                     bootstrap_receipt_path: str | Path | None = None) -> dict[str, Any]:
+                     bootstrap_receipt_path: str | Path | None = None,
+                     bootstrap_receipt_validator: Callable[..., None] | None = None) -> dict[str, Any]:
     """Run the complete frozen optical trajectory, capturing only S3 screens."""
     manifest, destination = _read_json(Path(input_manifest_path)), Path(out_dir)
     if destination.exists():
@@ -453,7 +454,8 @@ def run_optical_path(*, input_manifest_path: str | Path, out_dir: str | Path,
         if resume:
             if bootstrap_receipt_path is None:
                 raise ValueError("S3 recovery resume requires an explicit bootstrap receipt")
-            validate_recovery_bootstrap_receipt(
+            validator = validate_recovery_bootstrap_receipt if bootstrap_receipt_validator is None else bootstrap_receipt_validator
+            validator(
                 receipt_path=bootstrap_receipt_path,
                 lifecycle_root=streaming_root,
                 runtime_sha=os.environ.get("EXPECTED_GIT_SHA"),

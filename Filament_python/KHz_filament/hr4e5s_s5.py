@@ -168,7 +168,7 @@ def _authoritative_lifecycle(lifecycle: StreamingLifecycle) -> dict[str, Any]:
     return value
 
 
-def inspect_lifecycle(*, lifecycle_root: str | Path, out_path: str | Path) -> dict[str, Any]:
+def inspect_lifecycle(*, lifecycle_root: str | Path, out_path: str | Path | None = None) -> dict[str, Any]:
     """Persist a read-only interrupted-state snapshot before S5 recovery."""
     lifecycle = StreamingLifecycle.open(lifecycle_root)
     root = lifecycle.root
@@ -199,7 +199,8 @@ def inspect_lifecycle(*, lifecycle_root: str | Path, out_path: str | Path) -> di
         "fault_provenance": [None if not path.is_file() else _read_json(path) for path in fault_paths],
         "normalized_lifecycle": normalized_lifecycle(lifecycle),
     }
-    _atomic_json(Path(out_path), result)
+    if out_path is not None:
+        _atomic_json(Path(out_path), result)
     return result
 
 
@@ -482,7 +483,8 @@ def _final_optical(directory: Path) -> np.ndarray:
 def compare_clean_reference(*, reference_lifecycle_root: str | Path, reference_optical_dir: str | Path,
                             candidate_lifecycle_root: str | Path, candidate_optical_dir: str | Path,
                             out_dir: str | Path, recovery_fault_id: str | None = None,
-                            recovery_target_screen: str | None = None) -> dict[str, Any]:
+                            recovery_target_screen: str | None = None,
+                            recovery_provenance_override: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Compare a recovered S5 stream to its fault-off streaming reference exactly."""
     reference = StreamingLifecycle.open(reference_lifecycle_root)
     candidate = StreamingLifecycle.open(candidate_lifecycle_root)
@@ -490,13 +492,20 @@ def compare_clean_reference(*, reference_lifecycle_root: str | Path, reference_o
     if destination.exists():
         raise FileExistsError(destination)
     destination.mkdir(parents=True)
-    recovery_provenance = validate_recovery_provenance(
-        reference_lifecycle_root=reference_lifecycle_root,
-        candidate_lifecycle_root=candidate_lifecycle_root,
-        fault_id=recovery_fault_id,
-        target_screen=recovery_target_screen,
-        out_path=destination / "s5_1_recovery_provenance.json",
-    )
+    if recovery_provenance_override is None:
+        recovery_provenance = validate_recovery_provenance(
+            reference_lifecycle_root=reference_lifecycle_root,
+            candidate_lifecycle_root=candidate_lifecycle_root,
+            fault_id=recovery_fault_id,
+            target_screen=recovery_target_screen,
+            out_path=destination / "s5_1_recovery_provenance.json",
+        )
+    else:
+        # S5-FINAL has a pre-frozen multi-worker retry contract.  It is
+        # validated by its scenario adapter before this unchanged field,
+        # ledger, ownership, barrier, promotion, and artifact comparison core
+        # is entered.  F01--F06 callers retain the strict default above.
+        recovery_provenance = dict(recovery_provenance_override)
     if int(reference.manifest["expected_screen_count"]) != 48 or int(candidate.manifest["expected_screen_count"]) != 48:
         raise ValueError("S5 requires the frozen 48-screen S3 window")
     rows: list[dict[str, Any]] = []
