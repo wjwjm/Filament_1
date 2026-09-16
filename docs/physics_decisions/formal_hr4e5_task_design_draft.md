@@ -2,8 +2,10 @@
 
 ## Status and purpose
 
-**Status (2026-09-16): `DESIGN_DRAFT / ENTRY_BLOCKED_BY_S5_FINAL`.**  This
-document starts the design work for the formal HR-4E-5 campaign while
+**Status (2026-09-16): `DESIGN_DRAFT / ENTRY_BLOCKED_BY_S5_FINAL`.**  E5-0
+has reached `E5_0_READY_FOR_MANUAL_REVIEW`, but this remains a design draft
+and no formal execution is authorized.  This document starts the design work
+for the formal HR-4E-5 campaign while
 HR-4E-5S S5-FINAL waits for its sole integrated worker-loss qualification.
 It does not authorize a code change, a source/configuration change, an HPC
 staging action, a Slurm submission, or any physical conclusion.
@@ -19,10 +21,14 @@ HR-4E-5P (single-screen/block/topology qualification) and HR-4E-5S
 
 ## Research position and frozen boundary
 
-The formal question is to measure, under one predeclared physical condition,
-how the frozen pulse-to-pulse slow-medium state changes the propagation and
-slow-state observables over a specified pulse train.  It must use the frozen
-HR-2/HR-3/HR-4 scientific contract:
+Formal E5 is first an engineering and provenance task: demonstrate a real
+multi-pulse closure with fresh optical fields and inherited slow medium,
+full-z execution, restart, memory/resource stability, and endurance.  Under
+one separately predeclared physical condition it will record propagation and
+slow-state observables, but formation of a particular physical accumulation
+trend is not a necessary engineering PASS condition.
+
+It must use the frozen HR-2/HR-3/HR-4 scientific contract:
 
 ```text
 PRE_p -> fresh immutable E_source copy -> one optical propagation / POST_p
@@ -36,6 +42,14 @@ the frozen `advance_hr4_single_screen` operator, precision, source definition,
 and exact-comparison semantics are not tuning variables for this campaign.
 The historical HR-4E-2 velocity-field convergence caveat remains visible; a
 formal E5 result cannot silently close it.
+
+The E5-0 evidence packet is
+[`formal_hr4e5_e5_0_readonly_audit_20260916.md`](formal_hr4e5_e5_0_readonly_audit_20260916.md).
+It records that the current entry is `EXISTING_ENTRY_PARTIAL`: HR-4D and
+Streaming lifecycle pieces exist, but no production entry joins real full-z
+optical/HR-3 POST, HR-4D authority, and cross-pulse Streaming rollover.  The
+missing item is reviewed orchestration glue, not permission to alter a frozen
+operator.
 
 The preferred tested execution topology is 1 optical + 4 hydro GPUs, with
 1 optical + 2 hydro GPUs as the validated lower-resource fallback.  These are
@@ -67,23 +81,24 @@ If S5-FINAL enters `READY_FOR_S5_FINAL_DEFECT_REVIEW`, this design remains
 frozen at the current draft.  No formal E5 workaround, alternate executor, or
 new run is implied.
 
-## Decisions that require explicit scientific authorization
+## Inheritance versus new authorization
 
-The following fields are intentionally unfilled.  Filling any of them changes
-the scientific campaign rather than merely completing engineering preparation.
+The E5-0 source matrix separates values already frozen from new decisions.
+`INHERITED_FROZEN` values are bound by a reviewed source/config/state manifest;
+they must not be retuned or re-authorized one field at a time.  Binding a
+different source remains a new authorization.
 
-| Decision | Required record before an E5 run |
-| --- | --- |
-| Research comparison | Question, control/reference definition, and the claim that the comparison may support |
-| Pulse schedule | `Npulses`, `f_rep`, exact interpulse schedule, and whether the run is a pilot or the formal endpoint |
-| Physical input | Immutable source/config/state manifests, input-plane definition, dtype, grid/domain, `dt_hydro`, and all HR-2/HR-3/HR-4 switches |
-| Initial condition | Authoritative `PRE_0` source, hash, and its relationship to the selected physical condition |
-| Execution scope | Full-z/source-screen selection, topology selected from the already qualified choices, job count, queue/walltime/memory request, and non-overwriting run roots |
-| Evidence plan | Per-pulse observables, state checkpoints, field-retention policy, comparison metrics, numerical-health thresholds, and manual-review requirement |
-| Acceptance language | What qualifies an engineering pass, a numerical diagnostic, and a limited scientific conclusion; unresolved caveats must remain named |
+| Category | Current contents | Required action before an E5 run |
+| --- | --- | --- |
+| `INHERITED_FROZEN` | wavelength, pulse definition/amplitude, beam/focus, grid/domain, optical stepping, float64, gas/ionization/Raman switches, HR-2/HR-3 selection, hydro constants, `f_rep`, exact interpulse-construction rule, and hashed `PRE_0` source | Bind their existing hashes in the formal manifest; do not treat them as tuning choices. |
+| `FORMAL_VALUE_TO_BE_SELECTED` | research question/control, formal endpoint, `Npulses`, formal full-z/source selection, and claim boundary | user scientific authorization. |
+| `RESOURCE_POLICY_TO_BE_SELECTED` | 1+4 preferred topology or 1+2 fallback, allocation count, walltime/CPU/memory request, run roots, checkpoint/POST/NEXT retention and cleanup, and HR-4C/Streaming authority design | user execution authorization after site quota/limit confirmation. |
+| `ACCEPTANCE_THRESHOLD_TO_BE_SELECTED` | restart/completion evidence, numerical-health thresholds, endurance criteria, diagnostic retention, and manual-review rule | user acceptance-contract authorization. |
 
-S5 PASS does not fill these fields and is never authorization to submit a
-formal E5 GPU job.
+The historical `Npulses=1`, 48 selected records, queue depth 16, block size 8,
+and `[15000,351,301]` source shape are qualification/source facts, not formal
+values to adopt automatically.  S5 PASS does not fill any selected category
+and is never authorization to submit a formal E5 GPU job.
 
 ## Proposed task sequence
 
@@ -94,7 +109,7 @@ state, `sacct` terminal rows, exact-audit index, execution SHA(s), and the
 F01--F06 cross-SHA inheritance table.  This is an evidence link only; it must
 not copy or overwrite the S5, clean-reference, r2, or r3 run roots.
 
-### E5-D1: freeze the formal science contract
+### E5-D1: freeze the formal science and resource contract
 
 Before implementation or submission, create one reviewed input/claim manifest
 from the authorization fields above.  It must distinguish the formal case from
@@ -115,9 +130,19 @@ reviewed, minimal implementation request; this design does not prescribe a
 replacement pipeline.
 
 The 48-screen S3/S4R/S5 window validates the executor and lifecycle only in
-its recorded scope.  It must not be extrapolated to an unlisted full-z or
-multi-pulse science schedule without a specifically authorized equivalence
-check at the formal E5 inputs.
+its recorded scope.  It is a selected HR-3/Streaming/Hydro qualification
+window while the S3 optical path follows the complete frozen longitudinal
+schedule; it is neither a 48-step optical propagation nor a shortened z-domain.
+It must not be extrapolated to an unlisted full-z or multi-pulse science
+schedule, and its 3--4 hour runtime must not be linearly extrapolated to E5.
+
+The E5-0 raw-payload accounting is also deliberately model-specific:
+70.845 GiB is only the historical illustrative HR-4C authoritative+staging
+model.  A separate Streaming CURRENT+POST+NEXT model is 106.267 GiB for that
+same non-formal illustration, and simultaneous retention would be 177.111 GiB
+before NPZ overhead, optical outputs, diagnostics, caches, and checkpoints.
+A reviewed artifact-retention policy must create the actual formal full-z
+budget; no number here selects `K=15000` or proves quota sufficiency.
 
 ### E5-D3: qualify the authorized formal payload
 
