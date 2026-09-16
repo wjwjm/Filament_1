@@ -21,7 +21,7 @@
   },
   "evidence_sources": {
     "hpc_audit": "docs/physics_decisions/hr4e5_hpc_audit_pack_20260916.md",
-    "design_draft": "docs/physics_decisions/formal_hr4e5_task_design_draft.md",
+    "design_draft": "docs/physics_decisions/hr4e5/e5_0/formal_hr4e5_task_design_draft.md",
     "config": {
       "path": "Filament_python/results/hr4e5s_s5_1r_238355_failure_audit/real_post_input_config.json",
       "hash_scope": "raw_bytes_sha256",

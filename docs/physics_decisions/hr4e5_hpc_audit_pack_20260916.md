@@ -232,7 +232,7 @@ closeout manifests and copied telemetry supply the completed-history table.
 The governing S5 and formal-E5 boundaries remain:
 
 - [`hr4e5s_s5_fault_contract.md`](hr4e5s_s5_fault_contract.md)
-- [`formal_hr4e5_task_design_draft.md`](formal_hr4e5_task_design_draft.md)
+- [`formal_hr4e5_task_design_draft.md`](hr4e5/e5_0/formal_hr4e5_task_design_draft.md)
 
 When S5-FINAL reaches a terminal controller state, append a separate,
 verified S5 terminal audit.  Do not overwrite this snapshot, resubmit a job,
