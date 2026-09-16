@@ -1,73 +1,45 @@
-# Future task draft: formal HR-4E-5 minimal orchestration glue
+# E5-1前最小glue实施任务草稿（本轮不执行）
 
-**Status:** `DRAFT_ONLY / NOT_AUTHORIZED_TO_IMPLEMENT`
+**状态：** `E5_0_STREAMING_CLOSEOUT_READY_FOR_WEB_REVIEW`。仅准备合同完成，尚非 CLOSED / implementation PASS / execution PASS。
 
-This is the smallest proposed implementation boundary after S5 PASS and a
-separate user authorization. It does not authorize code changes, configs,
-source materialization, run-root creation, or any Slurm action.
+`architecture_choice=USER_FIXED_EXISTING_STREAMING`；`intra_pulse_optical_hydro_overlap=REQUIRED`；
+`production_hr4c_replacement=false`；`implementation_authorized=false`；`formal_execution_authorized=false`；
+`resource_execution_gate=NOT_RELEASED`。
 
-## Objective
+源码审阅及 start HEAD：`cbfe2e38172b5221d739df80b032e4dee9fab7e3`；S5 execution SHA（历史回执）：`cd456ff8413cbc041d2d60b9b64007a1554028a1`。
+两者之间只有文档/旧包差异，本轮未实时查询 S5，244700 的 PENDING 仅为原 HPC 快照。
+文档提交 SHA 在提交后由新包 INDEX/README 绑定；不得把文档 SHA 当执行 SHA。
 
-Provide one formal entry that uses the existing HR4D/HR4C canonical authority
-to run fresh optical pulses, produce canonical POST, execute an optional
-non-authoritative streaming hydro adapter, and promote canonical next PRE. It
-must preserve every frozen scientific operator and precision setting.
+## 唯一实施边界
 
-## Expected file scope
+所有拟名均为 NEW_GLUE_REQUIRED / NEW_GLUE_DESIGNED_NOT_IMPLEMENTED，不虚构现有API。
+新外层文件建议 `Filament_python/KHz_filament/hr4e5_formal_entry.py`，只衔接既有Streaming；
+不创建HR4C adapter或第二执行器。S3/S4R/S5原入口和guard继续原样。
 
-| File / area | Classification | Expected change |
-| --- | --- | --- |
-| new `Filament_python/KHz_filament/hr4e5_formal_entry.py` | `RUNTIME_ENTRY_ONLY` | construct/reopen `HR4DPulseController`; construct the post-lens immutable source; call real `propagate_one_pulse` with `HR4DPulseTransaction`; sequence PRE/POST/interpulse/POST_final. |
-| new `Filament_python/KHz_filament/hr4e5_hr4c_streaming_adapter.py` | `ORCHESTRATION_ONLY` | make interval work descriptors from HR4C POST, record non-authoritative NEXT staging and barrier receipts, then hand validated results to HR4C staging. |
-| future manifest/receipt schema | `PROVENANCE_ONLY` | bind PRE_0 three-field hashes, source/config/SHA, z identity, pulse/generation/phase, barrier, replay and retention facts. |
-| focused tests | `TEST_ONLY` | add tiny CPU tests for N=3, fresh source, exact serial-vs-adapter path, restart boundaries, no duplicate/omitted interval, no pointer, and POST_final. |
+| 具体拟改文件/符号 | 必要性、源码依据 | 最小测试 |
+|---|---|---|
+| new formal_entry `StreamingPulseReadView` | S3:342–356当前读NPY；改用Streaming.current_fields绑定本发PRE，read/update协议与科学调用不变 | 实际读PRE、NEXT不可串入、速度继承、输入只读 |
+| same `prepare_pulse_root` | Streaming.create:342–406需要不存在根/三整卷；host三数组G装载前代NEXT，create后逐screenexact并写READY | PRE0半成品不可见；完整但缺receipt可补；partial根转新attempt |
+| same `resume_lineage` | open/current_fields/promotion:409,828,1228；index仅引用权威pointer | pointer先于index、两次换代、冲突fail、restart_epoch不推进pulse |
+| same `run_pulse` | S3:409–474构场/透镜/真实propagate；选原schedule前缀直接传入、fresh copy、非末发复用hook/worker | source不alias、dz逐值相同、2次rollover、同发overlap事件 |
+| same `final_post_hook/validate_final_post/resume_final_post` | commit_post与has_authoritative_post可复用；S3 hook总enqueue、barrier总需NEXT，不能照用末发 | 末发不enqueue/无hydro/NEXT；partial replay保留POST；receipt恢复幂等 |
+| existing Streaming模块仅新增窄只读POST验证封装（如需） | 私有 `_validate_record_provenance/_assert_no_staged_or_orphaned_artifacts` 受锁；不手改manifest | 孤儿/临时文件、重复/漏screen、坏hash必须拒绝；不改变非末发guard |
+| new formal_entry reference/comparison helpers | S3:495–520/571–627隔离Batch与四项exact；参数化K、继承PRE速度、末发没有NEXT | reference不清零后续速度；42K+27+3比较计数；故意mismatch定位 |
+| existing launcher参数衔接草稿（实际文件依据实施时固定） | S5_final.sbatch串行bootstrap/identities/worker启动顺序；增加pulse namespace与有序allocation续接参数 | batch-entry audit、无early裸python、old writer quiescence、无重复bootstrap |
+| new `tests/test_hr4e5_formal_entry.py` | 仅mock/小数组CPU contract tests | N3、所有新中断窗口、末发bootstrap、zero mismatch门；不重跑S5矩阵 |
 
-The existing modules below are reused unchanged: `propagate_one_pulse`,
-HR-2 deposition, HR-3 mapping, `advance_hr4_single_screen`,
-`HR4CThreeFieldStore`, `HR4DPulseController`, ionization, Raman, frozen
-configs, LUTs, and source arrays.
+末发bootstrap不能调用会重排POST到hydro的常规reconstruct_queue；新增只读/光学恢复分支仅末发启用，
+Batch对照的装配/导出按已有 `write_staging_batch/read_authoritative_batch` 用8-screen分块，避免
+旧run_batch_hydro的全卷zeros_like；其非首发POST速度来自真实PRE，两个工作slot仍完整计盘。
+读取CURRENT的返回数组要设只读或保持内部独占，不能把可写别名暴露给hook。K=8048须整除8；拒绝不足block的candidate。
+与正常非末发路径隔离。现有make_post_commit_hook/selected hook默认enqueue保持原行为。
+不修改propagate、HR2/3/4、ionization、Raman、精度、默认配置、LUT或源数组。
+若需要改变这些行为则BEHAVIOR_CHANGE_REQUIRES_REVIEW，停止实施并返回证据。
 
-## Required control flow
+## 验收门与顺序
 
-1. Validate immutable config/source/PRE_0 provenance before creating a run
-   root, lock, receipt, or scheduler action.
-2. Create/reopen exactly one HR4D controller. Its manifest-selected HR4C
-   state is the only writable canonical state.
-3. For each PRE pulse, make a new `E_source.copy()` and pass the HR4D
-   transaction as the HR-3 slow-state interface.
-4. Finalize only a complete all-interval POST transaction. Record POST receipt.
-5. Unless final, adapter workers read canonical POST, create only
-   non-authoritative NEXT staging, and emit a barrier receipt.
-6. The coordinator verifies the barrier, fills HR4C staging, and commits one
-   PRE-next generation. It then advances the one pulse index.
-7. On restart, reopen HR4C first; rebuild/reuse adapter staging only against
-   the recovered canonical phase and generation. Never use a Streaming pointer
-   as formal authority.
-
-## Namespace and retention rules
-
-- Canonical state has one HR4C root and two fixed slots; its generation is in
-  the HR4C manifest.
-- Adapter staging is namespaced by source POST generation and pulse index.
-- Adapter NEXT staging is immutable after validation and non-writable after
-  the HR4C next-PRE commit.
-- Default canary retention is receipts, hashes and selected diagnostics, not
-  prior full-volume state copies. Any checkpoint retention is explicit policy.
-- `authoritative_generation.json` is prohibited in a formal HR4C-authoritative
-  root.
-
-## Mandatory pre-HPC validation
-
-- required local compile/backend/sanity gates through `run_local_tests.ps1`;
-- dedicated tiny N=3 exact serial/reference versus adapter comparison;
-- PRE_0 three-field/hash and z-identity audit;
-- all declared restart-boundary tests, including staging abort/rebuild;
-- formal output/receipt and no-pointer audit;
-- existing batch-entry audit and strict remote provenance preflight before any
-  run directory, lock, receipt, or `sbatch` side effect.
-
-## Explicit exclusions
-
-No `SCIENTIFIC_OPERATOR_CHANGE` is allowed. A need to alter propagation,
-ionization, Raman, HR-2, HR-3, HR-4, precision, source construction physics,
-LUTs, or frozen configs is a blocker requiring a new scientific decision.
+S5-FINAL terminal PASS和人工合同接受后，另获实施授权；一次最小实现→专用解释器compile、wrapper backend/sanity→
+小型定向tests→独立数值/接口审查。新增launcher必须audit_batch_entry，远程strict provenance在run/lock/sbatch之前。
+这份草稿既不授权实现也不授权PRE0物化/提交。工程门：finite、字段/坐标/shape/dtype一致、array exact零mismatch，
+每pulse K POST、非末发K NEXT、计数3/3/2、无漏/重、PRE0/lineage/末发幂等、overlap事件成立。
+资源门按CSV：配额/空间+25%，RAM/VRAM实测≤80%，time模型适配有效QoS。物理趋势与性能加速比不作硬门。

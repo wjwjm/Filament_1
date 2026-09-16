@@ -1,31 +1,133 @@
 {
-  "schema": "filament.hr4e5.e5_0_freeze_candidate.v2",
-  "status": "E5_0_AUTHORITY_INTERFACE_READY_FOR_MANUAL_REVIEW",
+  "schema": "filament.hr4e5.e5_0_freeze_candidate.v3",
+  "hash_scope": "classified_by_record",
+  "status": "E5_0_STREAMING_CLOSEOUT_READY_FOR_WEB_REVIEW",
   "repository": "wjwjm/Filament_1",
-  "review_branch": "codex/hr4e5s-s5-lifecycle",
-  "review_sha": "075a3f796dc7722fa167cef64b3b0685271382e0",
+  "source_review_sha": "cbfe2e38172b5221d739df80b032e4dee9fab7e3",
   "execution_baseline_sha": "cd456ff8413cbc041d2d60b9b64007a1554028a1",
-  "entry_gate": "ENTRY_BLOCKED_BY_S5_FINAL",
-  "design_continuation_authorized": true,
+  "architecture_choice": "USER_FIXED_EXISTING_STREAMING",
+  "intra_pulse_optical_hydro_overlap": "REQUIRED",
+  "production_hr4c_replacement": false,
   "implementation_authorized": false,
   "formal_execution_authorized": false,
-  "slurm_or_gpu_side_effects_authorized": false,
-  "s5_final_status_snapshot": {
-    "job_id": "244700",
-    "state": "PENDING",
-    "reason": "Priority",
-    "partition": "gpu",
-    "qos": "normal",
-    "account": "n50r5",
-    "requested_time_limit": "12:00:00",
-    "snapshot_date": "2026-09-16",
-    "controller_state": "WAIT_FOR_DUAL_CLAIMS",
-    "signal_sent": false,
-    "recovery_job_id": null
+  "resource_execution_gate": "NOT_RELEASED",
+  "pre0_contract": {
+    "phase": "PRE",
+    "pulse_index": 0,
+    "source_generation": "E1B_hr3b_source",
+    "state_generation": "E5:<campaign-id>:PRE0",
+    "shape": [
+      8048,
+      351,
+      301
+    ],
+    "dtype": "float64",
+    "dx_m": 1e-05,
+    "dy_m": 1e-05,
+    "source_shape": [
+      15000,
+      351,
+      301
+    ],
+    "source_index_range_inclusive": [
+      0,
+      8047
+    ],
+    "engineering_initial_state_not_natural_pulse_history": true,
+    "delta_n": {
+      "source_path": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/E1B_hr3b_source.hr3b_delta_n_th.npy",
+      "source_file_raw_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+      "source_full_array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+      "derived_prefix_file_sha256": null,
+      "derived_prefix_array_sha256": null,
+      "rule": "source[0:8048] in original interval order; no interpolation",
+      "hash_scope": {
+        "source_file_raw_sha256": "raw_bytes",
+        "source_full_array_sha256": "hr4e_timestep.sha256_array",
+        "derived_prefix_file_sha256": "raw_bytes_at_future_preflight",
+        "derived_prefix_array_sha256": "hr4e_timestep.sha256_array_at_future_preflight"
+      }
+    },
+    "vx": {
+      "rule": "positive float64 zero per cell; all 8048 screens",
+      "materialized_file_sha256": null,
+      "hash_scope": "future raw file bytes; per-screen content checked by existing sha256_array"
+    },
+    "vy": {
+      "rule": "positive float64 zero per cell; all 8048 screens",
+      "materialized_file_sha256": null,
+      "hash_scope": "future raw file bytes; per-screen content checked by existing sha256_array"
+    },
+    "coordinates": {
+      "x_rule": "(i-150)*1e-5 m; i=0..300",
+      "y_rule": "(j-175)*1e-5 m; j=0..350",
+      "x_range_m": [
+        -0.0015,
+        0.0015
+      ],
+      "y_range_m": [
+        -0.00175,
+        0.00175
+      ],
+      "hydro_relabeling_only_y_translation_m": 0.00075,
+      "hydro_label_y_range_m": [
+        -0.001,
+        0.0025
+      ],
+      "rule": "same array indices; no physical translation/resampling; optical axes remain make_axes axes"
+    },
+    "initialization_receipt": "NEW_GLUE_DESIGNED_NOT_IMPLEMENTED: PRE0_READY bound to validated Streaming manifest/current_content_sha256 and every file/field hash; incomplete root never discoverable as ready"
+  },
+  "e5_1_small_case_candidate": {
+    "verdict": "E5_1_CONTIGUOUS_PREFIX_N3_CANDIDATE",
+    "N": 3,
+    "K": 8048,
+    "z_start_m": 0.0,
+    "z_end_m": 0.8047999999999277,
+    "z_end_hex": "0x1.9c0ebedfa4173p-1",
+    "source_interval_indices": [
+      0,
+      8047
+    ],
+    "schedule_rule": "slice full.z_edges[:8049], full.dz_intervals[:8048], full.intervals[:8048]; instantiate existing LongitudinalSchedule; pass to propagate_one_pulse; do not rebuild at endpoint",
+    "optical_calls": 3,
+    "logical_post_completions": 3,
+    "interpulse_evolutions": 2,
+    "terminal": "POST_final",
+    "reference": "isolated serial Batch using existing HR4C evolve_hr4_full_z; full PRE velocities carried through POST",
+    "candidate": "existing Streaming CURRENT/POST/NEXT with designed outer glue",
+    "configuration_differences": {
+      "run.Npulses": 3,
+      "effective_propagation_z_max": 0.8047999999999277,
+      "diagnostic_sample_indices": "all 0..8047"
+    },
+    "operators_and_step_values_changed": false,
+    "authorized_to_run": false,
+    "frozen_block_size": 8,
+    "complete_blocks": 1006,
+    "domain_end_reason": "ceil((8045+1)/8)*8=8048; covers qualification endpoint plus full blocks; normal claim rejects partial tail"
+  },
+  "resource_model_selected_architecture": {
+    "K": 8048,
+    "N": 3,
+    "G_bytes": 20406701952,
+    "F_bytes": 6802233984,
+    "optical_field_bytes": 649119744,
+    "scientific_payload_bytes": 669587300928,
+    "metadata_allowance_bytes": 3164602368,
+    "concurrent_npz_temporary_bytes": 12678120,
+    "extra_allowance_bytes": 8589934592,
+    "recommended_available_bytes": 851693145010,
+    "headroom_fraction": 0.25,
+    "retention": "NO_DELETION; reference first then candidate; all roots and scientific arrays retained",
+    "additional_full_checkpoints": 0,
+    "e5_2_single_stream_formula": "(3*N-1+C)*G + 6*N*F + N*O + F_full + allowances = (5*N-1+C)*G + N*O + F_full + allowances",
+    "e5_2_dual_track_formula": "(12*N-4+C)*G + 2*N*O + F_full + allowances; C counts additional full-generation copies across both tracks",
+    "site_verified": false
   },
   "evidence_sources": {
     "hpc_audit": "docs/physics_decisions/hr4e5_hpc_audit_pack_20260916.md",
-    "authority_design": "docs/physics_decisions/hr4e5/e5_0/formal_hr4e5_e5_0_authority_interface_design_20260916.md",
+    "authority_design": "formal_hr4e5_e5_0_authority_interface_design_20260916.md",
     "authority_contract": "docs/physics_decisions/hr4e5/e5_0/formal_hr4e5_e5_0_authority_contract.json",
     "small_case_design": "docs/physics_decisions/hr4e5/e5_1/formal_hr4e5_e5_1_small_case_candidate_20260916.md",
     "config": {
@@ -36,7 +138,9 @@
     "prepared_input_manifest": {
       "path": "Filament_python/results/hr4e5s_s5_1r_238355_failure_audit/hr4e5s_s5_input_manifest.json",
       "hash_scope": "raw_bytes_sha256",
-      "sha256": "280d8d1f47b8cf4cdca1ae51bea24706a461fe31562e9fa2d0a3d2ab6b5f5a8a"
+      "sha256": "b18ddd46410e329fe61781a2349062526837f0c6a1fcedcea16dbd4aa99bdcfe",
+      "historical_s5_final_sha256": "280d8d1f47b8cf4cdca1ae51bea24706a461fe31562e9fa2d0a3d2ab6b5f5a8a",
+      "identity_note": "local earlier qualification snapshot; actual bytes verified in this task; NOT S5-FINAL input receipt"
     },
     "source_manifest": {
       "hash_scope": "raw_bytes_sha256",
@@ -49,116 +153,207 @@
       "hr4e5s_s3.py": "769c9af73bbbdbc817e7680e4648c30c58df83cb",
       "runner.py": "cfa174197e2aefc3e484b18a33ea05d3efde1a00",
       "propagate.py": "f156111398415c2b92e4609ccc1da075fcf5d1e3"
+    },
+    "lut_workspace_local": {
+      "path": "Filament_python/results/hr4e5s_s5_1r_238355_failure_audit/hr4e5s_s5_lut_workspace.json",
+      "hash_scope": "raw_bytes",
+      "sha256": "e290579027983c0f13da391f5677cfbe356f3f458c6f779d8e1e84b9616c8ed3",
+      "historical_s5_final_sha256": "5ef79cc1802300720f6de68dd1a1d14b1ae9fc393815216f0e19eae703ce4936",
+      "identity_note": "earlier local qualification record; config/source identity and canonical LUT signatures usable as candidates; not a refreshed S5-FINAL audit"
     }
   },
-  "selected_authority_model": {
-    "name": "HR4D_CONTROLLER_BACKED_BY_HR4C_THREE_FIELD_STORE",
-    "canonical_fields": ["delta_n", "vx", "vy"],
-    "authority_rule": "The HR4C manifest-selected slot is the only canonical PRE or POST state for formal E5.",
-    "pulse_index_authority": "HR4DPulseController authoritative metadata",
-    "generation_authority": "HR4C manifest generation bound to HR4D state_generation",
-    "restart_constructor": "HR4DPulseController(..., resume=True) -> HR4CThreeFieldStore.open_existing(...)",
-    "prohibited": [
-      "independent Streaming CURRENT/POST/NEXT authority",
-      "formal authoritative_generation.json",
-      "adapter-owned pulse counter",
-      "adapter-owned authority promotion"
-    ]
-  },
-  "authority_roles": {
-    "HR4CThreeFieldStore": ["AUTHORITATIVE_STATE_STORE", "TRANSACTION_STAGING"],
-    "HR4DPulseController": ["PULSE_LIFECYCLE_CONTROLLER", "PROVENANCE_INDEX"],
-    "HR4DPulseTransaction": ["TRANSACTION_STAGING", "OPTICAL_HR3_INTERFACE"],
-    "future_HR4C_aware_streaming_adapter": ["STREAMING_EXECUTION_ADAPTER", "TRANSACTION_STAGING"],
-    "S3ReadOnlyCurrentState": ["READ_ONLY_VIEW"],
-    "existing_StreamingLifecycle_pointer": ["QUALIFICATION_ONLY", "DIAGNOSTIC_ONLY"]
-  },
-  "cross_pulse_interface": {
-    "pre_p": "canonical HR4C PRE generation with {phase=PRE, pulse_index=p}",
-    "optical_input": "FreshOpticalInput(p) = immutable E_source.copy(); optical output is never inherited",
-    "optical_read": "propagate_one_pulse reads PRE.delta_n once for each interval; vx and vy remain canonical fields",
-    "post_mapping": "POST.delta_n = PRE.delta_n + authoritative HR3B increment; POST.vx = PRE.vx; POST.vy = PRE.vy",
-    "post_commit": "all intervals exactly once, then one atomic HR4C POST commit",
-    "hydro": "exact 1/f_rep schedule from build_interpulse_step_schedule; frozen advance_hr4_single_screen reused unchanged",
-    "adapter": "may stage per-screen NEXT and emit barrier receipts keyed to source POST generation; never becomes authority",
-    "next_pre_commit": "after complete barrier, coordinator fills HR4C staging and atomically commits PRE_(p+1); generation and pulse index advance exactly once",
-    "terminal": "final pulse commits POST_final; no final interpulse transition"
-  },
-  "pre0_contract": {
-    "phase": "PRE",
-    "pulse_index": 0,
-    "generation": 0,
-    "shape": [15000, 351, 301],
-    "dtype": "float64",
-    "dx_m": 0.00001,
-    "dy_m": 0.00001,
-    "z_identity": "full frozen longitudinal schedule; exact z-edge binding remains required at future preflight",
-    "delta_n": {
-      "classification": "INHERITED_FROZEN_ARRAY",
-      "source": "E1B HR-3B source array",
-      "raw_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
-      "array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
-      "lifecycle_interpretation": "inherited initial refractive-index state"
+  "frozen_config_values": {
+    "beam": {
+      "E0_peak": 0.0,
+      "P0_peak": 17000000000.0,
+      "energy_J": null,
+      "focal_length": 0.95,
+      "lam0": 8e-07,
+      "n0": 1.00027,
+      "n2_air": 7.8e-24,
+      "tau_fwhm": 1.2e-13,
+      "transverse_profile": {
+        "edge_start_fraction": 0.9,
+        "radius_m": 0.001979,
+        "type": "flat_top_cosine"
+      },
+      "w0": 0.001979
     },
-    "vx": {
-      "classification": "FROZEN_ZERO_INITIALIZATION_RULE",
-      "initialization": "deterministic float64 zeros in existing HR4C batch initializer",
-      "lifecycle_interpretation": "new ambient PRE velocity, not inherited pulse history",
-      "qualification_evidence": "HR4C initialize_from_legacy_delta_n and S3 zeros_like(selected)",
-      "materialized_raw_sha256": "REQUIRED_AT_FUTURE_PRE0_PREFLIGHT"
+    "grid": {
+      "Lx": 0.00301,
+      "Ly": 0.00351,
+      "Nt": 384,
+      "Nx": 301,
+      "Ny": 351,
+      "Twin": 9.6e-13
     },
-    "vy": {
-      "classification": "FROZEN_ZERO_INITIALIZATION_RULE",
-      "initialization": "deterministic float64 zeros in existing HR4C batch initializer",
-      "lifecycle_interpretation": "new ambient PRE velocity, not inherited pulse history",
-      "qualification_evidence": "HR4C initialize_from_legacy_delta_n and S3 zeros_like(selected)",
-      "materialized_raw_sha256": "REQUIRED_AT_FUTURE_PRE0_PREFLIGHT"
+    "heat": {
+      "D_gas": 2e-05,
+      "f_rep": 1000.0,
+      "gamma_heat": -1e-23,
+      "hr3b_enabled": true,
+      "hr3c_enabled": false
     },
-    "config_raw_sha256": "eaec83ad326a29af95881912db76a7e5c26943dec9e0d6876ca9c9cc2a100c22",
-    "source_manifest_raw_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
-    "verdict": "CANDIDATE_COMPLETE_RULES_PENDING_MATERIALIZED_THREE_FIELD_HASHES"
-  },
-  "e5_1_small_case_candidate": {
-    "verdict": "E5_1_SMALL_CASE_REQUIRES_FULL_Z",
-    "engineering_pulse_count": 3,
-    "reason": "two independent POST-to-PRE rollovers and terminal POST_final",
-    "domain": "complete frozen optical schedule with complete slow-state coverage",
-    "old_48_screen_manifest": "qualification evidence only; prohibited as E5-1 state domain",
-    "scientific_campaign_pulse_count": "NOT_SELECTED",
-    "authorized_to_run": false
-  },
-  "e5_1_reference_design": {
-    "reference": "serial HR4D-authority path",
-    "candidate": "same HR4C authority plus non-authoritative streaming adapter",
-    "identical_inputs": ["PRE0", "Npulses=3", "frozen optical source", "full z schedule", "frozen operators", "precision", "config"],
-    "per_pulse_exact_objects": ["fresh-source identity", "PRE hashes", "POST hashes", "HR3 deposition ledger", "barrier receipt", "next PRE hashes", "phase/generation/pulse counters"],
-    "global_gates": ["no duplicate interval", "no skipped interval", "no cross-pulse namespace collision", "restart receipts", "POST_final"]
-  },
-  "resource_model_selected_architecture": {
-    "G_formula": "3*K*Ny*Nx*8",
-    "illustrative_geometry_not_formal": {"K": 15000, "Ny": 351, "Nx": 301, "dtype": "float64", "G_gib": 35.422258079052},
-    "steady_canonical_state": "2G = 70.845 GiB raw two-slot HR4C payload",
-    "conditional_hydro_transaction": "2G + G adapter NEXT staging = 3G = 106.267 GiB raw payload",
-    "caller_side_s3_initializer_excluded": "full-volume selected plus shared zero arrays = 23.615 GiB host payload, in addition to mapped source",
-    "minimum_optical_gpu_payload": "immutable fp64 complex source plus working copy = 1.209 GiB before kernels and diagnostics",
-    "retention_formulas": {
-      "no_full_history": "2G plus receipts and selected diagnostics",
-      "C_selected_full_checkpoints": "2G + C*G plus named payload",
-      "every_pulse_full_checkpoints": "2G + N*G plus named payload"
+    "ionization": {
+      "I_cap": 1e+19,
+      "W_cap": 1e+19,
+      "beta_rec": 0.0,
+      "cycle_avg_samples": 32,
+      "integrator": "rk4",
+      "ionization_operator_method": "tdiff",
+      "mean_clip_frac": 0,
+      "nu_ei_const": 0.0,
+      "rate_table": {
+        "I_max_SI": 1e+19,
+        "I_min_SI": 100000000.0,
+        "cache_dir": "cache/rate_tables",
+        "enabled": true,
+        "force_rebuild": false,
+        "interp_mode": "loglog",
+        "n_samples": 3000,
+        "popruzhenko_max_terms": 256,
+        "popruzhenko_sum_tol": 1e-06,
+        "ref_cycle_avg_samples": 64,
+        "reuse_cache": true,
+        "spacing": "log"
+      },
+      "sigma_ib": 0.0,
+      "species": [
+        {
+          "Ip_eV": 15.6,
+          "Ip_eV_eff": 15.6,
+          "Z": 1,
+          "Zeff": 0.9,
+          "fraction": 0.8,
+          "l": 0,
+          "m": 0,
+          "name": "N2",
+          "rate": "ppt_talebpour_i_lut",
+          "reference_model": "ppt_talebpour_i_full_reference"
+        },
+        {
+          "Ip_eV": 12.1,
+          "Ip_eV_eff": 12.55,
+          "Z": 1,
+          "Zeff": 0.53,
+          "fraction": 0.2,
+          "l": 0,
+          "m": 0,
+          "name": "O2",
+          "rate": "ppt_talebpour_i_lut",
+          "reference_model": "ppt_talebpour_i_full_reference"
+        }
+      ],
+      "time_mode": "full",
+      "use_ionization_operator_correction": false
     },
-    "campaign_peak_or_quota_conclusion": "NOT_A_BOUND; retention, diagnostics, checkpoints, optical buffers, worker buffers, atomic temporaries, filesystem overhead and site policy are additional"
+    "propagation": {
+      "auto_substep": true,
+      "diag_extra": true,
+      "diag_operator_energy": true,
+      "dz": 0.0001,
+      "dz_focus": 5e-05,
+      "dz_min": 2.5e-05,
+      "energy_probe_every": 25,
+      "energy_probe_tol": 0.03,
+      "focus_center_m": 0.95,
+      "focus_halfwidth_m": 0.1,
+      "focus_window_step": true,
+      "full_linear_factorize": false,
+      "grow_factor": 1.5,
+      "imax_growth_limit": 0.5,
+      "limit_focus_window": false,
+      "linear_chunk_t": 8,
+      "linear_model": "bk_nee",
+      "max_alpha_dz": 0.2,
+      "max_kerr_phase": 0.3,
+      "max_linear_phase": 0.8,
+      "max_precheck_iter": 8,
+      "precheck_kerr": true,
+      "progress_every_z": 250,
+      "safety_mode": "on",
+      "self_steepening_method": "tdiff",
+      "shock_chunk_pixels": 65536,
+      "show_eta": true,
+      "shrink_factor": 0.5,
+      "strang": true,
+      "use_electronic_kerr": true,
+      "use_ionization_loss": true,
+      "use_ionization_solver": true,
+      "use_plasma_phase": true,
+      "use_raman_absorption": false,
+      "use_raman_full_operator": true,
+      "use_raman_phase": false,
+      "use_self_steepening": true,
+      "window_halfwidth_m": 0.35,
+      "z_max": 1.3
+    },
+    "raman": {
+      "Gamma_R": 13000000000000.0,
+      "absorption": false,
+      "chunk_pixels": 65536,
+      "diagnose": true,
+      "enabled": true,
+      "iir_sampling": "exact_piecewise_linear",
+      "method": "iir",
+      "model": "isaacs_rot_sinexp",
+      "n_R": 2.3e-23,
+      "nonlinear_split_order": "strang",
+      "omega_R": 16000000000000.0,
+      "operator_convention": "isaacs_eq27",
+      "operator_integrator": "heun",
+      "operator_mode": "full_isaacs_eq27"
+    },
+    "run": {
+      "Npulses": 1
+    }
   },
-  "minimal_glue_change_request": {
-    "status": "DRAFT_ONLY_NOT_AUTHORIZED",
-    "classes_reused_unchanged": ["propagate_one_pulse", "HR4CThreeFieldStore", "HR4DPulseController", "advance_hr4_single_screen", "HR2", "HR3", "ionization", "Raman"],
-    "proposed_changes": [
-      {"area": "formal entry", "classification": "RUNTIME_ENTRY_ONLY"},
-      {"area": "HR4C-aware adapter", "classification": "ORCHESTRATION_ONLY"},
-      {"area": "receipts/manifests", "classification": "PROVENANCE_ONLY"},
-      {"area": "tiny N=3 and restart tests", "classification": "TEST_ONLY"}
-    ],
-    "scientific_operator_change": "BLOCKER_NOT_PART_OF_REQUEST"
+  "effective_default_values": {
+    "heat.rho0_kg_m3": 1.23,
+    "heat.Cv_J_kg_K": 714.2857142857143,
+    "propagation.air_T_K": 293.15,
+    "propagation.nee_beta2_s2_m": 2e-29,
+    "propagation.nee_denom_floor": 0.0001,
+    "propagation.linear_precision_strategy": "baseline_complex64"
   },
-  "known_unverified_site_facts": ["quota", "purge policy", "normal QoS numeric limits", "GPU model", "VRAM", "CUDA/driver", "observed RSS", "observed GPU peak memory", "I/O", "formal retention policy"],
-  "later_user_authorization_required": ["verified S5-FINAL terminal PASS", "minimal implementation task", "formal science endpoint and Npulses", "materialized PRE0 hashes", "retention/checkpoint policy", "site resource authorization", "acceptance thresholds"]
+  "precision_note": "fp64 source and float64 slow fields do not override frozen internal linear_precision_strategy=baseline_complex64",
+  "hydro_parameters": {
+    "block_size": 8,
+    "cfl_limit": 1.0,
+    "chi": 2.17e-05,
+    "dt_hydro": 1e-06,
+    "gravity_x": 0.0,
+    "gravity_y": -9.81,
+    "n0": 1.00027,
+    "n_hydro_steps": 1000,
+    "nu": 1.5e-05,
+    "queue_depth": 16
+  },
+  "s5_final_status_snapshot": {
+    "job_id": "244700",
+    "state": "PENDING",
+    "reason": "Priority",
+    "partition": "gpu",
+    "qos": "normal",
+    "account": "n50r5",
+    "requested_time_limit": "12:00:00",
+    "snapshot_date": "2026-09-16",
+    "controller_state": "WAIT_FOR_DUAL_CLAIMS",
+    "signal_sent": false,
+    "recovery_job_id": null,
+    "freshness": "HISTORICAL_ONLY_NOT_REFRESHED_THIS_TASK"
+  },
+  "design_blockers": [],
+  "submission_site_gates": [
+    "verified quota and free bytes >= recommended_available_bytes",
+    "effective QoS walltime can cover conditional per-leg budget or approved checkpoint plan",
+    "1+4 GPU inventory and host memory distribution",
+    "S5 terminal PASS and F01-F06 inheritance",
+    "PRE0 materialized hashes and input/config/schedule/LUT strict provenance"
+  ],
+  "later_user_authorization_required": [
+    "accept this derived prefix/input and retention contract",
+    "authorize bounded glue implementation and tests",
+    "approve actual resource request and separately authorize HPC submission"
+  ]
 }

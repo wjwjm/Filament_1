@@ -1,95 +1,87 @@
-# Formal HR-4E-5 E5-1 legal small-case candidate
+# E5-1 连续前缀三发工程验证候选
 
-**Verdict:** `E5_1_SMALL_CASE_REQUIRES_FULL_Z`
+**状态：** `E5_0_STREAMING_CLOSEOUT_READY_FOR_WEB_REVIEW`。仅准备合同完成，尚非 CLOSED / implementation PASS / execution PASS。
 
-**Execution status:** `NOT_AUTHORIZED_TO_RUN`
+`architecture_choice=USER_FIXED_EXISTING_STREAMING`；`intra_pulse_optical_hydro_overlap=REQUIRED`；
+`production_hr4c_replacement=false`；`implementation_authorized=false`；`formal_execution_authorized=false`；
+`resource_execution_gate=NOT_RELEASED`。
 
-## Purpose and boundary
+源码审阅及 start HEAD：`cbfe2e38172b5221d739df80b032e4dee9fab7e3`；S5 execution SHA（历史回执）：`cd456ff8413cbc041d2d60b9b64007a1554028a1`。
+两者之间只有文档/旧包差异，本轮未实时查询 S5，244700 的 PENDING 仅为原 HPC 快照。
+文档提交 SHA 在提交后由新包 INDEX/README 绑定；不得把文档 SHA 当执行 SHA。
 
-E5-1 is an engineering closure/restart canary, not the formal scientific
-endpoint. It must prove fresh optical inputs and repeated slow-medium
-inheritance without changing frozen operators, precision, source meaning, or
-the final `POST_final` rule. Its later execution remains blocked by S5-FINAL
-PASS, implementation authorization, and resource authorization.
+## 推荐域与合法性（设计，不是运行结果）
 
-## Proposed canary
+`E5_1_CONTIGUOUS_PREFIX_N3_CANDIDATE`：N=3，K=8048，source indices 0..8047，
+z=0 至 0.8047999999999277 m（展示约0.8048 m；精确hex `0x1.9c0ebedfa4173p-1`），
+每场 `[8048,351,301]` float64。原完整域 K=15000、z_max=1.3 m。
+同一冻结输入面构场/薄透镜，不用内部峰处冻结光场；完整覆盖每个实际 optical interval。
+原 peak index8022、z=0.802249999999928 m、min(delta_n)=-0.00014098281502767653；
+front index7827、min=-2.843616836977868e-05，均由 E1B post_reference_manifest 的 screens 记录提供。
+因此 prefix 有已知非零/非平凡慢介质，并覆盖旧48窗口末端8045。未来启动仍验证沉积有效且finite，
+不预言新三发沉积幅度；该域只用于同域编排 exact，不能宣称 full-z 科学等价或选定 E5-2 终点。
 
-| Item | Candidate | Rationale |
-| --- | --- | --- |
-| Pulse count | `Npulses=3` | N=2 proves one handoff; N=3 is the minimum that proves two independent rollovers `POST_0 -> PRE_1 -> optical_1` and `POST_1 -> PRE_2 -> optical_2`, then terminal `POST_final`. |
-| Domain | complete inherited full-z schedule | the optical field begins at the frozen input plane and the only frozen state coverage is full `[15000,351,301]`. |
-| Precision/operators | inherited fp64 and frozen optical/HR-2/HR-3/HR-4 operators | engineering path must not alter scientific behavior. |
-| PRE_0 | E1B delta-n source plus deterministic zero vx/vy initialization | complete three-field candidate, described below. |
-| Topology | not selected for execution | later choose qualified 1+4 preferred or 1+2 fallback after resource authorization. |
+域终点按 `ceil((8045+1)/8)*8=8048` 选择，共1006个完整block；原48窗口终点仍为8045。
+`StreamingLifecycle.claim_block`（streaming.py:1028–1034）在正常非恢复模式拒绝不足8个screen的尾块，
+故不能选择K=8046。这里多保留两个原interval，既不补假screen，也不改变block/claim语义。
 
-The word *small* describes the N=3 engineering pulse train, not a reduced
-state domain. The existing S3/S4R/S5 48-screen record set is explicitly not
-this case's state domain.
+原48点不能单独组成传播域。前缀优于 full-z 作为本次推荐，因为光学是向前传播且已有 schedule 接口可接收
+原始连续区间，无需改上游输入、算子、精度或步长。full-z 仍是可另审保守候选，不是唯一数学合法域。
+元数据检查使用现有 LongitudinalSchedule，仅生成小型元数据：原schedule切片 validate通过。
+**禁止重新 build 到缩短终点**：其最后 dz 变成9.999999999998899e-05，原值0.0001；
+必须直接传 full.z_edges[:8049]、dz_intervals[:8048]、intervals[:8048] 构造的 schedule，
+propagate 接受 supplied schedule 并直接遍历 interval.dz。effective z_max 与 schedule span一致。
+仅候选说明覆盖 run.Npulses=3、effective z_max、全prefix采样；生产配置原件不改。
 
-## Why a reduced domain is not legal yet
+## 输入绑定
 
-The selected 48 records are peak-centred qualification samples. S3 still runs
-the complete frozen optical schedule and only commits those selected records.
-They cannot initialize the first optical interval or provide slow state for
-every interval between the frozen input and an arbitrary endpoint.
+原配置路径、完整显式参数、LUT签名和hash见 freeze_candidate/evidence；隐式默认 pin 到源码 SHA，
+包括 rho0=1.23 kg/m³、Cv=1000/1.4 J/(kg K)、air_T=293.15K、linear_precision_strategy=baseline_complex64。
+fp64 输入不意味着把该内部策略改成全complex128。
+PRE0.delta_n 是 E1B 原数组的0..8047前缀；原文件raw SHA `70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467`，
+原整数组canonical SHA `5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9`。这两个值不是派生前缀的哈希。
+vx/vy 是正float64零；每screen按既有 sha256_array 口径验证零内容，未来记录持久化文件raw hash。
+不生成巨大数组来填空。PRE0为可追溯工程初态，不代表某自然脉冲列的完整三场历史。
+optical x=-1.5..1.5mm、y=-1.75..1.75mm，dx=dy=10µm；E1B hydro标签平移y+0.75mm是相同索引重标，
+不是把光场/数组搬移0.75mm。全z身份按原interval index/midpoint/edge绑定，p=0，source_generation=E1B。
 
-The current frozen provenance establishes a complete source only for the full
-longitudinal schedule. A prefix, a cropped peak window, or a new input plane
-would require a separately derived config/state manifest and a reviewed
-equivalence argument. No such artifact exists. Therefore E5-1 must retain
-full-z until an independent, authorized reduced continuous input exists.
+## 串行对照与逐数组 exact
 
-## PRE_0 and coverage contract
+推荐先跑隔离 serial Batch reference，再跑 candidate，两条轨迹独立PRE演化、相同source/PRE0/schedule/config/LUT。
+Batch复用 `run_batch_hydro` 的 HR4C/evolve_hr4_full_z 路径，仅作为对照；外层适配完整K和多发PRE速度，
+不套用旧 S3 的48或每发速度清零。科学算子共用；独立性在编排、队列与存储路径，不是独立物理模型。
+reference存PRE/POST/NEXT三场快照；非末发HR4C双slot工作目录额外保留；candidate保留新根CURRENT/POST/NEXT。
+双方每发六个sink archives全部保留；state_after与POST delta冗余也不省略。末发没有NEXT。
 
-`PRE_0` is all three HR4C fields at the same `[K,Ny,Nx]` float64 layout:
+比较沿既有 compare_exact 的四项AND：shape、dtype、sha256_array、np.array_equal；另要求finite。
+sha256_array是 dtype+NUL+canonical JSON shape+NUL+C-order字节；NPZ文件raw hash只作传输/provenance。
+新增比较外层参数化K/N/末发和PRE，而不把exact降为hash。
 
-- `delta_n`: inherited E1B source, raw file SHA-256
-  `70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467`,
-  array SHA-256 `5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9`.
-- `vx`, `vy`: deterministic float64 zero initialization by HR4C's existing
-  batch initialization rule. The rule has HR4C and 48-screen S3 qualification
-  evidence, but the future materialized full-volume files still require their
-  own raw hashes in the preflight manifest.
+| 对象 | 数量 | 形状/口径 |
+|---|---:|---|
+| PRE/POST每发三场 + 非末发NEXT三场 | 193152 | 24K个 `[351,301]` float64 arrays |
+| ion/ib/raman逐机制沉积 | 72432 | 9K个float64 arrays |
+| qthermal/increment/state_after诊断 | 72432 | 9K个float64 arrays，完整捕获/比较 |
+| screen科学数组总数 | 338016 | 42K，不套用432/432 |
+| 九条scalar ledger × N | 27 | 每条 `[K]`，字段集合恰等于 S3 _ledger_payload 九名 |
+| final optical | 3 | `[Nt,Ny,Nx]` complex128，按实际输出shape/dtype门检查 |
+| fresh source检查 | 3 | 原始source内容不变、工作场与source不alias；每次调用前记录 |
+| 各轨迹 NEXT→下一PRE绑定 | 48288 每轨 | 独立于跨轨比较，3字段×2换代×K |
 
-The full z edges, `dx=dy=1e-5 m`, config hash, source-manifest hash,
-generation 0, phase PRE and pulse index 0 must be checked before optical p=0.
+在任何复用/回收前完整保存数组；reference全跑完再candidate，每个candidate pulse完成即分screen与reference比较。
+失败记录 trajectory/pulse/namespace/source_index/field、首个不同坐标和两份文件；原科学数组继续留存。
+调度provenance单独核验epoch、claims、bootstrap、barrier/pointer、无漏screen/重复提交、两个rollover、末发计数；
+不要求两轨jobid/timestamp/queue顺序相同。全体exact零mismatch，任何缺失/NaN/shape/dtype不符即FAIL。
 
-## Reference and exact-comparison design
+## 代表性跨allocation延续
 
-The reference path is serial HR4D authority. The integrated candidate shares
-exactly the same source, PRE_0, N=3, schedule, config, precision, and frozen
-operators, but executes hydro work through the non-authoritative adapter.
+仅candidate p=0完成barrier/promotion后有序退出；确认旧allocation终态、worker退出和quiescence receipt，
+下一allocation复开前代，完成/恢复p=1 binding，继续p=1,p=2。该计划不注入故障、不重铺S5矩阵。
+小型定向测试覆盖pointer/index与partial-root窗口、末发partial POST恢复；E5-1只执行一次代表性延续。
+每个非末发都需同pulse的 hydro-start < optical-complete事件，避免把“支持并发”写成实测重叠。
 
-Exact comparisons are required for each pulse:
+## 预算与门
 
-1. fresh source identity and non-aliasing;
-2. PRE three-field hashes and HR4C generation/phase/pulse metadata;
-3. POST three-field hashes, HR-3 authority flags, and deposition-ledger
-   identity;
-4. barrier receipt plus adapter queue/completeness/no-duplicate evidence;
-5. next PRE three-field hashes and exactly one counter/generation transition.
-
-Global gates require all K intervals once per pulse, no cross-pulse namespace
-collision, restart receipts at declared interruption boundaries, two
-interpulse evolutions, three POST commits, and terminal `POST_final`. Physical
-trend amplitude is diagnostic only, not an engineering PASS gate.
-
-## Candidate storage and runtime evidence
-
-For the historical illustrative full geometry, one three-field generation is
-`G=35.422 GiB`. The selected authority has steady HR4C storage `2G=70.845 GiB`.
-If all non-authoritative per-screen NEXT staging is retained until a barrier,
-the hydro transaction adds `G`, producing 106.267 GiB raw payload before
-headers, diagnostics, checkpoints, optical arrays, worker buffers, and run
-history. This is neither a quota claim nor a campaign peak bound.
-
-Historical 48-screen timing is not a full-z estimate. No observed CPU RSS,
-GPU VRAM peak, I/O, quota, purge policy, GPU type, or QoS numerical limit is
-available for sizing the canary allocation.
-
-## Blockers and next gate
-
-The candidate is blocked by: S5-FINAL terminal evidence; a separately reviewed
-minimal orchestration implementation; materialized PRE_0 three-field hashes;
-resource/retention authorization; and normal-QoS/quota confirmation. It is
-not authorized to create a config, run root, staging worktree, or Slurm job.
+两轨保留全部科学payload（含现有full source）=669,587,300,928 B (623.601769 GiB)；推荐可用容量/配额≥851,693,145,010 B (793.201053 GiB)。
+细账见 resource_budget CSV；这已超过原180GiB filesystem快照，现有证据不能释放资源门。
+S5 terminal PASS、派生输入人工接受、glue实施与定向测试、PRE0/源/LUT/schedule哈希、实际site资源以及单独提交授权仍未满足。

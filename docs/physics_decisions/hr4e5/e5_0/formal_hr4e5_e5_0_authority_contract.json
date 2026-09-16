@@ -1,150 +1,186 @@
 {
-  "schema": "filament.hr4e5.e5_0_authority_contract.v1",
-  "status": "E5_0_AUTHORITY_INTERFACE_READY_FOR_MANUAL_REVIEW",
+  "schema": "filament.hr4e5.e5_0_authority_contract.v2",
+  "hash_scope": "classified_by_record",
+  "status": "E5_0_STREAMING_CLOSEOUT_READY_FOR_WEB_REVIEW",
   "repository": "wjwjm/Filament_1",
   "review_branch": "codex/hr4e5s-s5-lifecycle",
-  "review_sha": "075a3f796dc7722fa167cef64b3b0685271382e0",
+  "start_head": "cbfe2e38172b5221d739df80b032e4dee9fab7e3",
+  "source_review_sha": "cbfe2e38172b5221d739df80b032e4dee9fab7e3",
   "execution_baseline_sha": "cd456ff8413cbc041d2d60b9b64007a1554028a1",
-  "entry_gate": "ENTRY_BLOCKED_BY_S5_FINAL",
+  "architecture_choice": "USER_FIXED_EXISTING_STREAMING",
+  "intra_pulse_optical_hydro_overlap": "REQUIRED",
+  "production_hr4c_replacement": false,
+  "implementation_authorized": false,
+  "formal_execution_authorized": false,
+  "resource_execution_gate": "NOT_RELEASED",
   "selected_authority": {
-    "component": "HR4DPulseController backed by HR4CThreeFieldStore",
-    "state_fields": ["delta_n", "vx", "vy"],
-    "authority_rule": "Only the HR4C manifest-selected three-field slot is canonical PRE or POST state.",
-    "pulse_counter_authority": "HR4DPulseController.authoritative_metadata.pulse_index",
-    "generation_authority": "HR4CThreeFieldStore.manifest.generation tied to HR4D authoritative_metadata.state_generation",
-    "restart_authority": "HR4DPulseController(..., resume=true) -> HR4CThreeFieldStore.open_existing(...)"
+    "component": "existing StreamingLifecycle",
+    "state_fields": [
+      "delta_n",
+      "vx",
+      "vy"
+    ],
+    "authority_rule": "current/post/next artifacts and Streaming manifest; authoritative_generation.json exclusively promotes NEXT; outer index only references these credentials",
+    "reference_hr4c": "isolated serial Batch only"
   },
-  "authority_components": [
-    {
-      "component": "HR4CThreeFieldStore",
-      "role": ["AUTHORITATIVE_STATE_STORE", "TRANSACTION_STAGING"],
-      "commit": "atomic manifest replacement selects staged three-field slot",
-      "restart": "open_existing validates manifest and discards incomplete staging"
-    },
-    {
-      "component": "HR4DPulseController",
-      "role": ["PROVENANCE_INDEX"],
-      "commit": "binds phase, pulse index, counters and generation to HR4C authority",
-      "restart": "validates recovered authoritative metadata"
-    },
-    {
-      "component": "HR4DPulseTransaction",
-      "role": ["TRANSACTION_STAGING"],
-      "commit": "requires each interval one PRE read and one POST write before finalize"
-    }
-  ],
-  "non_authoritative_components": [
-    {
-      "component": "formal future HR4C-aware streaming adapter",
-      "role": ["STREAMING_EXECUTION_ADAPTER"],
-      "rule": "May stage per-screen NEXT results and barrier receipts but may not promote state or own a pulse counter."
-    },
-    {
-      "component": "StreamingLifecycle CURRENT/POST/NEXT and authoritative_generation.json",
-      "role": ["DIAGNOSTIC_ONLY"],
-      "rule": "Existing S3/S4R/S5 qualification authority is not reused as formal E5 authority."
-    },
-    {
-      "component": "S3ReadOnlyCurrentState and runner HR3C controller",
-      "role": ["READ_ONLY_VIEW"],
-      "rule": "They provide qualification/interface precedent only."
-    }
-  ],
   "pre0": {
     "phase": "PRE",
     "pulse_index": 0,
-    "generation": 0,
-    "shape": [15000, 351, 301],
+    "source_generation": "E1B_hr3b_source",
+    "state_generation": "E5:<campaign-id>:PRE0",
+    "shape": [
+      8048,
+      351,
+      301
+    ],
     "dtype": "float64",
     "dx_m": 1e-05,
     "dy_m": 1e-05,
-    "z_identity": "full frozen longitudinal schedule; formal binding remains required",
+    "source_shape": [
+      15000,
+      351,
+      301
+    ],
+    "source_index_range_inclusive": [
+      0,
+      8047
+    ],
+    "engineering_initial_state_not_natural_pulse_history": true,
     "delta_n": {
-      "classification": "INHERITED_FROZEN_ARRAY",
-      "source": "E1B HR-3B source array",
-      "raw_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
-      "array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9"
+      "source_path": "/data/run01/scvi806/user_Wangjimin/projects/hr4e1_runs_e1b_be280dc/E1B_hr3b_source.hr3b_delta_n_th.npy",
+      "source_file_raw_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+      "source_full_array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+      "derived_prefix_file_sha256": null,
+      "derived_prefix_array_sha256": null,
+      "rule": "source[0:8048] in original interval order; no interpolation",
+      "hash_scope": {
+        "source_file_raw_sha256": "raw_bytes",
+        "source_full_array_sha256": "hr4e_timestep.sha256_array",
+        "derived_prefix_file_sha256": "raw_bytes_at_future_preflight",
+        "derived_prefix_array_sha256": "hr4e_timestep.sha256_array_at_future_preflight"
+      }
     },
     "vx": {
-      "classification": "FROZEN_ZERO_INITIALIZATION_RULE",
-      "rule": "float64 zeros in each HR4C initialization batch",
-      "qualification_evidence": "HR4C initialize_from_legacy_delta_n; S3 zeros_like(selected)",
-      "materialized_hash": "REQUIRED_AT_FUTURE_PRE0_PREFLIGHT"
+      "rule": "positive float64 zero per cell; all 8048 screens",
+      "materialized_file_sha256": null,
+      "hash_scope": "future raw file bytes; per-screen content checked by existing sha256_array"
     },
     "vy": {
-      "classification": "FROZEN_ZERO_INITIALIZATION_RULE",
-      "rule": "float64 zeros in each HR4C initialization batch",
-      "qualification_evidence": "HR4C initialize_from_legacy_delta_n; S3 zeros_like(selected)",
-      "materialized_hash": "REQUIRED_AT_FUTURE_PRE0_PREFLIGHT"
+      "rule": "positive float64 zero per cell; all 8048 screens",
+      "materialized_file_sha256": null,
+      "hash_scope": "future raw file bytes; per-screen content checked by existing sha256_array"
     },
-    "config_raw_sha256": "eaec83ad326a29af95881912db76a7e5c26943dec9e0d6876ca9c9cc2a100c22",
-    "source_manifest_raw_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
-    "verdict": "CANDIDATE_COMPLETE_RULES_PENDING_MATERIALIZED_THREE_FIELD_HASHES"
+    "coordinates": {
+      "x_rule": "(i-150)*1e-5 m; i=0..300",
+      "y_rule": "(j-175)*1e-5 m; j=0..350",
+      "x_range_m": [
+        -0.0015,
+        0.0015
+      ],
+      "y_range_m": [
+        -0.00175,
+        0.00175
+      ],
+      "hydro_relabeling_only_y_translation_m": 0.00075,
+      "hydro_label_y_range_m": [
+        -0.001,
+        0.0025
+      ],
+      "rule": "same array indices; no physical translation/resampling; optical axes remain make_axes axes"
+    },
+    "initialization_receipt": "NEW_GLUE_DESIGNED_NOT_IMPLEMENTED: PRE0_READY bound to validated Streaming manifest/current_content_sha256 and every file/field hash; incomplete root never discoverable as ready"
   },
-  "post_contract": {
-    "source": "authoritative HR-3A/HR-3B result inside propagate_one_pulse",
-    "mapping": "POST.delta_n = PRE.delta_n + delta_n_increment; POST.vx = PRE.vx; POST.vy = PRE.vy",
-    "commit": "HR4DPulseTransaction.finalize commits only after every interval was read and written once",
-    "failure": "abort staging; PRE remains authoritative",
-    "receipt_required": ["pulse_index", "source_pre_generation", "source_pre_hash", "z_identity", "hr3a_authoritative", "hr3b_authoritative", "deposition_ledger_identity", "config_source_hashes"]
-  },
-  "interpulse_contract": {
-    "duration": "exactly 1/f_rep",
-    "schedule_builder": "build_interpulse_step_schedule(f_rep, dt_hydro)",
-    "operator": "advance_hr4_single_screen reused unchanged",
-    "worker_semantics": "distinct interval work only; adapter outputs remain non-authoritative staging"
-  },
-  "next_pre_contract": {
-    "precondition": "POST HR4C generation committed; all adapter NEXT records validated by barrier",
-    "commit": "coordinator writes HR4C staging then atomically commits one PRE_(p+1) generation",
-    "counter_transition": "generation and pulse_index advance exactly once together",
-    "final_pulse": "POST_final is terminal; no next PRE transition"
-  },
-  "cross_pulse_invariants": [
-    "one canonical HR4C state generation",
-    "one pulse index and one generation lineage",
-    "fresh E_source.copy for every optical pulse",
-    "previous optical output is never the next optical input",
-    "every interval reads PRE and writes POST exactly once",
-    "adapter never writes authoritative_generation.json",
-    "POST is canonical before hydro and PRE_next is canonical only after HR4C atomic commit",
-    "terminal state is POST_final"
-  ],
-  "restart_points": [
-    "before optical",
-    "during partial POST staging",
-    "after POST before hydro",
-    "during hydro before barrier",
-    "after barrier before HR4C promotion",
-    "after promotion before next optical pulse",
-    "between allocations"
-  ],
   "e5_1_candidate": {
-    "verdict": "E5_1_SMALL_CASE_REQUIRES_FULL_Z",
-    "engineering_pulse_count": 3,
-    "pulse_count_reason": "two independent cross-pulse rollovers plus POST_final",
-    "domain": "complete frozen longitudinal schedule with full slow-state coverage",
-    "old_48_screen_manifest_role": "qualification evidence only; not the E5-1 state domain",
-    "authorized_to_run": false
-  },
-  "reference_path": {
-    "reference": "serial HR4D-authority path",
-    "candidate": "same authority plus non-authoritative streaming adapter",
-    "inputs_must_match": ["PRE0", "N=3", "source", "longitudinal schedule", "operators", "precision", "config"]
-  },
-  "exact_comparison_contract": {
-    "per_pulse": ["fresh-source identity", "PRE three-field hashes", "POST three-field hashes", "HR-3 deposition ledger", "barrier receipt", "PRE_next three-field hashes", "phase/generation/pulse counters"],
-    "global": ["no duplicate interval", "no skipped interval", "no namespace collision", "restart replay receipts", "POST_final"]
+    "verdict": "E5_1_CONTIGUOUS_PREFIX_N3_CANDIDATE",
+    "N": 3,
+    "K": 8048,
+    "z_start_m": 0.0,
+    "z_end_m": 0.8047999999999277,
+    "z_end_hex": "0x1.9c0ebedfa4173p-1",
+    "source_interval_indices": [
+      0,
+      8047
+    ],
+    "schedule_rule": "slice full.z_edges[:8049], full.dz_intervals[:8048], full.intervals[:8048]; instantiate existing LongitudinalSchedule; pass to propagate_one_pulse; do not rebuild at endpoint",
+    "optical_calls": 3,
+    "logical_post_completions": 3,
+    "interpulse_evolutions": 2,
+    "terminal": "POST_final",
+    "reference": "isolated serial Batch using existing HR4C evolve_hr4_full_z; full PRE velocities carried through POST",
+    "candidate": "existing Streaming CURRENT/POST/NEXT with designed outer glue",
+    "configuration_differences": {
+      "run.Npulses": 3,
+      "effective_propagation_z_max": 0.8047999999999277,
+      "diagnostic_sample_indices": "all 0..8047"
+    },
+    "operators_and_step_values_changed": false,
+    "authorized_to_run": false,
+    "frozen_block_size": 8,
+    "complete_blocks": 1006,
+    "domain_end_reason": "ceil((8045+1)/8)*8=8048; covers qualification endpoint plus full blocks; normal claim rejects partial tail"
   },
   "resource_model": {
-    "G_formula": "3*K*Ny*Nx*8",
-    "illustrative_geometry": {"K": 15000, "Ny": 351, "Nx": 301, "dtype": "float64"},
-    "steady_authority_state": "2G = 70.845 GiB illustrative raw payload",
-    "conditional_hydro_transaction": "2G + G adapter NEXT staging = 3G = 106.267 GiB illustrative raw payload",
-    "campaign_peak_conclusion": "NOT_A_BOUND; depends on retention, checkpoints, diagnostics, optical memory and worker-local buffers",
-    "s3_initializer_excluded": "full-volume selected plus shared zero arrays would be 23.615 GiB host payload and is not selected for formal E5"
+    "K": 8048,
+    "N": 3,
+    "G_bytes": 20406701952,
+    "F_bytes": 6802233984,
+    "optical_field_bytes": 649119744,
+    "scientific_payload_bytes": 669587300928,
+    "metadata_allowance_bytes": 3164602368,
+    "concurrent_npz_temporary_bytes": 12678120,
+    "extra_allowance_bytes": 8589934592,
+    "recommended_available_bytes": 851693145010,
+    "headroom_fraction": 0.25,
+    "retention": "NO_DELETION; reference first then candidate; all roots and scientific arrays retained",
+    "additional_full_checkpoints": 0,
+    "e5_2_single_stream_formula": "(3*N-1+C)*G + 6*N*F + N*O + F_full + allowances = (5*N-1+C)*G + N*O + F_full + allowances",
+    "e5_2_dual_track_formula": "(12*N-4+C)*G + 2*N*O + F_full + allowances; C counts additional full-generation copies across both tracks",
+    "site_verified": false
   },
-  "known_unknowns": ["quota", "purge policy", "QoS numeric limits", "GPU model", "VRAM", "CUDA/driver", "observed RSS", "observed GPU peak memory", "I/O", "formal retention policy"],
-  "implementation_authorized": false,
-  "formal_execution_authorized": false
+  "cross_pulse": {
+    "root": "candidate/pulse_<p:03d>/attempt_<init_attempt>/lifecycle",
+    "current_binding": "copy all three fields from validated predecessor current_fields AFTER promotion; no hardlink/symlink; verify each array hash and source receipt",
+    "pulse_index": "0..N-1; derived from ready lineage; no advance from intent/index alone",
+    "state_generation": "opaque Streaming current_generation/next_generation strings; not HR4D 2p",
+    "restart_epoch": "separate allocation/restart number; no physical advance",
+    "source_generation": "predecessor promotion authoritative_generation; PRE0 names frozen E1B",
+    "outer_index": "references only; recover from existing promotion and ready receipts",
+    "same_pulse_pre": "CURRENT identity pinned until optical complete and full barrier; never read fresh NEXT",
+    "post": "delta_n_pre + authoritative HR3 increment; velocities unchanged",
+    "hydro": "enqueue each durable POST immediately under existing bounded backpressure; not full POST gate",
+    "terminal": "N optical, N logical POST, N-1 hydro; final hook commits POST without enqueue; new read-only terminal receipt, no final NEXT/promotion"
+  },
+  "exact": {
+    "criterion": "shape/dtype/sha256_array/np.array_equal AND finite; zero mismatch",
+    "array_hash": "existing hr4e_timestep.sha256_array: dtype + NUL + canonical JSON shape + NUL + C-order bytes; not file-byte hash",
+    "state_field_objects": 193152,
+    "deposition_objects": 72432,
+    "additional_sink_objects": 72432,
+    "screen_array_total": 338016,
+    "ledger_arrays": 27,
+    "final_optical_arrays": 3,
+    "fresh_source_checks": 3,
+    "pre_next_binding_field_checks_per_track": 48288,
+    "mismatch_locator": "trajectory,pulse,namespace,source_index,field,first differing coordinate; retain both arrays",
+    "restart": "one planned allocation boundary after p=0 promotion; no fault injection; old writers quiescent; recover p=1 using predecessor pointer"
+  },
+  "s5_snapshot": {
+    "job_id": "244700",
+    "state": "PENDING",
+    "reason": "Priority",
+    "partition": "gpu",
+    "qos": "normal",
+    "account": "n50r5",
+    "requested_time_limit": "12:00:00",
+    "snapshot_date": "2026-09-16",
+    "controller_state": "WAIT_FOR_DUAL_CLAIMS",
+    "signal_sent": false,
+    "recovery_job_id": null,
+    "freshness": "HISTORICAL_ONLY_NOT_REFRESHED_THIS_TASK"
+  },
+  "qualification_status": "existing mechanisms only; new cross-pulse and final mode not qualified",
+  "superseded": {
+    "document_commit": "c92118f76e1252c911fe808c31633f78b092728a",
+    "correction": "HR4C production replacement and all-POST-before-hydro withdrawn by user; historical Git/ZIP preserved"
+  }
 }

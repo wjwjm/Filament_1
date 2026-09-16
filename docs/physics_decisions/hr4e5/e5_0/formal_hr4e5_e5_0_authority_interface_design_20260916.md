@@ -1,249 +1,112 @@
-# Formal HR-4E-5 E5-0 authority and cross-pulse interface design
+# E5-0 authority/interface：用户固定 Streaming 主线后的本次有效合同
 
-**Status:** `E5_0_AUTHORITY_INTERFACE_READY_FOR_MANUAL_REVIEW`
+**状态：** `E5_0_STREAMING_CLOSEOUT_READY_FOR_WEB_REVIEW`。仅准备合同完成，尚非 CLOSED / implementation PASS / execution PASS。
 
-**Boundary:** design and read-only audit only. `implementation_authorized = false`,
-`formal_execution_authorized = false`, and `ENTRY_BLOCKED_BY_S5_FINAL` remains
-in force.
+`architecture_choice=USER_FIXED_EXISTING_STREAMING`；`intra_pulse_optical_hydro_overlap=REQUIRED`；
+`production_hr4c_replacement=false`；`implementation_authorized=false`；`formal_execution_authorized=false`；
+`resource_execution_gate=NOT_RELEASED`。
 
-## Executive verdict
+源码审阅及 start HEAD：`cbfe2e38172b5221d739df80b032e4dee9fab7e3`；S5 execution SHA（历史回执）：`cd456ff8413cbc041d2d60b9b64007a1554028a1`。
+两者之间只有文档/旧包差异，本轮未实时查询 S5，244700 的 PENDING 仅为原 HPC 快照。
+文档提交 SHA 在提交后由新包 INDEX/README 绑定；不得把文档 SHA 当执行 SHA。
 
-**Selected single authority:** the `HR4DPulseController` backed by its
-`HR4CThreeFieldStore` is the sole canonical slow-medium authority for formal
-E5. It owns the authoritative PRE/POST state, pulse index, generation lineage,
-and restart metadata. This is not a new scientific model: the class docstring
-already defines it as a restart-safe state machine with HR-4C as the sole
-authority store.
+## 1. 本次有效结论与证据等级
 
-`StreamingLifecycle` is not selected as an additional store. In a future
-formal entry it must be narrowed to a **non-authoritative streaming execution
-adapter**: it may schedule screen work, persist restartable *staging* results,
-and provide telemetry/barrier evidence, but it must not create a second
-CURRENT/POST/NEXT authority or write `authoritative_generation.json`. The
-current S3/S4R/S5 `StreamingLifecycle` remains valid qualification evidence;
-it is not itself the formal-E5 authority path.
+Streaming CURRENT/POST/NEXT、逐 screen 提交、队列、claim、恢复、barrier 和 promotion 保持生产权威。
+同一发 optical–hydro 重叠必须保留；下一发等待前发全域 barrier/promotion。
+HR4D 仅提供已冻结生命周期和时间步规则，HR4C 只用于隔离 Batch 对照。
+旧 c92118f 的 HR4C 主导方案及全 POST 后 hydro 顺序现已 **SUPERSEDED**；旧 ZIP/Git 记录保留，
+旧方案 generation-0 装配问题撤出当前任务，不再建立修复工作包。
 
-This selection resolves the former dual-authority ambiguity without altering
-an optical, HR-2, HR-3, HR-4, or LUT operator. It does not authorize the
-orchestration implementation or an HPC run.
+`EXISTING_VERIFIED` 表示下面固定源码确有接口/既有资格有其限定范围，绝不表示新增 N=3 路径已 PASS。
+`NEW_GLUE_DESIGNED_NOT_IMPLEMENTED` 是本次设计完成但尚未实施；`PENDING_EXTERNAL_EVIDENCE` 是 site/运行事实待证。
 
-## Evidence identity
+## 2. 真实调用表（全部路径相对 Filament_python/KHz_filament，固定 SHA `cbfe2e38172b5221d739df80b032e4dee9fab7e3`）
 
-| Item | Value |
-| --- | --- |
-| Review source SHA | `075a3f796dc7722fa167cef64b3b0685271382e0` |
-| S5 execution baseline SHA | `cd456ff8413cbc041d2d60b9b64007a1554028a1` |
-| S5 gate | `244700` was `PENDING (Priority)` at the last read-only snapshot; no action taken here. |
-| HR-4D blob | `hr4d_pulse_lifecycle.py`: `8adaf3bdd33093efb9fa0d2f7670dae3adea08b2` |
-| HR-4C blob | `hr4c_state.py`: `6f82e2a6291d3ac42deb5a15a56ef5f570ca87d0` |
-| Streaming blob | `hr4e5s_streaming.py`: `d6c1341791fdd7fd131136bac7939997e24f94d8` |
-| S3 blob | `hr4e5s_s3.py`: `769c9af73bbbdbc817e7680e4648c30c58df83cb` |
-| runner blob | `runner.py`: `cfa174197e2aefc3e484b18a33ea05d3efde1a00` |
+| 环节 / 符号及行段 | 实际入参 → 产物 | 权威 / 分类 |
+|---|---|---|
+| `hr4e5s_streaming.py:342–406` `StreamingLifecycle.create` | root、三个 `[K,Ny,Nx]` arrays、screen_records、current_generation、dx/dy、queue_depth → CURRENT NPZ + manifest | EXISTING_VERIFIED；拒绝已存在根；np.asarray 需要整卷接口，非迭代器 |
+| `hr4e5s_streaming.py:409–556,828–834` `open/current_fields` | root / ordinal → 校验 pointer 后 CURRENT 或 NEXT 三场 | EXISTING_VERIFIED；promotion 不移动文件 |
+| `hr4e5s_s3.py:342–362` `S3ReadOnlyCurrentState` | 原始 NPY路径 → read_interval / update_interval | EXISTING_VERIFIED；旧入口一直读原始 NPY，不能直接当下一发 PRE；需新只读 view |
+| `hr4e5s_s3.py:409–474` `run_optical_path` | manifest、out_dir、stream root、fp64 → 构场/透镜、真实 propagate 调用 | EXISTING_VERIFIED；固定单发/full source 守卫；正式 outer entry 调用同构场和 propagate，不偷改 S3 guard |
+| `propagate.py:233–307,627–634` `propagate_one_pulse` | E、longitudinal_schedule、thermal_slow_state、hr3b_parameters、post_commit_hook 等 → final E / diagnostics | EXISTING_VERIFIED；支持既有 schedule 对象且用 interval.dz |
+| `hr4e5s_s3.py:348–356,373–384` read/update/hook；`hr4e5s_streaming.py:857–966` | interval → PRE.delta_n + HR3 increment → commit_post_from_delta_n → enqueue_post | EXISTING_VERIFIED；速度从本发 CURRENT copy，不置零；耐久 POST 先于入队 |
+| `hr4e5s_streaming.py:1028–1125` `claim_block/run_one_hydro_block/commit_next` | actor、dt_hydro、n_hydro_steps、chi/nu/n0/gravity/CFL → 互斥 block 与 NEXT | EXISTING_VERIFIED；复用 frozen block=8、queue=16、worker ownership |
+| `hr4e5s_s3.py:523–561` `consume_streaming/finalize_streaming` | lifecycle_root、hydro、producer_complete → worker 循环、barrier/promotion | EXISTING_VERIFIED；非末发复用；末发不可调用 finalize_streaming |
+| `hr4e5s_streaming.py:1178–1266` `validate_barrier/promote_next_to_current` | 完整 K records → barrier + authoritative_generation.json | EXISTING_VERIFIED；不因末发而放宽此门 |
+| `hr4e5s_s3.py:80–255` bootstrap/receipt；`hr4e5s_streaming.py:836–847,1127–1176` | 静止旧 writer、记录/manifest → 单次串行 reconstruct + durable POST reuse | EXISTING_VERIFIED；新跨发 epoch 绑定 NEW_GLUE_DESIGNED_NOT_IMPLEMENTED |
+| `hr4e5s_s5_final.py:66–91,145–204` identities/bootstrap；`tools/hr4e5s_s5_final.sbatch:105–118` | quiescence + effects → bootstrap 再启动 workers | EXISTING_VERIFIED 的 S5 接口/顺序；其故障 case-specific receipt 不冒充 E5 跨发 receipt |
+| `hr4e5s_s3.py:495–520,571–627` Batch / compare_exact | 光学 POST档案 → HR4C evolve + NEXT；shape/dtype/hash/array exact | EXISTING_VERIFIED；硬编码48与速度置零必须在隔离对照 glue 中改为 K/真实 PRE.v，旧 S3不改 |
 
-The inherited qualification config has raw SHA-256
-`eaec83ad326a29af95881912db76a7e5c26943dec9e0d6876ca9c9cc2a100c22`.
-The E1B delta-n source has raw-byte SHA-256
-`70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467`
-and array SHA-256 `5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9`.
+## 3. 本发 PRE、POST 与重叠
 
-## Current mechanisms and declared roles
+NEW_GLUE_DESIGNED_NOT_IMPLEMENTED：新增 `StreamingPulseReadView`（拟名，不是已有函数）在本发根
+打开 CURRENT，绑定 current_generation/current_content_sha256、source_index/z；read_interval(k) 从
+`current_fields(k)['delta_n']` 获取只读 slice；update_interval 返回 PRE+increment，不写 CURRENT。
+本发禁止 promotion，读 view 在每次读取校验相同身份。保留原科学调用的热参数、deposition contract、精度和算子。
+真实PRE读取位于 `propagate.py:960`，HR3 map/update/hook位于 `1182–1217`；不是仅在receipt里声明PRE。
+原 `runner.build_transverse_input_field` 位于 `runner.py:123–202`，输出轴序为 `[Nt,Ny,Nx]`。
+构造一次不可变 E_source（原输入面、原薄透镜），每发 E_source.copy()；输出绝不回灌下一发。
 
-| Component | Present authority behavior | Formal E5 role | Why |
-| --- | --- | --- | --- |
-| `HR4CThreeFieldStore` | manifest-selected three-field current slot; atomically swaps staging slots | `AUTHORITATIVE_STATE_STORE` and `TRANSACTION_STAGING` | stores `(delta_n,vx,vy)` with one generation lineage and two fixed slots. |
-| `HR4DPulseController` | validates phase, pulse index, counters, generation and flow parameters | pulse lifecycle and `PROVENANCE_INDEX` | metadata is tied to the HR4C authoritative generation. |
-| `HR4DPulseTransaction` | reads PRE delta-n once and writes POST with unchanged PRE velocity | `TRANSACTION_STAGING` interface to optical/HR-3 | preserves frozen PRE-to-POST velocity semantics. |
-| Existing `StreamingLifecycle` | CURRENT/POST/NEXT plus pointer may be authoritative in S3/S4R/S5 | `STREAMING_EXECUTION_ADAPTER` only | no pulse index/rollover; it must not promote an independent generation. |
-| `authoritative_generation.json` | identifies Streaming NEXT in qualification roots | `DIAGNOSTIC_ONLY` historical artifact | it must not exist in an HR4C-authoritative formal root. |
-| S3 `S3ReadOnlyCurrentState` | read-only delta-n and local POST construction | `READ_ONLY_VIEW` | one-pulse/48-record qualification, not complete E5 authority. |
-| runner HR3C path | separate HR-3C lifecycle | non-selected precedent | proves fresh copies but is not HR-4D authority. |
+非末发 hook 沿用 deposition_finalized → commit_post_from_delta_n → enqueue_post(wait_for_capacity=True,timeout_s=None)。
+K=8048为8的整数倍，正常claim无需新增尾块行为。重叠证据使用既有 `HYDRO_BLOCK_START` 或
+`HYDRO_SCREEN_START` 事件（不是假定存在名为HYDRO_START的接口），与同pulse OPTICAL_COMPLETE比较。
+提交的 `vx/vy=PRE.vx/vy`，不能复用旧 Batch 每发零速度。workers 与 optical 同时运行；不增加全 POST 门。
+必须捕获同一 pulse 的 OPTICAL_START、首次 HYDRO_START、OPTICAL_COMPLETE，满足 hydro_start < optical_complete；
+事件缺失则新路径 overlap 验证未通过，不用人工 sleep 或加速比代替。
 
-No component may be both a separately advancing authority and an execution
-cache. A future adapter artifact must name its HR4C source generation and is
-writable only before the corresponding HR4C commit.
+## 4. 唯一跨发 lineage 与新根（NEW_GLUE_DESIGNED_NOT_IMPLEMENTED）
 
-## Canonical PRE/POST/next-PRE transaction
+推荐 `candidate/pulse_000/attempt_000/lifecycle`、`pulse_001/attempt_000/lifecycle` 等独立根。
+每发根只执行一次既有 CURRENT→POST→NEXT；不清空旧根，不在 promotion 后原根再次 create。
+跨发衔接采用 **实际复制**，不假设 hardlink、symlink 或零成本共享：在仅 coordinator 活跃时从前代
+`open(...).current_fields(k)`（已指向 NEXT）分 screen 读出，填三个独立 float64 host arrays，
+逐字段 exact 核对前代，传给现有 create。新 CURRENT 的数组身份等于前代 NEXT，文件字节哈希可因 namespace 元数据不同而不同。
+内存计入 G，复制出的新 CURRENT 计入磁盘 G；父代所有根仍保留。
 
-```text
-HR4C generation 2p, metadata {phase=PRE, pulse_index=p}
-  -> FreshOpticalInput(p) = immutable post-lens E_source.copy()
-  -> optical reads SlowMediumPRE(p)[k].delta_n exactly once per interval
-  -> authoritative HR-3B increment is added to PRE delta_n
-  -> HR4DPulseTransaction writes POST_p[k] =
-       {PRE.delta_n + increment, PRE.vx, PRE.vy} to HR4C staging
-  -> complete all K intervals exactly once
-  -> atomic HR4C manifest commit: generation 2p+1, {phase=POST,pulse_index=p}
-  -> non-authoritative adapter schedules hydro from this committed POST
-  -> per-screen NEXT staging / barrier validates all K outputs
-  -> coordinator writes HR4C staging and atomically commits:
-       generation 2p+2, {phase=PRE,pulse_index=p+1}
-  -> release or retain adapter staging only under a recorded retention policy
-```
+generation 是既有 opaque string：PRE0=`E5:<id>:PRE0`，后代 current_generation 取前代 pointer.authoritative_generation；
+next_generation 由既有 `:next` 规则生成。pulse_index 是0-based调度序号，restart_epoch/initialization_attempt 是独立字段，
+source_generation 是前代权威凭证；绝不强套 HR4D 的 2p。
+外层 `pulse_lineage.json` 只缓存 previous pointer/file hash、new root/current content hash、ready receipt 和执行进度；
+不能独立 promotion 或使 index 超前。消费入口只接受已验证 ready 引用。
 
-The first HR4C commit is the sole durable POST authority. The second is the
-sole durable `PRE_(p+1)` authority. The adapter may record a barrier receipt
-and per-screen hashes, but its NEXT files are not a PRE state until the HR4C
-manifest commit succeeds. After that commit, adapter files are historical and
-may be released only under a recorded policy.
+| 中断窗口 | 幂等恢复规则 |
+|---|---|
+| pointer 已落盘、前代 manifest promotion 未落盘 | open + 原 promote_next_to_current 补齐原事务；不得第二次推进 |
+| 前代 promotion 已落盘、跨发 index 未写 | 静止性与 barrier 校验后，由 pointer 重建同一个后继身份；index 是派生记录 |
+| 已创建部分 next-root、未产出 ready | 不可作为 PRE；保留隔离的 attempt；新 attempt 在新不存在路径 create，记录旧 attempt。不删除、不覆盖；额外失败副本进入预算再获授权 |
+| 新根完整、ready 或 index 未落盘 | 从完整 manifest 逐文件验证 + 与父NEXT逐数组exact 后补 ready/index；若无完整 manifest 则按上一条 |
+| index 指向不存在/冲突根或分叉 lineage | fail closed；不可根据最大目录编号猜测权威 |
+| 中途 optical 故障 | 原 deterministic optical replay；`has_authoritative_post` 保留并校验已提交 POST，不能默认丢弃；新诊断输出独立 attempt |
 
-For the final pulse, the first commit yields `POST_final` with
-`run_complete=true`; no hydro transition, pulse-index increment, or extra
-interpulse evolution occurs.
+初始化三场和 PRE0_READY 同样遵守上述规则。create 自身会先建目录、最后写 manifest；ready 之前整个根为私有候选。
+所有 ready/terminal/link receipt 原子写并 fsync，绑定 schema/runtime/config/LUT/source/schedule 与每个 screen 的身份。
+链接凭证不是第二种可写慢介质；只有 Streaming manifest/pointer 决定物理状态。
 
-## Cross-pulse interface contract
+## 5. 末发闭合（NEW_GLUE_DESIGNED_NOT_IMPLEMENTED）
 
-### Optical input
+N=3：3次 optical、3次逻辑全域POST完成、2次 hydro/promotion，最终 POST_final。
+末发仍逐 screen 原 commit_post；独立末发 hook **不 enqueue**，不启动 hydro，不调用既有 NEXT barrier/finalize/promotion，
+不伪造 NEXT。新增 `validate_final_post`（拟名）在相同锁/读取校验封装下确认 K 个 POST_COMMITTED，
+逐record三场hash/finite/坐标/HR3 authority正确，无 queue/backlog/claim/NEXT/pointer/临时孤儿，光学与九条账本完整、writer退出。
+该只读检查生成 POST_final receipt，引用现有 durable POST artifacts；不改记录状态，不重写 Streaming authority。
+恢复时有有效终态 receipt 则验证后返回；无 receipt 则复核/补写；不完整则恢复 deterministic replay，仅补未提交POST。
+末发恢复不调用会把 POST 重入 hydro queue 的 reconstruct_queue：需要末发专用 bootstrap 封装，复用静止性、POST校验和 replay，
+不改变非末发恢复。该区别必须单独定向测试，不能宣称 S5 已覆盖。
+旧writer静止性来源还包括 `Filament_python/tools/monitor_hr4e5s_s5_final.py:69–75,170–184`：
+squeue/sacct终态加worker identity/live actor证据；本轮不运行该monitor。未来有序跨allocation退出复用该检查逻辑，
+不调用其中注入故障或提交恢复作业的分支。
 
-`FreshOpticalInput(p)` is a new copy of the same immutable source captured at
-the exact `propagate_one_pulse` input plane, after lens and any permitted
-pre-advance. `runner.py` implements `E_source = E` then
-`E_pulse = E_source.copy()`; a previous output field is never the next input.
+## 6. 资格继承与最小增量
 
-`SlowMediumPRE(p)` is the HR4C manifest-selected three-field generation with
-matching `[K, Ny, Nx]`, float64 layout, z edges, `dx`, `dy`, and grid
-fingerprint. One interval-centred delta-n view is passed to optical/HR-3 per
-schedule; vx/vy remain in the canonical store although the frozen optical
-mapping reads only delta-n.
+| 项 | 分类 | 继承范围 / 新增验收 |
+|---|---|---|
+| per-screen POST/NEXT、queue/backlog、claim | REUSED_UNCHANGED | 固定源码、S3/S4R；仍有 block8/queue16，不能扩大queue躲恢复问题 |
+| 串行 bootstrap、durable POST replay、旧writer静止性 | REUSED_UNCHANGED | S5单发资格范围；S5-FINAL终态仍待证；跨发epoch绑定另测 |
+| barrier/promotion及pointer中断补齐 | REUSED_UNCHANGED | 非末发；既有guard不变 |
+| Streaming实际PRE读取与完整prefix hook | NEW_CROSS_PULSE_GLUE | fresh-source/不读NEXT/字段速度继承/全域覆盖 |
+| 两次新根换代、ready/index恢复 | NEW_CROSS_PULSE_GLUE | 2次rollover、缺失/重复0、幂等恢复窗口 |
+| 末发及末发bootstrap | NEW_CROSS_PULSE_GLUE | 3 optical/2 hydro、无NEXT、POST_final恢复 |
+| 改现有科学算子、既有barrier或丢弃durable POST | BEHAVIOR_CHANGE_REQUIRES_REVIEW | 本任务未推荐、未授权；若实现发现需要则停止 |
 
-The future entry must validate source/config hashes, z identity, grid
-fingerprint, dtype, phase PRE, and pulse index before it opens POST staging.
-
-### Optical/HR-3 POST
-
-`propagate_one_pulse` reads `thermal_slow_state.read_interval(interval.index)`
-once, computes authoritative HR-3A/HR-3B output, then calls
-`update_interval(interval.index, delta_n_increment)`. The existing
-`HR4DPulseTransaction` implements that interface: it writes
-`delta_n_post = delta_n_pre + increment` and copies `vx_pre` and `vy_pre`
-unchanged into staging. Velocity is therefore **not** updated by optical/HR-3.
-
-Every POST receipt must bind pulse index, source PRE generation/hash, interval
-and z identity, config/source hashes, HR-3A/HR-3B authority flags, scalar
-deposition-ledger identity, and one-write-per-interval completion. A failure
-before complete finalize aborts staging; PRE remains the only authority.
-
-### Hydro and next PRE
-
-The interpulse duration is exactly `1/f_rep`, decomposed by
-`build_interpulse_step_schedule(f_rep, dt_hydro)` into full `dt_hydro` steps
-plus at most one remainder. The frozen `advance_hr4_single_screen` evolves all
-three POST fields. Workers may handle distinct intervals only. A coordinator
-verifies screen identity, hashes, completeness, queue emptiness and barrier
-receipt before one HR4C staging commit. That commit advances canonical
-generation and pulse index exactly once.
-
-## Restart contract
-
-| Restart point | Canonical reopen | Permitted replay / prohibited duplication |
-| --- | --- | --- |
-| Before optical p | controller constructed with `resume=True`, which calls `HR4CThreeFieldStore.open_existing(...)` | replay fresh optical p; no POST exists. |
-| During optical / partial POST staging | `open_existing` detects staging and aborts it | replay the whole optical pulse; no partial POST may become authority. |
-| POST complete, before hydro | HR4C `POST,p` generation | do not rerun optical or duplicate POST; begin/recover hydro only. |
-| Hydro incomplete | same HR4C `POST,p` plus non-authoritative adapter receipt | validate/reuse completed NEXT staging; replay only missing work; incomplete HR4C staging is discarded/rebuilt. |
-| Hydro complete, before promotion | HR4C `POST,p` plus PASS barrier and NEXT staging | rebuild staging if necessary, then make exactly one HR4C commit; never promote adapter pointer. |
-| After promotion, before optical p+1 | HR4C `PRE,p+1` generation | start fresh optical p+1; prior adapter files are historical. |
-| Between allocations | the same manifest/receipts and run root | resume the state-specific row above; allocation identity is provenance, not a second authority. |
-
-Each reopen must record execution SHA, source/config hashes, HR4C manifest
-hash, phase, pulse index, canonical generation, adapter receipt/hash index,
-and whether any work was replayed. The actual restart entry is
-`HR4DPulseController(..., resume=True) -> HR4CThreeFieldStore.open_existing(...)`;
-there is no `HR4DPulseController.open` method.
-
-## PRE_0 three-field candidate contract
-
-| Field | Candidate source / initialization | Layout and interpretation | Provenance / evidence | Classification |
-| --- | --- | --- | --- | --- |
-| `delta_n` | frozen E1B HR-3B source array | `[K,351,301]`, float64, interval-centred PRE state | raw file and array hashes in Evidence identity; z/grid/source-manifest hashes must be bound | `INHERITED_FROZEN_ARRAY` |
-| `vx` | deterministic all-zero float64 initialization during HR4C legacy initialization | same shape/layout; no inherited pulse-induced velocity | `initialize_from_legacy_delta_n` creates a zero batch; 48-screen S3 also uses `zeros_like(selected)` | `FROZEN_ZERO_INITIALIZATION_RULE` |
-| `vy` | deterministic all-zero float64 initialization during HR4C legacy initialization | same shape/layout; ambient PRE velocity | same evidence as vx | `FROZEN_ZERO_INITIALIZATION_RULE` |
-
-The candidate is scientifically and lifecycle-consistent with qualified HR-4
-initialization, but it is not an executed formal input. A formal PRE_0
-preflight must materialize the two HR4C slots non-destructively, calculate and
-record raw-byte hashes for all three persisted fields, and bind shape, dtype,
-z edges, `dx/dy`, generation `0`, phase `PRE`, and `pulse_index=0`. No missing
-physical velocity array is invented; the provenance is the deterministic zero
-rule plus the later materialized-file hashes.
-
-## Legal E5-1 engineering canary
-
-**Verdict:** `E5_1_SMALL_CASE_REQUIRES_FULL_Z`.
-
-The legal canary is small in engineering pulse count, not a silently cropped
-z domain: `Npulses=3` with the inherited complete frozen schedule and full
-slow-state coverage. Two pulses are enough for one handoff, but three are the
-minimum to test **two** independent `POST -> PRE_next -> next optical` rollovers
-and the `POST_final` terminal rule. This N=3 value is an engineering canary
-only; it does not freeze a formal scientific campaign endpoint.
-
-No reduced continuous domain is currently justified. Optical propagation
-starts at the frozen input plane, while the only frozen state coverage is the
-full `[15000,351,301]` source. The old 48 records are selected qualification
-records around a peak, not a propagation/state domain. A prefix or arbitrary
-window would require a distinct derived config, source identity, and
-equivalence authorization. Therefore the smallest legal currently evidenced
-case retains full-z coverage.
-
-The reference is a serial HR4D-authority path with the same full-z source,
-PRE_0, schedule, N=3, operators and precision. The candidate integrated path
-adds only the non-authoritative streaming adapter. Exact comparison per pulse
-must cover fresh-source identity, all PRE/POST three-field hashes, HR-3
-deposition ledger, barrier receipt, `PRE_(p+1)` hashes, phase/generation/pulse
-counters, no duplicate/omitted intervals, restart receipts, and final
-`POST_final`. A physical-trend magnitude is not a canary PASS gate.
-
-## Resource implications of the selected architecture
-
-Let `G = 3*K*Ny*Nx*8`. At the historical illustrative
-`K=15000, Ny=351, Nx=301`, `G=35.422 GiB`; this is not a selected formal K.
-
-- **Steady canonical disk state:** HR4C two slots = `2G = 70.845 GiB`.
-- **Conditional hydro-transaction disk state:** if adapter NEXT staging is
-  retained for per-screen restart until one barrier/HR4C commit, add `G`.
-  The resulting `3G=106.267 GiB` is a transaction payload, not a campaign
-  peak or retained-data bound.
-- **Atomic file transient:** one three-field 2D payload is 2.418 MiB before
-  container overhead.
-- **PRE_0 caller memory:** legacy delta-n is a disk-backed one-field memmap
-  (11.807 GiB addressable payload); zero velocities are allocated as batches,
-  not full volumes, by `initialize_from_legacy_delta_n`.
-- **Disallowed formal initializer:** current S3 creation materializes
-  `selected = np.asarray(source[indices])` and one shared
-  `zero = np.zeros_like(selected)` before `StreamingLifecycle.create`. For a
-  full volume these are two host-resident fields (23.615 GiB raw payload), in
-  addition to the mapped source. The selected architecture must not use it.
-- **Optical minimum:** at inherited fp64, one complex `[Nt,Ny,Nx]` field is
-  0.605 GiB; immutable source plus working copy is at least 1.209 GiB GPU
-  payload before propagation kernels, diagnostics, and transfers.
-
-Checkpoint/history retention determines campaign storage. No full-volume
-history retains steady `2G` plus current receipts; selected `C` full
-checkpoints add `C*G`; every-pulse checkpointing for N pulses adds `N*G` (or
-the expressly named payload) beyond current state. CPU RSS, GPU VRAM, I/O,
-quota, QoS limits, and purge policy remain unobserved site-level facts.
-
-## Minimal future implementation request
-
-Only after S5 PASS and explicit authorization, the minimal request is:
-
-| Proposed area | Classification | Required behavior |
-| --- | --- | --- |
-| new formal entry module | `RUNTIME_ENTRY_ONLY` | construct/reopen HR4D controller, build fresh optical input, pass its transaction to real propagation, and enforce PRE/POST/next-PRE state machine. |
-| HR4C-aware streaming adapter | `ORCHESTRATION_ONLY` | create work descriptors and restartable NEXT staging keyed to HR4C POST; no independent CURRENT/POST/NEXT authority or promotion pointer. |
-| manifest/receipts | `PROVENANCE_ONLY` | bind PRE_0 three-field hashes, source/config/SHA, phase, generation, pulse and adapter barrier/replay facts. |
-| focused tests | `TEST_ONLY` | tiny N=3 fresh-source, exact serial-vs-adapter, all restart boundaries, no-pointer, no-duplicate and `POST_final` checks. |
-
-`propagate_one_pulse`, HR-2, HR-3, `advance_hr4_single_screen`, HR4C
-numerics, ionization, Raman, frozen configs, source arrays and LUTs must be
-reused unchanged. Any proposal that needs a scientific-operator change is a
-blocker, not part of this request.
-
-## Remaining gates and user decisions
-
-S5 terminal PASS and its evidence binding are still required before
-implementation/submission. The user must later authorize the formal science
-endpoint, source binding, topology (1+4 preferred or 1+2 fallback), retention
-and checkpoint policy, resource request after site-limit confirmation, exact
-acceptance thresholds, and the minimal implementation task. No decision here
-authorizes E5-1 or E5-2 execution.
+完整输入、exact、资源与后续任务分别见同目录 freeze_candidate JSON、resource_budget CSV、minimal_glue 草稿及 E5-1 candidate。

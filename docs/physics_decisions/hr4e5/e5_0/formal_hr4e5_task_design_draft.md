@@ -1,126 +1,28 @@
-# Formal HR-4E-5 task design and authorization map
+# Formal E5 路线与授权图
 
-**Status (2026-09-16):** `E5_0_AUTHORITY_INTERFACE_READY_FOR_MANUAL_REVIEW / ENTRY_BLOCKED_BY_S5_FINAL`
+**状态：** `E5_0_STREAMING_CLOSEOUT_READY_FOR_WEB_REVIEW`。仅准备合同完成，尚非 CLOSED / implementation PASS / execution PASS。
 
-**Boundary:** documentation and read-only audit only. No code, config, source,
-LUT or result modification; no run-root creation; no Slurm/GPU action; and no
-S5-FINAL intervention is authorized. S5-FINAL job `244700` was `PENDING
-(Priority)` at the latest read-only snapshot; that queue state is not an E5
-result.
+`architecture_choice=USER_FIXED_EXISTING_STREAMING`；`intra_pulse_optical_hydro_overlap=REQUIRED`；
+`production_hr4c_replacement=false`；`implementation_authorized=false`；`formal_execution_authorized=false`；
+`resource_execution_gate=NOT_RELEASED`。
 
-## Current design verdict
+源码审阅及 start HEAD：`cbfe2e38172b5221d739df80b032e4dee9fab7e3`；S5 execution SHA（历史回执）：`cd456ff8413cbc041d2d60b9b64007a1554028a1`。
+两者之间只有文档/旧包差异，本轮未实时查询 S5，244700 的 PENDING 仅为原 HPC 快照。
+文档提交 SHA 在提交后由新包 INDEX/README 绑定；不得把文档 SHA 当执行 SHA。
 
-Formal E5 uses exactly one canonical slow-medium authority:
+| 阶段 | 本次明确状态与进入条件 |
+|---|---|
+| E5-0 | Streaming纠偏、接口/PRE0/连续prefix N3/exact/资源保留合同完成，READY_FOR_WEB_REVIEW；人工审查后才能CLOSED |
+| E5-1 | 工程三发、两次rollover、末发POST、一次跨allocation恢复；前置工作包是已单列的glue实施/测试，无新增长期阶段 |
+| E5-2 | 正式规模/耐久与科学结论NOT_STARTED；N、终点、C、资源和科学问题另审 |
 
-```text
-HR4DPulseController + HR4CThreeFieldStore
-```
+当前生产权威为既有Streaming；每screen POST后可马上入队hydro，光学继续。全域barrier/promotion后才下一发。
+HR4C仅隔离Batch reference，旧主导方案SUPERSEDED。新根复制CURRENT、outer index只引用promotion；末发不hydro。
+推荐PRE0=E1B delta_n prefix0..8047 + float64零vx/vy；N=3、z0..0.8047999999999277、K8048，
+直接切原schedule，不改步长。此为同域工程candidate，非全z科学等价。
+两轨科学payload=669,587,300,928 B (623.601769 GiB)；含保留/临时/余量的建议可用容量=851,693,145,010 B (793.201053 GiB)；resource_execution_gate未释放。
 
-The HR4C manifest-selected three-field slot is the only canonical PRE or POST
-state. It owns the state generation; HR4D binds phase and pulse-index metadata.
-Future Streaming is constrained to a `STREAMING_EXECUTION_ADAPTER`: it can
-persist restartable per-screen staging, claims and barrier receipts, but cannot
-own a pulse index, promote an authority, or write
-`authoritative_generation.json` in the formal root.
+当前等待的是人工接受派生input/保留合同、单独实施授权、真实资源批准和另行提交授权；S5 PASS与preflight是证据门。
+本轮无runtime/science/job变更。S5状态仅原快照，不因设计收口而关闭或干预。
 
-```text
-PRE_p (canonical HR4C)
- -> fresh E_source.copy()
- -> real optical propagation reads PRE.delta_n
- -> HR-3 POST: {delta_n + increment, vx, vy}
- -> atomic canonical POST_p
- -> non-authoritative hydro staging and barrier
- -> atomic canonical PRE_(p+1), one pulse-index/generation advance
-```
-
-The final pulse is `POST_final`; it has no interpulse evolution. The actual
-restart constructor is `HR4DPulseController(..., resume=True) ->
-HR4CThreeFieldStore.open_existing(...)`, not a nonexistent controller `open`.
-
-## Stage hierarchy
-
-The old D0--D5 ideas are checklists, not a new serial six-stage project.
-
-| Stage | Objective and verdict | Former checklist mapping | Boundary |
-| --- | --- | --- | --- |
-| **E5-0** | Authority, interface, PRE_0, resource and minimal-glue design. `READY_FOR_MANUAL_REVIEW`. | D0 evidence binding; D1 source/claim binding; D2 read-only audit; D3 planned local/preflight gates. | Design may continue while S5 is pending. Implementation and submission remain blocked. |
-| **E5-1** | Legal small multi-pulse engineering closure. `E5_1_SMALL_CASE_REQUIRES_FULL_Z`; proposed `Npulses=3`. | D3 tiny validation; D4 controlled comparison/restart; D5 engineering closeout. | Requires S5 PASS, reviewed glue, PRE_0 hashes, resources/retention and explicit authorization. |
-| **E5-2** | Full-z endurance/restart production-scale validation and scientific closeout. `NOT_STARTED`. | D4 production allocation(s); D5 terminal postprocess/evaluation. | Requires E5-1 PASS and a separate science/resource/acceptance authorization. |
-
-No stage silently adopts a scientific pulse count, cropped longitudinal domain,
-new input plane, or S3's 48 selected records.
-
-## E5-0 design package
-
-- `formal_hr4e5_e5_0_authority_interface_design_20260916.md` selects the
-  HR4D/HR4C-only authority and states PRE/POST/next-PRE/restart rules.
-- `formal_hr4e5_e5_0_authority_contract.json` is the implementation-neutral
-  contract.
-- `formal_hr4e5_e5_0_freeze_candidate.json` records PRE_0, E5-1, resources and
-  later authorization requirements.
-- `formal_hr4e5_e5_0_resource_budget.csv` separates steady authority state,
-  transient staging, caller allocations, GPU fields and policy-based retention.
-- `formal_hr4e5_e5_0_minimal_glue_implementation_draft.md` is a future,
-  orchestration-only request, not implementation authority.
-
-## PRE_0 and E5-1 decisions
-
-`PRE_0` is a three-field rule, not a delta-n filename:
-
-| Field | Candidate source/rule | Status |
-| --- | --- | --- |
-| `delta_n` | E1B HR-3B array: raw SHA `70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467`; array SHA `5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9` | `INHERITED_FROZEN_ARRAY` |
-| `vx` | deterministic float64 zero batches in existing HR4C initializer | `FROZEN_ZERO_INITIALIZATION_RULE` |
-| `vy` | deterministic float64 zero batches in existing HR4C initializer | `FROZEN_ZERO_INITIALIZATION_RULE` |
-
-The common historical illustrative layout is `[15000,351,301]` float64,
-`dx=dy=1e-5 m`, full frozen z identity, phase PRE, generation 0 and pulse
-index 0. A later preflight must materialize and raw-hash all three fields
-non-destructively.
-
-E5-1 is small only in pulse count: N=3 produces two independent cross-pulse
-rollovers and `POST_final`. It must retain the full frozen optical schedule and
-complete slow-state coverage. The reference is serial HR4D authority; the
-candidate uses identical inputs plus the non-authoritative adapter. Per-pulse
-exact checks cover fresh-source identity, PRE/POST/next-PRE hashes, deposition
-ledger, barrier evidence and phase/generation/pulse counters. Physical-trend
-magnitude is diagnostic, not an engineering PASS threshold.
-
-## Resource and site boundary
-
-For illustrative `K=15000, Ny=351, Nx=301`, a three-field generation is
-`G=35.422 GiB`. Selected steady HR4C state is `2G=70.845 GiB`; conditional
-full adapter NEXT staging makes one transaction `3G=106.267 GiB`. Neither is a
-campaign peak or quota claim. The old S3 initializer would materialize full
-`selected` and `zero` host arrays (23.615 GiB raw) in addition to its mapped
-source, so it is excluded. One fp64 complex optical source plus working copy
-requires at least 1.209 GiB GPU payload before kernels and diagnostics.
-
-No full-volume history is `2G` plus receipts/selected diagnostics; `C` selected
-full checkpoints add `C*G`; every-pulse checkpoints add `N*G`. Filesystem
-overhead, CPU RSS, GPU VRAM, diagnostics, I/O, worker buffers and temporary
-files remain extra. Quota, purge policy, numeric normal-QoS limits, GPU
-model/VRAM/CUDA, observed RSS/VRAM/I/O and formal retention are unverified.
-
-Historical 48-screen timing is qualification evidence only. Tested topology is
-1 optical + 4 hydro GPUs, with 1 + 2 fallback; 1 + 6 remains
-`NOT TESTED / RESOURCE_UNAVAILABLE`. These are not full-z estimates or selected
-formal resources.
-
-## S5 gate and later authorization
-
-Before any E5-1 implementation or execution, record:
-
-1. S5-FINAL terminal PASS, terminal `sacct`, exact/provenance closeout and
-   F01--F06 SHA inheritance.
-2. A user-authorized minimal orchestration implementation; a
-   `SCIENTIFIC_OPERATOR_CHANGE` is a blocker.
-3. Non-overwriting PRE_0 materialization/hashes with z/config/source/metadata.
-4. A retention/checkpoint policy and confirmed QoS/quota/resource request.
-5. Tiny N=3 serial-versus-adapter exact and restart tests, followed by local,
-   batch-entry and remote-provenance gates.
-6. Separate user authorization before a run root, allocation or `sbatch`.
-
-S5 PASS releases none of these by itself. E5-2 also needs accepted E5-1
-engineering closure and a separately stated scientific endpoint, comparison,
-pulse count, diagnostics/retention and acceptance contract.
+审查入口：[closeout matrix](E5_0_CLOSEOUT_MATRIX.md)；接口、freeze JSON、resource CSV、glue草稿和E5-1文档为同一合同。
