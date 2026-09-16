@@ -1,14 +1,16 @@
 # E5-1前最小glue实施任务草稿（本轮不执行）
 
-**状态：** `E5_0_STREAMING_CLOSEOUT_READY_FOR_WEB_REVIEW`。仅准备合同完成，尚非 CLOSED / implementation PASS / execution PASS。
+**E5-0 状态：** `CLOSED / STREAMING_PREPARATION_CONTRACT_ACCEPTED`（2026-09-16 人工审核接受）。跨发设计为 `DESIGNED / NOT_IMPLEMENTED`；E5-1 未开始，实施与执行仍未授权。
 
 `architecture_choice=USER_FIXED_EXISTING_STREAMING`；`intra_pulse_optical_hydro_overlap=REQUIRED`；
 `production_hr4c_replacement=false`；`implementation_authorized=false`；`formal_execution_authorized=false`；
-`resource_execution_gate=NOT_RELEASED`。
+`resource_execution_gate=NOT_RELEASED`；`s5_entry_gate=ENTRY_BLOCKED_BY_S5_FINAL`。
 
-源码审阅及 start HEAD：`cbfe2e38172b5221d739df80b032e4dee9fab7e3`；S5 execution SHA（历史回执）：`cd456ff8413cbc041d2d60b9b64007a1554028a1`。
+原准备合同的源码审阅及 start HEAD：`cbfe2e38172b5221d739df80b032e4dee9fab7e3`；S5 execution SHA（历史回执）：`cd456ff8413cbc041d2d60b9b64007a1554028a1`。
 两者之间只有文档/旧包差异，本轮未实时查询 S5，244700 的 PENDING 仅为原 HPC 快照。
-文档提交 SHA 在提交后由新包 INDEX/README 绑定；不得把文档 SHA 当执行 SHA。
+原审核包绑定文档 SHA `c377178e909d795b1fce0d4d162ab14845c9c264`；本次仅同步人工接受状态，不重打包、不改包内历史状态，不得把文档 SHA 当执行 SHA。
+
+正式收尾结论与 G1–G6 门见 [E5-0 closeout](E5_0_CLOSEOUT_20260916.md)。
 
 ## 唯一实施边界
 
@@ -38,7 +40,7 @@ Batch对照的装配/导出按已有 `write_staging_batch/read_authoritative_bat
 
 ## 验收门与顺序
 
-S5-FINAL terminal PASS和人工合同接受后，另获实施授权；一次最小实现→专用解释器compile、wrapper backend/sanity→
+人工准备合同已接受；仍须 S5-FINAL terminal PASS，并另获实施授权；一次最小实现→专用解释器compile、wrapper backend/sanity→
 小型定向tests→独立数值/接口审查。新增launcher必须audit_batch_entry，远程strict provenance在run/lock/sbatch之前。
 这份草稿既不授权实现也不授权PRE0物化/提交。工程门：finite、字段/坐标/shape/dtype一致、array exact零mismatch，
 每pulse K POST、非末发K NEXT、计数3/3/2、无漏/重、PRE0/lineage/末发幂等、overlap事件成立。

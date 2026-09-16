@@ -1,5 +1,31 @@
 # HR-4 status: isobaric transverse slow flow
 
+## 2026-09-16：当前阶段状态（E5-0 人工收口）
+
+```text
+HR-4E                       ACTIVE / NOT CLOSED
+  E1–E4                     CLOSED
+  E5-P                      CLOSED
+  E5-S S1–S4R               CLOSED
+  E5-S S5                   PENDING FINAL INTEGRATED QUALIFICATION
+  formal E5                 NOT CLOSED
+    E5-0                    CLOSED / STREAMING_PREPARATION_CONTRACT_ACCEPTED
+    E5-1                    NOT STARTED / IMPLEMENTATION + RESOURCE GATES PENDING
+    E5-2                    NOT STARTED
+HR-5                        NOT STARTED
+HR-4F                       NOT STARTED
+```
+
+E5-0已人工接受，仅关闭Streaming准备合同；新增跨发glue为DESIGNED / NOT_IMPLEMENTED。
+Streaming生产权威与同发optical–hydro overlap保留，HR4C仅隔离Batch/reference；
+HR4C-authoritative formal方案及full-POST-before-hydro为SUPERSEDED / NOT CURRENT PLAN。
+implementation_authorized=false；formal_execution_authorized=false；resource_execution_gate=NOT_RELEASED；
+s5_entry_gate=ENTRY_BLOCKED_BY_S5_FINAL。S5仍待最终集成资格，未作实时刷新或PASS判断。
+完整结论与G1–G6门见 [E5-0正式收尾](hr4e5/e5_0/E5_0_CLOSEOUT_20260916.md)。
+
+下文带日期的执行/实现状态是历史记录；其较早“当前”、live及未开始描述不作为本节当前状态。
+历史HR4C/HR4D实现规则继续保留，但不据此切换formal E5生产架构。
+
 **Program status:** HR-4 branch active; HR-4A, HR-4B, HR-4C, and HR-4D are
 **CLOSED** (2026-08-31).
 
@@ -10,7 +36,7 @@ The one local-parent commit preserves only user-authorized workspace artifacts;
 it changes no production physics, configuration, or baseline result. This
 document is written before any HR-4A code change.
 
-## Current HR-4E-5S execution status (non-physics)
+## Historical HR-4E-5S execution snapshot (2026-09-12; not current)
 
 This status section supersedes the historical statements below that HR-4E or
 HPC/Slurm work had not started; it does not change any frozen physical or

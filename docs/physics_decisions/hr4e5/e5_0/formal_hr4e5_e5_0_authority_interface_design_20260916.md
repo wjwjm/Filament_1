@@ -1,21 +1,23 @@
 # E5-0 authority/interface：用户固定 Streaming 主线后的本次有效合同
 
-**状态：** `E5_0_STREAMING_CLOSEOUT_READY_FOR_WEB_REVIEW`。仅准备合同完成，尚非 CLOSED / implementation PASS / execution PASS。
+**E5-0 状态：** `CLOSED / STREAMING_PREPARATION_CONTRACT_ACCEPTED`（2026-09-16 人工审核接受）。跨发设计为 `DESIGNED / NOT_IMPLEMENTED`；E5-1 未开始，实施与执行仍未授权。
 
 `architecture_choice=USER_FIXED_EXISTING_STREAMING`；`intra_pulse_optical_hydro_overlap=REQUIRED`；
 `production_hr4c_replacement=false`；`implementation_authorized=false`；`formal_execution_authorized=false`；
-`resource_execution_gate=NOT_RELEASED`。
+`resource_execution_gate=NOT_RELEASED`；`s5_entry_gate=ENTRY_BLOCKED_BY_S5_FINAL`。
 
-源码审阅及 start HEAD：`cbfe2e38172b5221d739df80b032e4dee9fab7e3`；S5 execution SHA（历史回执）：`cd456ff8413cbc041d2d60b9b64007a1554028a1`。
+原准备合同的源码审阅及 start HEAD：`cbfe2e38172b5221d739df80b032e4dee9fab7e3`；S5 execution SHA（历史回执）：`cd456ff8413cbc041d2d60b9b64007a1554028a1`。
 两者之间只有文档/旧包差异，本轮未实时查询 S5，244700 的 PENDING 仅为原 HPC 快照。
-文档提交 SHA 在提交后由新包 INDEX/README 绑定；不得把文档 SHA 当执行 SHA。
+原审核包绑定文档 SHA `c377178e909d795b1fce0d4d162ab14845c9c264`；本次仅同步人工接受状态，不重打包、不改包内历史状态，不得把文档 SHA 当执行 SHA。
+
+正式收尾结论与 G1–G6 门见 [E5-0 closeout](E5_0_CLOSEOUT_20260916.md)。
 
 ## 1. 本次有效结论与证据等级
 
 Streaming CURRENT/POST/NEXT、逐 screen 提交、队列、claim、恢复、barrier 和 promotion 保持生产权威。
 同一发 optical–hydro 重叠必须保留；下一发等待前发全域 barrier/promotion。
 HR4D 仅提供已冻结生命周期和时间步规则，HR4C 只用于隔离 Batch 对照。
-旧 c92118f 的 HR4C 主导方案及全 POST 后 hydro 顺序现已 **SUPERSEDED**；旧 ZIP/Git 记录保留，
+旧 c92118f 的 HR4C 主导方案及全 POST 后 hydro 顺序现已 **SUPERSEDED / NOT CURRENT PLAN**；旧 ZIP/Git 记录保留，
 旧方案 generation-0 装配问题撤出当前任务，不再建立修复工作包。
 
 `EXISTING_VERIFIED` 表示下面固定源码确有接口/既有资格有其限定范围，绝不表示新增 N=3 路径已 PASS。

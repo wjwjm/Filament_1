@@ -1,14 +1,16 @@
 # Formal E5-0 定向审计纠偏与准备收口
 
-**状态：** `E5_0_STREAMING_CLOSEOUT_READY_FOR_WEB_REVIEW`。仅准备合同完成，尚非 CLOSED / implementation PASS / execution PASS。
+**E5-0 状态：** `CLOSED / STREAMING_PREPARATION_CONTRACT_ACCEPTED`（2026-09-16 人工审核接受）。跨发设计为 `DESIGNED / NOT_IMPLEMENTED`；E5-1 未开始，实施与执行仍未授权。
 
 `architecture_choice=USER_FIXED_EXISTING_STREAMING`；`intra_pulse_optical_hydro_overlap=REQUIRED`；
 `production_hr4c_replacement=false`；`implementation_authorized=false`；`formal_execution_authorized=false`；
-`resource_execution_gate=NOT_RELEASED`。
+`resource_execution_gate=NOT_RELEASED`；`s5_entry_gate=ENTRY_BLOCKED_BY_S5_FINAL`。
 
-源码审阅及 start HEAD：`cbfe2e38172b5221d739df80b032e4dee9fab7e3`；S5 execution SHA（历史回执）：`cd456ff8413cbc041d2d60b9b64007a1554028a1`。
+原准备合同的源码审阅及 start HEAD：`cbfe2e38172b5221d739df80b032e4dee9fab7e3`；S5 execution SHA（历史回执）：`cd456ff8413cbc041d2d60b9b64007a1554028a1`。
 两者之间只有文档/旧包差异，本轮未实时查询 S5，244700 的 PENDING 仅为原 HPC 快照。
-文档提交 SHA 在提交后由新包 INDEX/README 绑定；不得把文档 SHA 当执行 SHA。
+原审核包绑定文档 SHA `c377178e909d795b1fce0d4d162ab14845c9c264`；本次仅同步人工接受状态，不重打包、不改包内历史状态，不得把文档 SHA 当执行 SHA。
+
+正式收尾结论与 G1–G6 门见 [E5-0 closeout](E5_0_CLOSEOUT_20260916.md)。
 
 ## 1. 审计继承与纠偏
 
@@ -151,10 +153,10 @@ S4R1+4 02:59:28、1+2 03:44:29，1+6 NOT TESTED/RESOURCE_UNAVAILABLE；S5 clean0
 | S5证据 | live squeue+sacct+controller+persisted exact/provenance及F01–F06跨SHA继承；不能用户投票豁免 |
 | 启动/执行验证 | 固定Filament_python interpreter/imports、device mapping/model/driver/CUDA、每task RSS/VRAM/I/O；80%内存、25%磁盘余量；用prologue和每pulse receipts留存 |
 
-## 8. 最少待批准集合
+## 8. 人工接受后的剩余授权
 
-人工接受派生prefix/PRE0及保留合同；单独授权最小glue实施/定向测试；确认实际资源预算并另行授权HPC提交。
-Streaming路线已由用户固定，不再提请选型；S5 PASS是证据门。准备就绪不等于E5-0 CLOSED，更不等于作业许可。
+派生prefix/PRE0及保留方案已在准备合同层面人工接受；最小glue实施/定向测试、实际资源预算及HPC提交仍需分别授权。
+Streaming路线已由用户固定，不再提请选型；S5 PASS是证据门。E5-0 现已 CLOSED，仅指准备合同接受，不是作业许可。
 
 ## 9. 本轮小型输入回执实核与历史区别
 

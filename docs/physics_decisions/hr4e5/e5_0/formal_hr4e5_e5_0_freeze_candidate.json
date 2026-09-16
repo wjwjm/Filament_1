@@ -1,7 +1,7 @@
 {
   "schema": "filament.hr4e5.e5_0_freeze_candidate.v3",
   "hash_scope": "classified_by_record",
-  "status": "E5_0_STREAMING_CLOSEOUT_READY_FOR_WEB_REVIEW",
+  "status": "CLOSED / STREAMING_PREPARATION_CONTRACT_ACCEPTED",
   "repository": "wjwjm/Filament_1",
   "source_review_sha": "cbfe2e38172b5221d739df80b032e4dee9fab7e3",
   "execution_baseline_sha": "cd456ff8413cbc041d2d60b9b64007a1554028a1",
@@ -352,8 +352,29 @@
     "PRE0 materialized hashes and input/config/schedule/LUT strict provenance"
   ],
   "later_user_authorization_required": [
-    "accept this derived prefix/input and retention contract",
-    "authorize bounded glue implementation and tests",
-    "approve actual resource request and separately authorize HPC submission"
+    "authorize bounded Streaming cross-pulse glue implementation",
+    "approve actual resource/quota/QoS/retention request",
+    "explicitly authorize E5-1 submission after G1-G5"
+  ],
+  "status_scope": "E5-0 preparation contract only; existing status is the authoritative e5_0_status equivalent",
+  "s5_entry_gate": "ENTRY_BLOCKED_BY_S5_FINAL",
+  "e5_1_status": "NOT_STARTED",
+  "e5_2_status": "NOT_STARTED",
+  "cross_pulse_design_status": "DESIGNED / NOT_IMPLEMENTED",
+  "acceptance_record": {
+    "date": "2026-09-16",
+    "basis": "explicit user-provided manual-review closeout task",
+    "accepted_document_commit": "c377178e909d795b1fce0d4d162ab14845c9c264",
+    "accepted_package_commit": "9f64b8cb4c6a0c952e7ad64a1487e9fa1fc21b2c",
+    "closeout_document": "E5_0_CLOSEOUT_20260916.md",
+    "scope": "design/preparation only; no implementation or execution authorization"
+  },
+  "status_history": [
+    {
+      "date": "2026-09-16",
+      "status": "E5_0_STREAMING_CLOSEOUT_READY_FOR_WEB_REVIEW",
+      "classification": "HISTORICAL / NOT CURRENT STATUS",
+      "transition": "manual review accepted -> CLOSED / STREAMING_PREPARATION_CONTRACT_ACCEPTED"
+    }
   ]
 }

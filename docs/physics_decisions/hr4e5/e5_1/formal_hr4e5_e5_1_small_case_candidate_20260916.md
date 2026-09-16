@@ -1,14 +1,16 @@
 # E5-1 连续前缀三发工程验证候选
 
-**状态：** `E5_0_STREAMING_CLOSEOUT_READY_FOR_WEB_REVIEW`。仅准备合同完成，尚非 CLOSED / implementation PASS / execution PASS。
+**E5-0 状态：** `CLOSED / STREAMING_PREPARATION_CONTRACT_ACCEPTED`（2026-09-16 人工审核接受）。跨发设计为 `DESIGNED / NOT_IMPLEMENTED`；E5-1 未开始，实施与执行仍未授权。
 
 `architecture_choice=USER_FIXED_EXISTING_STREAMING`；`intra_pulse_optical_hydro_overlap=REQUIRED`；
 `production_hr4c_replacement=false`；`implementation_authorized=false`；`formal_execution_authorized=false`；
-`resource_execution_gate=NOT_RELEASED`。
+`resource_execution_gate=NOT_RELEASED`；`s5_entry_gate=ENTRY_BLOCKED_BY_S5_FINAL`。
 
-源码审阅及 start HEAD：`cbfe2e38172b5221d739df80b032e4dee9fab7e3`；S5 execution SHA（历史回执）：`cd456ff8413cbc041d2d60b9b64007a1554028a1`。
+原准备合同的源码审阅及 start HEAD：`cbfe2e38172b5221d739df80b032e4dee9fab7e3`；S5 execution SHA（历史回执）：`cd456ff8413cbc041d2d60b9b64007a1554028a1`。
 两者之间只有文档/旧包差异，本轮未实时查询 S5，244700 的 PENDING 仅为原 HPC 快照。
-文档提交 SHA 在提交后由新包 INDEX/README 绑定；不得把文档 SHA 当执行 SHA。
+原审核包绑定文档 SHA `c377178e909d795b1fce0d4d162ab14845c9c264`；本次仅同步人工接受状态，不重打包、不改包内历史状态，不得把文档 SHA 当执行 SHA。
+
+正式收尾结论与 G1–G6 门见 [E5-0 closeout](../e5_0/E5_0_CLOSEOUT_20260916.md)。
 
 ## 推荐域与合法性（设计，不是运行结果）
 
@@ -84,4 +86,5 @@ sha256_array是 dtype+NUL+canonical JSON shape+NUL+C-order字节；NPZ文件raw 
 
 两轨保留全部科学payload（含现有full source）=669,587,300,928 B (623.601769 GiB)；推荐可用容量/配额≥851,693,145,010 B (793.201053 GiB)。
 细账见 resource_budget CSV；这已超过原180GiB filesystem快照，现有证据不能释放资源门。
-S5 terminal PASS、派生输入人工接受、glue实施与定向测试、PRE0/源/LUT/schedule哈希、实际site资源以及单独提交授权仍未满足。
+派生输入候选的设计已人工接受；S5 terminal PASS、glue实施与定向测试、PRE0/源/LUT/schedule物化哈希、实际site资源以及单独提交授权仍未满足。
+E5-1 当前状态：NOT STARTED / NOT AUTHORIZED TO RUN；IMPLEMENTATION + RESOURCE GATES PENDING。
