@@ -1,10 +1,15 @@
 {
-  "schema": "filament.hr4e5.e5_0_freeze_candidate.v1",
-  "status": "E5_0_READY_FOR_MANUAL_REVIEW",
+  "schema": "filament.hr4e5.e5_0_freeze_candidate.v2",
+  "status": "E5_0_AUTHORITY_INTERFACE_READY_FOR_MANUAL_REVIEW",
   "repository": "wjwjm/Filament_1",
   "review_branch": "codex/hr4e5s-s5-lifecycle",
-  "review_sha_at_audit_start": "2613778adbb19428ac027145a840f91dd04a7515",
+  "review_sha": "075a3f796dc7722fa167cef64b3b0685271382e0",
   "execution_baseline_sha": "cd456ff8413cbc041d2d60b9b64007a1554028a1",
+  "entry_gate": "ENTRY_BLOCKED_BY_S5_FINAL",
+  "design_continuation_authorized": true,
+  "implementation_authorized": false,
+  "formal_execution_authorized": false,
+  "slurm_or_gpu_side_effects_authorized": false,
   "s5_final_status_snapshot": {
     "job_id": "244700",
     "state": "PENDING",
@@ -16,182 +21,144 @@
     "snapshot_date": "2026-09-16",
     "controller_state": "WAIT_FOR_DUAL_CLAIMS",
     "signal_sent": false,
-    "recovery_job_id": null,
-    "entry_gate": "ENTRY_BLOCKED_BY_S5_FINAL"
+    "recovery_job_id": null
   },
   "evidence_sources": {
     "hpc_audit": "docs/physics_decisions/hr4e5_hpc_audit_pack_20260916.md",
-    "design_draft": "docs/physics_decisions/hr4e5/e5_0/formal_hr4e5_task_design_draft.md",
+    "authority_design": "docs/physics_decisions/hr4e5/e5_0/formal_hr4e5_e5_0_authority_interface_design_20260916.md",
+    "authority_contract": "docs/physics_decisions/hr4e5/e5_0/formal_hr4e5_e5_0_authority_contract.json",
+    "small_case_design": "docs/physics_decisions/hr4e5/e5_1/formal_hr4e5_e5_1_small_case_candidate_20260916.md",
     "config": {
       "path": "Filament_python/results/hr4e5s_s5_1r_238355_failure_audit/real_post_input_config.json",
       "hash_scope": "raw_bytes_sha256",
       "sha256": "eaec83ad326a29af95881912db76a7e5c26943dec9e0d6876ca9c9cc2a100c22"
     },
-    "post_reference_manifest": "Filament_python/results/hr4e5s_s5_1r_238355_failure_audit/post_reference_manifest.json",
     "prepared_input_manifest": {
       "path": "Filament_python/results/hr4e5s_s5_1r_238355_failure_audit/hr4e5s_s5_input_manifest.json",
       "hash_scope": "raw_bytes_sha256",
       "sha256": "280d8d1f47b8cf4cdca1ae51bea24706a461fe31562e9fa2d0a3d2ab6b5f5a8a"
     },
-    "source_state": {
-      "hash_scope": "raw_bytes_sha256",
-      "sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
-      "array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9"
-    },
     "source_manifest": {
       "hash_scope": "raw_bytes_sha256",
       "sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2"
     },
-    "code": [
-      "Filament_python/KHz_filament/hr4d_pulse_lifecycle.py",
-      "Filament_python/KHz_filament/hr4c_state.py",
-      "Filament_python/KHz_filament/hr4e5s_streaming.py",
-      "Filament_python/KHz_filament/hr4e5s_s3.py",
-      "Filament_python/KHz_filament/runner.py"
+    "code": {
+      "hr4d_pulse_lifecycle.py": "8adaf3bdd33093efb9fa0d2f7670dae3adea08b2",
+      "hr4c_state.py": "6f82e2a6291d3ac42deb5a15a56ef5f570ca87d0",
+      "hr4e5s_streaming.py": "d6c1341791fdd7fd131136bac7939997e24f94d8",
+      "hr4e5s_s3.py": "769c9af73bbbdbc817e7680e4648c30c58df83cb",
+      "runner.py": "cfa174197e2aefc3e484b18a33ea05d3efde1a00",
+      "propagate.py": "f156111398415c2b92e4609ccc1da075fcf5d1e3"
+    }
+  },
+  "selected_authority_model": {
+    "name": "HR4D_CONTROLLER_BACKED_BY_HR4C_THREE_FIELD_STORE",
+    "canonical_fields": ["delta_n", "vx", "vy"],
+    "authority_rule": "The HR4C manifest-selected slot is the only canonical PRE or POST state for formal E5.",
+    "pulse_index_authority": "HR4DPulseController authoritative metadata",
+    "generation_authority": "HR4C manifest generation bound to HR4D state_generation",
+    "restart_constructor": "HR4DPulseController(..., resume=True) -> HR4CThreeFieldStore.open_existing(...)",
+    "prohibited": [
+      "independent Streaming CURRENT/POST/NEXT authority",
+      "formal authoritative_generation.json",
+      "adapter-owned pulse counter",
+      "adapter-owned authority promotion"
     ]
   },
-  "scientific_parameter_sources": [
-    {
-      "parameter": "optical_source_and_grid",
-      "effective_value": "lam0=8e-7 m; tau_fwhm=1.2e-13 s; P0_peak=1.7e10 W; flat_top_cosine w0=1.979e-3 m; f=0.95 m; Nx,Ny,Nt=301,351,384; Lx,Ly,Twin=0.00301,0.00351,9.6e-13",
-      "source_file": "real_post_input_config.json",
-      "source_keys": ["beam", "grid"],
-      "status": "INHERITED_FROZEN"
-    },
-    {
-      "parameter": "optical_operator_and_schedule",
-      "effective_value": "dz=1e-4 m; dz_focus=5e-5 m; focus_window_step=true; z_max=1.3 m; fp64",
-      "source_file": "real_post_input_config.json; post_reference_manifest.json",
-      "source_keys": ["propagation", "dtype_requested"],
-      "status": "INHERITED_FROZEN"
-    },
-    {
-      "parameter": "gas_ionization_raman",
-      "effective_value": "n0=1.00027; n2_air=7.8e-24; full-time RK4 PPT Talebpour LUT; full Isaacs Eq.27 Raman",
-      "source_file": "real_post_input_config.json",
-      "source_keys": ["beam", "ionization", "raman", "propagation"],
-      "status": "INHERITED_FROZEN"
-    },
-    {
-      "parameter": "hr2_hr3",
-      "effective_value": "HR-3B enabled; HR-3C disabled; selected S3 POST requires authoritative HR-3A/HR-3B",
-      "source_file": "real_post_input_config.json; hr4e5s_s3.py",
-      "source_keys": ["heat.hr3b_enabled", "heat.hr3c_enabled", "StreamingLifecycle.commit_post"],
-      "status": "INHERITED_FROZEN"
-    },
-    {
-      "parameter": "hydro_operator",
-      "effective_value": "dx=dy=1e-5 m; dt_hydro=1e-6 s; n_hydro_steps=1000; chi=2.17e-5 m2/s; nu=1.5e-5 m2/s; gravity=(0,-9.81); cfl=1",
-      "source_file": "hr4e5s_s5_input_manifest.json",
-      "source_keys": ["hydro", "dx_m", "dy_m"],
-      "status": "INHERITED_FROZEN"
-    },
-    {
-      "parameter": "f_rep_and_interpulse_schedule",
-      "effective_value": "f_rep=1000 Hz; build_interpulse_step_schedule(f_rep, dt_hydro)",
-      "source_file": "real_post_input_config.json; hr4d_pulse_lifecycle.py",
-      "source_keys": ["heat.f_rep", "build_interpulse_step_schedule"],
-      "status": "INHERITED_FROZEN"
-    },
-    {
-      "parameter": "qualification_window",
-      "effective_value": "one pulse; indices 7998..8045; block_size=8; queue_depth=16",
-      "source_file": "hr4e5s_s5_input_manifest.json",
-      "source_keys": ["screen_indices", "hydro.block_size", "hydro.queue_depth", "run.Npulses"],
-      "status": "QUALIFICATION_ONLY_NOT_FORMAL"
-    },
-    {
-      "parameter": "historical_full_z_shape",
-      "effective_value": "[15000,351,301] float64",
-      "source_file": "post_reference_manifest.json",
-      "source_keys": ["hr3b_state_shape", "hr3b_state_dtype"],
-      "status": "QUALIFICATION_ONLY_NOT_FORMAL"
-    },
-    {
-      "parameter": "formal_pulse_endpoint_case_and_thresholds",
-      "effective_value": null,
-      "source_file": null,
-      "source_keys": [],
-      "status": "USER_AUTHORIZATION_REQUIRED"
-    },
-    {
-      "parameter": "multi_pulse_checkpoint_and_retention_policy",
-      "effective_value": null,
-      "source_file": null,
-      "source_keys": [],
-      "status": "MISSING_FORMAL_VALUE"
-    }
-  ],
-  "pulse_lifecycle_contract": {
-    "implemented_hr4d_path": "PRE_p -> fresh source_template.copy -> caller pulse_runner -> atomic POST_p -> exact 1/f_rep HR4C evolution -> PRE_(p+1); terminal POST_final",
-    "fresh_field_evidence": "hr4d_pulse_lifecycle.run_one_pulse_transition and runner.py E_source/E_pulse",
-    "final_pulse_extra_interpulse": false,
-    "restart_authority": "HR4C manifest / authoritative slot mapping; Streaming manifest plus authoritative_generation pointer",
-    "illustrative_counts_only": {
-      "3_pulses": {"fresh_optical_calls": 3, "post_commits": 3, "interpulse_evolutions": 2, "terminal": "POST_final"},
-      "5_pulses": {"fresh_optical_calls": 5, "post_commits": 5, "interpulse_evolutions": 4, "terminal": "POST_final"}
-    }
+  "authority_roles": {
+    "HR4CThreeFieldStore": ["AUTHORITATIVE_STATE_STORE", "TRANSACTION_STAGING"],
+    "HR4DPulseController": ["PULSE_LIFECYCLE_CONTROLLER", "PROVENANCE_INDEX"],
+    "HR4DPulseTransaction": ["TRANSACTION_STAGING", "OPTICAL_HR3_INTERFACE"],
+    "future_HR4C_aware_streaming_adapter": ["STREAMING_EXECUTION_ADAPTER", "TRANSACTION_STAGING"],
+    "S3ReadOnlyCurrentState": ["READ_ONLY_VIEW"],
+    "existing_StreamingLifecycle_pointer": ["QUALIFICATION_ONLY", "DIAGNOSTIC_ONLY"]
   },
-  "multipulse_entry_status": {
-    "verdict": "EXISTING_ENTRY_PARTIAL",
-    "implemented_components": ["HR4DPulseController lifecycle", "HR4C atomic generations", "runner fresh field copies", "Streaming per-screen restart/barrier/promotion"],
-    "missing_minimal_glue": ["real full-z optical/HR-3 POST to HR4D/Streaming bridge", "authoritative PRE injection for following pulse", "generation and namespace rollover", "multi-pulse output/provenance/restart namespace"],
-    "implementation_authorized": false
+  "cross_pulse_interface": {
+    "pre_p": "canonical HR4C PRE generation with {phase=PRE, pulse_index=p}",
+    "optical_input": "FreshOpticalInput(p) = immutable E_source.copy(); optical output is never inherited",
+    "optical_read": "propagate_one_pulse reads PRE.delta_n once for each interval; vx and vy remain canonical fields",
+    "post_mapping": "POST.delta_n = PRE.delta_n + authoritative HR3B increment; POST.vx = PRE.vx; POST.vy = PRE.vy",
+    "post_commit": "all intervals exactly once, then one atomic HR4C POST commit",
+    "hydro": "exact 1/f_rep schedule from build_interpulse_step_schedule; frozen advance_hr4_single_screen reused unchanged",
+    "adapter": "may stage per-screen NEXT and emit barrier receipts keyed to source POST generation; never becomes authority",
+    "next_pre_commit": "after complete barrier, coordinator fills HR4C staging and atomically commits PRE_(p+1); generation and pulse index advance exactly once",
+    "terminal": "final pulse commits POST_final; no final interpulse transition"
   },
-  "small_case_status": {
-    "verdict": "NOT_A_LEGAL_MULTIPULSE_CASE",
-    "scope": "S3/S4R/S5 use one-pulse 48 selected HR-3/Streaming/Hydro records while complete frozen optical propagation remains active",
-    "not_a_short_z_domain": true,
-    "screen_indices": "7998..8045 around source peak 8022",
-    "direct_e5_1_use_authorized": false
-  },
-  "full_z_state_model": {
-    "fields": ["delta_n", "vx", "vy"],
+  "pre0_contract": {
+    "phase": "PRE",
+    "pulse_index": 0,
+    "generation": 0,
+    "shape": [15000, 351, 301],
     "dtype": "float64",
-    "one_generation_formula": "3*K*Ny*Nx*dtype_bytes",
-    "hr4c_persistent_formula": "2*one_generation",
-    "streaming_persistent_formula": "3*one_generation for CURRENT+POST+NEXT",
-    "promotion_cleanup_demonstrated": false,
-    "multi_pulse_streaming_rollover_demonstrated": false,
-    "hr4c_streaming_coexistence": "UNKNOWN_REQUIRES_POLICY"
+    "dx_m": 0.00001,
+    "dy_m": 0.00001,
+    "z_identity": "full frozen longitudinal schedule; exact z-edge binding remains required at future preflight",
+    "delta_n": {
+      "classification": "INHERITED_FROZEN_ARRAY",
+      "source": "E1B HR-3B source array",
+      "raw_file_sha256": "70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467",
+      "array_sha256": "5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9",
+      "lifecycle_interpretation": "inherited initial refractive-index state"
+    },
+    "vx": {
+      "classification": "FROZEN_ZERO_INITIALIZATION_RULE",
+      "initialization": "deterministic float64 zeros in existing HR4C batch initializer",
+      "lifecycle_interpretation": "new ambient PRE velocity, not inherited pulse history",
+      "qualification_evidence": "HR4C initialize_from_legacy_delta_n and S3 zeros_like(selected)",
+      "materialized_raw_sha256": "REQUIRED_AT_FUTURE_PRE0_PREFLIGHT"
+    },
+    "vy": {
+      "classification": "FROZEN_ZERO_INITIALIZATION_RULE",
+      "initialization": "deterministic float64 zeros in existing HR4C batch initializer",
+      "lifecycle_interpretation": "new ambient PRE velocity, not inherited pulse history",
+      "qualification_evidence": "HR4C initialize_from_legacy_delta_n and S3 zeros_like(selected)",
+      "materialized_raw_sha256": "REQUIRED_AT_FUTURE_PRE0_PREFLIGHT"
+    },
+    "config_raw_sha256": "eaec83ad326a29af95881912db76a7e5c26943dec9e0d6876ca9c9cc2a100c22",
+    "source_manifest_raw_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
+    "verdict": "CANDIDATE_COMPLETE_RULES_PENDING_MATERIALIZED_THREE_FIELD_HASHES"
   },
-  "storage_budget": {
-    "illustrative_input_not_formal": {"K": 15000, "Ny": 351, "Nx": 301, "dtype_bytes": 8},
-    "one_generation": {"bytes": 38034360000, "gib": 35.422258079052},
-    "hr4c_authoritative_plus_staging": {"bytes": 76068720000, "gib": 70.844516158104},
-    "streaming_current_post_next_raw_payload": {"bytes": 114103080000, "gib": 106.266774237156},
-    "conservative_hr4c_plus_streaming_raw_payload": {"bytes": 190171800000, "gib": 177.11129039526},
-    "one_atomic_npz_raw_payload": {"bytes": 2535624, "mib": 2.418159484863},
-    "hr4c_block_8_working_set_estimate": {"bytes": 50712480, "mib": 48.363189697266},
-    "formal_run_root_complete_budget": "UNKNOWN_REQUIRES_POLICY",
-    "exclusions": ["NPZ/header/filesystem overhead", "optical fields", "diagnostics and deposition archives", "LUT/cache", "logs", "checkpoints", "retained prior pulse roots"]
+  "e5_1_small_case_candidate": {
+    "verdict": "E5_1_SMALL_CASE_REQUIRES_FULL_Z",
+    "engineering_pulse_count": 3,
+    "reason": "two independent POST-to-PRE rollovers and terminal POST_final",
+    "domain": "complete frozen optical schedule with complete slow-state coverage",
+    "old_48_screen_manifest": "qualification evidence only; prohibited as E5-1 state domain",
+    "scientific_campaign_pulse_count": "NOT_SELECTED",
+    "authorized_to_run": false
   },
-  "runtime_environment": {
-    "interpreter_path": "/data/home/scvi806/.conda/envs/Filament_python/bin/python",
-    "python": "3.13.7",
-    "cupy": "13.6.0",
-    "numpy": "2.3.3",
-    "scipy": "1.16.3",
-    "backend_requirement": "CuPy GPU",
-    "gpu_model_vram_driver_cuda": "NOT_VERIFIED"
+  "e5_1_reference_design": {
+    "reference": "serial HR4D-authority path",
+    "candidate": "same HR4C authority plus non-authoritative streaming adapter",
+    "identical_inputs": ["PRE0", "Npulses=3", "frozen optical source", "full z schedule", "frozen operators", "precision", "config"],
+    "per_pulse_exact_objects": ["fresh-source identity", "PRE hashes", "POST hashes", "HR3 deposition ledger", "barrier receipt", "next PRE hashes", "phase/generation/pulse counters"],
+    "global_gates": ["no duplicate interval", "no skipped interval", "no cross-pulse namespace collision", "restart receipts", "POST_final"]
   },
-  "missing_evidence": [
-    "normal QoS numeric walltime/TRES limits",
-    "user/project/filesystem quota",
-    "retention or purge policy",
-    "GPU model, VRAM, driver, CUDA runtime, and visible-device mapping",
-    "observed CPU MaxRSS/TotalCPU, GPU peak memory, and disk I/O",
-    "formal multi-pulse storage/checkpoint/cleanup policy",
-    "formal integrated entry realization"
-  ],
-  "user_authorization_required": [
-    "verified S5-FINAL terminal PASS before entry release",
-    "formal science question, control/reference, endpoint, and Npulses",
-    "formal binding to a named frozen source/config/state baseline",
-    "topology 1+4 or 1+2, allocation strategy, walltime, CPU and memory request",
-    "state retention/checkpoint/cleanup policy and HR4C/Streaming authority design",
-    "engineering/numerical acceptance thresholds and diagnostic retention",
-    "separate minimal orchestration implementation request"
-  ],
-  "formal_execution_authorized": false
+  "resource_model_selected_architecture": {
+    "G_formula": "3*K*Ny*Nx*8",
+    "illustrative_geometry_not_formal": {"K": 15000, "Ny": 351, "Nx": 301, "dtype": "float64", "G_gib": 35.422258079052},
+    "steady_canonical_state": "2G = 70.845 GiB raw two-slot HR4C payload",
+    "conditional_hydro_transaction": "2G + G adapter NEXT staging = 3G = 106.267 GiB raw payload",
+    "caller_side_s3_initializer_excluded": "full-volume selected plus shared zero arrays = 23.615 GiB host payload, in addition to mapped source",
+    "minimum_optical_gpu_payload": "immutable fp64 complex source plus working copy = 1.209 GiB before kernels and diagnostics",
+    "retention_formulas": {
+      "no_full_history": "2G plus receipts and selected diagnostics",
+      "C_selected_full_checkpoints": "2G + C*G plus named payload",
+      "every_pulse_full_checkpoints": "2G + N*G plus named payload"
+    },
+    "campaign_peak_or_quota_conclusion": "NOT_A_BOUND; retention, diagnostics, checkpoints, optical buffers, worker buffers, atomic temporaries, filesystem overhead and site policy are additional"
+  },
+  "minimal_glue_change_request": {
+    "status": "DRAFT_ONLY_NOT_AUTHORIZED",
+    "classes_reused_unchanged": ["propagate_one_pulse", "HR4CThreeFieldStore", "HR4DPulseController", "advance_hr4_single_screen", "HR2", "HR3", "ionization", "Raman"],
+    "proposed_changes": [
+      {"area": "formal entry", "classification": "RUNTIME_ENTRY_ONLY"},
+      {"area": "HR4C-aware adapter", "classification": "ORCHESTRATION_ONLY"},
+      {"area": "receipts/manifests", "classification": "PROVENANCE_ONLY"},
+      {"area": "tiny N=3 and restart tests", "classification": "TEST_ONLY"}
+    ],
+    "scientific_operator_change": "BLOCKER_NOT_PART_OF_REQUEST"
+  },
+  "known_unverified_site_facts": ["quota", "purge policy", "normal QoS numeric limits", "GPU model", "VRAM", "CUDA/driver", "observed RSS", "observed GPU peak memory", "I/O", "formal retention policy"],
+  "later_user_authorization_required": ["verified S5-FINAL terminal PASS", "minimal implementation task", "formal science endpoint and Npulses", "materialized PRE0 hashes", "retention/checkpoint policy", "site resource authorization", "acceptance thresholds"]
 }

@@ -6,32 +6,38 @@ runtime, LUT, production-input, historical-result, or Slurm-job modification.
 
 ## 1. Executive decision
 
-E5-0 has produced an auditable design packet, but it has **not** frozen a
-formal execution contract.  The primary entry gate remains
+E5-0 has now selected a single authority/interface design, but it has **not**
+authorized an implementation or frozen a formal scientific execution contract.
+The primary entry gate remains
 `ENTRY_BLOCKED_BY_S5_FINAL`: at the read-only snapshot on 2026-09-16,
 S5-FINAL job `244700` is `PENDING (Priority)`, has not been allocated, and
 there is no recovery job.
 
 Two design findings govern the next review:
 
-1. **Multi-pulse entry verdict: `EXISTING_ENTRY_PARTIAL`.**  The repository
-   has a tested HR-4D PRE/POST/interpulse controller and it has a runner that
-   makes a fresh optical-field copy per pulse, but it has no single production
-   entry that binds the real full-z optical/HR-3 POST path, the HR-4D
-   controller, and Streaming CURRENT/POST/NEXT across formal pulses.
-2. **48-screen verdict: `NOT_A_LEGAL_MULTIPULSE_CASE`.**  S3/S4R/S5 exercise
+1. **Selected authority: HR-4D/HR-4C only.**  `HR4DPulseController` backed by
+   `HR4CThreeFieldStore` is the one canonical PRE/POST/next-PRE store. A future
+   Streaming component is an `STREAMING_EXECUTION_ADAPTER` only: restartable
+   per-screen staging and barrier evidence, never a second pointer-driven
+   authority or pulse counter.
+2. **Multi-pulse entry verdict: `EXISTING_ENTRY_PARTIAL`.**  The repository
+   has the HR-4D PRE/POST/interpulse lifecycle and fresh optical copies, but
+   has no production entry that binds real full-z optical/HR-3 POST to that
+   selected authority and a non-authoritative adapter.
+3. **48-screen verdict: `NOT_A_LEGAL_MULTIPULSE_CASE`.**  S3/S4R/S5 exercise
    a one-pulse, 48-record qualification window while the optical path still
    propagates the complete frozen longitudinal schedule.  They are neither a
    48-step optical propagation nor a legal small multi-pulse E5-1 input.
 
-The observed full-z payload model is large enough to require an explicit
-retention policy before any run.  For the illustrative historical geometry
-`K=15000`, `Ny=351`, `Nx=301`, float64, the raw data-payload lower bounds are
-35.422 GiB for one three-field generation, 70.845 GiB for HR-4C's two slots,
-106.267 GiB for Streaming CURRENT+POST+NEXT, and 177.111 GiB if both stores
-coexist.  These exclude NPZ/container overhead, temporary files, diagnostics,
-optical fields, LUT/cache, logs, and unselected checkpoints; they are not an
-authorization to use `K=15000` in formal E5.
+For the historical illustrative geometry `K=15000`, `Ny=351`, `Nx=301`,
+float64, one three-field generation is `G=35.422 GiB`. The selected canonical
+HR4C two-slot state is `2G=70.845 GiB`; conditional full NEXT adapter staging
+during one hydro transaction adds `G`, for `3G=106.267 GiB`. These are
+architecture-specific raw payloads, **not** a campaign-peak range or a quota
+claim. Checkpoints, retention, diagnostics, optical fields, atomic temporaries,
+worker buffers, filesystem overhead, and history remain additional and policy
+dependent. The historical `3G` Streaming and `5G` coexistence sums are not a
+formal E5 design or a storage bound.
 
 ## 2. Fixed evidence identity and boundary
 
@@ -52,6 +58,19 @@ that job.  Main evidence sources are the two existing decision documents,
 the S5 prepared input and provenance copied under
 `Filament_python/results/hr4e5s_s5_1r_238355_failure_audit/`, and the source
 modules cited below.
+
+### 2.1 Formal PRE_0 candidate is three fields, not one file
+
+`PRE_0 = {delta_n, vx, vy}` has common shape `[15000,351,301]`, dtype
+float64, frozen full-z identity, `dx=dy=1e-5 m`, generation `0`, phase `PRE`,
+and pulse index `0` in the candidate contract. `delta_n` is the inherited E1B
+HR-3B array (raw-file SHA `70677c01564ad089d985214e2767a221f10c5e1ef97f42a9f367a89edf81f467`,
+array SHA `5990da24bec80937bf3be9985777b3797be9adffedb776dd2f2e840b118d8ad9`).
+`vx` and `vy` are not missing physical data: each is a deterministic float64
+zero initialization in the existing HR4C batch initializer, consistent with
+the S3 `zeros_like(selected)` qualification initializer. Both velocity fields
+must nevertheless be materialized non-destructively and hashed in a future
+PRE_0 preflight; this task creates no arrays.
 
 ## 3. Real multi-pulse call graph and authority
 
@@ -77,7 +96,7 @@ HR4DPulseController.store authoritative PRE_p (six-slot HR4C memmap)
 | PRE -> POST | `HR4DPulseController.begin_pulse_transition`, `HR4DPulseTransaction.finalize`, `_commit_post_transition` | all three fields are staged then atomically become POST generation. |
 | Interpulse duration | `run_interpulse_transition` | `build_interpulse_step_schedule(f_rep, dt_hydro)` supplies exactly the decomposed `1/f_rep` schedule. |
 | POST -> next PRE | `evolve_hr4_full_z` and HR4C `commit_staging` | six persistent slots swap authoritative/staging names atomically in the manifest. |
-| Restart | `HR4DPulseController.open` plus HR4C manifest | the authoritative generation, phase, pulse index, and transaction state are recovered from the HR4C manifest. |
+| Restart | `HR4DPulseController(..., resume=True)` -> `HR4CThreeFieldStore.open_existing(...)` | the authoritative generation, phase, pulse index, and transaction state are recovered from the HR4C manifest. There is no `HR4DPulseController.open`. |
 | Completion | `_metadata_for`, `run_hr4_pulse_train` | only `POST` at `pulse_index == n_pulses - 1` is complete. |
 
 The general runner (`runner.py`) independently implements fresh copies as
@@ -121,12 +140,13 @@ tests, not by the production runner or S3/S4R/S5 runtime.  Conversely,
 `hr4e5s_s3.run_optical_path` uses a single complete optical trajectory and
 the S3 streaming lifecycle, not HR-4D pulse orchestration.
 
-The smallest identified missing work is orchestration glue, subject to a
-separate review:
+The smallest identified missing work is selected-authority orchestration glue,
+subject to a separate review:
 
 - inject authoritative full-z PRE state into each fresh optical pulse;
-- bind real propagation/HR-3 POST production to exactly one HR-4D/Streaming
-  authority model rather than duplicating ownership;
+- bind real propagation/HR-3 POST production to the HR-4D/HR-4C authority;
+- make any Streaming implementation a non-authoritative staging/barrier adapter
+  with no `authoritative_generation.json` in the formal root;
 - define generation, namespace, output, and provenance rollover for each
   subsequent pulse; and
 - bind restart receipts and pulse-history metadata to that entry.
@@ -158,15 +178,15 @@ only persists selected screen records.  The 48 records are therefore
 HR-3/Streaming/Hydro qualification points, not optical z steps and not a
 shortened propagation domain.
 
-**E5-1 suitability verdict: `NOT_A_LEGAL_MULTIPULSE_CASE`.**  It cannot be
-used directly because its prepared input is one-pulse by construction, has
-selected rather than full-z slow-state coverage, and has no PRE/POST/NEXT
-rollover across pulses.  A legal small E5-1 would still need an authorized
-continuous full-z source/schedule, its exact frozen field and slow-state
-provenance, a selected `Npulses`/`f_rep` contract, and the reviewed integrated
-entry.  S3/S4R/S5 may supply only their qualified operator/lifecycle evidence;
-their 48-screen source selection, one-pulse manifest, and 3--4 hour timings
-cannot be reused as the formal E5 domain, pulse contract, or runtime estimate.
+**E5-1 suitability verdict: `E5_1_SMALL_CASE_REQUIRES_FULL_Z`.** The old
+48-screen case cannot be used directly: it is one-pulse by construction, has
+selected rather than complete slow-state coverage, and has no cross-pulse
+rollover. The selected engineering canary is `Npulses=3` over the complete
+frozen z schedule and complete slow-state coverage. N=3 supplies two genuine
+rollovers and terminal `POST_final`; it does not select the later formal
+scientific pulse count. S3/S4R/S5 supply qualification evidence only; their
+48-screen source selection, manifest, and 3--4 hour timings cannot become the
+formal E5 domain, pulse contract, or runtime estimate.
 
 ## 5. Frozen parameter source matrix
 
@@ -214,11 +234,11 @@ selection.  It gives `G=38,034,360,000 B = 35.422 GiB`.
 
 | Object | Owner / location | Layout and lifetime | Authority / simultaneous state | Evidence and confidence |
 | --- | --- | --- | --- | --- |
-| HR-4C authoritative slot | `HR4CThreeFieldStore`, disk-backed memmaps | 3 × `[K,Ny,Nx]` float64; one generation | retained; one of two fixed slots | `hr4c_state.py`; VERIFIED_FROM_CODE |
-| HR-4C staging slot | same | 3 × `[K,Ny,Nx]` float64 | exists through transaction and remains reusable after swap | code; VERIFIED_FROM_CODE |
-| Streaming CURRENT | `current/screen_*.npz` | K three-field 2D float64 records | remains after promotion | streaming code; VERIFIED_FROM_CODE |
-| Streaming POST | `post/screen_*.npz` | K three-field 2D float64 records | required for barrier/restart; no demonstrated post-promotion deletion | code; VERIFIED_FROM_CODE |
-| Streaming NEXT | `next/screen_*.npz` | K three-field 2D float64 records | becomes authoritative by pointer after barrier | code; VERIFIED_FROM_CODE |
+| HR-4C authoritative slot | `HR4CThreeFieldStore`, disk-backed memmaps | 3 × `[K,Ny,Nx]` float64; one generation | retained; selected canonical PRE or POST slot | `hr4c_state.py`; VERIFIED_FROM_CODE |
+| HR-4C staging slot | same | 3 × `[K,Ny,Nx]` float64 | persistent reusable slot; atomically becomes the canonical slot | code; VERIFIED_FROM_CODE |
+| Adapter POST view | future HR4C-aware adapter, read-only HR4C slot | no second full state required | current canonical POST until barrier | selected architecture; DESIGN_REQUIREMENT |
+| Adapter NEXT staging | future HR4C-aware adapter, per-screen files | K three-field 2D float64 records if full restartable staging is selected | conditional through barrier and HR4C commit; never authoritative | streaming code as staging precedent; DESIGN_REQUIREMENT |
+| Historical Streaming CURRENT/POST/NEXT | S3/S4R/S5 qualification roots | K three-field 2D float64 records | retained by historical pointer lifecycle | qualification evidence only; not instantiated by formal E5 | `hr4e5s_streaming.py`; VERIFIED_FROM_CODE |
 | pointer / manifest | JSON at lifecycle root | metadata / hashes / queue / states | durable, negligible relative to arrays | code; VERIFIED_FROM_CODE |
 | atomic NPZ temporary | same directory as destination | one 3-field 2D NPZ while writing | may coexist transiently with committed artifacts | `_atomic_npz`; VERIFIED_FROM_CODE |
 | final optical field | optical run root | saved by `np.save`; exact formal dtype/retention unselected | per optical run | `run_optical_path`; formal size UNKNOWN |
@@ -228,34 +248,32 @@ selection.  It gives `G=38,034,360,000 B = 35.422 GiB`.
 
 ### 6.1 Formulae and evaluated raw-payload lower bounds
 
-| Store / event | Formula | Evaluated illustrative payload |
+| Selected-architecture object / event | Formula | Evaluated illustrative payload | Interpretation |
 | --- | --- | ---: |
-| one three-field generation | `G` | 35.422 GiB |
-| HR-4C authoritative + staging | `2G` | 70.845 GiB |
-| Streaming CURRENT | `G` | 35.422 GiB |
-| Streaming POST | `G` | 35.422 GiB |
-| Streaming NEXT | `G` | 35.422 GiB |
-| Streaming persistent total | `3G` | 106.267 GiB |
-| HR-4C + Streaming if concurrently retained | `5G` | 177.111 GiB |
-| one atomic temporary raw field payload | `3*Ny*Nx*8` | 2.418 MiB |
-| HR-4C operator working-set estimate, block 8 | `(6*8+12)*Ny*Nx*8` | 48.363 MiB host/operator accounting |
+| one three-field generation `G` | `3*K*Ny*Nx*8` | 35.422 GiB | formula reference only |
+| steady canonical HR4C state | `2G` | 70.845 GiB | two persistent slots: authority plus reusable staging |
+| conditional adapter NEXT transaction | `2G + G` | 106.267 GiB | only if full non-authoritative NEXT staging is retained through a barrier |
+| per-screen atomic temporary | `3*Ny*Nx*8` | 2.418 MiB | transient one 2D three-field payload before container overhead |
+| HR4C block-8 operator work set | `(6*8+12)*Ny*Nx*8` | 48.363 MiB | host/operator accounting, not observed RSS |
+| S3 caller initialization (excluded) | `2*Ny*Nx*K*8` | 23.615 GiB | `selected` plus shared `zero`, in addition to mapped source; never use for formal full-z initialization |
+| optical source plus working copy | `2*Nt*Ny*Nx*16` | 1.209 GiB | minimum fp64 complex GPU payload before kernels, diagnostics and transfers |
 
-`70.845 GiB` applies only to HR-4C's two persistent three-field slots.  It
-does not include Streaming, NPZ overhead, final fields, diagnostics, LUTs, or
-historic checkpoints.  The Streaming three-namespace number is an uncompressed
-array-payload lower bound; `np.savez` container/header/metadata, manifest,
-directory and filesystem-allocation overhead are additional.  In existing
-48-screen evidence, CURRENT files occupy 121,844,368 B, whereas their raw
-payload is 121,709,952 B, confirming nonzero container/metadata overhead.
+`70.845 GiB` applies only to HR4C's two persistent three-field slots.  A
+conditional `106.267 GiB` transaction adds non-authoritative full NEXT
+staging; it is not a campaign peak, a quota estimate, or a retained-data
+bound.  The selected design does not retain a second Streaming CURRENT/POST/
+NEXT authority, so the former `5G` coexistence model is intentionally excluded.
+`np.savez` container/header/metadata, manifest, directory and filesystem
+allocation overhead are additional; existing 48-screen CURRENT files confirm
+nonzero overhead.
 
-The code supports a constant two-slot HR-4C store over its own successive
-generations, but it does not establish a formal multi-pulse Streaming rollover
-or retention cleanup.  If independent full lifecycle roots were retained for
-`N` pulses, Streaming raw retained payload is `3*N*G`; if namespaces are to be
-reused, the lower/upper retained result depends on an unimplemented and
-unapproved policy.  Hence the only defensible pre-policy peak range is
-`3G..5G` (106.267..177.111 GiB for the illustration) plus all extras above,
-not a complete run-root allocation.
+Let `C` be explicitly retained full-volume checkpoints and `N` the formal
+pulse count. With no historic full-volume checkpoint, persistent canonical
+state is `2G` plus receipts/selected diagnostics. Selected checkpoints retain
+`2G + C*G` plus their named payload; every-pulse full checkpoints retain
+`2G + N*G` plus named payload. These formulas exclude optical arrays, CPU RSS,
+GPU VRAM, I/O, worker buffers, atomic temporaries, and any policy-selected
+POST/NEXT history. Therefore no campaign peak or quota sufficiency is claimed.
 
 ## 7. HPC resources, environment, and evidence gaps
 
@@ -303,8 +321,9 @@ user/project quota, retention/purge rules, and effective normal-QoS limits.
 
 ## 8. Constraints and required user decisions
 
-No execution should be planned until S5 passes and the following minimal
-decisions are recorded:
+E5-0 design and manual review may continue while S5 is pending. Implementation,
+run-root creation, and submission remain blocked until S5 passes and the
+following later decisions are recorded:
 
 1. Bind the formal science question, control/reference, formal endpoint, and
    `Npulses`; do not infer any of these from illustrations 3, 5, or 15,000.
@@ -312,8 +331,9 @@ decisions are recorded:
    separately reviewed frozen baseline) and bind `f_rep`/full-z schedule to it.
 3. Select 1+4 or 1+2 topology, job/allocation strategy, walltime and memory
    request after site-limit/quota confirmation; do not use 1+6.
-4. Select the authoritative persistence design, checkpoint/POST/NEXT retention
-   and cleanup policy, and whether HR-4C and Streaming ever coexist.
+4. Retain the selected HR4D/HR4C-only authority and select its checkpoint,
+   adapter-staging, and cleanup policy. A formal second Streaming authority is
+   prohibited.
 5. Select engineering/numerical-health acceptance thresholds and diagnostic
    retention; physical pulse-to-pulse trends remain observations, not a
    predeclared engineering PASS condition.
