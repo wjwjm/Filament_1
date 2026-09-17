@@ -217,3 +217,14 @@ def test_s5_final_single_allocation_batch_is_explicit_and_preserves_the_legacy_b
     assert 'recovery_is_new_allocation' in (root / "tools" / "monitor_hr4e5s_s5_final.py").read_text(encoding="utf-8")
     assert 'single_allocation) BATCH="$SINGLE_ALLOCATION_BATCH"' in submit
     assert (root / "tools" / "hr4e5s_s5_final.sbatch").is_file()
+
+
+def test_s5_final_site_observability_probe_is_cpu_only_and_step_scoped():
+    batch = (Path(__file__).resolve().parents[1] / "tools" / "hr4e5s_s5_final_observability_probe.sbatch").read_text(encoding="utf-8")
+    assert "#SBATCH --partition=gpu" in batch
+    assert "--gpus-per-task" not in batch
+    assert "--gres=gpu" not in batch
+    assert 'scancel --signal=TERM "$target_step"' in batch
+    assert 'scontrol listpids "$step"' in batch
+    assert "SIGNAL_SCOPE_TOO_BROAD" in batch
+    assert "TARGET_PID_NOT_PROVEN" in batch
