@@ -1,0 +1,13 @@
+{
+  "zip": "D:\\Filament_1_e5_1a\\review_bundles\\HR4E5_E5_1A_STREAMING_IMPLEMENTATION_WEB_REVIEW_20260916.zip",
+  "sha256": "3b2bed12f25a729effe67bc86f05acd3c9deae40d58009ccc564cba98e502673",
+  "source_commit": "ca75a71122b803f720f11b0367ed51bf1c137b7d",
+  "entries": 60,
+  "crc": "PASS",
+  "index_coverage": "PASS",
+  "checksums": "PASS",
+  "json_csv_structure": "PASS",
+  "paths_unique_safe": "PASS",
+  "extraction_bytes": "PASS",
+  "markdown_links_checked": 14
+}
