@@ -1,0 +1,11 @@
+{
+  "schema": "khz_filament.hr4e5s.s5_final.runtime_resource_preflight.v1",
+  "status": "LOCAL_STATIC_PASS_REMOTE_NOT_RUN",
+  "execution_mode": "SINGLE_ALLOCATION_TWO_EXECUTION_EPOCHS",
+  "requested_topology": {"optical_gpus": 1, "hydro_gpus": 2, "total_gpus": 3, "additional_controller_gpu": 0},
+  "fault_default": "OFF",
+  "static_batch_entry_audit": "PASS",
+  "remote_preflight": "NOT_RUN",
+  "slurm_submission": "NOT_RUN",
+  "new_run_root": "NOT_CREATED"
+}

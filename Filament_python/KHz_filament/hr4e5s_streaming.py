@@ -1094,10 +1094,14 @@ class StreamingLifecycle:
             )
             return entry
 
-    def run_one_hydro_block(self, *, dt_hydro: float, n_hydro_steps: int, chi: float, nu: float, n0: float, gravity_x: float = 0.0, gravity_y: float = -9.81, cfl_limit: float = 1.0, actor: str = "hydro") -> list[int]:
+    def run_one_hydro_block(self, *, dt_hydro: float, n_hydro_steps: int, chi: float, nu: float, n0: float, gravity_x: float = 0.0, gravity_y: float = -9.81, cfl_limit: float = 1.0, actor: str = "hydro", before_hydro_block: Callable[[list[int]], None] | None = None) -> list[int]:
         block = self.claim_block(actor=actor)
         if block:
             self.record_telemetry("HYDRO_BLOCK_START", actor=actor, block=block)
+            # Optional S5-FINAL orchestration hook: after the durable claim
+            # and outside the manifest lock, before the unchanged HR-4 solver.
+            if before_hydro_block is not None:
+                before_hydro_block(list(block))
         for ordinal in block:
             self.begin_hydro_screen(ordinal, actor=actor)
             with _timed_phase("POST_ARTIFACT_READ", ordinal=int(ordinal), block=list(block)):

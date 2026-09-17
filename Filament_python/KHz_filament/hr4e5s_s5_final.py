@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import tempfile
 import time
 from pathlib import Path
 from typing import Any, Mapping
 
-from .hr4e5s_s3 import consume_streaming, finalize_streaming, run_optical_path
+from .hr4e5s_s3 import finalize_streaming, run_optical_path
 from .hr4e5s_s5 import (
     _artifact_inventory,
     _authoritative_lifecycle,
@@ -64,7 +65,8 @@ def _hydro_claims(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
 
 
 def write_worker_identity(*, out_path: str | Path, actor: str, worker_pid: int,
-                          step_id: str, job_id: str, node: str, phase: str) -> dict[str, Any]:
+                          step_id: str, job_id: str, node: str, phase: str,
+                          execution_epoch: str | None = None) -> dict[str, Any]:
     """Write a launcher-owned identity receipt before replacing its shell.
 
     ``worker_pid`` is intentionally supplied by the ``exec``-ing shell: after
@@ -86,8 +88,68 @@ def write_worker_identity(*, out_path: str | Path, actor: str, worker_pid: int,
         "worker_id": os.environ.get("HR4E5S_WORKER_ID", actor),
         "written_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+    if execution_epoch is not None:
+        if execution_epoch not in {"initial", "recovery"}:
+            raise ValueError("S5-FINAL execution epoch is invalid")
+        result["execution_epoch"] = execution_epoch
     _atomic_json(Path(out_path), result)
     return result
+
+
+def consume_final_streaming(*, lifecycle_root: str | Path, hydro: Mapping[str, Any],
+                            producer_complete: str | Path, actor: str,
+                            arming_dir: str | Path | None = None,
+                            execution_epoch: str | None = None,
+                            arm_timeout_s: float = 120.0) -> dict[str, Any]:
+    """S5-FINAL consumer with an optional, non-scientific arming rendezvous."""
+    if arming_dir is None:
+        from .hr4e5s_s3 import consume_streaming
+        return consume_streaming(lifecycle_root=lifecycle_root, hydro=hydro,
+                                 producer_complete=producer_complete, actor=actor)
+    if execution_epoch != "initial":
+        raise ValueError("arming is only valid for the initial S5-FINAL epoch")
+    root = Path(arming_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    receipt_path, release_path = root / f"{actor}.json", root / f"{actor}.release.json"
+    lifecycle, completed, marker, idle = StreamingLifecycle.open(lifecycle_root), [], Path(producer_complete), False
+
+    def arm(block: list[int]) -> None:
+        if receipt_path.exists():
+            raise FileExistsError("S5-FINAL arming receipt already exists")
+        _atomic_json(receipt_path, {
+            "schema": S5_FINAL_SCHEMA, "kind": "arming_receipt", "status": "ARMED",
+            "actor": actor, "execution_epoch": execution_epoch, "worker_pid": os.getpid(),
+            "node": os.environ.get("SLURMD_NODENAME", socket.gethostname()), "block": list(block),
+            "armed_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        })
+        deadline = time.monotonic() + float(arm_timeout_s)
+        while not release_path.is_file():
+            if time.monotonic() >= deadline:
+                raise TimeoutError("S5-FINAL controller arming timeout")
+            time.sleep(0.05)
+
+    while True:
+        block = lifecycle.run_one_hydro_block(
+            dt_hydro=float(hydro["dt_hydro"]), n_hydro_steps=int(hydro["n_hydro_steps"]),
+            chi=float(hydro["chi"]), nu=float(hydro["nu"]), n0=float(hydro["n0"]),
+            gravity_x=float(hydro["gravity_x"]), gravity_y=float(hydro["gravity_y"]),
+            cfl_limit=float(hydro["cfl_limit"]), actor=actor, before_hydro_block=arm,
+        )
+        if block:
+            if idle:
+                lifecycle.record_telemetry("CONSUMER_IDLE_END", actor=actor)
+                idle = False
+            completed.append(block)
+            continue
+        lifecycle = StreamingLifecycle.open(lifecycle_root)
+        if marker.is_file() and not lifecycle.manifest["queue"]:
+            if not [item for item in lifecycle.manifest["records"] if item["next"] is None]:
+                lifecycle.record_telemetry("CONSUMER_COMPLETE", actor=actor)
+                return {"completed_blocks": completed, "status": "PASS", "actor": actor}
+        if not idle:
+            lifecycle.record_telemetry("CONSUMER_IDLE_BEGIN", actor=actor)
+            idle = True
+        time.sleep(0.05)
 
 
 def snapshot_interrupted_state(*, lifecycle_root: str | Path, out_path: str | Path) -> dict[str, Any]:
@@ -257,4 +319,4 @@ def run_recovery_optical(*, input_manifest_path: str | Path, out_dir: str | Path
                             bootstrap_receipt_validator=validate_bootstrap_receipt)
 
 
-__all__ = ["S5_FINAL_CASE_ID", "S5_FINAL_SCHEMA", "bootstrap_recovery", "compare_exact", "consume_streaming", "finalize_streaming", "freeze_expected_recovery_effects", "run_recovery_optical", "snapshot_interrupted_state", "validate_bootstrap_receipt", "validate_recovery_provenance", "write_worker_identity"]
+__all__ = ["S5_FINAL_CASE_ID", "S5_FINAL_SCHEMA", "bootstrap_recovery", "compare_exact", "consume_final_streaming", "finalize_streaming", "freeze_expected_recovery_effects", "run_recovery_optical", "snapshot_interrupted_state", "validate_bootstrap_receipt", "validate_recovery_provenance", "write_worker_identity"]

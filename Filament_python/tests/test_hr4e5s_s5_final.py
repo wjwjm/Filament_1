@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import importlib.util
+import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -175,3 +176,44 @@ def test_s5_final_provenance_rejects_retry_for_already_committed_next(tmp_path):
     result = validate_recovery_provenance(reference_lifecycle_root=reference.root, candidate_lifecycle_root=reference.root, effects_path=effects)
     assert result["status"] == "FAIL"
     assert any(item["name"] == "retry_count_delta_exact" and not item["pass"] for item in result["checks"])
+
+
+def test_s5_final_single_allocation_controller_arms_both_workers_before_one_step_signal(tmp_path, monkeypatch):
+    monitor = _monitor_module()
+    root, case = tmp_path / "run", tmp_path / "run" / "scenario"
+    (case / "initial" / "identities").mkdir(parents=True)
+    (case / "initial" / "arming").mkdir(parents=True)
+    manifest = root / "single.json"
+    manifest.write_text(json.dumps({"execution_mode": monitor.SINGLE_ALLOCATION_MODE, "repo": str(tmp_path), "run_root": str(root), "expected_sha": "a" * 40, "reference_case_root": str(root / "reference"), "allocation_id": "700", "target_actor": "hydro_consumer_1"}), encoding="utf-8")
+    identities = {}
+    for actor, step, pid in (("optical_producer", "0", 101), ("hydro_consumer_0", "1", 102), ("hydro_consumer_1", "2", 103)):
+        value = {"status": "READY", "actor": actor, "job_id": "700", "step_id": step, "worker_pid": pid, "node": "node-a", "execution_epoch": "initial"}
+        identities[actor] = value
+        (case / "initial" / "identities" / f"{actor}.json").write_text(json.dumps(value), encoding="utf-8")
+    calls = []
+    monkeypatch.setattr(monitor, "_single_listpids", lambda identity, cwd: (True, {"returncode": 0, "target_pid": identity["worker_pid"]}))
+    monkeypatch.setattr(monitor, "_run", lambda args, cwd: (calls.append(list(args)) or subprocess.CompletedProcess(args, 0, "", "")))
+    waiting = monitor.advance_single_allocation(manifest)
+    assert waiting["status"] == "WAIT_FOR_DUAL_ARMING"
+    assert not calls
+    for actor in ("hydro_consumer_0", "hydro_consumer_1"):
+        identity = identities[actor]
+        (case / "initial" / "arming" / f"{actor}.json").write_text(json.dumps({"status": "ARMED", "actor": actor, "execution_epoch": "initial", "worker_pid": identity["worker_pid"], "node": "node-a", "block": [0]}), encoding="utf-8")
+    advanced = monitor.advance_single_allocation(manifest)
+    assert advanced["status"] == "WAIT_FOR_INITIAL_QUIESCENCE"
+    assert advanced["signal_sent"] is True
+    assert calls == [["scancel", "--signal=KILL", "700.2"]]
+    assert (case / "initial" / "worker_loss_intent.json").is_file()
+    assert (case / "initial" / "worker_loss_receipt.json").is_file()
+
+
+def test_s5_final_single_allocation_batch_is_explicit_and_preserves_the_legacy_batch():
+    root = Path(__file__).resolve().parents[1]
+    single = (root / "tools" / "hr4e5s_s5_final_single_allocation.sbatch").read_text(encoding="utf-8")
+    submit = (root / "tools" / "hpc_ops" / "submit_hr4e5s_s5_final.sh").read_text(encoding="utf-8")
+    assert 'test "$CASE_MODE" = single_allocation' in single
+    assert '"$PYTHON" "$MONITOR" --manifest "$MONITOR_MANIFEST" --single-allocation --resume' in single
+    assert '--arming-dir "$CASE_ROOT/initial/arming" --execution-epoch initial' in single
+    assert 'recovery_is_new_allocation' in (root / "tools" / "monitor_hr4e5s_s5_final.py").read_text(encoding="utf-8")
+    assert 'single_allocation) BATCH="$SINGLE_ALLOCATION_BATCH"' in submit
+    assert (root / "tools" / "hr4e5s_s5_final.sbatch").is_file()

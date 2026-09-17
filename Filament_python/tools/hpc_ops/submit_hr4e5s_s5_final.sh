@@ -3,16 +3,18 @@
 set -euo pipefail
 readonly REPO="$1" RUN_ROOT="$2" EXPECTED_SHA="$3" PREFLIGHT="$4" CASE_MODE="$5" REFERENCE_CASE_ROOT="$6"
 readonly PYTHON=/data/home/scvi806/.conda/envs/Filament_python/bin/python
-readonly BATCH="$REPO/Filament_python/tools/hr4e5s_s5_final.sbatch"
+readonly LEGACY_BATCH="$REPO/Filament_python/tools/hr4e5s_s5_final.sbatch"
+readonly SINGLE_ALLOCATION_BATCH="$REPO/Filament_python/tools/hr4e5s_s5_final_single_allocation.sbatch"
 test "$(git -C "$REPO" rev-parse HEAD)" = "$EXPECTED_SHA" && test -z "$(git -C "$REPO" status --porcelain=v1 --untracked-files=all)"
 test -d "$RUN_ROOT" && test -f "$PREFLIGHT" && test -f "$RUN_ROOT/s5_final_input_manifest.json" && test -d "$RUN_ROOT/lut_workspace"
 test -d "$REFERENCE_CASE_ROOT/lifecycle" && test -d "$REFERENCE_CASE_ROOT/optical"
-"$PYTHON" "$REPO/Filament_python/tools/hpc_ops/audit_batch_entry.py" --batch "$BATCH" --fixed-python "$PYTHON" >/dev/null
 case "$CASE_MODE" in
-  initial) RECEIPT="$RUN_ROOT/initial_submission_receipt.tsv"; test ! -e "$RECEIPT" && test ! -e "$RUN_ROOT/scenario" ;;
-  recovery) RECEIPT="$RUN_ROOT/recovery_submission_receipt.tsv"; test -f "$RUN_ROOT/scenario/old_job_quiescence.json" && test -f "$RUN_ROOT/scenario/expected_recovery_effects.json" && test ! -e "$RECEIPT" && test ! -e "$RUN_ROOT/scenario/recovery" ;;
+  initial) BATCH="$LEGACY_BATCH"; RECEIPT="$RUN_ROOT/initial_submission_receipt.tsv"; test ! -e "$RECEIPT" && test ! -e "$RUN_ROOT/scenario" ;;
+  recovery) BATCH="$LEGACY_BATCH"; RECEIPT="$RUN_ROOT/recovery_submission_receipt.tsv"; test -f "$RUN_ROOT/scenario/old_job_quiescence.json" && test -f "$RUN_ROOT/scenario/expected_recovery_effects.json" && test ! -e "$RECEIPT" && test ! -e "$RUN_ROOT/scenario/recovery" ;;
+  single_allocation) BATCH="$SINGLE_ALLOCATION_BATCH"; RECEIPT="$RUN_ROOT/single_allocation_submission_receipt.tsv"; test ! -e "$RECEIPT" && test ! -e "$RUN_ROOT/scenario" ;;
   *) exit 64 ;;
 esac
+"$PYTHON" "$REPO/Filament_python/tools/hpc_ops/audit_batch_entry.py" --batch "$BATCH" --fixed-python "$PYTHON" >/dev/null
 "$PYTHON" - "$PREFLIGHT" "$EXPECTED_SHA" "$RUN_ROOT" <<'PY'
 import json,sys
 x=json.load(open(sys.argv[1],encoding='utf-8'))

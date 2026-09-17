@@ -8,6 +8,7 @@ import csv
 import hashlib
 import json
 import os
+import socket
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,7 @@ from typing import Any, Mapping, Sequence
 
 SCHEMA = "khz_filament.hr4e5s.s5_final.monitor.v1"
 TERMINAL = {"PASS", "READY_FOR_S5_FINAL_DEFECT_REVIEW"}
+SINGLE_ALLOCATION_MODE = "SINGLE_ALLOCATION_TWO_EXECUTION_EPOCHS"
 
 
 def _read(path: Path) -> dict[str, Any]:
@@ -229,15 +231,156 @@ def advance(manifest_path: Path) -> dict[str, Any]:
     return state
 
 
+def _single_paths(manifest: Path) -> tuple[Path, Path, Path]:
+    return (manifest.with_name("single_allocation_state.json"),
+            manifest.with_name("single_allocation_events.jsonl"),
+            manifest.with_name("controller_defect.json"))
+
+
+def _single_initial(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    return {"schema": SCHEMA, "execution_mode": SINGLE_ALLOCATION_MODE,
+            "status": "WAIT_FOR_DUAL_ARMING", "run_root": manifest["run_root"],
+            "allocation_id": str(manifest["allocation_id"]), "signal_sent": False,
+            "recovery_is_new_allocation": False,
+            "recovery_is_fresh_process_restart": True, "updated_epoch": time.time()}
+
+
+def _single_defect(root: Path, state: dict[str, Any], reason: str, **detail: Any) -> dict[str, Any]:
+    state["status"] = "READY_FOR_S5_FINAL_DEFECT_REVIEW"
+    state["defect"] = {"reason": reason, **detail}
+    _atomic(root / "controller_defect.json", {"schema": SCHEMA, "status": "FAIL", **state["defect"]})
+    return _event(state, "defect", reason=reason, **detail)
+
+
+def _single_identities(case_root: Path, allocation_id: str) -> tuple[list[dict[str, Any]], str | None]:
+    directory = case_root / "initial/identities"
+    names = ("optical_producer", "hydro_consumer_0", "hydro_consumer_1")
+    try:
+        values = [_read(directory / f"{name}.json") for name in names]
+    except (OSError, json.JSONDecodeError):
+        return [], "identity_receipts_incomplete"
+    if any(v.get("status") != "READY" or v.get("actor") not in names or str(v.get("job_id")) != allocation_id or v.get("execution_epoch") != "initial" for v in values):
+        return [], "identity_receipts_invalid"
+    if len({str(v.get("step_id")) for v in values}) != 3 or len({int(v.get("worker_pid", -1)) for v in values}) != 3:
+        return [], "identity_steps_or_pids_not_distinct"
+    return values, None
+
+
+def _single_armings(case_root: Path, identities: Sequence[Mapping[str, Any]]) -> tuple[list[dict[str, Any]], str | None]:
+    expected = {str(item["actor"]): item for item in identities if str(item["actor"]).startswith("hydro_consumer_")}
+    try:
+        values = [_read(case_root / "initial/arming" / f"{actor}.json") for actor in sorted(expected)]
+    except (OSError, json.JSONDecodeError):
+        return [], "arming_receipts_incomplete"
+    for value in values:
+        identity = expected.get(str(value.get("actor")))
+        if identity is None or value.get("status") != "ARMED" or value.get("execution_epoch") != "initial" or int(value.get("worker_pid", -1)) != int(identity["worker_pid"]) or value.get("node") != identity.get("node") or not isinstance(value.get("block"), list) or not value["block"]:
+            return [], "arming_receipts_invalid"
+    return values, None
+
+
+def _single_listpids(identity: Mapping[str, Any], cwd: Path) -> tuple[bool, dict[str, Any]]:
+    step = f"{identity['job_id']}.{identity['step_id']}"
+    started = time.time(); result = _run(["scontrol", "listpids", step], cwd); finished = time.time()
+    evidence = {"command": ["scontrol", "listpids", step], "hostname": socket.gethostname(),
+                "target_node": identity.get("node"), "target_pid": int(identity["worker_pid"]),
+                "started_epoch": started, "finished_epoch": finished, "returncode": result.returncode,
+                "stdout": result.stdout, "stderr": result.stderr}
+    return result.returncode == 0 and str(identity["worker_pid"]) in result.stdout, evidence
+
+
+def advance_single_allocation(manifest_path: Path) -> dict[str, Any]:
+    """Controller for one allocation with two fresh scientific-process epochs."""
+    manifest = _read(manifest_path)
+    if manifest.get("execution_mode") != SINGLE_ALLOCATION_MODE:
+        raise ValueError("single-allocation controller manifest mode is invalid")
+    state_path, events_path, _ = _single_paths(manifest_path)
+    state = _read(state_path) if state_path.exists() else _single_initial(manifest)
+    root, case_root, cwd = Path(manifest["run_root"]), Path(manifest["run_root"]) / "scenario", Path(manifest["repo"])
+    ready = case_root / "controller_ready.json"
+    if not ready.exists():
+        _atomic(ready, {"schema": SCHEMA, "status": "READY", "execution_mode": SINGLE_ALLOCATION_MODE,
+                        "controller_pid": os.getpid(), "controller_hostname": socket.gethostname(),
+                        "allocation_id": str(manifest["allocation_id"])})
+    if state["status"] in TERMINAL:
+        return state
+    if state["status"] == "WAIT_FOR_DUAL_ARMING":
+        identities, problem = _single_identities(case_root, str(manifest["allocation_id"]))
+        armings, arm_problem = _single_armings(case_root, identities) if not problem else ([], problem)
+        if problem or arm_problem:
+            event = _event(state, "awaiting_arming", identity_problem=problem, arming_problem=arm_problem)
+        else:
+            target = str(manifest["target_actor"])
+            identity = next(item for item in identities if item["actor"] == target)
+            live, evidence = _single_listpids(identity, cwd)
+            evidence_path = case_root / "initial/local_listpids_evidence.json"
+            _atomic(evidence_path, {"schema": SCHEMA, "status": "PASS" if live else "FAIL", "arming": armings, "evidence": evidence})
+            if not live:
+                event = _single_defect(root, state, "TARGET_STEP_PID_UNPROVEN", actor=target, step=f"{identity['job_id']}.{identity['step_id']}")
+            else:
+                intent = case_root / "initial/worker_loss_intent.json"
+                if intent.exists():
+                    event = _single_defect(root, state, "DUPLICATE_WORKER_LOSS_INTENT")
+                else:
+                    _atomic(intent, {"schema": SCHEMA, "status": "INTENT", "target_identity": identity, "arming": armings, "listpids_evidence": str(evidence_path)})
+                    command = ["scancel", "--signal=KILL", f"{identity['job_id']}.{identity['step_id']}"]
+                    signal = _run(command, cwd)
+                    if signal.returncode:
+                        event = _single_defect(root, state, "TARGET_SIGNAL_FAILED", command=command, returncode=signal.returncode, stderr=signal.stderr)
+                    else:
+                        _atomic(case_root / "initial/worker_loss_receipt.json", {"schema": SCHEMA, "status": "SENT", "target_identity": identity, "signal_command": command, "signal_returncode": signal.returncode, "listpids_evidence": str(evidence_path)})
+                        state["signal_sent"] = True; state["status"] = "WAIT_FOR_INITIAL_QUIESCENCE"
+                        event = _event(state, "worker_loss_signal_sent", actor=target)
+    elif state["status"] == "WAIT_FOR_INITIAL_QUIESCENCE":
+        stopped = case_root / "initial/initial_workers_stopped.json"
+        if not stopped.is_file():
+            event = _event(state, "awaiting_initial_worker_cleanup")
+        else:
+            identities, problem = _single_identities(case_root, str(manifest["allocation_id"]))
+            if problem:
+                event = _single_defect(root, state, "INITIAL_IDENTITY_LOST_BEFORE_QUIESCENCE", identity_problem=problem)
+            else:
+                evidence = []; live = False
+                for identity in identities:
+                    present, item = _single_listpids(identity, cwd); evidence.append(item); live = live or present
+                if live or any(item["returncode"] != 0 for item in evidence):
+                    event = _single_defect(root, state, "INITIAL_EXECUTION_NOT_QUIESCENT", listpids=evidence)
+                else:
+                    _atomic(case_root / "initial_execution_quiescence.json", {"schema": SCHEMA, "status": "PASS", "initial_workers_stopped": _read(stopped), "listpids": evidence})
+                    runner = [sys.executable, str(cwd / "Filament_python/tools/run_hr4e5s_s5_final.py")]
+                    snapshot = _run(runner + ["snapshot", "--stream-root", str(case_root / "lifecycle"), "--out", str(case_root / "interrupted_state_inventory.json")], cwd)
+                    effects = _run(runner + ["freeze-effects", "--stream-root", str(case_root / "lifecycle"), "--inventory", str(case_root / "interrupted_state_inventory.json"), "--out", str(case_root / "expected_recovery_effects.json")], cwd)
+                    if snapshot.returncode or effects.returncode:
+                        event = _single_defect(root, state, "RECOVERY_EFFECTS_FREEZE_FAILED", snapshot_returncode=snapshot.returncode, effects_returncode=effects.returncode)
+                    else:
+                        _atomic(case_root / "recovery_ready.json", {"schema": SCHEMA, "status": "PASS", "execution_mode": SINGLE_ALLOCATION_MODE, "recovery_is_new_allocation": False, "recovery_is_fresh_process_restart": True})
+                        state["status"] = "WAIT_FOR_FINAL_AUDIT"; event = _event(state, "recovery_ready")
+    elif state["status"] == "WAIT_FOR_FINAL_AUDIT":
+        exact_path, bootstrap_path = case_root / "comparison/exact_comparison.json", case_root / "recovery/restart_reconstructed.json"
+        if not exact_path.is_file() or not bootstrap_path.is_file():
+            event = _event(state, "awaiting_recovery_final_audit")
+        else:
+            exact, bootstrap = _read(exact_path), _read(bootstrap_path)
+            passed = exact.get("status") == "PASS" and exact.get("expected_field_comparisons") == 432 and exact.get("completed_field_comparisons") == 432 and exact.get("mismatch_count") == 0 and exact.get("recovery_provenance", {}).get("status") == "PASS" and bootstrap.get("bootstrap_event") == "S5_FINAL_RESTART_RECONSTRUCTED"
+            if not passed:
+                event = _single_defect(root, state, "RECOVERY_AUDIT_FAILED_OR_MISSING")
+            else:
+                state["status"] = "PASS"; event = _event(state, "s5_final_single_allocation_pass")
+    else:
+        event = _single_defect(root, state, "UNKNOWN_MONITOR_STATE", observed=state["status"])
+    _atomic(state_path, state); _append(events_path, event)
+    return state
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--manifest", type=Path, required=True); parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--manifest", type=Path, required=True); parser.add_argument("--resume", action="store_true"); parser.add_argument("--single-allocation", action="store_true")
     parser.add_argument("--poll-seconds", type=int, default=15); parser.add_argument("--once", action="store_true")
     args = parser.parse_args(argv)
     if not args.resume or not 5 <= args.poll_seconds <= 3600:
         parser.error("--resume is required and --poll-seconds must be 5..3600")
     while True:
-        state = advance(args.manifest)
+        state = advance_single_allocation(args.manifest) if args.single_allocation else advance(args.manifest)
         print(json.dumps({"status": state["status"], "updated_epoch": state["updated_epoch"]}, sort_keys=True))
         if args.once or state["status"] in TERMINAL:
             return 0
