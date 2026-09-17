@@ -1,0 +1,296 @@
+{
+  "schema": "filament.hr4e5.e5_1a_test_results.v1",
+  "status": "E5_1A_PARTIAL",
+  "blocker": "FORMAL_DRIVER_AND_RECOVERY_QUALIFICATION",
+  "base_commit": "131daa541ac37e54d43b29cd3bfc12ba83c3b91d",
+  "interpreter": "C:\\Users\\wangj\\.conda\\envs\\filament-local-test\\python.exe",
+  "gpu_enabled": false,
+  "executed_runs": [
+    {
+      "command": "run_local_tests.ps1 -Mode backend",
+      "exit_code": 0,
+      "result": "PASS",
+      "artifact": "evidence/final_backend.log"
+    },
+    {
+      "command": "run_local_tests.ps1 -Mode sanity",
+      "exit_code": 0,
+      "result": "PASS",
+      "artifact": "evidence/final_sanity.log",
+      "passed": 1,
+      "deselected": 0,
+      "duration_s": 0.02
+    },
+    {
+      "command": "run_local_tests.ps1 -Mode targeted -TargetedFilter 'test_hr4e5s_streaming or test_hr4d_pulse_lifecycle'",
+      "exit_code": 0,
+      "result": "PASS",
+      "artifact": "evidence/final_legacy_regression.log",
+      "passed": 34,
+      "deselected": 325,
+      "duration_s": 18.91
+    },
+    {
+      "command": "run_local_tests.ps1 -Mode targeted -TargetedFilter test_hr4e5_e5_1a",
+      "exit_code": 0,
+      "result": "PASS",
+      "artifact": "evidence/final_new_tests.log",
+      "passed": 30,
+      "deselected": 338,
+      "duration_s": 71.5
+    },
+    {
+      "command": "explicit interpreter -s -B -m compileall Filament_python/KHz_filament",
+      "exit_code": 0,
+      "result": "PASS",
+      "artifact": "evidence/final_compile.log"
+    }
+  ],
+  "acceptance": [
+    {
+      "id": "A01",
+      "result": "PASS",
+      "evidence": [
+        "evidence/baseline_scope.json"
+      ],
+      "limitation": "Fixed base and unchanged protected scientific/config/LUT/old entry paths; no narrow core extension."
+    },
+    {
+      "id": "A02",
+      "result": "PASS_FIXTURE",
+      "evidence": [
+        "evidence/integrated_fixture.json"
+      ],
+      "limitation": "N3/K32 optical test double with independent Batch/Streaming trajectories; not three-pulse real optical exact."
+    },
+    {
+      "id": "A03",
+      "result": "PASS_FIXTURE",
+      "evidence": [
+        "evidence/integrated_fixture.json"
+      ],
+      "limitation": "Nonzero PRE velocities carried by each trajectory and included in actual exact."
+    },
+    {
+      "id": "A04",
+      "result": "PASS_FIXTURE",
+      "evidence": [
+        "evidence/integrated_fixture.json"
+      ],
+      "limitation": "Original worker hydro-start events precede optical complete; CPU event-driven consumer, not GPU overlap."
+    },
+    {
+      "id": "A05",
+      "result": "PARTIAL",
+      "evidence": [
+        "evidence/final_new_tests.log"
+      ],
+      "limitation": "Original real optical/state/sink/hook tested; formal config/source/LUT identity and integrated R/C real-driver binding incomplete."
+    },
+    {
+      "id": "A06",
+      "result": "PASS_LOCAL_BOUNDARY",
+      "evidence": [
+        "evidence/final_new_tests.log"
+      ],
+      "limitation": "Complete/partial final replay and old durable POST protection tested; no power-loss claim."
+    },
+    {
+      "id": "A07",
+      "result": "PARTIAL",
+      "evidence": [
+        "evidence/final_new_tests.log"
+      ],
+      "limitation": "Actual child payload/hash and missing READY reconstruction checked; full pointer/index/fork/stale-epoch transition matrix incomplete."
+    },
+    {
+      "id": "A08",
+      "result": "PASS_FIXTURE",
+      "evidence": [
+        "evidence/integrated_fixture.json"
+      ],
+      "limitation": "1344 actual screen arrays,27 ledgers,3 optical arrays; missing-object/dtype/nonfinite/difference unit refusal. Formal callback inventory gate incomplete."
+    },
+    {
+      "id": "A09",
+      "result": "PARTIAL",
+      "evidence": [
+        "evidence/final_new_tests.log"
+      ],
+      "limitation": "Durable prerequisite and refusal checks apply to bounded call paths; universal formal writer/ownership and pair-recovery integration incomplete."
+    },
+    {
+      "id": "A10",
+      "result": "PASS_FIXTURE",
+      "evidence": [
+        "evidence/integrated_fixture.json"
+      ],
+      "limitation": "Owned parent payload reclaimed; successor opens independently and candidate terminal retained; not authorization for formal data GC."
+    },
+    {
+      "id": "A11",
+      "result": "PASS_LOCAL_BOUNDARY",
+      "evidence": [
+        "evidence/final_new_tests.log"
+      ],
+      "limitation": "Actual subprocess exit after unlink plus durable-intent recovery and unknown-missing refusal; full pair handoff restart remains A07 gap."
+    },
+    {
+      "id": "A12",
+      "result": "PASS_LOCAL_BOUNDARY",
+      "evidence": [
+        "evidence/final_new_tests.log"
+      ],
+      "limitation": "Hardlink/traversal/prefix/reparse-equivalent/identity replacement refusal; platform mock is identified in test."
+    },
+    {
+      "id": "A13",
+      "result": "PASS_LOCAL_BOUNDARY",
+      "evidence": [
+        "evidence/final_new_tests.log"
+      ],
+      "limitation": "Exact 300GiB constant and oversize refusal; no 300GiB allocation or CLI introduced."
+    },
+    {
+      "id": "A14",
+      "result": "PARTIAL",
+      "evidence": [
+        "evidence/final_new_tests.log"
+      ],
+      "limitation": "Process reservation competition/quota/drop/path accounting tested; PRE0/successor helpers not enforced behind a universal admission entry."
+    },
+    {
+      "id": "A15",
+      "result": "PARTIAL",
+      "evidence": [
+        "evidence/final_new_tests.log"
+      ],
+      "limitation": "Scalar output cap/extra output refusal and actual fixture terminal reopen; formal retention/role registration integration incomplete."
+    },
+    {
+      "id": "A16",
+      "result": "PASS_LOCAL_BOUNDARY",
+      "evidence": [
+        "evidence/integrated_fixture.json"
+      ],
+      "limitation": "NEW_PROCESS_PERSISTENT_RESUME only after completed pair1, reclaimed parent arrays and exited original process; compared with independent uninterrupted run."
+    },
+    {
+      "id": "A17",
+      "result": "PARTIAL",
+      "evidence": [
+        "evidence/budget_model.json"
+      ],
+      "limitation": "299676844288-byte peak/47504725760-byte final model aligns fixture file layout; full formal driver enforcement and host RSS qualification absent."
+    },
+    {
+      "id": "A18",
+      "result": "PASS_LOCAL_BOUNDARY",
+      "evidence": [
+        "evidence/final_legacy_regression.log"
+      ],
+      "limitation": "34 existing Streaming/HR4D tests; three local 8048-record prototype writes only, not full lifecycle/HPC stress."
+    }
+  ],
+  "integrated_fixture": {
+    "scope": "TEST_FIXTURE_ONLY; optical double + original CPU hydro",
+    "NEW_PROCESS_PERSISTENT_RESUME": "PASS",
+    "processes": [
+      {
+        "pid": 33760,
+        "epoch": "33760:a9bb36a6227640d78fc94286964f09eb",
+        "next_pair": 1
+      },
+      {
+        "pid": 34056,
+        "epoch": "34056:2a898044c3e6411da715f1ef11aed9b8",
+        "next_pair": 3
+      }
+    ],
+    "screen_array_comparisons": 1344,
+    "ledger_comparisons": 27,
+    "optical_comparisons": 3,
+    "K": 32,
+    "N": 3,
+    "pairs": [
+      {
+        "compared_object_count": 490,
+        "expected_object_count": 490,
+        "ledger_count": 9,
+        "mismatch_count": 0,
+        "missing_candidate": [],
+        "missing_reference": [],
+        "optical_count": 1,
+        "screen_count": 480,
+        "status": "PASS"
+      },
+      {
+        "compared_object_count": 490,
+        "expected_object_count": 490,
+        "ledger_count": 9,
+        "mismatch_count": 0,
+        "missing_candidate": [],
+        "missing_reference": [],
+        "optical_count": 1,
+        "screen_count": 480,
+        "status": "PASS"
+      },
+      {
+        "compared_object_count": 394,
+        "expected_object_count": 394,
+        "ledger_count": 9,
+        "mismatch_count": 0,
+        "missing_candidate": [],
+        "missing_reference": [],
+        "optical_count": 1,
+        "screen_count": 384,
+        "status": "PASS"
+      }
+    ],
+    "subprocess_logs": [
+      {
+        "returncode": 0,
+        "stdout": "{\"pid\": 33760, \"epoch\": \"33760:a9bb36a6227640d78fc94286964f09eb\", \"next_pair\": 1}\n",
+        "stderr": ""
+      },
+      {
+        "returncode": 0,
+        "stdout": "{\"pid\": 34056, \"epoch\": \"34056:2a898044c3e6411da715f1ef11aed9b8\", \"next_pair\": 3}\n",
+        "stderr": ""
+      },
+      {
+        "returncode": 0,
+        "stdout": "{\"pid\": 31676, \"epoch\": \"31676:ab553aa7bf7f44ab8be7badf34086b21\", \"next_pair\": 3}\n",
+        "stderr": ""
+      }
+    ],
+    "metadata_probe": {
+      "prototype_K": 8048,
+      "writes": 3,
+      "bytes_per_write": 40402522,
+      "duration_s": [
+        1.0248167000027024,
+        1.0414716999948723,
+        1.01276940000389
+      ],
+      "limitation": "local prototype only; no K-squared loop or HPC I/O extrapolation"
+    },
+    "final_live_bytes": 4012502
+  },
+  "not_tested": [
+    "GPU",
+    "Slurm",
+    "S5",
+    "K8048 scientific arrays",
+    "site quota/RSS/VRAM/allocated disk blocks",
+    "cross allocation/node/power loss",
+    "complete interrupted formal pair/handoff coordinator"
+  ],
+  "historical_failed_attempts": [
+    "initial_new_tests.log",
+    "integrated_attempt1.log",
+    "final_new_attempt1.log",
+    "final_new_attempt2.log"
+  ],
+  "validation_note": "Final logs apply to code content committed in review SHA; precommit worktree test, not an HPC execution SHA. Initial failures retained as chronology."
+}

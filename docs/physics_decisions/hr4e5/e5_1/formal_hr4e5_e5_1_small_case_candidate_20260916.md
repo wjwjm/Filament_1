@@ -1,10 +1,12 @@
 # E5-1 连续前缀三发工程验证候选
 
-**E5-0 状态：** `CLOSED / STREAMING_PREPARATION_CONTRACT_ACCEPTED`（2026-09-16 人工审核接受）。跨发设计为 `DESIGNED / NOT_IMPLEMENTED`；E5-1 未开始，实施与执行仍未授权。
+**2026-09-17 本地实施交付：** `E5_1A_PARTIAL / BLOCKED_BY_FORMAL_DRIVER_AND_RECOVERY_QUALIFICATION`。已完成代码和小型验证见 [实施报告](E5_1A_IMPLEMENTATION_REPORT_20260916.md)；正式总控的输入/预算/恢复凭证绑定仍有代码缺口，A 未验收、B/C 未释放。
+
+**E5-0 状态：** `CLOSED / STREAMING_PREPARATION_CONTRACT_ACCEPTED`（2026-09-16 人工审核接受）。2026-09-16 新任务已授权 E5-1A 隔离本地实施与 CPU fixture 验证；B/C 科学执行仍未授权。
 
 `architecture_choice=USER_FIXED_EXISTING_STREAMING`；`intra_pulse_optical_hydro_overlap=REQUIRED`；
-`production_hr4c_replacement=false`；`implementation_authorized=false`；`formal_execution_authorized=false`；
-`resource_execution_gate=NOT_RELEASED`；`s5_entry_gate=ENTRY_BLOCKED_BY_S5_FINAL`。
+`production_hr4c_replacement=false`；`e5_1a_local_implementation_authorized=true`；`formal_execution_authorized=false`；
+`resource_execution_gate=NOT_RELEASED`；S5-FINAL 是未来科学执行门，不阻止已授权的本地 A。
 
 原准备合同的源码审阅及 start HEAD：`cbfe2e38172b5221d739df80b032e4dee9fab7e3`；S5 execution SHA（历史回执）：`cd456ff8413cbc041d2d60b9b64007a1554028a1`。
 两者之间只有文档/旧包差异，本轮未实时查询 S5，244700 的 PENDING 仅为原 HPC 快照。
@@ -70,21 +72,21 @@ sha256_array是 dtype+NUL+canonical JSON shape+NUL+C-order字节；NPZ文件raw 
 | fresh source检查 | 3 | 原始source内容不变、工作场与source不alias；每次调用前记录 |
 | 各轨迹 NEXT→下一PRE绑定 | 48288 每轨 | 独立于跨轨比较，3字段×2换代×K |
 
-在任何复用/回收前完整保存数组；reference全跑完再candidate，每个candidate pulse完成即分screen与reference比较。
+现行 A 顺序为 R1 → C1 → Exact1 → 顺序后继交接/回收，再继续下一对；每对回收前完成实际数组 exact。
 失败记录 trajectory/pulse/namespace/source_index/field、首个不同坐标和两份文件；原科学数组继续留存。
 调度provenance单独核验epoch、claims、bootstrap、barrier/pointer、无漏screen/重复提交、两个rollover、末发计数；
 不要求两轨jobid/timestamp/queue顺序相同。全体exact零mismatch，任何缺失/NaN/shape/dtype不符即FAIL。
 
-## 代表性跨allocation延续
+## E5-1A 当前实施与恢复边界
 
-仅candidate p=0完成barrier/promotion后有序退出；确认旧allocation终态、worker退出和quiescence receipt，
-下一allocation复开前代，完成/恢复p=1 binding，继续p=1,p=2。该计划不注入故障、不重铺S5矩阵。
-小型定向测试覆盖pointer/index与partial-root窗口、末发partial POST恢复；E5-1只执行一次代表性延续。
-每个非末发都需同pulse的 hydro-start < optical-complete事件，避免把“支持并发”写成实测重叠。
+本次新授权替代原全历史保留及跨 allocation 计划：第一对 exact、双方自包含后继 READY 与安全回收后，退出科学/state-holder 进程，全新本地进程只凭持久文件继续第二、三对。验收名称为 `NEW_PROCESS_PERSISTENT_RESUME`，实际跨 allocation 验证留后续授权阶段。
 
-## 预算与门
+原 E5-0 收尾及 ZIP 保留历史快照。本次只新增外层 Streaming 编排、配对 exact、容量保护和自产中间文件回收；不改科学算子，不执行 S5/Slurm/GPU。Candidate 仍须保留发内 optical–hydro 重叠，末发仅 POST。
 
-两轨保留全部科学payload（含现有full source）=669,587,300,928 B (623.601769 GiB)；推荐可用容量/配额≥851,693,145,010 B (793.201053 GiB)。
-细账见 resource_budget CSV；这已超过原180GiB filesystem快照，现有证据不能释放资源门。
-派生输入候选的设计已人工接受；S5 terminal PASS、glue实施与定向测试、PRE0/源/LUT/schedule物化哈希、实际site资源以及单独提交授权仍未满足。
-E5-1 当前状态：NOT STARTED / NOT AUTHORIZED TO RUN；IMPLEMENTATION + RESOURCE GATES PENDING。
+## 现行预算与门
+
+单 campaign 硬上限为 **322122547200 bytes（300 GiB）**，最终输出默认 **68719476736 bytes（64 GiB）** 且包含在总额内。原 793 GiB 全保留估计属于已被本次授权替代的历史策略，不是当前限额。
+
+逐发配对、实际 exact 后顺序建立后继与回收；保留 candidate 最终完整 CURRENT+POST 根、两轨逐发光学输出及完整证据。只允许回收本任务自产、exact 完整、恢复点 READY、writer 静止且无未来依赖的白名单文件。详细合同见 [E5-1A storage/retention contract](E5_1A_STORAGE_RETENTION_CONTRACT.md)。
+
+本地实现与测试状态由本次实施报告记录；小型 CPU 资格不释放正式运行门。B 仍须核对 S5 终态、代码兼容性、输入物化哈希、现场 quota/空间/QoS/显存与单独执行授权。

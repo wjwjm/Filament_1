@@ -1,0 +1,132 @@
+{
+  "schema": "filament.hr4e5.e5_1a_contract.v1",
+  "issued_date": "2026-09-16",
+  "base_commit": "131daa541ac37e54d43b29cd3bfc12ba83c3b91d",
+  "implementation_branch": "codex/hr4e5-e5-1a-streaming-implementation",
+  "e5_0_status": "CLOSED / STREAMING_PREPARATION_CONTRACT_ACCEPTED",
+  "architecture_choice": "USER_FIXED_EXISTING_STREAMING",
+  "intra_pulse_optical_hydro_overlap": "REQUIRED",
+  "production_hr4c_replacement": false,
+  "e5_1a_local_implementation_authorized": true,
+  "hpc_scientific_execution_authorized": false,
+  "formal_execution_authorized": false,
+  "resource_execution_gate": "NOT_RELEASED",
+  "max_campaign_live_bytes": 322122547200,
+  "final_output_budget_bytes": 68719476736,
+  "budget_scope": "one campaign, both tracks, all created locations, temporaries, residues, evidence and final output",
+  "formal_candidate": {
+    "N": 3,
+    "K": 8048,
+    "block_size": 8,
+    "queue_depth": 16,
+    "slow_field_shape": [
+      8048,
+      351,
+      301
+    ],
+    "slow_field_dtype": "float64",
+    "optical_shape": [
+      384,
+      351,
+      301
+    ],
+    "optical_dtype": "complex128",
+    "three_slow_fields_payload_bytes": 20406701952,
+    "one_optical_payload_bytes": 649119744,
+    "source_indices_inclusive": [
+      0,
+      8047
+    ],
+    "schedule_rule": "slice original edges[:8049], dz[:8048], intervals[:8048]; never rebuild shortened endpoint",
+    "endpoint_m": 0.8047999999999277,
+    "endpoint_hex": "0x1.9c0ebedfa4173p-1",
+    "prefix_materialization": "NOT_MATERIALIZED",
+    "prefix_file_sha256": "NOT_MATERIALIZED",
+    "prefix_array_sha256": "NOT_MATERIALIZED",
+    "pre0_rule": "protected E1B delta_n prefix with positive float64 zero vx/vy; engineering initial state",
+    "frozen_input_authority": "../e5_0/formal_hr4e5_e5_0_freeze_candidate.json",
+    "scientific_defaults": "inherit frozen sources/config/LUT; no precision or scientific operator changes"
+  },
+  "pair_contract": {
+    "order": "R_p, C_p, actual exact, sequential R successor/reclaim then C successor/reclaim",
+    "tracks_independent": true,
+    "fresh_source_each_pulse": true,
+    "post_inherits_pre_velocities": true,
+    "nonfinal_hydro_transitions": 2,
+    "final_mode": "POST_ONLY_NO_NEXT_NO_HYDRO",
+    "exact_predicates": [
+      "shape",
+      "dtype",
+      "hr4e_timestep.sha256_array",
+      "np.array_equal",
+      "finite"
+    ],
+    "object_counts_formula": {
+      "screen_arrays": "42*K",
+      "ledger_arrays": "9*N",
+      "final_optical_arrays": "N",
+      "successor_binding_per_track": "3*K*(N-1)"
+    },
+    "formal_expected_counts": {
+      "screen_arrays": 338016,
+      "ledger_arrays": 27,
+      "final_optical_arrays": 3,
+      "successor_binding_per_track": 48288
+    },
+    "counts_are_targets_not_executed_formal_results": true
+  },
+  "recovery_contract": {
+    "qualification_name": "NEW_PROCESS_PERSISTENT_RESUME",
+    "first_pair_gate": "exact + both self-contained READY + safe reclamation + all scientific/state-holder processes exit",
+    "successor_reopen_requires_parent_payload": false,
+    "archived_parent_restartable": false,
+    "partial_or_conflicting_checkpoint": "fail closed unless supported idempotent completion is proven",
+    "cross_allocation_node_power_loss": "NOT_TESTED"
+  },
+  "reclaim_contract": {
+    "scope": "only files created and registered by this campaign, within explicit role whitelist",
+    "gates": [
+      "complete successful exact",
+      "durable self-contained READY or POST_FINAL_READY",
+      "writer quiescence with epoch identity",
+      "no future dependency",
+      "rechecked path/content/file identity"
+    ],
+    "transaction": [
+      "plan",
+      "validate",
+      "apply",
+      "resume",
+      "verify"
+    ],
+    "unknown_missing_file": "FAIL_CLOSED",
+    "unknown_file_link_reparse_hardlink_or_replaced_identity": "FAIL_CLOSED",
+    "historical_arrays_after_reclaim": "actual comparison happened before deletion; hashes cannot reproduce all historical elementwise comparisons",
+    "a_apply_scope": "controlled tiny local fixture only"
+  },
+  "output_contract": {
+    "required": [
+      "candidate final complete CURRENT+POST",
+      "both tracks per-pulse final optical",
+      "ledgers and summaries",
+      "complete exact reports",
+      "input identities",
+      "lineage READY archive reclaim receipts",
+      "overlap recovery and resource evidence"
+    ],
+    "optional_outputs_default": "OFF; explicitly declared and budgeted",
+    "duplicate_final_checkpoint_default": false,
+    "growth": "bounded active large-state window; N-dependent retained optics and reports"
+  },
+  "qualification_authority": "E5_1A_TEST_RESULTS.json and E5_1A_IMPLEMENTATION_REPORT_20260916.md",
+  "b_gates": [
+    "human review of A",
+    "S5 terminal and patch compatibility",
+    "materialized input hashes",
+    "verified site quota/free space/QoS/retention",
+    "actual CPU RAM/GPU VRAM/I/O feasibility",
+    "separate scientific execution authorization"
+  ],
+  "implementation_status": "E5_1A_PARTIAL",
+  "blocker": "FORMAL_DRIVER_AND_RECOVERY_QUALIFICATION"
+}

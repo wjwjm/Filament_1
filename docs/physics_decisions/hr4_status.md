@@ -1,4 +1,17 @@
 # HR-4 status: isobaric transverse slow flow
+## 2026-09-17：E5-1A 本地实施部分交付
+
+E5-0 继续 `CLOSED / STREAMING_PREPARATION_CONTRACT_ACCEPTED`。用户在固定
+`131daa541ac37e54d43b29cd3bfc12ba83c3b91d` 上授权隔离的 E5-1A 本地 Streaming
+实施及微小 CPU 验证；新分支为 `codex/hr4e5-e5-1a-streaming-implementation`。
+当前 `E5_1A_PARTIAL / BLOCKED_BY_FORMAL_DRIVER_AND_RECOVERY_QUALIFICATION`；详见 [实施报告](hr4e5/e5_1/E5_1A_IMPLEMENTATION_REPORT_20260916.md)。
+300 GiB campaign 上限、逐发配对、安全回收及本地新进程恢复取代此前全保留设计。
+现行入口见 [E5-1A 合同](hr4e5/e5_1/E5_1A_CONTRACT.json) 与
+[E5-1 当前入口](hr4e5/e5_1/formal_hr4e5_e5_1_small_case_candidate_20260916.md)。
+
+仅 `e5_1a_local_implementation_authorized=true`；`formal_execution_authorized=false`、
+`resource_execution_gate=NOT_RELEASED`。S5 未实时刷新，B/C 未执行，formal E5、HR-4E 未关闭。
+以下 2026-09-16 的实施未授权字段保留为当时快照，由本节的 scoped A 授权覆盖。
 
 ## 2026-09-16：当前阶段状态（E5-0 人工收口）
 
