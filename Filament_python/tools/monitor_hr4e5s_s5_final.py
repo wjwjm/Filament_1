@@ -22,6 +22,58 @@ TERMINAL = {"PASS", "READY_FOR_S5_FINAL_DEFECT_REVIEW"}
 SINGLE_ALLOCATION_MODE = "SINGLE_ALLOCATION_TWO_EXECUTION_EPOCHS"
 
 
+def phase0_pre_signal_gate(*, target: Mapping[str, Any], survivor: Mapping[str, Any],
+                           controller_hostname: str, target_listpids: Mapping[str, Any],
+                           survivor_listpids: Mapping[str, Any], target_heartbeat_live: bool,
+                           survivor_heartbeat_live: bool, signal_intent_exists: bool,
+                           signal_command: Sequence[str]) -> dict[str, Any]:
+    """Fail-closed contract for the allocation-internal observability gate.
+
+    This function deliberately deals only with Slurm/process receipts.  It
+    must remain usable before a CUDA context, lifecycle root, or scientific
+    worker exists.
+    """
+    checks: list[dict[str, Any]] = []
+
+    def check(name: str, value: bool) -> None:
+        checks.append({"name": name, "pass": bool(value)})
+
+    target_step = f"{target.get('job_id')}.{target.get('step_id')}"
+    survivor_step = f"{survivor.get('job_id')}.{survivor.get('step_id')}"
+    identity_keys = ("actor", "job_id", "step_id", "pid", "hostname")
+    target_valid = all(target.get(key) not in {None, ""} for key in identity_keys)
+    survivor_valid = all(survivor.get(key) not in {None, ""} for key in identity_keys)
+    check("target_identity_complete", target_valid)
+    check("survivor_identity_complete", survivor_valid)
+    check("actors_are_distinct", target.get("actor") == "probe_target" and survivor.get("actor") == "probe_survivor")
+    check("steps_are_distinct", target_step != survivor_step)
+    check("pids_are_distinct", target.get("pid") != survivor.get("pid"))
+    check("controller_on_target_compute_node", controller_hostname == target.get("hostname"))
+    check("controller_on_survivor_compute_node", controller_hostname == survivor.get("hostname"))
+    check("target_heartbeat_live", target_heartbeat_live)
+    check("survivor_heartbeat_live", survivor_heartbeat_live)
+    check("target_listpids_returned", target_listpids.get("returncode") == 0)
+    check("survivor_listpids_returned", survivor_listpids.get("returncode") == 0)
+    check("target_pid_currently_proven", str(target.get("pid")) in str(target_listpids.get("stdout", "")))
+    check("survivor_pid_currently_proven", str(survivor.get("pid")) in str(survivor_listpids.get("stdout", "")))
+    check("signal_intent_unused", not signal_intent_exists)
+    check("signal_scope_is_exact_target_step", list(signal_command) == ["scancel", "--signal=TERM", target_step])
+    return {"schema": SCHEMA, "kind": "phase0_pre_signal_gate", "status": "PASS" if all(item["pass"] for item in checks) else "FAIL", "checks": checks}
+
+
+def phase0_post_signal_gate(*, target_pid: int, target_wait_nonzero: bool,
+                            target_still_live: bool, survivor_still_live: bool,
+                            target_listpids_after: Mapping[str, Any]) -> dict[str, Any]:
+    """Prove that the selected target, not the allocation, was terminated."""
+    checks = [
+        {"name": "target_step_exited", "pass": bool(target_wait_nonzero)},
+        {"name": "target_pid_not_live", "pass": not target_still_live},
+        {"name": "survivor_still_live", "pass": bool(survivor_still_live)},
+        {"name": "target_pid_absent_from_post_signal_listpids", "pass": str(target_pid) not in str(target_listpids_after.get("stdout", ""))},
+    ]
+    return {"schema": SCHEMA, "kind": "phase0_post_signal_gate", "status": "PASS" if all(item["pass"] for item in checks) else "FAIL", "checks": checks}
+
+
 def _read(path: Path) -> dict[str, Any]:
     return dict(json.loads(path.read_text(encoding="utf-8")))
 
@@ -312,9 +364,15 @@ def advance_single_allocation(manifest_path: Path) -> dict[str, Any]:
         else:
             target = str(manifest["target_actor"])
             identity = next(item for item in identities if item["actor"] == target)
-            live, evidence = _single_listpids(identity, cwd)
+            hydro_identities = [item for item in identities if str(item["actor"]).startswith("hydro_consumer_")]
+            observations = []
+            for item in hydro_identities:
+                live, evidence = _single_listpids(item, cwd)
+                observations.append({"actor": item["actor"], "live": live, "evidence": evidence})
+            live = all(bool(item["live"]) for item in observations)
+            evidence = next(item["evidence"] for item in observations if item["actor"] == target)
             evidence_path = case_root / "initial/local_listpids_evidence.json"
-            _atomic(evidence_path, {"schema": SCHEMA, "status": "PASS" if live else "FAIL", "arming": armings, "evidence": evidence})
+            _atomic(evidence_path, {"schema": SCHEMA, "status": "PASS" if live else "FAIL", "arming": armings, "observations": observations})
             if not live:
                 event = _single_defect(root, state, "TARGET_STEP_PID_UNPROVEN", actor=target, step=f"{identity['job_id']}.{identity['step_id']}")
             else:
@@ -343,7 +401,10 @@ def advance_single_allocation(manifest_path: Path) -> dict[str, Any]:
                 evidence = []; live = False
                 for identity in identities:
                     present, item = _single_listpids(identity, cwd); evidence.append(item); live = live or present
-                if live or any(item["returncode"] != 0 for item in evidence):
+                # A terminated Slurm step may no longer be queryable.  Its absence,
+                # with all prior identity receipts retained, is the required
+                # quiescence evidence; only a still-live old writer is a failure.
+                if live:
                     event = _single_defect(root, state, "INITIAL_EXECUTION_NOT_QUIESCENT", listpids=evidence)
                 else:
                     _atomic(case_root / "initial_execution_quiescence.json", {"schema": SCHEMA, "status": "PASS", "initial_workers_stopped": _read(stopped), "listpids": evidence})

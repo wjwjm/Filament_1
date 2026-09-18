@@ -212,7 +212,7 @@ def test_s5_final_single_allocation_batch_is_explicit_and_preserves_the_legacy_b
     single = (root / "tools" / "hr4e5s_s5_final_single_allocation.sbatch").read_text(encoding="utf-8")
     submit = (root / "tools" / "hpc_ops" / "submit_hr4e5s_s5_final.sh").read_text(encoding="utf-8")
     assert 'test "$CASE_MODE" = single_allocation' in single
-    assert '"$PYTHON" "$MONITOR" --manifest "$MONITOR_MANIFEST" --single-allocation --resume' in single
+    assert '"$PYTHON" "$MONITOR" --manifest "$MONITOR_MANIFEST" --single-allocation --resume --poll-seconds 5' in single
     assert '--arming-dir "$CASE_ROOT/initial/arming" --execution-epoch initial' in single
     assert 'recovery_is_new_allocation' in (root / "tools" / "monitor_hr4e5s_s5_final.py").read_text(encoding="utf-8")
     assert 'single_allocation) BATCH="$SINGLE_ALLOCATION_BATCH"' in submit
@@ -228,3 +228,66 @@ def test_s5_final_site_observability_probe_is_cpu_only_and_step_scoped():
     assert 'scontrol listpids "$step"' in batch
     assert "SIGNAL_SCOPE_TOO_BROAD" in batch
     assert "TARGET_PID_NOT_PROVEN" in batch
+
+
+def _phase0_identity(actor: str, step: str, pid: int, hostname: str = "node-a") -> dict:
+    return {"actor": actor, "job_id": "700", "step_id": step, "pid": pid, "hostname": hostname}
+
+
+def _phase0_listpids(pid: int, *, live: bool = True) -> dict:
+    return {"returncode": 0, "stdout": f"{pid} probe" if live else ""}
+
+
+def test_s5_final_phase0_rejects_unproven_or_ended_target_before_signal():
+    monitor = _monitor_module()
+    target, survivor = _phase0_identity("probe_target", "2", 103), _phase0_identity("probe_survivor", "1", 102)
+    result = monitor.phase0_pre_signal_gate(
+        target=target, survivor=survivor, controller_hostname="node-a",
+        target_listpids=_phase0_listpids(103, live=False), survivor_listpids=_phase0_listpids(102),
+        target_heartbeat_live=True, survivor_heartbeat_live=True, signal_intent_exists=False,
+        signal_command=["scancel", "--signal=TERM", "700.2"],
+    )
+    assert result["status"] == "FAIL"
+    assert not next(item for item in result["checks"] if item["name"] == "target_pid_currently_proven")["pass"]
+
+
+def test_s5_final_phase0_rejects_duplicate_intent_identity_collision_wrong_host_and_broad_scope():
+    monitor = _monitor_module()
+    target, survivor = _phase0_identity("probe_target", "2", 103), _phase0_identity("probe_survivor", "2", 103, "node-b")
+    result = monitor.phase0_pre_signal_gate(
+        target=target, survivor=survivor, controller_hostname="node-a",
+        target_listpids=_phase0_listpids(103), survivor_listpids=_phase0_listpids(103),
+        target_heartbeat_live=True, survivor_heartbeat_live=True, signal_intent_exists=True,
+        signal_command=["scancel", "--signal=TERM", "700"],
+    )
+    assert result["status"] == "FAIL"
+    failed = {item["name"] for item in result["checks"] if not item["pass"]}
+    assert {"steps_are_distinct", "pids_are_distinct", "controller_on_survivor_compute_node", "signal_intent_unused", "signal_scope_is_exact_target_step"} <= failed
+
+
+def test_s5_final_phase0_post_signal_requires_target_quiescence_and_survivor_liveness():
+    monitor = _monitor_module()
+    failed = monitor.phase0_post_signal_gate(
+        target_pid=103, target_wait_nonzero=False, target_still_live=True,
+        survivor_still_live=True, target_listpids_after=_phase0_listpids(103),
+    )
+    assert failed["status"] == "FAIL"
+    passed = monitor.phase0_post_signal_gate(
+        target_pid=103, target_wait_nonzero=True, target_still_live=False,
+        survivor_still_live=True, target_listpids_after=_phase0_listpids(103, live=False),
+    )
+    assert passed["status"] == "PASS"
+
+
+def test_s5_final_single_allocation_phase0_precedes_cuda_and_science_start():
+    batch = (Path(__file__).resolve().parents[1] / "tools" / "hr4e5s_s5_final_single_allocation.sbatch").read_text(encoding="utf-8")
+    phase0_pass = 'phase0_observability_result.json" "status=PASS"'
+    cuda_enable = "export UPPE_USE_GPU=1"
+    initialize = '"$PYTHON" "$S3_RUNNER" initialize-stream'
+    assert "--gpus-per-task=0" in batch
+    assert "env -u CUDA_VISIBLE_DEVICES -u UPPE_USE_GPU" in batch
+    assert 'capture_listpids listpids_before "$SLURM_JOB_ID"' in batch
+    assert 'scancel --signal=TERM "$PHASE0_TARGET_STEP"' in batch
+    assert phase0_pass in batch
+    assert batch.index(phase0_pass) < batch.index(cuda_enable) < batch.index(initialize)
+    assert "READY_FOR_S5_FINAL_DEFECT_REVIEW" in batch
