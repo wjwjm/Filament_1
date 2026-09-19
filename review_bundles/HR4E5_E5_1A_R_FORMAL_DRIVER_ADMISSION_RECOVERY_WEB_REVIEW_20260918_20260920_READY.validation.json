@@ -1,0 +1,21 @@
+{
+  "schema": "filament.hr4e5.e5_1a.web_review_external_validation.v1",
+  "status": "PASS",
+  "bundle": "HR4E5_E5_1A_R_FORMAL_DRIVER_ADMISSION_RECOVERY_WEB_REVIEW_20260918_20260920_READY.zip",
+  "size_bytes": 153578,
+  "sha256": "89fadfb92b80ea95cb73cb9c0e5653df261c7b0d86cb1d2c7f25c8737fcf3288",
+  "entry_count": 19,
+  "checks": [
+    "CRC readable for every entry",
+    "unique safe relative paths",
+    "index coverage and entry size/SHA256",
+    "SHA256SUMS verification",
+    "JSON parse",
+    "CSV 13-column structure",
+    "README relative-link resolution",
+    "non-empty source and report payloads"
+  ],
+  "execution_mode": "LOCAL_ORCHESTRATION_QUALIFICATION",
+  "formal_execution_authorized": false,
+  "resource_execution_gate": "NOT_RELEASED"
+}
