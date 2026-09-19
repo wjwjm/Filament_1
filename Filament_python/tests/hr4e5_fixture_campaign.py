@@ -16,8 +16,8 @@ import numpy as np
 from KHz_filament.hr4c_state import HR4CThreeFieldStore, evolve_hr4_full_z
 from KHz_filament.hr4d_pulse_lifecycle import build_interpulse_step_schedule
 from KHz_filament.hr4e5_evidence import atomic_json, compare_arrays_exact, sha256_array, sha256_file
-from KHz_filament.hr4e5_formal_entry import create_successor_root, open_successor_root, validate_final_post
-from KHz_filament.hr4e5_paired_campaign import PairedCampaign
+from KHz_filament.hr4e5_formal_entry import build_fixture_admission_identity, create_successor_root, open_successor_root, validate_final_post
+from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver, PairedCampaign
 from KHz_filament.hr4e5_storage import MockQuotaProvider
 from KHz_filament.hr4e5s_streaming import StreamingLifecycle, FIELDS
 
@@ -46,12 +46,13 @@ class Fixture:
     def __init__(self, root):
         self.root = Path(root).resolve()
         new = not (self.root/'E5_1A_CAMPAIGN_STATE.json').exists()
+        self.admission_identity = build_fixture_admission_identity(campaign_id='TEST_FIXTURE_ONLY', n_pulses=N, k=K, shape=SHAPE, epoch='fixture')
+        self.epoch = f'fixture:{os.getpid()}:{uuid.uuid4().hex}'
         self.campaign = PairedCampaign(self.root, create=new, n_pulses=N,
-            campaign_id='TEST_FIXTURE_ONLY', safety_margin_bytes=1024*1024)
+            campaign_id='TEST_FIXTURE_ONLY', safety_margin_bytes=1024*1024,
+            admission_identity=self.admission_identity)
         self.budget = self.campaign.storage
         self.budget.provider = MockQuotaProvider(free_bytes=2**40, quota_bytes=2**40)
-        self.epoch = f'{os.getpid()}:{uuid.uuid4().hex}'
-        self.campaign.register_process_start(process_id=self.epoch)
         if new:
             with self.writes('initialize'):
                 np.save(self.root/'source.npy', np.arange(512, dtype=np.float64).reshape(8,8,8).astype(np.complex128))
@@ -185,7 +186,7 @@ class Fixture:
                     schedule_intervals=K)
                 atomic_json(root/'optical_run.json', optical_run)
                 result=validate_final_post(lifecycle_root=state,receipt_path=state/'POST_FINAL_READY.json',
-                    writer_quiescent=True,expected_optical_dir=root)
+                    writer_quiescent=True,fixture_only=True,expected_optical_dir=root)
                 if result['status']!='PASS': raise ValueError(result)
             atomic_json(root/'writer_closed.json',dict(status='PASS',campaign_id='TEST_FIXTURE_ONLY',
                 active_writers=[],writer_epoch=self.epoch,coordinator_process_id=self.epoch))
@@ -222,8 +223,22 @@ class Fixture:
             atomic_json(self.root/f'exact{p}.json',report)
         return {k:v for k,v in report.items() if k!='rows'}
 
+    def terminal(self, p):
+        receipt = self.track('C', p) / 'state' / 'POST_FINAL_READY.json'
+        if not receipt.is_file() or read_json(receipt).get('terminal') != 'POST_FINAL_READY':
+            raise ValueError('terminal POST_FINAL_READY receipt is missing')
+        return dict(status='PASS', report_path=str(receipt), scope='TEST_FIXTURE_ONLY')
+
     def reclaim(self,side,p,ready):
         root=self.track(side,p)
+        if ready is None:
+            if p == N-1:
+                ready_path = self.track('C',p)/'state'/'POST_FINAL_READY.json'
+            elif side == 'C':
+                ready_path = self.track(side,p+1)/'state'/'E5_1A_READY.json'
+            else:
+                ready_path = self.track(side,p+1)/'READY.json'
+            ready = read_json(ready_path)
         targets=[]
         for rel,item in self.budget.artifacts().items():
             path=self.root/rel
@@ -267,10 +282,13 @@ class Fixture:
             prerequisite_receipt=prerequisite_path,plan_id=f'{side}{p}')
         self.budget.apply_reclaim(plan['plan_id'])
         assert self.budget.verify_reclaim(plan['plan_id'])['status']=='PASS'
+        return dict(status='PASS', plan_id=f'{side}{p}', scope='TEST_FIXTURE_ONLY')
 
-    def handoff(self,p,*unused):
+    def handoff(self,p,side=None,*unused):
         # Crucially R child is built and R parent reclaimed BEFORE C child copy.
-        for side in ('R','C'):
+        sides = (str(side),) if side is not None else ('R','C')
+        ready_by_side = {}
+        for side in sides:
             root=self.track(side,p)
             if p==N-1:
                 ready=read_json(self.track('C',p)/'state'/'POST_FINAL_READY.json')
@@ -287,24 +305,23 @@ class Fixture:
                         atomic_json(child/'binding.json',dict(status='PASS',rows=rows))
                         ready=self.reference_ready(child);atomic_json(child/'READY.json',ready)
                     else:
-                        lc,ready=create_successor_root(parent_root=root/'state',child_root=child/'state')
+                        lc,ready=create_successor_root(parent_root=root/'state',child_root=child/'state',fixture_only=True,admission_identity=self.admission_identity)
                         open_successor_root(lc.root)
             atomic_json(root/'ARCHIVED.json',dict(status='ARCHIVED_AFTER_EXACT',restartable=False,
                 successor=None if p==N-1 else str(self.track(side,p+1)))) if not(side=='C' and p==N-1) else None
-            self.reclaim(side,p,ready)
-        return dict(status='PASS',sequential_handoffs=True,reclaimed=True)
+            ready_by_side[side] = ready
+        return dict(status='PASS',sequential_handoffs=True, side=None if side is None else str(side),
+                    ready=ready_by_side)
 
     def run(self,stop):
         schedule=build_interpulse_step_schedule(f_rep=5e6,dt_hydro=HYDRO['dt_hydro'])
         assert schedule.remainder_s==0 and schedule.full_step_count==HYDRO['n_hydro_steps']
-        while self.campaign.next_pair_index<min(stop,N):
-            result=self.campaign.run_pair(self.campaign.next_pair_index,reference_step=self.reference,
-                candidate_step=self.candidate,compare_step=self.compare,successor_step=self.handoff,
-                reclaim_step=lambda *args:dict(status='PASS',already_verified_in_sequential_handoff=True))
-            if result.status!='PASS':raise RuntimeError(self.campaign.report())
-        self.campaign.register_process_exit(process_id=self.epoch)
-        report=self.campaign.report();atomic_json(self.root/f'process_{os.getpid()}.json',report)
-        print(json.dumps(dict(pid=os.getpid(),epoch=self.epoch,next_pair=report['next_pair_index'])))
+        driver = FormalPairedDriver(self.root, admission_identity=self.admission_identity,
+                                    runner=self, n_pulses=N, campaign_id='TEST_FIXTURE_ONLY',
+                                    safety_margin_bytes=1024*1024, fixture_only=True)
+        report = driver.run(stop_after=min(stop,N))
+        atomic_json(self.root/f'process_{os.getpid()}.json',report)
+        print(json.dumps(dict(pid=os.getpid(),epoch=report['epoch'],next_pair=report['next_pair_index'])))
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('root');parser.add_argument('--stop',type=int,default=3)

@@ -26,6 +26,67 @@ DEFAULT_SAFETY_MARGIN_BYTES = 8 * 1024**3
 STORAGE_SCHEMA = "khz_filament.hr4e5.e5_1a.storage.v1"
 GC_SCHEMA = "khz_filament.hr4e5.e5_1a.gc.v1"
 RECLAIM_PREREQUISITE_SCHEMA = "khz_filament.hr4e5.e5_1a.reclaim_prerequisites.v1"
+INTENT_SCHEMA = "khz_filament.hr4e5.e5_1a.creation_intent.v1"
+
+
+def plan_campaign_budget(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
+                         max_campaign_live_bytes: int = HARD_CAP_BYTES,
+                         final_output_budget_bytes: int = DEFAULT_FINAL_OUTPUT_BUDGET_BYTES,
+                         safety_margin_bytes: int = DEFAULT_SAFETY_MARGIN_BYTES) -> dict[str, Any]:
+    """Derive the bounded campaign allocation/retention model.
+
+    This is deliberately scalar planning only.  It mirrors the sequential
+    R-then-C handoff used by the formal coordinator and never allocates a
+    scientific array.  The model keeps one failed handoff residue and a
+    positive receipt/ledger allowance so a plan cannot pass by declaring all
+    metadata free.
+    """
+    values = (n_pulses, k, ny, nx, nt)
+    if any(isinstance(v, bool) or not isinstance(v, int) or v <= 0 for v in values):
+        raise ValueError("positive integer dimensions and pulse count required")
+    cap = _nonnegative_int(max_campaign_live_bytes, "max_campaign_live_bytes")
+    final_cap = _nonnegative_int(final_output_budget_bytes, "final_output_budget_bytes")
+    margin = _nonnegative_int(safety_margin_bytes, "safety_margin_bytes")
+    if cap <= 0 or cap > HARD_CAP_BYTES or final_cap <= 0 or final_cap > cap or margin <= 0:
+        raise StorageBudgetError("invalid campaign budget limits")
+    field = int(k) * int(ny) * int(nx) * 8
+    generation = 3 * field
+    optical = int(nt) * int(ny) * int(nx) * 16
+    # One R handoff and one C handoff are serialized.  The active pair keeps
+    # both tracks, while a failed handoff retains one extra slow-state copy.
+    reference_phase = 7 * generation
+    candidate_phase = 5 * generation
+    pair_peak = reference_phase + candidate_phase + generation
+    failed_residue = generation
+    retained_optics = (2 * int(n_pulses) + 1) * optical
+    source_copy = optical
+    metadata = max(2 * 1024**3, (2 * 1024**3 * int(n_pulses) + 2) // 3)
+    peak = pair_peak + failed_residue + retained_optics + source_copy + metadata + margin
+    final_bytes = 2 * generation + retained_optics + source_copy + metadata
+    if peak > cap:
+        raise StorageBudgetError(
+            f"campaign allocation model exceeds cap: projected={peak} cap={cap}"
+        )
+    if final_bytes > final_cap:
+        raise StorageBudgetError(
+            f"campaign final retention model exceeds final budget: projected={final_bytes} cap={final_cap}"
+        )
+    return {
+        "schema": "khz_filament.hr4e5.e5_1a.budget_plan.v1",
+        "n_pulses": int(n_pulses), "k": int(k), "ny": int(ny), "nx": int(nx), "nt": int(nt),
+        "field_bytes": field, "generation_bytes": generation, "optical_bytes": optical,
+        "reference_phase_bytes": reference_phase, "candidate_phase_bytes": candidate_phase,
+        "pair_peak_bytes": pair_peak, "failed_handoff_residue_bytes": failed_residue,
+        "retained_optical_bytes": retained_optics, "source_copy_bytes": source_copy,
+        "metadata_bytes": metadata, "safety_margin_bytes": margin,
+        "peak_bytes": peak, "final_output_bytes": final_bytes,
+        "max_campaign_live_bytes": cap, "final_output_budget_bytes": final_cap,
+        "headroom_bytes": cap - peak, "final_headroom_bytes": final_cap - final_bytes,
+        "k8048_arrays_created": False,
+    }
+
+
+derive_budget_plan = plan_campaign_budget
 
 
 def plan_final_output(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
@@ -292,6 +353,9 @@ class StorageBudget:
         provider: Any | None = None,
         require_quota: bool = True,
         campaign_id: str = "e5_1a_local",
+        require_intents: bool = False,
+        admission_hash: str | None = None,
+        admission_identity: Mapping[str, Any] | None = None,
     ):
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
@@ -310,6 +374,11 @@ class StorageBudget:
         self.provider = provider
         self.require_quota = bool(require_quota)
         self.campaign_id = str(campaign_id)
+        self.require_intents = bool(require_intents)
+        if admission_hash is None and admission_identity is not None:
+            admission_hash = admission_identity.get("identity_sha256")
+        self.admission_hash = None if admission_hash is None else str(admission_hash)
+        self.admission_identity = None if admission_identity is None else dict(admission_identity)
         if not self.ledger_path.exists():
             _atomic_json(self.ledger_path, self._new_ledger(), overwrite=False)
         self._validate(self._read())
@@ -322,8 +391,11 @@ class StorageBudget:
             "final_output_budget_bytes": self.final_output_budget_bytes,
             "safety_margin_bytes": self.safety_margin_bytes,
             "require_quota": self.require_quota,
+            "require_intents": self.require_intents,
+            "admission_hash": self.admission_hash,
             "artifacts": {},
             "reservations": {},
+            "intents": {},
             "gc_plans": {},
             "events": [],
             "created_utc": _utc(),
@@ -349,9 +421,16 @@ class StorageBudget:
             raise StorageBudgetError("storage safety margin conflicts with durable ledger")
         if bool(data.get("require_quota", False)) != self.require_quota:
             raise StorageBudgetError("storage quota requirement conflicts with durable ledger")
+        if bool(data.get("require_intents", False)) != self.require_intents:
+            raise StorageBudgetError("storage intent requirement conflicts with durable ledger")
+        saved_admission = data.get("admission_hash")
+        if (None if saved_admission is None else str(saved_admission)) != self.admission_hash:
+            raise StorageIntegrityError("storage admission identity conflicts with durable ledger")
         if str(data.get("campaign_id", "")) != self.campaign_id:
             raise StorageIntegrityError("storage ledger campaign identity conflicts with requested campaign")
-        if not isinstance(data.get("artifacts"), dict) or not isinstance(data.get("reservations"), dict):
+        if (not isinstance(data.get("artifacts"), dict)
+                or not isinstance(data.get("reservations"), dict)
+                or not isinstance(data.get("intents", {}), dict)):
             raise StorageBudgetError("storage ledger collections are invalid")
         for reservation_id, item in data.get("reservations", {}).items():
             if not isinstance(item, Mapping):
@@ -364,6 +443,18 @@ class StorageBudget:
                 for right in normalized[index + 1:]:
                     if _relative_paths_overlap(left, right):
                         raise StorageIntegrityError(f"reservation allocation paths overlap: {reservation_id}")
+        for intent_id, item in data.get("intents", {}).items():
+            if not isinstance(item, Mapping) or item.get("schema") != INTENT_SCHEMA:
+                raise StorageBudgetError(f"creation intent record is invalid: {intent_id}")
+            if str(item.get("campaign_id", "")) != self.campaign_id:
+                raise StorageIntegrityError(f"creation intent campaign mismatch: {intent_id}")
+            allowed = item.get("allowed_paths", [])
+            if not isinstance(allowed, list) or not allowed:
+                raise StorageBudgetError(f"creation intent paths are invalid: {intent_id}")
+            for index, left in enumerate(str(path).replace("\\", "/") for path in allowed):
+                for right in (str(path).replace("\\", "/") for path in allowed[index + 1:]):
+                    if _relative_paths_overlap(left, right):
+                        raise StorageIntegrityError(f"creation intent paths overlap: {intent_id}")
 
     def _write(self, data: Mapping[str, Any]) -> None:
         self._validate(data)
@@ -532,6 +623,12 @@ class StorageBudget:
                 raise StorageBudgetError(f"unknown reservation: {rid}")
             if item.get("status") != "ACTIVE":
                 return dict(item)
+            if self.require_intents:
+                allocation_paths = item.get("allocation_paths", [])
+                current = self._allocation_bytes(allocation_paths)
+                start = _nonnegative_int(item.get("allocation_start_bytes", 0), "allocation_start_bytes")
+                if current > start:
+                    raise StorageBudgetError("cannot release a reservation while residual files remain")
             mutable = dict(item)
             mutable["status"] = str(status)
             mutable["released_utc"] = _utc()
@@ -586,19 +683,290 @@ class StorageBudget:
             data["events"].append({"event": "CONSUME", **mutable})
             return mutable
 
+    def _intent_paths(self, paths: Sequence[str | Path]) -> list[str]:
+        normalized = [_relative(self.root, path)[1] for path in paths]
+        if not normalized:
+            raise StorageIntegrityError("creation intent requires an allowed path")
+        for index, left in enumerate(normalized):
+            for right in normalized[index + 1:]:
+                if _relative_paths_overlap(left, right):
+                    raise StorageIntegrityError("creation intent paths overlap")
+        return normalized
+
+    def _path_is_allowed(self, relative: str, allowed_paths: Sequence[str]) -> bool:
+        candidate = Path(str(relative).replace("\\", "/"))
+        for raw in allowed_paths:
+            base = Path(str(raw).replace("\\", "/"))
+            if candidate == base or candidate.is_relative_to(base):
+                return True
+        return False
+
+    def _snapshot_intent_files(self, allowed_paths: Sequence[str]) -> dict[str, dict[str, Any]]:
+        snapshot: dict[str, dict[str, Any]] = {}
+        for raw in allowed_paths:
+            path, relative = _relative(self.root, raw)
+            if not path.exists():
+                continue
+            if path.is_file():
+                snapshot[relative] = {"identity": _identity(path), "sha256": _sha256_file(path)}
+            elif path.is_dir():
+                for item in _iter_regular_files(path):
+                    _, item_relative = _relative(self.root, item)
+                    snapshot[item_relative] = {"identity": _identity(item), "sha256": _sha256_file(item)}
+        return snapshot
+
+    def create_intent(
+        self, *, reservation_id: str, trajectory: str, pulse: int, attempt: int,
+        role: str, allowed_paths: Sequence[str | Path], expected_bytes: int | Mapping[str, int],
+        admission_hash: str | None = None, intent_id: str | None = None,
+        epoch: str | int | None = None, generation: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+        campaign_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Persist a write-before-target creation intent.
+
+        The intent is deliberately separate from a reservation: a reservation
+        accounts bytes, while this record proves which trajectory/attempt is
+        allowed to create which paths.  Existing files are snapshotted and can
+        never become newly-owned artifacts through this operation.
+        """
+        rid = str(reservation_id)
+        paths = self._intent_paths(allowed_paths)
+        if isinstance(expected_bytes, Mapping):
+            expected = {str(key).replace("\\", "/"): _nonnegative_int(value, "expected_bytes") for key, value in expected_bytes.items()}
+            expected_total = sum(expected.values())
+        else:
+            expected_total = _nonnegative_int(expected_bytes, "expected_bytes")
+            expected = {}
+        if expected_total <= 0:
+            raise StorageBudgetError("creation intent expected bytes must be positive")
+        if generation is not None and not str(generation):
+            raise StorageIntegrityError("creation intent generation is empty")
+        bound_hash = self.admission_hash if admission_hash is None else str(admission_hash)
+        if campaign_id is not None and str(campaign_id) != self.campaign_id:
+            raise StorageIntegrityError("creation intent campaign identity conflicts with storage ledger")
+        if self.require_intents and not bound_hash:
+            raise StorageIntegrityError("formal creation intent requires an admission hash")
+        iid = str(intent_id or f"intent-{os.getpid()}-{time.time_ns()}")
+        with self._locked() as data:
+            reservation = data["reservations"].get(rid)
+            if not isinstance(reservation, Mapping) or reservation.get("status") != "ACTIVE":
+                raise StorageBudgetError("creation intent requires an active reservation")
+            allocation_paths = [str(path) for path in reservation.get("allocation_paths", [])]
+            if self.require_intents and allocation_paths:
+                if any(not any(self._path_is_allowed(path, [allocation]) for allocation in allocation_paths) for path in paths):
+                    raise StorageIntegrityError("creation intent is outside reservation allocation paths")
+            if bound_hash and self.admission_hash and bound_hash != self.admission_hash:
+                raise StorageIntegrityError("creation intent admission hash conflicts with storage ledger")
+            if int(reservation.get("bytes", 0)) < expected_total:
+                raise StorageBudgetError("creation intent exceeds its active reservation")
+            if iid in data["intents"]:
+                raise StorageBudgetError(f"creation intent already exists: {iid}")
+            initial = self._snapshot_intent_files(paths)
+            item = {
+                "schema": INTENT_SCHEMA, "intent_id": iid, "campaign_id": self.campaign_id,
+                "reservation_id": rid, "trajectory": str(trajectory), "pulse": int(pulse),
+                "attempt": int(attempt), "role": str(role), "allowed_paths": paths,
+                "expected_bytes": expected_total, "expected_file_bytes": expected,
+                "admission_hash": bound_hash, "epoch": None if epoch is None else str(epoch),
+                "generation": None if generation is None else str(generation),
+                "initial_files": initial, "created_files": {}, "status": "ACTIVE",
+                "created_utc": _utc(), "metadata": dict(metadata or {}),
+            }
+            data["intents"][iid] = item
+            data["events"].append({"event": "INTENT_CREATE", "intent_id": iid, "reservation_id": rid, "timestamp_utc": _utc()})
+        return dict(item)
+
+    begin_creation_intent = create_intent
+    create_reservation_intent = create_intent
+
+    def _intent_file_list(self, item: Mapping[str, Any], files: Sequence[str | Path] | None) -> list[Path]:
+        allowed = [str(path) for path in item.get("allowed_paths", [])]
+        if files is None:
+            values: list[Path] = []
+            for raw in allowed:
+                path, _ = _relative(self.root, raw)
+                if path.is_file():
+                    values.append(path)
+                elif path.is_dir():
+                    values.extend(_iter_regular_files(path))
+        else:
+            values = []
+            for raw in files:
+                path, relative = _relative(self.root, raw)
+                if not self._path_is_allowed(relative, allowed):
+                    raise StorageIntegrityError(f"creation target is outside intent paths: {relative}")
+                values.append(path)
+        result: list[Path] = []
+        seen: set[str] = set()
+        initial = item.get("initial_files", {})
+        for path in values:
+            _, relative = _relative(self.root, path)
+            if relative in seen:
+                continue
+            seen.add(relative)
+            if relative in initial:
+                raise StorageIntegrityError(f"pre-existing file cannot be owned by creation intent: {relative}")
+            if not path.is_file() or _is_reparse(path):
+                raise StorageIntegrityError(f"creation target is missing or linked: {relative}")
+            result.append(path)
+        return result
+
+    def complete_intent(
+        self, intent_id: str, *, files: Sequence[str | Path] | None = None,
+        expected_bytes: int | None = None, role: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Validate files created under an intent and register ownership."""
+        iid = str(intent_id)
+        with self._locked() as data:
+            item = data["intents"].get(iid)
+            if not isinstance(item, Mapping):
+                raise StorageBudgetError(f"unknown creation intent: {iid}")
+            if item.get("status") == "COMPLETED":
+                return dict(item)
+            if item.get("status") != "ACTIVE":
+                raise StorageBudgetError(f"creation intent is not active: {iid}")
+            values = self._intent_file_list(item, files)
+            if not values:
+                raise StorageIntegrityError("creation intent completed without files")
+            expected_total = _nonnegative_int(item.get("expected_bytes", 0), "intent expected bytes")
+            actual_total = 0
+            created: dict[str, Any] = {}
+            for path in values:
+                resolved, relative = _relative(self.root, path)
+                identity = _identity(resolved)
+                digest = _sha256_file(resolved)
+                per_file = item.get("expected_file_bytes", {}).get(relative)
+                if per_file is not None and identity["size"] != int(per_file):
+                    raise StorageIntegrityError(f"creation target size differs from intent: {relative}")
+                if relative in data["artifacts"]:
+                    raise StorageIntegrityError(f"creation target already has ownership: {relative}")
+                actual_total += identity["size"]
+                created[relative] = {"identity": identity, "sha256": digest}
+                data["artifacts"][relative] = {
+                    "campaign_id": self.campaign_id,
+                    "trajectory": str(item.get("trajectory")), "pulse": int(item.get("pulse")),
+                    "attempt": int(item.get("attempt")),
+                    "role": str(role or item.get("role")), "relative_path": relative,
+                    "identity": identity, "expected_sha256": digest, "sha256": digest,
+                    "reclaimable": bool((metadata or {}).get("reclaimable", False)),
+                    "metadata": {**dict(item.get("metadata", {})), **dict(metadata or {})},
+                    "intent_id": iid, "reservation_id": str(item.get("reservation_id")),
+                    "admission_hash": item.get("admission_hash"),
+                    "creation_record": {"intent_id": iid, "generation": item.get("generation"),
+                                        "created_utc": item.get("created_utc")},
+                    "registered_utc": _utc(),
+                }
+            if expected_bytes is not None and actual_total > _nonnegative_int(expected_bytes, "expected_bytes"):
+                raise StorageBudgetError("created files exceed completion byte bound")
+            if actual_total > expected_total:
+                raise StorageBudgetError("created files exceed intent byte bound")
+            mutable = dict(item)
+            mutable["status"] = "COMPLETED"
+            mutable["created_files"] = created
+            mutable["actual_bytes"] = actual_total
+            mutable["completed_utc"] = _utc()
+            data["intents"][iid] = mutable
+            data["events"].append({"event": "INTENT_COMPLETE", "intent_id": iid, "actual_bytes": actual_total, "timestamp_utc": _utc()})
+            return dict(mutable)
+
+    register_intent_files = complete_intent
+    complete_creation_intent = complete_intent
+
+    def interrupt_intent(self, intent_id: str, *, reason: str = "interrupted") -> dict[str, Any]:
+        iid = str(intent_id)
+        with self._locked() as data:
+            item = data["intents"].get(iid)
+            if not isinstance(item, Mapping):
+                raise StorageBudgetError(f"unknown creation intent: {iid}")
+            mutable = dict(item)
+            if mutable.get("status") == "COMPLETED":
+                return mutable
+            mutable["status"] = "INTERRUPTED"
+            mutable["interrupt_reason"] = str(reason)
+            mutable["interrupted_utc"] = _utc()
+            data["intents"][iid] = mutable
+            data["events"].append({"event": "INTENT_INTERRUPTED", "intent_id": iid, "reason": str(reason), "timestamp_utc": _utc()})
+            return mutable
+
+    abort_intent = interrupt_intent
+    interrupt_creation_intent = interrupt_intent
+
+    def intents(self) -> dict[str, Any]:
+        with _FileLock(self.lock_path):
+            data = self._read()
+            self._validate(data)
+            return json.loads(json.dumps(data.get("intents", {})))
+
+    creation_intents = intents
+
+    def validate_intent(self, intent_id: str, *, path: str | Path | None = None,
+                        require_completed: bool = False, require_active: bool = False) -> dict[str, Any]:
+        with _FileLock(self.lock_path):
+            data = self._read()
+            self._validate(data)
+            item = data.get("intents", {}).get(str(intent_id))
+            if not isinstance(item, Mapping):
+                raise StorageBudgetError(f"unknown creation intent: {intent_id}")
+            if require_completed and item.get("status") != "COMPLETED":
+                raise StorageBudgetError("creation intent is not complete")
+            if require_active:
+                reservation_id = str(item.get("reservation_id", ""))
+                reservation = data.get("reservations", {}).get(reservation_id)
+                if not isinstance(reservation, Mapping) or reservation.get("status") != "ACTIVE":
+                    raise StorageBudgetError("creation intent reservation is not active")
+            if path is not None:
+                _, relative = _relative(self.root, path)
+                if not self._path_is_allowed(relative, item.get("allowed_paths", [])):
+                    raise StorageIntegrityError("path is outside creation intent")
+            return dict(item)
+
+    validate_creation_intent = validate_intent
+
     def register_artifact(
         self, path: str | Path, *, role: str, trajectory: str | None = None,
         pulse: int | None = None, attempt: int | None = None,
         reclaimable: bool = False, expected_sha256: str | None = None,
         expected_bytes: int | None = None, metadata: Mapping[str, Any] | None = None,
+        intent_id: str | None = None, reservation_id: str | None = None,
+        admission_hash: str | None = None, legacy_test_only: bool = False,
     ) -> dict[str, Any]:
         resolved, relative = _relative(self.root, path)
         identity = _identity(resolved)
+        if self.require_intents and legacy_test_only:
+            raise StorageIntegrityError("formal artifact registration cannot use legacy_test_only")
+        if self.require_intents and intent_id is None:
+            raise StorageIntegrityError("formal artifact registration requires a creation intent")
+        intent = None
+        if intent_id is not None:
+            intent = self.validate_intent(intent_id, path=resolved,
+                                          require_completed=self.require_intents)
+            if intent.get("status") not in {"ACTIVE", "COMPLETED"}:
+                raise StorageIntegrityError("artifact intent is not active or complete")
+            if self.require_intents:
+                created = intent.get("created_files", {})
+                if not isinstance(created, Mapping) or relative not in created:
+                    raise StorageIntegrityError("formal artifact is not listed in a completed intent creation record")
+                expected_created = created[relative]
+                if not isinstance(expected_created, Mapping) or dict(expected_created.get("identity", {})) != identity:
+                    raise StorageIntegrityError("formal artifact identity differs from completed creation record")
+            if reservation_id is not None and str(reservation_id) != str(intent.get("reservation_id")):
+                raise StorageIntegrityError("artifact reservation does not match creation intent")
+            if admission_hash is not None and str(admission_hash) != str(intent.get("admission_hash")):
+                raise StorageIntegrityError("artifact admission hash does not match creation intent")
+            if trajectory is not None and str(trajectory) != str(intent.get("trajectory")):
+                raise StorageIntegrityError("artifact trajectory does not match creation intent")
+            if pulse is not None and int(pulse) != int(intent.get("pulse")):
+                raise StorageIntegrityError("artifact pulse does not match creation intent")
+            if attempt is not None and int(attempt) != int(intent.get("attempt")):
+                raise StorageIntegrityError("artifact attempt does not match creation intent")
         if expected_bytes is not None and identity["size"] != _nonnegative_int(expected_bytes, "expected_bytes"):
             raise StorageIntegrityError("artifact size differs from expected size")
         digest = _sha256_file(resolved)
         if expected_sha256 is not None and digest != str(expected_sha256):
             raise StorageIntegrityError("artifact hash differs from expected hash")
+        effective_admission_hash = None if intent is None else intent.get("admission_hash")
         record = {
             "campaign_id": self.campaign_id,
             "trajectory": None if trajectory is None else str(trajectory),
@@ -611,6 +979,11 @@ class StorageBudget:
             "sha256": digest,
             "reclaimable": bool(reclaimable),
             "metadata": dict(metadata or {}),
+            "intent_id": None if intent_id is None else str(intent_id),
+            "reservation_id": None if reservation_id is None else str(reservation_id or (intent or {}).get("reservation_id")),
+            "admission_hash": (effective_admission_hash if admission_hash is None else str(admission_hash)),
+            "creation_record": None if intent is None else {"intent_id": str(intent_id),
+                "generation": intent.get("generation"), "created_utc": intent.get("created_utc")},
             "registered_utc": _utc(),
         }
         key = relative
@@ -644,6 +1017,69 @@ class StorageBudget:
             raise StorageBudgetError("final output budget exceeded")
         return {"status": "PASS", "final_output_bytes": total, "final_output_budget_bytes": self.final_output_budget_bytes}
 
+    def validate_terminal_inventory(
+        self, expected_roles: Mapping[str, Sequence[str | Path]] | Sequence[str], *,
+        root: str | Path | None = None, final: bool = True,
+    ) -> dict[str, Any]:
+        """Verify the durable role manifest against every actual file.
+
+        Unknown NPY/NPZ files, orphan files, old attempts and unregistered
+        terminal payloads are reported and fail closed.  The method never
+        claims ownership or deletes an extra file.
+        """
+        base = self.root if root is None else Path(root).resolve()
+        if not base.is_relative_to(self.root):
+            raise StorageIntegrityError("terminal inventory root escapes campaign root")
+        def resolve_expected(value: str | Path) -> str:
+            candidate = Path(value)
+            if not candidate.is_absolute():
+                candidate = self.root / candidate
+            return str(candidate.resolve())
+        if isinstance(expected_roles, Mapping):
+            expected_map = {
+                str(role): {resolve_expected(path) for path in paths}
+                for role, paths in expected_roles.items()
+            }
+        else:
+            expected_map = {"final": {resolve_expected(path) for path in expected_roles}}
+        expected_paths = set().union(*expected_map.values()) if expected_map else set()
+        actual_paths = {str(path.resolve()) for path in _iter_regular_files(base)}
+        management = {str(path.resolve()) for path in self._management_paths()}
+        actual_payload = actual_paths - management
+        artifacts = self.artifacts()
+        registered = {str((self.root / relative).resolve()) for relative in artifacts}
+        missing = sorted(path for path in expected_paths if path not in actual_payload)
+        extras = sorted(path for path in actual_payload if path not in expected_paths)
+        unregistered = sorted(path for path in actual_payload if path not in registered)
+        role_mismatches: list[str] = []
+        for role, paths in expected_map.items():
+            for path in paths & actual_payload:
+                try:
+                    relative = Path(path).relative_to(self.root).as_posix()
+                except ValueError:
+                    continue
+                record = artifacts.get(relative)
+                if record is None or str(record.get("role", "")) != str(role):
+                    role_mismatches.append(relative)
+        final_bytes = 0
+        if final:
+            final_bytes = sum(int(artifacts.get(Path(path).relative_to(self.root).as_posix(), {}).get("identity", {}).get("size", 0))
+                             for path in expected_paths if Path(path).is_file() and Path(path).is_relative_to(self.root))
+            if final_bytes > self.final_output_budget_bytes:
+                raise StorageBudgetError("terminal final output exceeds final budget")
+        ok = not missing and not extras and not unregistered and not role_mismatches
+        if not ok:
+            raise StorageIntegrityError(
+                "terminal inventory mismatch: "
+                f"missing={missing} extras={extras} unregistered={unregistered} role_mismatches={role_mismatches}"
+            )
+        return {
+            "schema": "khz_filament.hr4e5.e5_1a.terminal_inventory.v1",
+            "status": "PASS", "root": str(base), "expected_count": len(expected_paths),
+            "actual_count": len(actual_payload), "final_output_bytes": final_bytes,
+            "roles": {role: sorted(paths) for role, paths in expected_map.items()},
+        }
+
     def _validate_gc_targets(self, data: Mapping[str, Any], targets: Sequence[str]) -> list[dict[str, Any]]:
         if not targets:
             raise StorageBudgetError("reclamation target list is empty")
@@ -655,6 +1091,11 @@ class StorageBudget:
                 raise StorageIntegrityError(f"unknown artifact ownership: {relative}")
             if item.get("campaign_id") != self.campaign_id or not bool(item.get("reclaimable")):
                 raise StorageIntegrityError(f"artifact is outside the reclamation whitelist: {relative}")
+            if self.require_intents:
+                if not str(item.get("intent_id", "")) or not isinstance(item.get("creation_record"), Mapping):
+                    raise StorageIntegrityError(f"artifact lacks durable creation ownership: {relative}")
+                if str(item.get("admission_hash", "")) != str(self.admission_hash or ""):
+                    raise StorageIntegrityError(f"artifact admission identity is not bound: {relative}")
             path = self.root / relative
             current = _identity(path)
             recorded = item.get("identity")
@@ -674,6 +1115,8 @@ class StorageBudget:
     def _read_writer_receipt(
         self, receipt: str | Path | Mapping[str, Any] | None, *, expected_sha256: str | None = None,
         expected_epoch: str | int | None = None,
+        expected_trajectory: str | None = None, expected_pulse: int | None = None,
+        expected_attempt: int | None = None, expected_admission_hash: str | None = None,
     ) -> dict[str, Any]:
         """Load a durable quiescence receipt and bind its file identity.
 
@@ -719,9 +1162,24 @@ class StorageBudget:
         process_id = payload.get("coordinator_process_id", payload.get("process_id"))
         if process_id is None or not str(process_id):
             raise StorageBudgetError("writer quiescence receipt lacks coordinator identity")
+        bindings = {
+            "trajectory": expected_trajectory,
+            "pulse": expected_pulse,
+            "attempt": expected_attempt,
+            "admission_identity_sha256": expected_admission_hash,
+        }
+        for name, expected in bindings.items():
+            if expected is None:
+                continue
+            actual = payload.get(name)
+            if actual is None:
+                raise StorageBudgetError(f"writer quiescence receipt lacks {name} binding")
+            if str(actual) != str(expected):
+                raise StorageIntegrityError(f"writer quiescence receipt {name} changed")
         return {
             "path": str(receipt_path), "sha256": digest, "writer_epoch": str(epoch),
             "coordinator_process_id": str(process_id), "status": "PASS",
+            **{name: payload.get(name) for name in bindings if payload.get(name) is not None},
         }
 
     def _read_campaign_json(
@@ -962,6 +1420,33 @@ class StorageBudget:
             not isinstance(row, Mapping) or row.get("status") != "PASS" for row in exact_rows
         ):
             raise StorageBudgetError("reclamation exact evidence rows are incomplete")
+        if self.require_intents:
+            binding = exact_payload.get("object_set_binding")
+            if not isinstance(binding, Mapping) or str(binding.get("status", "")).upper() != "PASS":
+                raise StorageBudgetError("formal reclamation requires a validated exact object-set binding")
+            if str(binding.get("campaign_id", self.campaign_id)) != self.campaign_id:
+                raise StorageIntegrityError("formal exact object-set campaign mismatch")
+            if not str(binding.get("binding_sha256", "")):
+                raise StorageIntegrityError("formal exact object-set binding hash is missing")
+            try:
+                from .hr4e5_evidence import validate_durable_report
+                reclaimed = any(
+                    str(target.get("status")) == "DELETED"
+                    for plan in self._read().get("gc_plans", {}).values()
+                    if isinstance(plan, Mapping)
+                    for target in plan.get("targets", [])
+                    if isinstance(target, Mapping)
+                )
+                validate_durable_report(
+                    evidence_info["exact_complete"]["path"],
+                    expected_sha256=evidence_info["exact_complete"]["sha256"],
+                    campaign_id=self.campaign_id, root=self.root,
+                    validate_objects=not reclaimed,
+                )
+            except Exception as error:
+                if isinstance(error, StorageBudgetError):
+                    raise
+                raise StorageIntegrityError("formal exact object-set validation failed") from error
         self._validate_successor_evidence(evidence_info["successor_ready"], label="reclamation successor READY evidence")
         dependency_payload = evidence_info["no_future_dependency"]["payload"]
         if evidence_info["no_future_dependency"]["status"] != "PASS" or dependency_payload.get("no_future_dependency") is not True:
@@ -985,6 +1470,8 @@ class StorageBudget:
         writer_receipt_sha256: str | None = None,
         writer_epoch: str | int | None = None,
         prerequisite_receipt: str | Path | Mapping[str, Any] | None = None,
+        trajectory: str | None = None, pulse: int | None = None,
+        attempt: int | None = None, admission_hash: str | None = None,
     ) -> dict[str, Any]:
         gates = {
             "exact_complete": bool(exact_complete),
@@ -995,9 +1482,22 @@ class StorageBudget:
         }
         if not all(gates.values()):
             raise StorageBudgetError("reclamation prerequisites are not all satisfied")
+        if self.require_intents:
+            if str(trajectory) not in {"R", "C"}:
+                raise StorageBudgetError("formal reclamation requires an R/C trajectory binding")
+            if pulse is None or isinstance(pulse, bool) or int(pulse) < 0:
+                raise StorageBudgetError("formal reclamation requires a nonnegative pulse binding")
+            if attempt is None or isinstance(attempt, bool) or int(attempt) < 0:
+                raise StorageBudgetError("formal reclamation requires a nonnegative attempt binding")
+            if admission_hash is None or str(admission_hash) != str(self.admission_hash or ""):
+                raise StorageIntegrityError("formal reclamation admission identity changed")
         writer_info = self._read_writer_receipt(
             writer_receipt, expected_sha256=writer_receipt_sha256,
             expected_epoch=writer_epoch,
+            expected_trajectory=trajectory if self.require_intents else None,
+            expected_pulse=pulse if self.require_intents else None,
+            expected_attempt=attempt if self.require_intents else None,
+            expected_admission_hash=admission_hash if self.require_intents else None,
         )
         pid = str(plan_id or f"gc-{os.getpid()}-{time.time_ns()}")
         raw_targets = [str(item) for item in targets]
@@ -1028,6 +1528,10 @@ class StorageBudget:
             plan = {
                 "schema": GC_SCHEMA, "plan_id": pid, "campaign_id": self.campaign_id,
                 "status": "PLANNED", "reason": str(reason), "gates": gates,
+                "trajectory": None if trajectory is None else str(trajectory),
+                "pulse": None if pulse is None else int(pulse),
+                "attempt": None if attempt is None else int(attempt),
+                "admission_identity_sha256": None if admission_hash is None else str(admission_hash),
                 "writer_receipt": writer_info,
                 "prerequisite_receipt": prerequisite_info,
                 "targets": records, "planned_bytes": sum(item["bytes"] for item in records),
@@ -1045,14 +1549,38 @@ class StorageBudget:
             raise StorageBudgetError("reclamation plan is missing or invalid")
         return plan
 
+    def _validate_reclaim_step_binding(
+        self, plan: Mapping[str, Any], *, expected_trajectory: str | None,
+        expected_pulse: int | None, expected_attempt: int | None,
+        expected_admission_hash: str | None,
+    ) -> None:
+        bindings = {
+            "trajectory": expected_trajectory,
+            "pulse": expected_pulse,
+            "attempt": expected_attempt,
+            "admission_identity_sha256": expected_admission_hash,
+        }
+        if self.require_intents and any(value is None for value in bindings.values()):
+            raise StorageIntegrityError("formal reclamation requires complete step bindings before unlink")
+        for name, expected in bindings.items():
+            if expected is not None and str(plan.get(name)) != str(expected):
+                raise StorageIntegrityError(f"reclamation plan {name} binding changed")
+
     def validate_reclaim_plan(
         self, plan_id: str, *, gates: Mapping[str, bool] | None = None,
         writer_receipt: str | Path | Mapping[str, Any] | None = None,
         writer_epoch: str | int | None = None,
         prerequisite_receipt: str | Path | Mapping[str, Any] | None = None,
+        expected_trajectory: str | None = None, expected_pulse: int | None = None,
+        expected_attempt: int | None = None, expected_admission_hash: str | None = None,
     ) -> dict[str, Any]:
         with self._locked() as data:
             plan = self._load_plan(data, plan_id)
+            self._validate_reclaim_step_binding(
+                plan, expected_trajectory=expected_trajectory,
+                expected_pulse=expected_pulse, expected_attempt=expected_attempt,
+                expected_admission_hash=expected_admission_hash,
+            )
             if plan.get("status") in {"COMPLETED", "ABORTED"}:
                 return dict(plan)
             if gates is not None and not all(bool(value) for value in gates.values()):
@@ -1064,6 +1592,9 @@ class StorageBudget:
                 writer_receipt or stored_writer.get("path"),
                 expected_sha256=str(stored_writer.get("sha256", "")),
                 expected_epoch=writer_epoch or stored_writer.get("writer_epoch"),
+                expected_trajectory=expected_trajectory,
+                expected_pulse=expected_pulse, expected_attempt=expected_attempt,
+                expected_admission_hash=expected_admission_hash,
             )
             stored_prerequisite = plan.get("prerequisite_receipt")
             if not isinstance(stored_prerequisite, Mapping):
@@ -1094,12 +1625,19 @@ class StorageBudget:
         writer_epoch: str | int | None = None,
         prerequisite_receipt: str | Path | Mapping[str, Any] | None = None,
         fault_hook: Callable[[str, str], None] | None = None,
+        expected_trajectory: str | None = None, expected_pulse: int | None = None,
+        expected_attempt: int | None = None, expected_admission_hash: str | None = None,
     ) -> dict[str, Any]:
         if not bool(no_active_writers):
             raise StorageBudgetError("reclamation requires a quiescent coordinator")
         count = 0
         with self._locked() as data:
             plan = self._load_plan(data, plan_id)
+            self._validate_reclaim_step_binding(
+                plan, expected_trajectory=expected_trajectory,
+                expected_pulse=expected_pulse, expected_attempt=expected_attempt,
+                expected_admission_hash=expected_admission_hash,
+            )
             if plan.get("status") == "COMPLETED":
                 return dict(plan)
             if plan.get("status") == "ABORTED":
@@ -1111,6 +1649,9 @@ class StorageBudget:
                 writer_receipt or stored_writer.get("path"),
                 expected_sha256=str(stored_writer.get("sha256", "")),
                 expected_epoch=writer_epoch or stored_writer.get("writer_epoch"),
+                expected_trajectory=expected_trajectory,
+                expected_pulse=expected_pulse, expected_attempt=expected_attempt,
+                expected_admission_hash=expected_admission_hash,
             )
             stored_prerequisite = plan.get("prerequisite_receipt")
             if not isinstance(stored_prerequisite, Mapping):
@@ -1178,18 +1719,50 @@ class StorageBudget:
         writer_receipt: str | Path | Mapping[str, Any] | None = None,
         writer_epoch: str | int | None = None,
         prerequisite_receipt: str | Path | Mapping[str, Any] | None = None,
+        expected_trajectory: str | None = None, expected_pulse: int | None = None,
+        expected_attempt: int | None = None, expected_admission_hash: str | None = None,
     ) -> dict[str, Any]:
         return self.apply_reclaim(
             plan_id, no_active_writers=no_active_writers,
             writer_receipt=writer_receipt, writer_epoch=writer_epoch,
             prerequisite_receipt=prerequisite_receipt,
+            expected_trajectory=expected_trajectory, expected_pulse=expected_pulse,
+            expected_attempt=expected_attempt,
+            expected_admission_hash=expected_admission_hash,
         )
 
-    def verify_reclaim(self, plan_id: str) -> dict[str, Any]:
+    def verify_reclaim(
+        self, plan_id: str, *, expected_trajectory: str | None = None,
+        expected_pulse: int | None = None, expected_attempt: int | None = None,
+        expected_admission_hash: str | None = None,
+    ) -> dict[str, Any]:
         with _FileLock(self.lock_path):
             data = self._read()
             self._validate(data)
             plan = self._load_plan(data, plan_id)
+            self._validate_reclaim_step_binding(
+                plan, expected_trajectory=expected_trajectory,
+                expected_pulse=expected_pulse, expected_attempt=expected_attempt,
+                expected_admission_hash=expected_admission_hash,
+            )
+            stored_writer = plan.get("writer_receipt")
+            if not isinstance(stored_writer, Mapping):
+                raise StorageIntegrityError("reclamation plan lacks durable writer receipt")
+            self._read_writer_receipt(
+                stored_writer.get("path"), expected_sha256=str(stored_writer.get("sha256", "")),
+                expected_epoch=stored_writer.get("writer_epoch"),
+                expected_trajectory=expected_trajectory,
+                expected_pulse=expected_pulse, expected_attempt=expected_attempt,
+                expected_admission_hash=expected_admission_hash,
+            )
+            stored_prerequisite = plan.get("prerequisite_receipt")
+            if not isinstance(stored_prerequisite, Mapping):
+                raise StorageIntegrityError("reclamation plan lacks durable prerequisite receipt")
+            self._read_reclaim_prerequisite_receipt(
+                stored_prerequisite.get("path"),
+                expected_sha256=str(stored_prerequisite.get("sha256", "")),
+                expected_gates=plan.get("gates"), expected_targets=plan.get("targets", []),
+            )
             missing = []
             for target in plan["targets"]:
                 if target.get("status") == "DELETED":
@@ -1224,6 +1797,9 @@ class StorageBudget:
                 "free_bytes": self._provider_free_bytes(),
                 "quota_bytes": self._provider_quota_bytes(),
                 "quota_required": self.require_quota,
+                "require_intents": self.require_intents,
+                "admission_hash": self.admission_hash,
+                "intent_count": len(data.get("intents", {})),
             }
 
 
@@ -1249,6 +1825,7 @@ class MockQuotaProvider:
 
 __all__ = [
     "DEFAULT_FINAL_OUTPUT_BUDGET_BYTES", "DEFAULT_SAFETY_MARGIN_BYTES", "GC_SCHEMA",
-    "HARD_CAP_BYTES", "MockQuotaProvider", "RECLAIM_PREREQUISITE_SCHEMA", "Reservation", "STORAGE_SCHEMA",
+    "HARD_CAP_BYTES", "INTENT_SCHEMA", "MockQuotaProvider", "RECLAIM_PREREQUISITE_SCHEMA", "Reservation", "STORAGE_SCHEMA",
+    "derive_budget_plan", "plan_campaign_budget",
     "StorageBudget", "StorageBudgetError", "StorageIntegrityError",
 ]

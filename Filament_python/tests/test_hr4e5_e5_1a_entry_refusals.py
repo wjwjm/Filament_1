@@ -20,7 +20,7 @@ def test_direct_final_replay_rejects_changed_post(tmp_path):
 @pytest.mark.parametrize('invalid', ['disabled_hr3b', 'shifted_schedule', 'grid_spacing'])
 def test_optical_contract_rejects_before_output_creation(tmp_path, invalid):
     from KHz_filament.config import BeamConfig, GridConfig, HeatConfig, IonizationConfig, PropagationConfig, RamanConfig, RunConfig
-    from KHz_filament.hr4e5_formal_entry import run_streaming_optical_pulse
+    from KHz_filament.hr4e5_formal_entry import build_fixture_admission_identity, run_streaming_optical_pulse
     from KHz_filament.hr4e5s_streaming import StreamingLifecycle
     from KHz_filament.longitudinal import build_longitudinal_schedule
     state = StreamingLifecycle.create(root=tmp_path/'state', current=_fields(shape=(8,8)),
@@ -34,9 +34,11 @@ def test_optical_contract_rejects_before_output_creation(tmp_path, invalid):
         grid.Lx = 16e-4
     components = dict(grid=grid, beam=BeamConfig(), prop=PropagationConfig(),
         ion=IonizationConfig(), heat=heat, run=RunConfig(), raman=RamanConfig())
+    admission_identity = build_fixture_admission_identity(k=8, shape=(8, 8))
     with pytest.raises(ValueError, match='HR-3B|coordinates|grid differs'):
         run_streaming_optical_pulse(lifecycle_root=state.root, schedule=schedule,
-            output_dir=tmp_path/'output', components=components)
+            output_dir=tmp_path/'output', components=components,
+            admission_identity=admission_identity, fixture_only=True)
     assert not (tmp_path/'output').exists()
 
 

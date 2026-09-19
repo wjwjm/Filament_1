@@ -11,6 +11,7 @@ driver.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import time
 import uuid
@@ -24,7 +25,9 @@ import numpy as np
 from .confio import load_all
 from .constants import N0_air, Ui_N2, c0, n2_air
 from .device import to_cpu, xp
-from .hr4e5_evidence import atomic_json, compare_arrays_exact, compare_object_sets, lineage_binding, sha256_array, sha256_file, validate_ready_receipt, write_exact_report, _safe_child_path
+from .hr4e5_evidence import (atomic_json, compare_arrays_exact, compare_object_sets,
+    lineage_binding, sha256_array, sha256_file, validate_paired_exact_report,
+    validate_ready_receipt, write_exact_report, _safe_child_path)
 from .hr4e5s_streaming import FIELDS, StreamingLifecycle, StreamingLifecycleError, _content_hash, make_post_commit_hook
 from .longitudinal import DepositionContract, LongitudinalSchedule, build_deposition_contract
 from .propagate import propagate_one_pulse
@@ -36,8 +39,236 @@ from .hr4e5_storage import StorageBudget
 
 FORMAL_ENTRY_SCHEMA = "khz_filament.hr4e5.e5_1a.formal_entry.v1"
 ROOT_METADATA_SCHEMA = "khz_filament.hr4e5.e5_1a.root_metadata.v1"
+ADMISSION_SCHEMA = "khz_filament.hr4e5.e5_1a.admission.v1"
 BLOCK_SIZE = 8
 QUEUE_DEPTH = 16
+
+
+_ADMISSION_REQUIRED = (
+    "campaign_id", "execution_mode", "runtime_or_compatibility", "config_identity",
+    "effective_params", "source_identity", "lut_identity", "schedule_identity",
+    "grid_identity", "pre0_identity", "n_pulses", "k", "block_size", "queue_depth",
+    "f_rep", "dt_hydro", "precision", "r_roots", "c_roots", "pulse_attempt_epoch",
+    "budget_identity", "retention_identity",
+)
+_PLACEHOLDERS = {"", "unknown", "placeholder", "missing", "not_provided", "not_materialized", "none", "null"}
+
+
+def _canonical_json(value: Mapping[str, Any]) -> bytes:
+    def safe(item: Any) -> Any:
+        if isinstance(item, Path):
+            return str(item)
+        if isinstance(item, Mapping):
+            return {str(key): safe(value) for key, value in item.items()}
+        if isinstance(item, (list, tuple)):
+            return [safe(value) for value in item]
+        if isinstance(item, np.generic):
+            return item.item()
+        return item
+    return json.dumps(safe(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
+
+
+def admission_identity_hash(identity: Mapping[str, Any]) -> str:
+    value = {str(k): v for k, v in identity.items() if str(k) not in {"identity_sha256", "created_utc"}}
+    return hashlib.sha256(_canonical_json(value)).hexdigest()
+
+
+def _reject_placeholder(value: Any, label: str) -> None:
+    if value is None:
+        raise ValueError(f"formal admission field is missing: {label}")
+    if isinstance(value, str) and value.strip().lower() in _PLACEHOLDERS:
+        raise ValueError(f"formal admission field is a placeholder: {label}")
+    if isinstance(value, Mapping):
+        if not value:
+            raise ValueError(f"formal admission field is empty: {label}")
+        for key, item in value.items():
+            _reject_placeholder(item, f"{label}.{key}")
+    elif isinstance(value, (list, tuple)):
+        if not value:
+            raise ValueError(f"formal admission field is empty: {label}")
+        for index, item in enumerate(value):
+            _reject_placeholder(item, f"{label}[{index}]")
+
+
+def build_admission_identity(
+    *, campaign_id: str, execution_mode: str = "formal", runtime_or_compatibility: Any = None,
+    config_identity: Any = None, effective_params: Any = None, source_identity: Any = None,
+    lut_identity: Any = None, schedule_identity: Any = None, grid_identity: Any = None,
+    pre0_identity: Any = None, n_pulses: int | None = None, k: int | None = None,
+    block_size: int = BLOCK_SIZE, queue_depth: int = QUEUE_DEPTH, f_rep: float | None = None,
+    dt_hydro: float | None = None, precision: Any = None, r_roots: Any = None,
+    c_roots: Any = None, pulse_attempt_epoch: Any = None, budget_identity: Any = None,
+    retention_identity: Any = None, scope: str | None = None, **extra: Any,
+) -> dict[str, Any]:
+    """Create and validate the immutable outer admission identity.
+
+    ``execution_mode=TEST_FIXTURE_ONLY`` is intentionally explicit and cannot
+    be accepted by a formal coordinator.  Formal mode rejects absent or
+    placeholder evidence before any scientific payload creation.
+    """
+    mode = str(execution_mode)
+    values = {
+        "campaign_id": str(campaign_id), "execution_mode": mode,
+        "runtime_or_compatibility": runtime_or_compatibility,
+        "config_identity": config_identity, "effective_params": effective_params,
+        "source_identity": source_identity, "lut_identity": lut_identity,
+        "schedule_identity": schedule_identity, "grid_identity": grid_identity,
+        "pre0_identity": pre0_identity, "n_pulses": n_pulses, "k": k,
+        "block_size": block_size, "queue_depth": queue_depth, "f_rep": f_rep,
+        "dt_hydro": dt_hydro, "precision": precision, "r_roots": r_roots,
+        "c_roots": c_roots, "pulse_attempt_epoch": pulse_attempt_epoch,
+        "budget_identity": budget_identity, "retention_identity": retention_identity,
+    }
+    if mode == "TEST_FIXTURE_ONLY":
+        if str(scope or "TEST_FIXTURE_ONLY") != "TEST_FIXTURE_ONLY":
+            raise ValueError("fixture admission identity must declare TEST_FIXTURE_ONLY scope")
+        values["scope"] = "TEST_FIXTURE_ONLY"
+    else:
+        for key in _ADMISSION_REQUIRED:
+            _reject_placeholder(values.get(key), key)
+        if str(mode).upper() in {"TEST", "FIXTURE", "MOCK"}:
+            raise ValueError("formal admission cannot use a test execution mode")
+        if int(block_size) != BLOCK_SIZE or int(queue_depth) != QUEUE_DEPTH:
+            raise ValueError("formal admission requires block8/queue16")
+        values["scope"] = "FORMAL"
+    values.update({str(key): value for key, value in extra.items()})
+    values["schema"] = ADMISSION_SCHEMA
+    values["identity_sha256"] = admission_identity_hash(values)
+    return values
+
+
+def build_fixture_admission_identity(*, campaign_id: str = "TEST_FIXTURE_ONLY", n_pulses: int = 3,
+                                     k: int = 32, shape: Sequence[int] = (8, 8),
+                                     block_size: int = BLOCK_SIZE, queue_depth: int = QUEUE_DEPTH,
+                                     epoch: str = "fixture-epoch") -> dict[str, Any]:
+    """Return an explicit, non-qualifying identity for the CPU fixture."""
+    return build_admission_identity(
+        campaign_id=campaign_id, execution_mode="TEST_FIXTURE_ONLY",
+        runtime_or_compatibility={"runtime": "local-cpu", "scope": "TEST_FIXTURE_ONLY"},
+        config_identity={"config": "fixture", "scope": "TEST_FIXTURE_ONLY"},
+        effective_params={"shape": list(shape)}, source_identity={"source": "fixture"},
+        lut_identity={"lut": "fixture-none"}, schedule_identity={"k": int(k), "scope": "fixture"},
+        grid_identity={"shape": list(shape), "dtype": "float64"},
+        pre0_identity={"rule": "zero_velocity_fixture"}, n_pulses=n_pulses, k=k,
+        block_size=block_size, queue_depth=queue_depth, f_rep=5e6, dt_hydro=1e-7,
+        precision={"fields": "float64", "optical": "complex128"},
+        r_roots={"root": "R"}, c_roots={"root": "C"},
+        pulse_attempt_epoch={"pulse": 0, "attempt": 0, "epoch": epoch},
+        budget_identity={"max_campaign_live_bytes": 300 * 1024**3, "final_output_budget_bytes": 64 * 1024**3},
+        retention_identity={"policy": "fixture"}, scope="TEST_FIXTURE_ONLY",
+    )
+
+
+def validate_admission_identity(identity: Mapping[str, Any], *, formal: bool = True,
+                                expected_hash: str | None = None) -> dict[str, Any]:
+    if not isinstance(identity, Mapping) or identity.get("schema") != ADMISSION_SCHEMA:
+        raise ValueError("admission identity schema is invalid")
+    payload = dict(identity)
+    mode = str(payload.get("execution_mode", ""))
+    if formal:
+        if mode.strip().lower() in _PLACEHOLDERS:
+            raise ValueError("formal admission field is missing: execution_mode")
+        if mode == "TEST_FIXTURE_ONLY" or payload.get("scope") != "FORMAL":
+            raise ValueError("fixture-only admission identity cannot qualify formal mode")
+        for key in _ADMISSION_REQUIRED:
+            _reject_placeholder(payload.get(key), key)
+    elif mode == "TEST_FIXTURE_ONLY" and payload.get("scope") != "TEST_FIXTURE_ONLY":
+        raise ValueError("fixture admission identity scope is invalid")
+    saved = str(payload.get("identity_sha256", ""))
+    if not saved or saved != admission_identity_hash(payload) or (expected_hash is not None and saved != str(expected_hash)):
+        raise ValueError("admission identity hash mismatch")
+    return payload
+
+
+def persist_admission_identity(path: str | Path, identity: Mapping[str, Any], *, overwrite: bool = False) -> dict[str, Any]:
+    value = validate_admission_identity(identity, formal=str(identity.get("execution_mode")) != "TEST_FIXTURE_ONLY")
+    destination = Path(path)
+    if destination.exists():
+        saved = json.loads(destination.read_text(encoding="utf-8"))
+        if admission_identity_hash(saved) != admission_identity_hash(value):
+            raise ValueError("persisted admission identity is immutable")
+        return saved
+    atomic_json(destination, value, overwrite=overwrite)
+    return value
+
+
+def load_admission_identity(path: str | Path, *, formal: bool = True, expected_hash: str | None = None) -> dict[str, Any]:
+    value = json.loads(Path(path).read_text(encoding="utf-8"))
+    return validate_admission_identity(value, formal=formal, expected_hash=expected_hash)
+
+
+create_admission_identity = build_admission_identity
+verify_admission_identity = validate_admission_identity
+
+
+def _require_creation_context(*, admission_identity: Mapping[str, Any] | None,
+                              storage_budget: StorageBudget | None,
+                              creation_intent: Mapping[str, Any] | str | None,
+                              fixture_only: bool) -> tuple[dict[str, Any] | None, StorageBudget | None, dict[str, Any] | None]:
+    if fixture_only:
+        if admission_identity is None:
+            raise ValueError("fixture-only creation requires explicit TEST_FIXTURE_ONLY admission identity")
+        value = validate_admission_identity(admission_identity, formal=False)
+        if value.get("execution_mode") != "TEST_FIXTURE_ONLY":
+            raise ValueError("fixture-only creation requires TEST_FIXTURE_ONLY identity")
+        return value, storage_budget, None
+    if admission_identity is None or storage_budget is None or creation_intent is None:
+        raise ValueError("formal creation requires admission identity, StorageBudget, and creation intent")
+    identity = validate_admission_identity(admission_identity, formal=True)
+    if storage_budget.admission_hash != identity["identity_sha256"]:
+        raise ValueError("StorageBudget admission identity does not match formal entry")
+    if not storage_budget.require_quota:
+        raise ValueError("formal creation requires fail-closed quota reporting")
+    if isinstance(creation_intent, Mapping):
+        intent_id = creation_intent.get("intent_id")
+        if not intent_id:
+            raise ValueError("formal creation intent id is missing")
+        intent = storage_budget.validate_intent(str(intent_id))
+    else:
+        intent = storage_budget.validate_intent(str(creation_intent))
+    if str(intent.get("admission_hash", "")) != identity["identity_sha256"]:
+        raise ValueError("creation intent admission identity does not match formal entry")
+    if intent.get("status") not in {"ACTIVE", "COMPLETED"}:
+        raise ValueError("creation intent is not active")
+    return identity, storage_budget, intent
+
+
+def _validate_creation_target(
+    *, root: str | Path, identity: Mapping[str, Any], budget: StorageBudget,
+    intent: Mapping[str, Any], role: str, trajectory: str, pulse: int,
+    attempt: int, generation: str, allow_existing_complete: bool = False,
+) -> None:
+    """Validate the durable intent before any lifecycle payload is written."""
+    target = Path(root).resolve()
+    intent_id = str(intent.get("intent_id", ""))
+    if not intent_id:
+        raise ValueError("formal creation intent id is missing")
+    existing_complete = (target / "E5_1A_READY.json").is_file()
+    durable = budget.validate_intent(intent_id, path=target, require_active=not existing_complete)
+    expected = {
+        "role": str(role), "trajectory": str(trajectory), "pulse": int(pulse),
+        "attempt": int(attempt), "admission_hash": str(identity["identity_sha256"]),
+    }
+    for field, value in expected.items():
+        if str(durable.get(field)) != str(value):
+            raise ValueError(f"creation intent {field} does not match formal entry")
+    declared_generation = durable.get("generation")
+    if declared_generation is None:
+        declared_generation = (durable.get("metadata") or {}).get("generation")
+    if declared_generation is None:
+        raise ValueError("formal creation intent generation is missing")
+    if str(declared_generation) != str(generation):
+        raise ValueError("creation intent generation does not match formal entry")
+    if existing_complete:
+        if not allow_existing_complete or durable.get("status") != "COMPLETED":
+            raise ValueError("existing successor is not bound to a completed creation intent")
+        saved = json.loads((target / "E5_1A_READY.json").read_text(encoding="utf-8"))
+        if (str(saved.get("creation_intent_id", "")) != intent_id
+                or str(saved.get("creation_intent_generation", "")) != str(generation)):
+            raise ValueError("existing successor creation intent binding changed")
+        return
+    if target.exists() and any(path.is_file() for path in target.rglob("*")):
+        raise ValueError("creation target already contains an unowned or conflicting payload")
 
 
 def interpulse_worker_parameters(*, f_rep: float, dt_hydro: float, **coefficients: Any) -> dict[str, Any]:
@@ -79,6 +310,7 @@ class StreamingPulseReadView:
         source_indices: Sequence[int] | None = None,
         expected_generation: str | None = None,
         expected_content_sha256: str | None = None,
+        expected_admission_hash: str | None = None,
     ):
         self.root = Path(lifecycle.root if isinstance(lifecycle, StreamingLifecycle) else lifecycle).resolve()
         self._closed = False
@@ -89,6 +321,13 @@ class StreamingPulseReadView:
         self.current_content_sha256 = str(expected_content_sha256 or initial.manifest["current_content_sha256"])
         if self.current_generation != initial.manifest["current_generation"] or self.current_content_sha256 != initial.manifest["current_content_sha256"]:
             raise StreamingLifecycleError("requested PRE identity differs from CURRENT")
+        if expected_admission_hash is not None:
+            metadata_path = self.root / "E5_1A_ROOT_METADATA.json"
+            if not metadata_path.is_file():
+                raise StreamingLifecycleError("PRE admission identity metadata is missing")
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if str(metadata.get("admission_identity_sha256", "")) != str(expected_admission_hash):
+                raise StreamingLifecycleError("PRE admission identity differs from CURRENT")
         count = int(initial.manifest["expected_screen_count"])
         if source_indices is None:
             self.source_indices = tuple(range(count))
@@ -239,26 +478,71 @@ def create_pre0_root(
     *, root: str | Path, delta_n: Any, schedule: LongitudinalSchedule,
     dx_m: float, dy_m: float, current_generation: str = "E5:E5_1A:PRE0",
     source_identity: Mapping[str, Any] | None = None, queue_depth: int = QUEUE_DEPTH,
+    admission_identity: Mapping[str, Any] | None = None,
+    storage_budget: StorageBudget | None = None,
+    creation_intent: Mapping[str, Any] | str | None = None,
+    fixture_only: bool = False, trajectory: str = "R", pulse: int = 0,
+    attempt: int = 0, role: str = "PRE0",
 ) -> StreamingLifecycle:
     """Create a private PRE0 Streaming root with deterministic zero velocity."""
+    identity, budget, intent = _require_creation_context(
+        admission_identity=admission_identity, storage_budget=storage_budget,
+        creation_intent=creation_intent, fixture_only=bool(fixture_only),
+    )
     if queue_depth != QUEUE_DEPTH:
         raise ValueError('E5-1A queue depth is fixed at 16')
     if not isinstance(schedule, LongitudinalSchedule) or schedule.n_intervals % BLOCK_SIZE:
         raise ValueError("PRE0 schedule must be a valid full-block LongitudinalSchedule")
+    if identity is not None:
+        if int(identity.get("k", -1)) != int(schedule.n_intervals):
+            raise ValueError("PRE0 schedule count differs from admission identity")
+        if int(identity.get("block_size", -1)) != BLOCK_SIZE or int(identity.get("queue_depth", -1)) != QUEUE_DEPTH:
+            raise ValueError("PRE0 frozen block/queue differs from admission identity")
+        grid_identity = identity.get("grid_identity", {})
+        if source_identity is not None and dict(source_identity) != dict(identity.get("source_identity", source_identity)):
+            raise ValueError("PRE0 source identity differs from admission identity")
+    root_path = Path(root).resolve()
+    if identity is not None and budget is not None and intent is not None:
+        _validate_creation_target(root=root_path, identity=identity, budget=budget, intent=intent,
+                                  role=role, trajectory=trajectory, pulse=pulse, attempt=attempt,
+                                  generation=str(current_generation))
     fields = pre0_fields_from_delta_n(delta_n, expected_count=schedule.n_intervals)
+    if identity is not None and isinstance(grid_identity, Mapping):
+        declared_shape = grid_identity.get("shape")
+        if declared_shape is not None and list(declared_shape) != list(fields["delta_n"].shape[-2:]):
+            raise ValueError("PRE0 grid shape differs from admission identity")
     records = _records_from_schedule(schedule)
-    lifecycle = StreamingLifecycle.create(
-        root=root, current=fields, screen_records=records,
-        current_generation=str(current_generation), dx_m=float(dx_m), dy_m=float(dy_m),
-        queue_depth=int(queue_depth), actor="e5_1a_pre0",
-    )
-    _write_root_metadata(Path(root), {
-        "entry": "PRE0", "current_generation": str(current_generation),
-        "current_content_sha256": lifecycle.manifest["current_content_sha256"],
-        "schedule": schedule.as_metadata(), "source_identity": dict(source_identity or {}),
-        "velocity_initialization": "deterministic_positive_float64_zero",
-    })
+    try:
+        lifecycle = StreamingLifecycle.create(
+            root=root_path, current=fields, screen_records=records,
+            current_generation=str(current_generation), dx_m=float(dx_m), dy_m=float(dy_m),
+            queue_depth=int(queue_depth), actor="e5_1a_pre0",
+        )
+        _write_root_metadata(root_path, {
+            "entry": "PRE0", "current_generation": str(current_generation),
+            "current_content_sha256": lifecycle.manifest["current_content_sha256"],
+            "schedule": schedule.as_metadata(), "source_identity": dict(source_identity or (identity or {}).get("source_identity", {})),
+            "admission_identity_sha256": None if identity is None else identity["identity_sha256"],
+            "creation_intent_id": None if intent is None else intent.get("intent_id"),
+            "creation_intent_generation": None if intent is None else intent.get("generation"),
+            "scope": "TEST_FIXTURE_ONLY" if fixture_only else "FORMAL",
+            "velocity_initialization": "deterministic_positive_float64_zero",
+        })
+        if budget is not None and intent is not None:
+            files = [path for path in root_path.rglob("*") if path.is_file()]
+            budget.complete_intent(str(intent["intent_id"]), files=files)
+            budget.consume(str(intent["reservation_id"]))
+    except Exception as error:
+        if budget is not None and intent is not None:
+            try:
+                budget.interrupt_intent(str(intent["intent_id"]), reason=f"PRE0 creation failed: {type(error).__name__}")
+            except Exception:
+                pass
+        raise
     return lifecycle
+
+
+create_formal_pre0_root = create_pre0_root
 
 
 def _next_fields(lifecycle: StreamingLifecycle) -> dict[str, np.ndarray]:
@@ -277,22 +561,43 @@ def create_successor_root(
     *, parent_root: str | Path, child_root: str | Path,
     exact_report_path: str | Path | None = None,
     queue_depth: int = QUEUE_DEPTH,
+    admission_identity: Mapping[str, Any] | None = None,
+    storage_budget: StorageBudget | None = None,
+    creation_intent: Mapping[str, Any] | str | None = None,
+    fixture_only: bool = False, trajectory: str = "R", pulse: int = 0,
+    attempt: int = 0, role: str = "SUCCESSOR",
 ) -> tuple[StreamingLifecycle, dict[str, Any]]:
     """Copy a promoted parent NEXT into an independent child CURRENT root."""
+    identity, budget, intent = _require_creation_context(
+        admission_identity=admission_identity, storage_budget=storage_budget,
+        creation_intent=creation_intent, fixture_only=bool(fixture_only),
+    )
     if queue_depth != QUEUE_DEPTH:
         raise ValueError('E5-1A queue depth is fixed at 16')
     child_path = Path(child_root).resolve()
-    if (child_path / "E5_1A_READY.json").exists():
-        receipt = validate_ready_receipt(child_path, expected_parent_root=parent_root)
-        return StreamingLifecycle.open(child_path), receipt
     parent = StreamingLifecycle.open(parent_root)
-    fields = _next_fields(parent)
+    if identity is not None:
+        parent_metadata_path = Path(parent_root) / "E5_1A_ROOT_METADATA.json"
+        if parent_metadata_path.is_file():
+            parent_metadata = json.loads(parent_metadata_path.read_text(encoding="utf-8"))
+            if str(parent_metadata.get("admission_identity_sha256", "")) != str(identity["identity_sha256"]):
+                raise StreamingLifecycleError("successor parent admission identity differs from requested identity")
+        elif not fixture_only:
+            raise StreamingLifecycleError("formal successor parent admission metadata is missing")
     schedule_meta_path = Path(parent_root) / "E5_1A_ROOT_METADATA.json"
     schedule_meta = {}
     if schedule_meta_path.is_file():
         schedule_meta = json.loads(schedule_meta_path.read_text(encoding="utf-8"))
     records = [{"ordinal": int(item["ordinal"]), "screen_id": str(item["screen_id"]), "z_m": float(item["z_m"])} for item in parent.manifest["records"]]
     child_generation = str(parent.manifest["next_generation"])
+    if identity is not None and budget is not None and intent is not None:
+        _validate_creation_target(root=child_path, identity=identity, budget=budget, intent=intent,
+                                  role=role, trajectory=trajectory, pulse=pulse, attempt=attempt,
+                                  generation=child_generation, allow_existing_complete=True)
+    if (child_path / "E5_1A_READY.json").exists():
+        receipt = validate_ready_receipt(child_path, expected_parent_root=parent_root)
+        return StreamingLifecycle.open(child_path), receipt
+    fields = None
     if child_path.exists():
         if not (child_path / "streaming_manifest.json").is_file():
             raise StreamingLifecycleError("partial successor root without complete manifest; retain as failure evidence")
@@ -300,12 +605,14 @@ def create_successor_root(
         if child.manifest['current_generation'] != child_generation or child._authoritative_namespace != 'CURRENT':
             raise StreamingLifecycleError("conflicting successor generation")
     else:
+        fields = _next_fields(parent)
         child = StreamingLifecycle.create(
             root=child_root, current=fields, screen_records=records,
             current_generation=child_generation, dx_m=float(parent.manifest["dx_m"]),
             dy_m=float(parent.manifest["dy_m"]), queue_depth=int(queue_depth), actor="e5_1a_successor",
         )
-    del fields
+    if fields is not None:
+        del fields
     child_root_path = Path(child_root).resolve()
     # Compare one screen and one field at a time.  The child was created via
     # the existing three-volume ``create`` API, but exact evidence never
@@ -361,6 +668,11 @@ def create_successor_root(
         fields=fields_identity,
         exact_report={"path": str(report_path.relative_to(child_root_path)).replace("\\", "/"), "sha256": sha256_file(report_path), "status": report_written["status"]},
     )
+    if identity is not None:
+        receipt["admission_identity_sha256"] = identity["identity_sha256"]
+    if intent is not None:
+        receipt["creation_intent_id"] = intent.get("intent_id")
+        receipt["creation_intent_generation"] = intent.get("generation", child_generation)
     lineage_path = child_root_path / 'E5_1A_LINEAGE.json'
     if lineage_path.exists():
         saved = json.loads(lineage_path.read_text(encoding='utf-8'))
@@ -368,22 +680,58 @@ def create_successor_root(
             raise StreamingLifecycleError('conflicting lineage')
     else:
         atomic_json(lineage_path, {"schema": FORMAL_ENTRY_SCHEMA, "status": "READY", "receipt": "E5_1A_READY.json", "parent_root": str(parent.root), "child_root": str(child_root_path), "schedule_metadata": schedule_meta}, overwrite=False)
+    if identity is not None and not (child_root_path / "E5_1A_ROOT_METADATA.json").exists():
+        _write_root_metadata(child_root_path, {
+            "entry": "SUCCESSOR", "current_generation": child.manifest["current_generation"],
+            "current_content_sha256": child.manifest["current_content_sha256"],
+            "schedule": schedule_meta.get("schedule"),
+            "admission_identity_sha256": identity["identity_sha256"],
+            "creation_intent_id": None if intent is None else intent.get("intent_id"),
+            "creation_intent_generation": None if intent is None else intent.get("generation", child_generation),
+            "source_identity": identity.get("source_identity", {}),
+            "scope": "TEST_FIXTURE_ONLY" if fixture_only else "FORMAL",
+        })
     atomic_json(child_root_path / "E5_1A_READY.json", receipt, overwrite=False)
     archive = parent.root / 'E5_1A_ARCHIVED_AFTER_EXACT.json'
     if not archive.exists():
         atomic_json(archive, {"schema": FORMAL_ENTRY_SCHEMA, "status": "ARCHIVED_AFTER_EXACT", "restartable": False, "successor_root": str(child_root_path), "exact_report": str(report_path), "created_utc": _utc()}, overwrite=False)
+    if budget is not None and intent is not None:
+        try:
+            files = [path for path in child_root_path.rglob("*") if path.is_file()]
+            budget.complete_intent(str(intent["intent_id"]), files=files)
+            current_intent = budget.validate_intent(str(intent["intent_id"]))
+            if current_intent.get("status") == "COMPLETED":
+                reservation_id = str(current_intent.get("reservation_id"))
+                ledger = budget._read()
+                if ledger.get("reservations", {}).get(reservation_id, {}).get("status") == "ACTIVE":
+                    budget.consume(reservation_id)
+        except Exception as error:
+            try:
+                budget.interrupt_intent(str(intent["intent_id"]), reason=f"successor creation failed: {type(error).__name__}")
+            except Exception:
+                pass
+            raise
     return child, receipt
+
+
+create_formal_successor_root = create_successor_root
 
 
 def validate_successor_ready(root: str | Path, **kwargs: Any) -> dict[str, Any]:
     return validate_ready_receipt(root, **kwargs)
 
 
-def open_successor_root(root: str | Path, *, allow_archived: bool = False) -> StreamingLifecycle:
+def open_successor_root(root: str | Path, *, allow_archived: bool = False,
+                        admission_identity: Mapping[str, Any] | None = None) -> StreamingLifecycle:
     base = Path(root).resolve()
     if (base / "E5_1A_ARCHIVED_AFTER_EXACT.json").is_file() and not allow_archived:
         raise StreamingLifecycleError("archived parent root is not restartable")
-    validate_ready_receipt(base)
+    receipt = validate_ready_receipt(base)
+    if admission_identity is not None:
+        identity = validate_admission_identity(admission_identity, formal=str(admission_identity.get("execution_mode")) != "TEST_FIXTURE_ONLY")
+        saved_hash = receipt.get("admission_identity_sha256")
+        if saved_hash is not None and str(saved_hash) != str(identity.get("identity_sha256")):
+            raise StreamingLifecycleError("successor READY admission identity changed")
     return StreamingLifecycle.open(base)
 
 
@@ -445,6 +793,57 @@ def _components_from_input(components: Mapping[str, Any] | Sequence[Any] | None,
     return values
 
 
+def _validate_declared_file_identity(declared: Any, *, label: str) -> None:
+    if not isinstance(declared, Mapping):
+        return
+    raw_path = declared.get("path") or declared.get("file")
+    expected = declared.get("sha256") or declared.get("sha256_file") or declared.get("raw_sha256")
+    if raw_path is None or expected is None:
+        return
+    path = Path(str(raw_path)).resolve()
+    if not path.is_file() or sha256_file(path) != str(expected):
+        raise ValueError(f"formal optical {label} identity does not match admission")
+
+
+def _validate_optical_admission(
+    *, lifecycle_root: str | Path, schedule: LongitudinalSchedule, grid: Any,
+    identity: Mapping[str, Any], fixture_only: bool, config_path: str | Path | None,
+) -> None:
+    if int(identity.get("k", -1)) != int(schedule.n_intervals):
+        raise ValueError("optical schedule count differs from admission identity")
+    if int(identity.get("block_size", -1)) != BLOCK_SIZE or int(identity.get("queue_depth", -1)) != QUEUE_DEPTH:
+        raise ValueError("optical block/queue differs from admission identity")
+    grid_identity = identity.get("grid_identity", {})
+    declared_shape = grid_identity.get("shape") if isinstance(grid_identity, Mapping) else None
+    if declared_shape is not None and list(declared_shape) != [int(grid.Ny), int(grid.Nx)]:
+        raise ValueError("optical grid shape differs from admission identity")
+    metadata_path = Path(lifecycle_root).resolve() / "E5_1A_ROOT_METADATA.json"
+    if not metadata_path.is_file():
+        if not fixture_only:
+            raise ValueError("formal optical root admission metadata is missing")
+    else:
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if str(metadata.get("admission_identity_sha256", "")) != str(identity["identity_sha256"]):
+            raise ValueError("optical root admission identity differs from formal entry")
+        if not fixture_only and metadata.get("scope") != "FORMAL":
+            raise ValueError("formal optical root scope is invalid")
+        declared_source = identity.get("source_identity")
+        if isinstance(declared_source, Mapping) and metadata.get("source_identity") not in (None, dict(declared_source)):
+            raise ValueError("optical root source identity differs from admission")
+    declared_schedule = identity.get("schedule_identity", {})
+    if isinstance(declared_schedule, Mapping) and declared_schedule.get("k") is not None:
+        if int(declared_schedule["k"]) != int(schedule.n_intervals):
+            raise ValueError("optical schedule identity differs from admission")
+    if config_path is not None:
+        config_identity = identity.get("config_identity")
+        _validate_declared_file_identity(config_identity, label="config")
+        if isinstance(config_identity, Mapping) and config_identity.get("path"):
+            if Path(str(config_identity["path"])).resolve() != Path(str(config_path)).resolve():
+                raise ValueError("optical config path differs from admission")
+    _validate_declared_file_identity(identity.get("source_identity"), label="source")
+    _validate_declared_file_identity(identity.get("lut_identity"), label="LUT")
+
+
 def run_streaming_optical_pulse(
     *, lifecycle_root: str | Path, schedule: LongitudinalSchedule,
     output_dir: str | Path, components: Mapping[str, Any] | Sequence[Any] | None = None,
@@ -452,6 +851,10 @@ def run_streaming_optical_pulse(
     resume: bool = False, dtype: str = "fp64",
     propagate_fn: Callable[..., Any] | None = None,
     storage_budget: StorageBudget | None = None,
+    admission_identity: Mapping[str, Any] | None = None,
+    creation_intent: Mapping[str, Any] | str | None = None,
+    fixture_only: bool = False, trajectory: str = "C", pulse: int = 0,
+    attempt: int = 0, role: str = "OPTICAL",
 ) -> dict[str, Any]:
     """Run one real optical pulse against an existing Streaming CURRENT root."""
     if not isinstance(schedule, LongitudinalSchedule):
@@ -461,6 +864,17 @@ def run_streaming_optical_pulse(
         raise ValueError('optical schedule requires complete blocks of eight')
     if dtype != "fp64":
         raise ValueError("E5-1A formal entry requires fp64 fields")
+    if admission_identity is None:
+        raise ValueError("optical entry requires an explicit admission identity")
+    inferred_fixture = str(admission_identity.get("execution_mode", "")) == "TEST_FIXTURE_ONLY"
+    if inferred_fixture != bool(fixture_only):
+        raise ValueError("optical fixture mode must explicitly match TEST_FIXTURE_ONLY admission")
+    identity, budget, intent = _require_creation_context(
+        admission_identity=admission_identity, storage_budget=storage_budget,
+        creation_intent=creation_intent, fixture_only=bool(fixture_only),
+    )
+    if propagate_fn is not None and not fixture_only:
+        raise ValueError("formal optical entry cannot inject a propagate function")
     destination = Path(output_dir)
     if destination.exists():
         if not resume:
@@ -488,7 +902,10 @@ def run_streaming_optical_pulse(
             or float(lifecycle.manifest['dx_m']) != float(grid.Lx / grid.Nx)
             or float(lifecycle.manifest['dy_m']) != float(grid.Ly / grid.Ny)):
         raise ValueError('Streaming CURRENT grid differs from optical grid')
-    if storage_budget is None:
+    _validate_optical_admission(lifecycle_root=lifecycle_root, schedule=schedule, grid=grid,
+                                identity=identity, fixture_only=bool(fixture_only),
+                                config_path=config_path)
+    if budget is None:
         raise ValueError('real optical entry requires the campaign StorageBudget before writing')
     # This reservation covers both the producer and the existing consumer's
     # POST/NEXT writes, six diagnostic maps and the final optical output.
@@ -496,10 +913,27 @@ def run_streaming_optical_pulse(
     screen_bytes = int(grid.Ny) * int(grid.Nx) * 8
     optical_bytes = int(grid.Nt) * int(grid.Ny) * int(grid.Nx) * 16
     peak = (9 if final else 12) * k * screen_bytes + optical_bytes + max(1024**2, k*65536)
-    storage_budget.check_final_output_budget(optical_bytes + 9*k*8)
+    budget.check_final_output_budget(optical_bytes + 9*k*8)
     before_files = {p for base in (destination, Path(lifecycle_root)) for p in base.rglob('*') if p.is_file()}
-    reservation = storage_budget.reserve(peak, purpose='real_optical_and_streaming_writes',
-        allocation_paths=[destination, Path(lifecycle_root)])
+    if fixture_only:
+        reservation = budget.reserve(peak, purpose='fixture_optical_and_streaming_writes',
+            allocation_paths=[destination, Path(lifecycle_root)])
+    else:
+        _validate_creation_target(root=destination, identity=identity, budget=budget,
+                                  intent=intent or {}, role=role, trajectory=trajectory,
+                                  pulse=pulse, attempt=attempt,
+                                  generation=str(lifecycle.manifest["current_generation"]))
+        # The optical call writes both the new output tree and POST/NEXT state
+        # into the existing lifecycle root.  Both destinations must therefore
+        # be present in the same durable intent before propagation starts.
+        budget.validate_intent(
+            str((intent or {})["intent_id"]),
+            path=Path(lifecycle_root).resolve(),
+            require_active=True,
+        )
+        if int((intent or {}).get("expected_bytes", 0)) < int(peak):
+            raise ValueError("formal optical creation intent is smaller than write forecast")
+        reservation = SimpleNamespace(reservation_id=str((intent or {}).get("reservation_id")))
     destination.mkdir(parents=True)
     axes = __import__("KHz_filament.grids", fromlist=["make_axes"]).make_axes(grid.Nx, grid.Ny, grid.Nt, grid.Lx, grid.Ly, grid.Twin)
     if tuple(lifecycle.manifest["shape"]) != (grid.Ny, grid.Nx):
@@ -537,10 +971,15 @@ def run_streaming_optical_pulse(
             hr3b_sink=hr3b_sink, post_commit_hook=hook,
         )
     except Exception:
-        if final:
+        if final and fixture_only:
             # Final mode has no consumer; the failed producer has unwound.
             # Existing bytes remain charged and no failed artifacts are deleted.
-            storage_budget.consume(reservation.reservation_id)
+            budget.consume(reservation.reservation_id)
+        elif not fixture_only and intent is not None:
+            try:
+                budget.interrupt_intent(str(intent["intent_id"]), reason="formal optical pulse failed")
+            except Exception:
+                pass
         raise
     finally:
         view.close()
@@ -562,16 +1001,24 @@ def run_streaming_optical_pulse(
         "ledger_fields": list(ledger_fields), "diagnostic_keys": sorted(str(key) for key in diagnostics),
         "optical_start_event": optical_start, "current_generation": lifecycle.manifest["current_generation"],
         "current_content_sha256": lifecycle.manifest["current_content_sha256"], "completed_utc": _utc(),
+        "admission_identity_sha256": identity["identity_sha256"],
+        "creation_intent_id": None if intent is None else intent.get("intent_id"),
     }
     atomic_json(destination / "optical_run.json", result, overwrite=False)
-    for base in (destination, Path(lifecycle_root)):
-        for path in base.rglob('*'):
-            if path.is_file() and path not in before_files and path.suffix in ('.npy', '.npz'):
+    created_files = [path for base in (destination, Path(lifecycle_root)) for path in base.rglob('*')
+                     if path.is_file() and path not in before_files]
+    if fixture_only:
+        for path in created_files:
+            if path.suffix in ('.npy', '.npz'):
                 retained = path.name in ('final_optical_field.npy', 'scientific_ledger.npz')
-                storage_budget.register_artifact(path, role='final' if retained else 'optical_or_state',
+                budget.register_artifact(path, role='final' if retained else 'optical_or_state',
                     reclaimable=not retained, expected_sha256=sha256_file(path),
-                    metadata={'reservation_id': reservation.reservation_id})
-    storage_budget.consume(reservation.reservation_id)
+                    metadata={'reservation_id': reservation.reservation_id}, legacy_test_only=True)
+        budget.consume(reservation.reservation_id)
+    else:
+        budget.complete_intent(str((intent or {})["intent_id"]), files=created_files,
+                               metadata={'generation': str(lifecycle.manifest["current_generation"])})
+        budget.consume(reservation.reservation_id)
     return result
 
 
@@ -586,12 +1033,37 @@ def commit_final_post(*, lifecycle_root: str | Path, ordinal: int, state_after: 
 def validate_final_post(
     *, lifecycle_root: str | Path, receipt_path: str | Path | None = None,
     writer_quiescent: bool = False, expected_optical_dir: str | Path | None = None,
+    writer_receipt: str | Path | Mapping[str, Any] | None = None,
+    require_durable_writer_receipt: bool = False,
+    fixture_only: bool = False,
 ) -> dict[str, Any]:
     """Validate a terminal POST-only root without enqueueing or promoting."""
     root = Path(lifecycle_root).resolve()
     lifecycle = StreamingLifecycle.open(root)
     failures: list[str] = []
-    if not bool(writer_quiescent):
+    durable_writer = None
+    if require_durable_writer_receipt or not fixture_only:
+        raw_writer_path = writer_receipt.get("path", writer_receipt.get("receipt_path")) if isinstance(writer_receipt, Mapping) else writer_receipt
+        expected_writer_hash = writer_receipt.get("sha256") if isinstance(writer_receipt, Mapping) else None
+        if raw_writer_path is None:
+            failures.append("durable_writer_receipt_required")
+        else:
+            try:
+                writer_path = Path(str(raw_writer_path)).resolve()
+                if not writer_path.is_relative_to(root) or not writer_path.is_file() or writer_path.is_symlink():
+                    raise ValueError("writer receipt is missing or outside lifecycle root")
+                if expected_writer_hash is None:
+                    raise ValueError("durable writer receipt hash is required")
+                if sha256_file(writer_path) != str(expected_writer_hash):
+                    raise ValueError("writer receipt hash changed")
+                durable_writer = json.loads(writer_path.read_text(encoding="utf-8"))
+                if durable_writer.get("status") != "PASS" or durable_writer.get("active_writers") not in ([], ()):
+                    failures.append("writer_quiescence_receipt_not_pass")
+                if not durable_writer.get("writer_epoch") or not durable_writer.get("coordinator_process_id"):
+                    failures.append("writer_quiescence_receipt_identity_missing")
+            except (OSError, json.JSONDecodeError):
+                failures.append("writer_quiescence_receipt_unreadable")
+    elif not bool(writer_quiescent):
         failures.append("writer_quiescence_not_attested")
     if lifecycle._authoritative_namespace != "CURRENT" or (root / "authoritative_generation.json").exists():
         failures.append("current_is_already_promoted")
@@ -652,13 +1124,15 @@ def validate_final_post(
                 retained = {str((optical/name).resolve()):sha256_file(optical/name) for name in ('optical_run.json','scientific_ledger.npz','final_optical_field.npy')}
             except (ValueError, KeyError, OSError) as error:
                 failures.append(f'optical_evidence:{error}')
-    result = {"schema": FORMAL_ENTRY_SCHEMA, "status": "PASS" if not failures else "FAIL", "failures": failures, "expected_post_count": int(lifecycle.manifest["expected_screen_count"]), "completed_post_count": sum(record.get("post") is not None for record in lifecycle.manifest["records"]), "queue_size": len(lifecycle.manifest.get("queue", [])), "backlog_size": len(lifecycle.manifest.get("recovery_backlog", [])), "writer_quiescent": bool(writer_quiescent), "validated_utc": _utc()}
+    result = {"schema": FORMAL_ENTRY_SCHEMA, "status": "PASS" if not failures else "FAIL", "failures": failures, "expected_post_count": int(lifecycle.manifest["expected_screen_count"]), "completed_post_count": sum(record.get("post") is not None for record in lifecycle.manifest["records"]), "queue_size": len(lifecycle.manifest.get("queue", [])), "backlog_size": len(lifecycle.manifest.get("recovery_backlog", [])), "writer_quiescent": bool(writer_quiescent) or durable_writer is not None, "writer_receipt": None if durable_writer is None else {"path": durable_writer.get("path"), "sha256": durable_writer.get("sha256"), "writer_epoch": durable_writer.get("writer_epoch"), "coordinator_process_id": durable_writer.get("coordinator_process_id")}, "validated_utc": _utc()}
     if result["status"] == "PASS" and receipt_path is not None:
         atomic_json(receipt_path, {**result, "terminal": "POST_FINAL_READY", "retained_optical_hashes": retained, "lifecycle_root": str(root), "current_generation": lifecycle.manifest["current_generation"], "current_content_sha256": lifecycle.manifest["current_content_sha256"]}, overwrite=False)
     return result
 
 
 def resume_final_post(*, lifecycle_root: str | Path, receipt_path: str | Path, writer_quiescent: bool = True,
+                      writer_receipt: str | Path | Mapping[str, Any] | None = None,
+                      fixture_only: bool = False,
                       replay_kwargs: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Read and revalidate a durable terminal receipt without bootstrap queue replay."""
     receipt = Path(receipt_path)
@@ -675,7 +1149,12 @@ def resume_final_post(*, lifecycle_root: str | Path, receipt_path: str | Path, w
         for name, digest in saved.get('retained_optical_hashes', {}).items():
             if sha256_file(name) != digest:
                 raise ValueError('terminal retained optical evidence changed')
-        result = validate_final_post(lifecycle_root=lifecycle_root, writer_quiescent=writer_quiescent)
+        if writer_receipt is None and isinstance(saved.get("writer_receipt"), Mapping):
+            saved_writer = saved["writer_receipt"]
+            if saved_writer.get("path") and saved_writer.get("sha256"):
+                writer_receipt = {"path": saved_writer["path"], "sha256": saved_writer["sha256"]}
+        result = validate_final_post(lifecycle_root=lifecycle_root, writer_quiescent=writer_quiescent,
+                                     writer_receipt=writer_receipt, fixture_only=fixture_only)
         if result["status"] != "PASS":
             raise ValueError("terminal receipt no longer validates")
         return {"status": "PASS", "resumed": False, "receipt": saved}
@@ -683,6 +1162,7 @@ def resume_final_post(*, lifecycle_root: str | Path, receipt_path: str | Path, w
         raise ValueError('partial terminal recovery requires explicit deterministic replay inputs')
     replay = run_streaming_optical_pulse(lifecycle_root=lifecycle_root, final=True, resume=True, **dict(replay_kwargs))
     result = validate_final_post(lifecycle_root=lifecycle_root, receipt_path=receipt_path, writer_quiescent=writer_quiescent,
+                                writer_receipt=writer_receipt, fixture_only=fixture_only,
                                 expected_optical_dir=replay['output_dir'])
     if result["status"] != "PASS":
         raise ValueError("terminal POST is incomplete; deterministic optical replay is required")
@@ -690,8 +1170,10 @@ def resume_final_post(*, lifecycle_root: str | Path, receipt_path: str | Path, w
 
 
 __all__ = [
-    "BLOCK_SIZE", "FORMAL_ENTRY_SCHEMA", "QUEUE_DEPTH", "StreamingPulseHook", "StreamingPulseReadView",
-    "build_prefix_schedule", "commit_final_post", "create_pre0_root", "create_successor_root",
-    "open_successor_root", "pre0_fields_from_delta_n", "resume_final_post", "run_streaming_optical_pulse",
-    "slice_longitudinal_schedule", "validate_final_post", "validate_successor_ready",
+    "ADMISSION_SCHEMA", "BLOCK_SIZE", "FORMAL_ENTRY_SCHEMA", "QUEUE_DEPTH", "StreamingPulseHook", "StreamingPulseReadView",
+    "admission_identity_hash", "build_admission_identity", "build_fixture_admission_identity", "create_admission_identity",
+    "build_prefix_schedule", "commit_final_post", "create_formal_pre0_root", "create_formal_successor_root", "create_pre0_root", "create_successor_root",
+    "load_admission_identity", "open_successor_root", "persist_admission_identity", "pre0_fields_from_delta_n",
+    "resume_final_post", "run_streaming_optical_pulse", "slice_longitudinal_schedule",
+    "validate_admission_identity", "validate_final_post", "validate_successor_ready", "verify_admission_identity",
 ]

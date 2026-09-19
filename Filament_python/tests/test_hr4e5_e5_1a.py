@@ -55,7 +55,7 @@ def _complete_stream(root: Path, *, final: bool = False):
 
 
 def test_a01_prefix_pre0_and_read_view_are_identity_bound(tmp_path):
-    from KHz_filament.hr4e5_formal_entry import StreamingPulseReadView, build_prefix_schedule, create_pre0_root
+    from KHz_filament.hr4e5_formal_entry import StreamingPulseReadView, build_fixture_admission_identity, build_prefix_schedule, create_pre0_root
 
     full = _schedule(16)
     prefix = build_prefix_schedule(full, 8)
@@ -64,7 +64,7 @@ def test_a01_prefix_pre0_and_read_view_are_identity_bound(tmp_path):
     assert prefix.intervals == full.intervals[:8]
     with pytest.raises(ValueError, match="block"):
         build_prefix_schedule(full, 6)
-    lifecycle = create_pre0_root(root=tmp_path / "pre0", delta_n=_fields()["delta_n"], schedule=prefix, dx_m=1e-4, dy_m=1e-4)
+    lifecycle = create_pre0_root(root=tmp_path / "pre0", delta_n=_fields()["delta_n"], schedule=prefix, dx_m=1e-4, dy_m=1e-4, fixture_only=True, admission_identity=build_fixture_admission_identity(k=8, shape=(4, 4)))
     view = StreamingPulseReadView(lifecycle)
     before = lifecycle.current_fields(0)["delta_n"].copy()
     value = view.read_interval(0)
@@ -78,7 +78,7 @@ def test_a01_prefix_pre0_and_read_view_are_identity_bound(tmp_path):
 
 
 def test_a02_a03_successor_carries_nonzero_velocity_and_exact_binding(tmp_path):
-    from KHz_filament.hr4e5_formal_entry import create_successor_root, open_successor_root, validate_successor_ready
+    from KHz_filament.hr4e5_formal_entry import build_fixture_admission_identity, create_successor_root, open_successor_root, validate_successor_ready
     from KHz_filament.hr4e5s_streaming import StreamingLifecycle
 
     fields = _fields(velocity=True)
@@ -92,7 +92,7 @@ def test_a02_a03_successor_carries_nonzero_velocity_and_exact_binding(tmp_path):
         parent.commit_next(ordinal, parent._artifact_fields(parent.manifest["records"][ordinal]["post"], namespace="POST"))
     parent.validate_barrier()
     parent.promote_next_to_current()
-    child, receipt = create_successor_root(parent_root=parent.root, child_root=tmp_path / "child")
+    child, receipt = create_successor_root(parent_root=parent.root, child_root=tmp_path / "child", fixture_only=True, admission_identity=build_fixture_admission_identity(k=8, shape=(4, 4)))
     assert receipt["status"] == "READY"
     assert validate_successor_ready(child.root)["child_root"] == str(child.root.resolve())
     np.testing.assert_array_equal(child.current_fields(0)["vx"], fields["vx"][0])
@@ -107,10 +107,10 @@ def test_a06_final_post_is_post_only_and_reopen_is_idempotent(tmp_path):
     lifecycle = StreamingLifecycle.create(root=tmp_path / "final", current=_fields(), screen_records=_records(), current_generation="fixture:pre", dx_m=1e-4, dy_m=1e-4)
     for ordinal in range(8):
         commit_final_post(lifecycle_root=lifecycle.root, ordinal=ordinal, state_after=lifecycle.current_fields(ordinal)["delta_n"])
-    failed = validate_final_post(lifecycle_root=lifecycle.root)
+    failed = validate_final_post(lifecycle_root=lifecycle.root, fixture_only=True)
     assert failed["status"] == "FAIL" and "writer_quiescence_not_attested" in failed["failures"]
     receipt = tmp_path / "POST_FINAL_READY.json"
-    passed = validate_final_post(lifecycle_root=lifecycle.root, writer_quiescent=True)
+    passed = validate_final_post(lifecycle_root=lifecycle.root, writer_quiescent=True, fixture_only=True)
     assert passed["status"] == "PASS"
     assert all(record["next"] is None for record in lifecycle.manifest["records"])
     assert not lifecycle.manifest["queue"]
@@ -292,7 +292,9 @@ def test_a05_real_existing_propagate_and_hr3b_injection(tmp_path, partial_final)
     from KHz_filament.hr4e5_storage import StorageBudget, MockQuotaProvider
     budget = StorageBudget(tmp_path, safety_margin_bytes=1024**2,
         provider=MockQuotaProvider(free_bytes=2**40, quota_bytes=2**40))
-    kwargs=dict(lifecycle_root=lifecycle.root, schedule=_schedule(), output_dir=tmp_path / 'optical', components=components, storage_budget=budget)
+    from KHz_filament.hr4e5_formal_entry import build_fixture_admission_identity
+    kwargs=dict(lifecycle_root=lifecycle.root, schedule=_schedule(), output_dir=tmp_path / 'optical', components=components, storage_budget=budget,
+                admission_identity=build_fixture_admission_identity(k=8, shape=(8, 8)), fixture_only=True)
     if partial_final:
         from KHz_filament.propagate import propagate_one_pulse
         from KHz_filament.hr4e5_formal_entry import resume_final_post
@@ -309,10 +311,10 @@ def test_a05_real_existing_propagate_and_hr3b_injection(tmp_path, partial_final)
         before={p.name:sha256_file(p) for p in (lifecycle.root/'post').glob('*.npz')}
         assert len(before)==4
         replay=dict(kwargs);replay.pop('lifecycle_root')
-        result=resume_final_post(lifecycle_root=lifecycle.root,receipt_path=lifecycle.root/'POST_FINAL_READY.json',replay_kwargs=replay)
+        result=resume_final_post(lifecycle_root=lifecycle.root,receipt_path=lifecycle.root/'POST_FINAL_READY.json',fixture_only=True,replay_kwargs=replay)
         assert result['status']=='PASS'
         assert before=={name:sha256_file(lifecycle.root/'post'/name) for name in before}
-        assert resume_final_post(lifecycle_root=lifecycle.root,receipt_path=lifecycle.root/'POST_FINAL_READY.json')['status']=='PASS'
+        assert resume_final_post(lifecycle_root=lifecycle.root,receipt_path=lifecycle.root/'POST_FINAL_READY.json',fixture_only=True)['status']=='PASS'
         assert not list((lifecycle.root/'next').glob('*.npz'))
         return
     result = run_streaming_optical_pulse(**kwargs)
@@ -365,7 +367,7 @@ def test_persistent_three_pair_fixture_with_real_hydro(tmp_path):
             with np.load(split/name) as a,np.load(continuous/name) as b:
                 for f in ('delta_n','vx','vy'): np.testing.assert_array_equal(a[f],b[f])
     assert not (split/'C/p3').exists()
-    assert resume_final_post(lifecycle_root=split/'C/p2/state',receipt_path=split/'C/p2/state/POST_FINAL_READY.json')['status']=='PASS'
+    assert resume_final_post(lifecycle_root=split/'C/p2/state',receipt_path=split/'C/p2/state/POST_FINAL_READY.json',fixture_only=True)['status']=='PASS'
     # A18: three representative full-manifest writes, not a K-squared campaign.
     manifest=json.loads((split/'C/p2/state/streaming_manifest.json').read_text())
     prototype=copy.deepcopy(manifest)
@@ -404,13 +406,14 @@ def test_a15_a17_bounded_final_output_and_integer_hydro_contract():
 
 
 def test_a07_ready_rechecks_payload_and_completes_missing_receipt(tmp_path):
-    from KHz_filament.hr4e5_formal_entry import create_successor_root, validate_successor_ready
+    from KHz_filament.hr4e5_formal_entry import build_fixture_admission_identity, create_successor_root, validate_successor_ready
     parent=_complete_stream(tmp_path/'parent')
-    child,receipt=create_successor_root(parent_root=parent.root,child_root=tmp_path/'child')
+    child,receipt=create_successor_root(parent_root=parent.root,child_root=tmp_path/'child',fixture_only=True,admission_identity=build_fixture_admission_identity(k=8, shape=(4, 4)))
     # Remove only this test's receipt to reproduce a complete-root/receipt gap.
     (child.root/'E5_1A_READY.json').unlink()
-    create_successor_root(parent_root=parent.root,child_root=child.root)
-    create_successor_root(parent_root=parent.root,child_root=child.root)
+    fixture_identity = build_fixture_admission_identity(k=8, shape=(4, 4))
+    create_successor_root(parent_root=parent.root,child_root=child.root,fixture_only=True,admission_identity=fixture_identity)
+    create_successor_root(parent_root=parent.root,child_root=child.root,fixture_only=True,admission_identity=fixture_identity)
     file=child.root/'current/screen_000000.npz'
     with file.open('ab') as stream: stream.write(b'identity replacement')
     with pytest.raises(ValueError,match='hash'):

@@ -25,6 +25,15 @@ from .hr4e_timestep import sha256_array, sha256_file
 
 EVIDENCE_SCHEMA = "khz_filament.hr4e5.e5_1a.evidence.v1"
 READY_SCHEMA = "khz_filament.hr4e5.e5_1a.ready.v1"
+PAIRED_EXACT_SCHEMA = "khz_filament.hr4e5.e5_1a.paired_exact.v1"
+_PAIR_FIELDS = ("delta_n", "vx", "vy")
+_PAIR_SINKS = ("ion", "ib", "raman", "qthermal", "increment", "state_after")
+_PAIR_LEDGERS = (
+    "E_dep_ion_interval_J", "E_dep_ib_interval_J", "E_dep_raman_interval_J",
+    "E_dep_plasma_interval_J", "E_thermal_interval_J", "delta_n_increment_min",
+    "delta_n_increment_onaxis", "delta_n_state_min_after_update",
+    "delta_n_state_onaxis_after_update",
+)
 
 
 def _utc() -> str:
@@ -234,6 +243,506 @@ def object_manifest(
     return rows
 
 
+def _file_identity(path: Path) -> dict[str, Any]:
+    stat_value = path.stat()
+    return {
+        "st_dev": int(getattr(stat_value, "st_dev", -1)),
+        "st_ino": int(getattr(stat_value, "st_ino", -1)),
+        "st_nlink": int(getattr(stat_value, "st_nlink", 1)),
+        "size": int(stat_value.st_size),
+        "mtime_ns": int(getattr(stat_value, "st_mtime_ns", 0)),
+    }
+
+
+def _load_locator(value: Any) -> tuple[np.ndarray, Path | None, dict[str, Any]]:
+    """Load an object plus a precise NPZ member/slice locator."""
+    locator: dict[str, Any] = {}
+    source: Path | None = None
+    target = value
+    if isinstance(value, Mapping):
+        target = value.get("path", value.get("file", value.get("value")))
+        if target is None and "array" in value:
+            target = value["array"]
+        if value.get("member") is not None or value.get("npz_member") is not None:
+            locator["member"] = str(value.get("member", value.get("npz_member")))
+        if value.get("slice_locator") is not None:
+            locator["slice"] = _json_safe(value["slice_locator"])
+        elif value.get("slice") is not None:
+            locator["slice"] = _json_safe(value["slice"])
+    if isinstance(target, (str, Path)):
+        source = Path(target).resolve()
+        if not source.is_file():
+            raise FileNotFoundError(source)
+        if source.suffix.lower() == ".npz":
+            with np.load(source, allow_pickle=False) as loaded:
+                member = locator.get("member")
+                if member is None:
+                    if len(loaded.files) != 1:
+                        raise ValueError(f"NPZ object requires an explicit member locator: {source}")
+                    member = loaded.files[0]
+                    locator["member"] = str(member)
+                if str(member) not in loaded.files:
+                    raise ValueError(f"NPZ member locator is missing: {member}")
+                array = np.asarray(loaded[str(member)])
+        else:
+            array = np.asarray(np.load(source, mmap_mode="r", allow_pickle=False))
+    else:
+        array = _as_array(target, name="object")
+    if "slice" in locator:
+        selector = locator["slice"]
+        if not isinstance(selector, (list, tuple)):
+            raise ValueError("slice locator must be a list")
+        try:
+            array = np.asarray(array[tuple(selector)])
+        except Exception as error:
+            raise ValueError("slice locator is invalid") from error
+    return array, source, locator
+
+
+def build_expected_object_set(
+    objects: Mapping[str, Any], *, campaign_id: str, trajectory: str, pulse: int,
+    attempt: int, namespace: str, generation: str | None = None,
+    root: str | Path | None = None, source_indices: Mapping[str, int] | None = None,
+    role: str = "scientific_array",
+) -> list[dict[str, Any]]:
+    """Derive a durable object set from actual files and precise locators."""
+    base = None if root is None else Path(root).resolve()
+    rows: list[dict[str, Any]] = []
+    for name in sorted(objects):
+        array, source, locator = _load_locator(objects[name])
+        if source is None:
+            raise ValueError("formal object sets require file-backed arrays")
+        if base is None:
+            relative = str(source)
+        else:
+            try:
+                relative = source.relative_to(base).as_posix()
+            except ValueError as error:
+                raise ValueError(f"object file escapes declared root: {source}") from error
+        finite = bool(np.all(np.isfinite(array)))
+        if not finite:
+            raise ValueError(f"object is non-finite: {name}")
+        source_index = int(source_indices[name]) if source_indices and name in source_indices else None
+        row = {
+            "schema": EVIDENCE_SCHEMA, "status": "PASS", "campaign_id": str(campaign_id),
+            "trajectory": str(trajectory), "pulse": int(pulse), "attempt": int(attempt),
+            "generation": None if generation is None else str(generation),
+            "namespace": str(namespace), "source_index": source_index, "name": str(name),
+            "role": str(role), "relative_path": relative, "locator": locator,
+            "shape": list(array.shape), "dtype": array.dtype.name, "finite": True,
+            "canonical_array_hash": sha256_array(array), "sha256_array": sha256_array(array),
+            "file_hash": sha256_file(source), "file_sha256": sha256_file(source),
+            "file_identity": _file_identity(source),
+            "creation_record": {"scope": "derived_object_set", "intent_id": None},
+            "comparison_row_id": f"{namespace}:{source_index}:{name}",
+        }
+        rows.append(row)
+    if not rows:
+        raise ValueError("expected object set is empty")
+    return rows
+
+
+def _row_key(row: Mapping[str, Any]) -> tuple[Any, ...]:
+    return (
+        row.get("campaign_id"), row.get("trajectory"), row.get("pulse"), row.get("attempt"),
+        row.get("generation"), row.get("namespace"), row.get("source_index"), row.get("name"),
+        row.get("relative_path"), json.dumps(row.get("locator", {}), sort_keys=True, separators=(",", ":")),
+    )
+
+
+def validate_object_set(
+    rows: Sequence[Mapping[str, Any]], *, expected_rows: Sequence[Mapping[str, Any]] | None = None,
+    campaign_id: str | None = None, trajectory: str | None = None, pulse: int | None = None,
+    attempt: int | None = None, root: str | Path | None = None,
+) -> dict[str, Any]:
+    """Re-read object files and reject missing, duplicate, replaced or mislocated rows."""
+    if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes)) or not rows:
+        raise ValueError("object set rows are missing")
+    base = None if root is None else Path(root).resolve()
+    seen: set[tuple[Any, ...]] = set()
+    normalized: list[dict[str, Any]] = []
+    for raw in rows:
+        if not isinstance(raw, Mapping):
+            raise ValueError("object row is invalid")
+        row = dict(raw)
+        key = _row_key(row)
+        if key in seen:
+            raise ValueError("duplicate object-set row")
+        seen.add(key)
+        if row.get("status") not in (None, "PASS"):
+            raise ValueError("object row is not PASS")
+        for field in ("campaign_id", "trajectory", "pulse", "attempt", "namespace", "source_index", "name", "relative_path", "locator", "shape", "dtype", "finite", "canonical_array_hash", "file_identity", "creation_record", "comparison_row_id"):
+            if field not in row:
+                raise ValueError(f"object row is missing {field}")
+        if campaign_id is not None and str(row["campaign_id"]) != str(campaign_id):
+            raise ValueError("object-set campaign mismatch")
+        if trajectory is not None and str(row["trajectory"]) != str(trajectory):
+            raise ValueError("object-set trajectory mismatch")
+        if pulse is not None and int(row["pulse"]) != int(pulse):
+            raise ValueError("object-set pulse mismatch")
+        if attempt is not None and int(row["attempt"]) != int(attempt):
+            raise ValueError("object-set attempt mismatch")
+        if row.get("finite") is not True:
+            raise ValueError("object-set row is not finite")
+        if not isinstance(row.get("creation_record"), Mapping):
+            raise ValueError("object row creation record is missing")
+        path_value = Path(str(row["relative_path"]))
+        if path_value.is_absolute() or ".." in path_value.parts:
+            raise ValueError("object row locator escapes root")
+        path = path_value if base is None else base / path_value
+        if not path.is_file() or path.is_symlink():
+            raise ValueError("object file is missing or linked")
+        expected_identity = row.get("file_identity")
+        actual_identity = _file_identity(path)
+        if dict(expected_identity) != actual_identity:
+            raise ValueError("object file identity changed")
+        digest = sha256_file(path)
+        if digest != str(row.get("file_hash", row.get("file_sha256", ""))):
+            raise ValueError("object file hash changed")
+        loaded, loaded_path, locator = _load_locator({"path": path, **dict(row.get("locator", {}))})
+        if loaded_path is None or dict(locator) != dict(row.get("locator", {})):
+            raise ValueError("object locator is incomplete")
+        if list(loaded.shape) != list(row["shape"]) or loaded.dtype.name != str(row["dtype"]):
+            raise ValueError("object shape or dtype changed")
+        if not bool(np.all(np.isfinite(loaded))):
+            raise ValueError("object became non-finite")
+        canonical = sha256_array(loaded)
+        if canonical != str(row["canonical_array_hash"]):
+            raise ValueError("object canonical array hash changed")
+        normalized.append(row)
+    if expected_rows is not None:
+        expected_keys = {_row_key(dict(item)) for item in expected_rows}
+        if seen != expected_keys:
+            raise ValueError("object set does not match expected object collection")
+    binding_source = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    binding_hash = hashlib.sha256(binding_source).hexdigest()
+    return {"schema": "khz_filament.hr4e5.e5_1a.object_set_binding.v1", "status": "PASS",
+            "campaign_id": None if campaign_id is None else str(campaign_id),
+            "object_count": len(normalized), "binding_sha256": binding_hash, "rows": normalized}
+
+
+def bind_exact_report(
+    path: str | Path, report: Mapping[str, Any], rows: Sequence[Mapping[str, Any]], *,
+    campaign_id: str, root: str | Path | None = None,
+) -> dict[str, Any]:
+    """Attach a validated object-set binding to an exact report."""
+    binding = validate_object_set(rows, campaign_id=campaign_id, root=root)
+    payload = {**dict(report), "object_set_binding": {key: value for key, value in binding.items() if key != "rows"}, "rows": [dict(row) for row in rows]}
+    payload["object_set_binding"]["binding_sha256"] = binding["binding_sha256"]
+    return write_exact_report(path, payload)
+
+
+def _paired_exact_keys(*, k: int, n_pulses: int, pulse: int) -> set[str]:
+    if k <= 0 or n_pulses <= 0 or pulse < 0 or pulse >= n_pulses:
+        raise ValueError("formal exact contract dimensions are invalid")
+    namespaces = ("pre", "post") if pulse == n_pulses - 1 else ("pre", "post", "next")
+    keys = {
+        f"screen:{namespace}:{index}:{field}"
+        for namespace in namespaces for index in range(k) for field in _PAIR_FIELDS
+    }
+    keys.update(f"sink:{name}:{index}" for name in _PAIR_SINKS for index in range(k))
+    keys.update(f"ledger:{name}" for name in _PAIR_LEDGERS)
+    keys.add("optical:final:final_optical_field")
+    return keys
+
+
+def _paired_descriptor_path(
+    root: Path, descriptor: Mapping[str, Any], *, label: str,
+    require_file: bool = True,
+) -> Path:
+    raw = descriptor.get("path", descriptor.get("relative_path"))
+    if raw is None:
+        raise ValueError(f"{label} path is missing")
+    candidate = Path(str(raw))
+    if candidate.is_absolute():
+        resolved = candidate.resolve()
+    else:
+        resolved = (root / candidate).resolve()
+    if not resolved.is_relative_to(root) or resolved.is_symlink() or (require_file and not resolved.is_file()):
+        raise ValueError(f"{label} path is missing or outside exact root")
+    return resolved
+
+
+def _validate_paired_descriptor(
+    descriptor: Mapping[str, Any], *, root: Path, side: str, campaign_id: str,
+    pulse: int, attempt: int, storage_budget: Any | None,
+    metadata_only: bool = False,
+) -> tuple[np.ndarray | None, Path, dict[str, Any]]:
+    if str(descriptor.get("trajectory", "")) != side:
+        raise ValueError(f"formal exact {side} trajectory binding is invalid")
+    if str(descriptor.get("campaign_id", "")) != str(campaign_id):
+        raise ValueError(f"formal exact {side} campaign binding is invalid")
+    if int(descriptor.get("pulse", -1)) != int(pulse) or int(descriptor.get("attempt", -1)) != int(attempt):
+        raise ValueError(f"formal exact {side} pulse/attempt binding is invalid")
+    creation = descriptor.get("creation_record")
+    if not isinstance(creation, Mapping) or not str(creation.get("intent_id", "")) or not str(creation.get("generation", "")):
+        raise ValueError(f"formal exact {side} creation record is incomplete")
+    path = _paired_descriptor_path(
+        root, descriptor, label=f"formal exact {side}", require_file=not metadata_only,
+    )
+    if str(descriptor.get("relative_path", "")).replace("\\", "/") != path.relative_to(root).as_posix():
+        raise ValueError(f"formal exact {side} relative locator changed")
+    locator = descriptor.get("locator", {})
+    if not isinstance(locator, Mapping):
+        raise ValueError(f"formal exact {side} locator is invalid")
+    if "member" in locator and not str(locator.get("member", "")):
+        raise ValueError(f"formal exact {side} locator member is empty")
+    if "slice" in locator and not isinstance(locator.get("slice"), (list, tuple)):
+        raise ValueError(f"formal exact {side} slice locator is invalid")
+    present = path.is_file() and not path.is_symlink()
+    array: np.ndarray | None = None
+    if present:
+        array, loaded_path, actual_locator = _load_locator({"path": path, **dict(locator)})
+        if loaded_path is None or dict(actual_locator) != dict(locator):
+            raise ValueError(f"formal exact {side} locator is incomplete")
+        if descriptor.get("shape") is None or list(descriptor.get("shape")) != list(array.shape):
+            raise ValueError(f"formal exact {side} shape changed")
+        if str(descriptor.get("dtype", "")) != array.dtype.name or descriptor.get("finite") is not True:
+            raise ValueError(f"formal exact {side} dtype/finite contract changed")
+        if not bool(np.all(np.isfinite(array))):
+            raise ValueError(f"formal exact {side} object became non-finite")
+        file_digest = sha256_file(path)
+        if str(descriptor.get("file_sha256", descriptor.get("file_hash", ""))) != file_digest:
+            raise ValueError(f"formal exact {side} file hash changed")
+        if dict(descriptor.get("file_identity", {})) != _file_identity(path):
+            raise ValueError(f"formal exact {side} file identity changed")
+        array_digest = sha256_array(array)
+        if str(descriptor.get("canonical_array_hash", descriptor.get("sha256_array", ""))) != array_digest:
+            raise ValueError(f"formal exact {side} canonical array hash changed")
+    elif not metadata_only:
+        raise ValueError(f"formal exact {side} path is missing or outside exact root")
+    else:
+        # After an authorized GC, the immutable descriptor remains the only
+        # available object evidence.  Validate its shape/dtype/hash claims,
+        # but do not attempt to reopen the deleted array.
+        shape = descriptor.get("shape")
+        if (not isinstance(shape, (list, tuple)) or not shape
+                or any(isinstance(item, bool) or not isinstance(item, (int, np.integer)) or int(item) < 0 for item in shape)):
+            raise ValueError(f"formal exact {side} metadata shape is missing")
+        try:
+            dtype = np.dtype(str(descriptor.get("dtype", "")))
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"formal exact {side} metadata dtype is invalid") from error
+        if descriptor.get("finite") is not True:
+            raise ValueError(f"formal exact {side} metadata finite contract changed")
+        file_digest = str(descriptor.get("file_sha256", descriptor.get("file_hash", "")))
+        array_digest = str(descriptor.get("canonical_array_hash", descriptor.get("sha256_array", "")))
+        identity = descriptor.get("file_identity")
+        if not file_digest or not array_digest or not isinstance(identity, Mapping):
+            raise ValueError(f"formal exact {side} metadata hashes or identity are missing")
+        if str(dtype.name) != str(descriptor.get("dtype")):
+            raise ValueError(f"formal exact {side} metadata dtype is invalid")
+    if storage_budget is not None:
+        try:
+            relative = path.relative_to(Path(storage_budget.root).resolve()).as_posix()
+        except ValueError:
+            raise ValueError(f"formal exact {side} path escapes storage root")
+        artifact = storage_budget.artifacts().get(relative)
+        if not isinstance(artifact, Mapping):
+            raise ValueError(f"formal exact {side} object has no storage ownership record")
+        if str(artifact.get("campaign_id", "")) != str(campaign_id):
+            raise ValueError(f"formal exact {side} storage ownership campaign changed")
+        intent_id = str(creation.get("intent_id"))
+        if str(artifact.get("intent_id", "")) != intent_id:
+            raise ValueError(f"formal exact {side} storage ownership intent changed")
+        if str(artifact.get("sha256", artifact.get("expected_sha256", ""))) != file_digest:
+            raise ValueError(f"formal exact {side} storage ownership file hash changed")
+        if dict(artifact.get("identity", {})) != dict(descriptor.get("file_identity", {})):
+            raise ValueError(f"formal exact {side} storage ownership file identity changed")
+        try:
+            completed_intent = storage_budget.validate_intent(
+                intent_id, path=path, require_completed=True,
+            )
+        except Exception as error:
+            raise ValueError(f"formal exact {side} creation intent is not durably complete") from error
+        artifact_creation = artifact.get("creation_record")
+        if not isinstance(artifact_creation, Mapping):
+            raise ValueError(f"formal exact {side} artifact creation record is incomplete")
+        if str(artifact_creation.get("generation", "")) != str(creation.get("generation")):
+            raise ValueError(f"formal exact {side} storage ownership generation changed")
+        if str(completed_intent.get("generation", "")) != str(creation.get("generation")):
+            raise ValueError(f"formal exact {side} completed intent generation changed")
+        if str(completed_intent.get("admission_hash", "")) != str(storage_budget.admission_hash or ""):
+            raise ValueError(f"formal exact {side} completed intent admission changed")
+        for field in ("trajectory", "pulse", "attempt"):
+            if str(artifact.get(field)) != str(descriptor.get(field)):
+                raise ValueError(f"formal exact {side} storage ownership {field} changed")
+            if str(completed_intent.get(field)) != str(descriptor.get(field)):
+                raise ValueError(f"formal exact {side} completed intent {field} changed")
+    return array, path, {"array_sha256": array_digest, "file_sha256": file_digest,
+                          "objects_present": bool(present)}
+
+
+def validate_paired_exact_report(
+    report_path: str | Path, *, admission_identity: Mapping[str, Any], campaign_id: str,
+    pulse: int, attempt: int = 0, root: str | Path, storage_budget: Any | None = None,
+    expected_sha256: str | None = None, metadata_only: bool = False,
+) -> dict[str, Any]:
+    """Reload and compare the complete formal R/C object contract.
+
+    A formal exact receipt is a paired object inventory, not a callback status.
+    Every expected screen, sink, ledger and final-optical key must occur once;
+    each side is reloaded from its locator and compared elementwise.  In
+    ``metadata_only`` mode an authorized GC may have removed both arrays: the
+    immutable descriptors, hashes, and creation ownership are still checked;
+    any objects that remain on disk continue through the elementwise path.
+    """
+    if storage_budget is None:
+        raise ValueError("formal paired exact validation requires StorageBudget ownership")
+    path = Path(report_path).resolve()
+    if not path.is_file() or (expected_sha256 is not None and sha256_file(path) != str(expected_sha256)):
+        raise ValueError("formal exact report is missing or changed")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("schema") != PAIRED_EXACT_SCHEMA or payload.get("status") != "PASS":
+        raise ValueError("formal exact report schema or status is invalid")
+    identity_hash = str(admission_identity.get("identity_sha256", ""))
+    if str(payload.get("admission_identity_sha256", "")) != identity_hash:
+        raise ValueError("formal exact admission identity binding is invalid")
+    if str(payload.get("campaign_id", "")) != str(campaign_id) or int(payload.get("pulse", -1)) != int(pulse):
+        raise ValueError("formal exact campaign or pulse binding is invalid")
+    if int(payload.get("attempt", -1)) != int(attempt):
+        raise ValueError("formal exact attempt binding is invalid")
+    k = int(admission_identity.get("k", -1))
+    n_pulses = int(admission_identity.get("n_pulses", -1))
+    expected_keys = _paired_exact_keys(k=k, n_pulses=n_pulses, pulse=int(pulse))
+    rows = payload.get("rows")
+    if not isinstance(rows, list) or len(rows) != len(expected_keys):
+        raise ValueError("formal exact object row count is incomplete")
+    seen: set[str] = set()
+    compared: list[dict[str, Any]] = []
+    base = Path(root).resolve()
+    for raw in rows:
+        if not isinstance(raw, Mapping) or raw.get("status") != "PASS":
+            raise ValueError("formal exact object row is invalid")
+        key = str(raw.get("comparison_key", ""))
+        if not key or key in seen:
+            raise ValueError("formal exact object key is missing or duplicated")
+        seen.add(key)
+        if key not in expected_keys:
+            raise ValueError(f"formal exact object key is not in the contract: {key}")
+        reference = raw.get("reference")
+        candidate = raw.get("candidate")
+        if not isinstance(reference, Mapping) or not isinstance(candidate, Mapping):
+            raise ValueError(f"formal exact object pair is incomplete: {key}")
+        key_parts = key.split(":")
+        if key_parts[0] == "screen" and len(key_parts) == 4:
+            expected = {"role": "screen", "namespace": key_parts[1], "source_index": int(key_parts[2]), "name": key_parts[3]}
+        elif key_parts[0] == "sink" and len(key_parts) == 3:
+            expected = {"role": "sink", "namespace": "sink", "source_index": int(key_parts[2]), "name": key_parts[1]}
+        elif key_parts[0] == "ledger" and len(key_parts) == 2:
+            expected = {"role": "ledger", "namespace": "ledger", "source_index": None, "name": key_parts[1]}
+        elif key_parts == ["optical", "final", "final_optical_field"]:
+            expected = {"role": "final_optical", "namespace": "final", "source_index": None, "name": "final_optical_field"}
+        else:  # pragma: no cover - expected keys are generated above
+            raise ValueError(f"formal exact object key has invalid locator contract: {key}")
+        for side_descriptor in (reference, candidate):
+            if any(side_descriptor.get(field) != value for field, value in expected.items()):
+                raise ValueError(f"formal exact object locator does not match contract: {key}")
+        left, left_path, left_info = _validate_paired_descriptor(
+            reference, root=base, side="R", campaign_id=campaign_id, pulse=int(pulse),
+            attempt=int(attempt), storage_budget=storage_budget, metadata_only=metadata_only,
+        )
+        right, right_path, right_info = _validate_paired_descriptor(
+            candidate, root=base, side="C", campaign_id=campaign_id, pulse=int(pulse),
+            attempt=int(attempt), storage_budget=storage_budget, metadata_only=metadata_only,
+        )
+        if left_info["array_sha256"] != right_info["array_sha256"]:
+            raise ValueError(f"formal exact paired array hash mismatch: {key}")
+        if left is None or right is None:
+            if left is not None or right is not None:
+                raise ValueError(f"formal exact paired object retention differs: {key}")
+            result = {
+                "schema": EVIDENCE_SCHEMA, "name": key, "status": "PASS",
+                "metadata_only": True, "objects_present": False,
+                "reference_path": str(left_path), "candidate_path": str(right_path),
+            }
+        else:
+            result = compare_arrays_exact(left, right, name=key, reference_path=left_path, candidate_path=right_path)
+            if result.get("status") != "PASS":
+                raise ValueError(f"formal exact paired array mismatch: {key}")
+        if raw.get("reference_sha256_array") != left_info["array_sha256"]:
+            raise ValueError(f"formal exact reference comparison hash changed: {key}")
+        if raw.get("candidate_sha256_array") != right_info["array_sha256"]:
+            raise ValueError(f"formal exact candidate comparison hash changed: {key}")
+        compared.append({**dict(raw), **result})
+    if seen != expected_keys:
+        raise ValueError("formal exact object keys are missing or unexpected")
+    expected_screen_count = (12 if int(pulse) == n_pulses - 1 else 15) * k
+    if int(payload.get("screen_count", -1)) != expected_screen_count:
+        raise ValueError("formal exact screen count does not match pulse contract")
+    if int(payload.get("ledger_count", -1)) != len(_PAIR_LEDGERS) or int(payload.get("optical_count", -1)) != 1:
+        raise ValueError("formal exact ledger or optical count does not match contract")
+    if int(payload.get("expected_object_count", -1)) != len(expected_keys) or int(payload.get("compared_object_count", -1)) != len(expected_keys) or int(payload.get("mismatch_count", -1)) != 0:
+        raise ValueError("formal exact summary counts are incomplete")
+    return {**payload, "rows": compared, "report_path": str(path), "report_sha256": sha256_file(path),
+            "validated_object_count": len(compared), "expected_object_count": len(expected_keys),
+            "metadata_only": bool(metadata_only),
+            "objects_validated": not bool(metadata_only) or all(not row.get("metadata_only", False) for row in compared)}
+
+
+def validate_paired_exact_report_metadata(
+    report_path: str | Path, *, admission_identity: Mapping[str, Any], campaign_id: str,
+    pulse: int, attempt: int = 0, root: str | Path, storage_budget: Any | None = None,
+    expected_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Validate a durable paired exact report after an authorized object GC."""
+    return validate_paired_exact_report(
+        report_path, admission_identity=admission_identity, campaign_id=campaign_id,
+        pulse=pulse, attempt=attempt, root=root, storage_budget=storage_budget,
+        expected_sha256=expected_sha256, metadata_only=True,
+    )
+
+
+def validate_durable_report(
+    report_path: str | Path, *, expected_sha256: str | None = None,
+    campaign_id: str | None = None, trajectory: str | None = None,
+    pulse: int | None = None, attempt: int | None = None, root: str | Path | None = None,
+    expected_rows: Sequence[Mapping[str, Any]] | None = None,
+    validate_objects: bool = True,
+) -> dict[str, Any]:
+    path = Path(report_path).resolve()
+    if not path.is_file():
+        raise ValueError("durable report is missing")
+    digest = sha256_file(path)
+    if expected_sha256 is not None and digest != str(expected_sha256):
+        raise ValueError("durable report hash changed")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("status") != "PASS":
+        raise ValueError("durable report is not PASS")
+    rows = payload.get("rows")
+    if isinstance(payload.get("object_set_binding"), Mapping):
+        if validate_objects:
+            binding = validate_object_set(rows, expected_rows=expected_rows, campaign_id=campaign_id,
+                                         trajectory=trajectory, pulse=pulse, attempt=attempt, root=root)
+        else:
+            if not isinstance(rows, Sequence) or not rows:
+                raise ValueError("durable report object rows are missing")
+            if any(not isinstance(row, Mapping) for row in rows):
+                raise ValueError("durable report object rows are invalid")
+            if campaign_id is not None and any(str(row.get("campaign_id")) != str(campaign_id) for row in rows):
+                raise ValueError("durable report object-set campaign mismatch")
+            if trajectory is not None and any(str(row.get("trajectory")) != str(trajectory) for row in rows):
+                raise ValueError("durable report object-set trajectory mismatch")
+            if pulse is not None and any(int(row.get("pulse", -1)) != int(pulse) for row in rows):
+                raise ValueError("durable report object-set pulse mismatch")
+            normalized = [dict(row) for row in rows]
+            source = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+            binding = {"status": "PASS", "campaign_id": campaign_id, "object_count": len(normalized),
+                       "binding_sha256": hashlib.sha256(source).hexdigest(), "rows": normalized,
+                       "objects_validated": False}
+        saved_binding = payload["object_set_binding"].get("binding_sha256")
+        if str(saved_binding) != binding["binding_sha256"]:
+            raise ValueError("durable report object-set binding hash changed")
+        payload["validated_object_set"] = binding
+    elif expected_rows is not None or campaign_id is not None:
+        raise ValueError("durable report lacks object-set binding")
+    return {**payload, "report_path": str(path), "report_sha256": digest}
+
+
+derive_expected_object_set = build_expected_object_set
+validate_evidence_report = validate_durable_report
+
+
 def lineage_binding(
     *, parent_root: str | Path, child_root: str | Path,
     parent_generation: str, parent_content_sha256: str,
@@ -431,8 +940,11 @@ def validate_ready_receipt(
 
 
 __all__ = [
-    "EVIDENCE_SCHEMA", "READY_SCHEMA", "atomic_json", "compare_array_exact",
+    "EVIDENCE_SCHEMA", "READY_SCHEMA", "PAIRED_EXACT_SCHEMA", "atomic_json", "compare_array_exact",
     "compare_arrays_exact", "compare_exact_objects", "compare_object_sets",
-    "lineage_binding", "object_manifest", "sha256_array", "sha256_file",
+    "bind_exact_report", "build_expected_object_set", "derive_expected_object_set", "lineage_binding", "object_manifest",
+    "sha256_array", "sha256_file", "validate_durable_report", "validate_object_set", "validate_paired_exact_report",
+    "validate_paired_exact_report_metadata",
+    "validate_evidence_report",
     "validate_ready_receipt", "write_exact_report",
 ]
