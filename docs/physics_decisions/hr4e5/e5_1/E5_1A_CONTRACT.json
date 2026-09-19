@@ -118,7 +118,22 @@
     "duplicate_final_checkpoint_default": false,
     "growth": "bounded active large-state window; N-dependent retained optics and reports"
   },
-  "qualification_authority": "E5_1A_TEST_RESULTS.json and E5_1A_IMPLEMENTATION_REPORT_20260916.md",
+  "qualification_authority": "E5_1A_R_TEST_RESULTS.json and E5_1A_R_COMPLETION_REPORT_20260918.md; E5_1A_TEST_RESULTS.json and E5_1A_IMPLEMENTATION_REPORT_20260916.md remain historical evidence",
+  "e5_1a_r": {
+    "repair_base": "b9b5f31d0875ee92b9ea98d23a0659a00e18fdde",
+    "code_test_commit": "217f74587edcdf739127602afd73b2b830fc77bb",
+    "formal_gc_binding": [
+      "trajectory",
+      "pulse",
+      "attempt",
+      "admission_identity_sha256",
+      "writer_receipt_sha256",
+      "gc_plan_id"
+    ],
+    "terminal_inventory_scope": "complete campaign root",
+    "metadata_only_exact": "requires StorageBudget ownership and equal reference/candidate canonical array hashes",
+    "evidence_scope": "LOCAL_CPU_AND_TEST_FIXTURE_ONLY"
+  },
   "b_gates": [
     "human review of A",
     "S5 terminal and patch compatibility",

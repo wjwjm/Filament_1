@@ -8,6 +8,11 @@ The statements below are acceptance requirements. Implementation and executed
 qualification are reported separately in the implementation report and test
 results; this contract alone does not certify that every requirement passed.
 
+E5-1A-R additive qualification is reported in
+[E5_1A_R_COMPLETION_REPORT_20260918.md](E5_1A_R_COMPLETION_REPORT_20260918.md)
+and [E5_1A_R_TEST_RESULTS.json](E5_1A_R_TEST_RESULTS.json). It does not replace
+this retention contract or convert local fixture evidence into formal execution.
+
 ## Authority and limits
 
 The candidate uses the existing Streaming CURRENT/POST/NEXT authority, block 8,
@@ -20,6 +25,17 @@ handoff copies, diagnostics, metadata and residues. Overrides may only reduce it
 `final_output_budget_bytes = 68719476736` (64 GiB) is a second, included limit.
 Neither is a site availability or quota assertion. Protected pre-existing source
 and LUT files cannot be reclaimed; newly copied versions count against the cap.
+
+For formal GC after E5-1A-R, the durable plan binds trajectory, pulse, attempt,
+admission identity and writer receipt. `apply_reclaim()` checks those bindings
+before any unlink; `formal_step()` and pair commit re-run `verify_reclaim()`.
+A completed R plan cannot qualify or delete C. Verification also re-reads the
+durable prerequisite receipt. Metadata-only exact recovery after authorized
+deletion still requires the original StorageBudget ownership and equal R/C
+canonical hashes. Formal terminal inventory must cover the complete campaign
+root, not a caller-selected subdirectory. These gates have local synthetic/
+fixture coverage; writer-lifetime integration and a full positive production
+runner remain unqualified, so A09/A15 stay partial.
 
 Every prospective large write must reserve its maximum incremental live bytes
 under a process-safe lock. Reservations represent unmaterialized bytes, not an

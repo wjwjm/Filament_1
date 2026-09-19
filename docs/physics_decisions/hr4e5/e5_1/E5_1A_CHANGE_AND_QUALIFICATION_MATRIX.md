@@ -2,8 +2,9 @@
 
 Base: `131daa541ac37e54d43b29cd3bfc12ba83c3b91d`.
 This is local engineering qualification. The authoritative executed results are
-in [test results](E5_1A_TEST_RESULTS.json); the final disposition is in the
-[implementation report](E5_1A_IMPLEMENTATION_REPORT_20260916.md).
+in the historical [test results](E5_1A_TEST_RESULTS.json) and the additive
+[E5-1A-R results](E5_1A_R_TEST_RESULTS.json). The current disposition is in the
+[E5-1A-R completion report](E5_1A_R_COMPLETION_REPORT_20260918.md).
 
 | Boundary | Reused authority | Increment requiring its own evidence |
 |---|---|---|
@@ -49,3 +50,20 @@ are recorded individually in E5_1A_TEST_RESULTS.json.
 
 No narrow change to the original Streaming core was made. The original
 Streaming/HR4D regression selection remains the inherited-compatibility check.
+
+## E5-1A-R additive qualification (2026-09-19)
+
+| Item | Added gate/evidence | Current disposition |
+|---|---|---|
+| A05 | immutable admission, complete paired exact and formal callback-path refusal | PARTIAL: no unique production R/C runner and ordinary R/C receipt ownership is incomplete |
+| A07 | active-epoch fencing and hash-bound stale coordinator takeover in independent subprocesses | PARTIAL: full production pointer/index/handoff chain is not instantiated |
+| A09 | GC plan is checked before unlink and at commit against trajectory/pulse/attempt/admission plus writer receipt; cross-track reuse is refused | PARTIAL: writer lifetime is not unified with a production coordinator and the positive chain is local synthetic/fixture evidence |
+| A14 | formal PRE0/successor/optical writes require admission and StorageBudget intent | PARTIAL: arbitrary production runner output creation is not fully closed |
+| A15 | successor READY and complete-campaign-root terminal inventory are mandatory | PARTIAL: no complete positive production role inventory |
+| A17 | unchanged 300 GiB/64 GiB formula is checked by runtime planner | PARTIAL: no full production lifecycle or site measurement |
+
+Latest code/test commit: `217f74587edcdf739127602afd73b2b830fc77bb`.
+Latest local results: 13 focused E5-1A-R, 43 total E5-1A, 34 existing
+Streaming/HR4D, sanity 1, backend and compileall all passed. These results do
+not change the final `E5_1A_PARTIAL / BLOCKED_BY_FORMAL_DRIVER_AND_RECOVERY_QUALIFICATION`
+disposition or authorize B/C.

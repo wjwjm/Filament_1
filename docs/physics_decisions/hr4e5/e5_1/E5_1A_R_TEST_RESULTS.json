@@ -1,0 +1,184 @@
+{
+  "schema": "filament.hr4e5.e5_1a_r_test_results.v1",
+  "issued_date": "2026-09-19",
+  "status": "E5_1A_PARTIAL",
+  "blocker": "FORMAL_DRIVER_AND_RECOVERY_QUALIFICATION",
+  "repair_base": "b9b5f31d0875ee92b9ea98d23a0659a00e18fdde",
+  "code_test_commit": "217f74587edcdf739127602afd73b2b830fc77bb",
+  "evidence_checkout_head": "e0ed1c57900fc5ef9d0a4fdaa22d79c7d6c2abcf",
+  "runtime_tree_relation": "evidence checkout changes only qualification documents after code_test_commit; runtime and tests are byte-identical to code_test_commit",
+  "branch": "codex/hr4e5-e5-1a-streaming-implementation",
+  "interpreter": "C:\\Users\\wangj\\.conda\\envs\\filament-local-test\\python.exe",
+  "gpu_enabled": false,
+  "executed_runs": [
+    {
+      "id": "backend",
+      "command": "run_local_tests.ps1 -Mode backend",
+      "result": "PASS",
+      "exit_code": 0,
+      "artifact": "evidence/e5_1a_r_backend.log"
+    },
+    {
+      "id": "focused_r",
+      "command": "run_local_tests.ps1 -Mode targeted -TargetedFilter test_hr4e5_e5_1a_r",
+      "result": "PASS",
+      "exit_code": 0,
+      "passed": 13,
+      "deselected": 368,
+      "duration_s": 30.48,
+      "artifact": "evidence/e5_1a_r_focused.log"
+    },
+    {
+      "id": "all_e5_1a",
+      "command": "run_local_tests.ps1 -Mode targeted -TargetedFilter test_hr4e5_e5_1a",
+      "result": "PASS",
+      "exit_code": 0,
+      "passed": 43,
+      "deselected": 338,
+      "duration_s": 104.18,
+      "artifact": "evidence/e5_1a_r_all_e5_1a.log"
+    },
+    {
+      "id": "streaming_hr4d_regression",
+      "command": "run_local_tests.ps1 -Mode targeted -TargetedFilter 'test_hr4e5s_streaming or test_hr4d_pulse_lifecycle'",
+      "result": "PASS",
+      "exit_code": 0,
+      "passed": 34,
+      "deselected": 347,
+      "duration_s": 20.93,
+      "artifact": "evidence/e5_1a_r_streaming_hr4d.log"
+    },
+    {
+      "id": "sanity",
+      "command": "run_local_tests.ps1 -Mode sanity",
+      "result": "PASS",
+      "exit_code": 0,
+      "passed": 1,
+      "artifact": "evidence/e5_1a_r_sanity.log"
+    },
+    {
+      "id": "compileall",
+      "command": "explicit interpreter -s -B -m compileall Filament_python/KHz_filament",
+      "result": "PASS",
+      "exit_code": 0,
+      "artifact": "evidence/e5_1a_r_compileall.log"
+    },
+    {
+      "id": "diff_check",
+      "command": "git diff --check",
+      "result": "PASS",
+      "exit_code": 0,
+      "artifact": "evidence/e5_1a_r_git_checks.log"
+    }
+  ],
+  "repair_groups": [
+    {
+      "id": "R01",
+      "name": "formal entry and real optical call",
+      "result": "PASS_FIXTURE",
+      "tests": [
+        "test_r01_formal_identity_rejects_missing_and_tamper",
+        "test_r01_same_driver_reaches_real_cpu_optical_path"
+      ],
+      "limitation": "The same FormalPairedDriver reaches the real CPU optical path, but uses TEST_FIXTURE_ONLY identity and does not establish a unique production runner."
+    },
+    {
+      "id": "R02",
+      "name": "evidence binding refusals",
+      "result": "PASS_LOCAL_BOUNDARY",
+      "tests": ["test_r02_object_binding_rejects_replaced_array"],
+      "limitation": "Formal paired exact and metadata-only validation are ownership and R/C canonical-hash bound; ordinary production R/C reports remain less strict."
+    },
+    {
+      "id": "R03",
+      "name": "direct creation refusal",
+      "result": "PASS_LOCAL_BOUNDARY",
+      "tests": [
+        "test_r03_intent_preexisting_file_is_not_retroactively_owned",
+        "test_r03_formal_pre0_refuses_without_intent_and_fixture_is_explicit"
+      ],
+      "limitation": "PRE0, successor and optical formal writes require admission and StorageBudget context; no K8048 materialization was performed."
+    },
+    {
+      "id": "R04_R05",
+      "name": "ownership and reservation regression",
+      "result": "PASS_LOCAL_BOUNDARY",
+      "tests": ["existing E5-1A storage ownership reservation and quota tests"],
+      "limitation": "Local filesystem and mock quota only."
+    },
+    {
+      "id": "R06",
+      "name": "lineage exact and terminal refusals",
+      "result": "PASS_LOCAL_BOUNDARY",
+      "tests": ["test_r06_formal_exact_rejects_r_only_and_accepts_a_complete_paired_report"],
+      "limitation": "Formal exact requires the complete R/C set and actual arrays while present."
+    },
+    {
+      "id": "R07",
+      "name": "independent-process stale takeover",
+      "result": "PASS_LOCAL_BOUNDARY",
+      "tests": [
+        "test_r07_crash_takeover_requires_hash_bound_stale_exit_receipt",
+        "test_r07_independent_process_crash_stale_takeover_and_resume"
+      ],
+      "limitation": "Two local subprocesses and hash-bound epoch fencing; not cross-node allocation or power-loss qualification."
+    },
+    {
+      "id": "R08",
+      "name": "exact after scoped GC",
+      "result": "PASS_LOCAL_BOUNDARY",
+      "tests": [
+        "test_r08_formal_old_epoch_cannot_record_or_commit",
+        "test_r08_exact_resume_after_gc_uses_metadata_only_pair_validator"
+      ],
+      "limitation": "Uses owned synthetic arrays and completed trajectory/pulse/attempt/admission-bound GC plans; R-plan reuse for C is refused."
+    },
+    {
+      "id": "R09",
+      "name": "READY terminal and N3 fixture",
+      "result": "PASS_FIXTURE",
+      "tests": [
+        "test_r09_formal_successor_requires_ready_receipt",
+        "test_r09_formal_terminal_requires_inventory_contract",
+        "existing N3 K32 fixture through FormalPairedDriver"
+      ],
+      "counts": {
+        "screen_arrays": 1344,
+        "ledger_arrays": 27,
+        "optical_arrays": 3
+      },
+      "limitation": "Terminal inventory is forced to the complete campaign root; the full positive production role inventory is not yet supplied by a unique production runner."
+    },
+    {
+      "id": "R10",
+      "name": "budget and regression",
+      "result": "PASS_LOCAL_BOUNDARY",
+      "tests": ["test_r10_budget_plan_is_scalar_and_has_headroom", "34 Streaming/HR4D regression tests", "sanity", "backend", "compileall"],
+      "limitation": "Scalar metadata model only; no K8048 arrays or site RAM VRAM quota and I/O measurement."
+    }
+  ],
+  "budget": {
+    "max_campaign_live_bytes": 322122547200,
+    "model_peak_bytes": 299676844288,
+    "model_headroom_bytes": 22445702912,
+    "final_output_budget_bytes": 68719476736,
+    "model_final_retention_bytes": 47504725760,
+    "model_final_headroom_bytes": 21214750976,
+    "qualification": "FORMULA_NOT_HPC_MEASUREMENT"
+  },
+  "remaining_blockers": [
+    "No unique default production R/C runner or factory binds the full scientific call chain.",
+    "Ordinary reference and candidate durable reports are not uniformly StorageBudget ownership and completed-intent bound.",
+    "Writer lifetime evidence is not unified with the production coordinator and takeover registry.",
+    "No complete non-fixture positive production GC terminal inventory run exists.",
+    "Source config and LUT declarations are not uniformly mandatory path/hash identities in every production runner path."
+  ],
+  "not_tested": [
+    "K8048 scientific arrays",
+    "GPU or CPU-GPU numerical equivalence",
+    "HPC Slurm S5",
+    "site quota RSS VRAM I/O",
+    "cross-node cross-allocation host reboot or power loss"
+  ],
+  "scope_note": "Runtime orchestration changed; scientific operators unchanged; formal execution and B/C remain unauthorized."
+}
