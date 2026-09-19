@@ -12,6 +12,8 @@ import hashlib
 import json
 import os
 import shutil
+import socket
+import sys
 import tempfile
 import time
 from contextlib import contextmanager
@@ -27,6 +29,86 @@ STORAGE_SCHEMA = "khz_filament.hr4e5.e5_1a.storage.v1"
 GC_SCHEMA = "khz_filament.hr4e5.e5_1a.gc.v1"
 RECLAIM_PREREQUISITE_SCHEMA = "khz_filament.hr4e5.e5_1a.reclaim_prerequisites.v1"
 INTENT_SCHEMA = "khz_filament.hr4e5.e5_1a.creation_intent.v1"
+WRITER_SCHEMA = "khz_filament.hr4e5.e5_1a.writer.v1"
+WRITER_RECEIPT_SCHEMA = "khz_filament.hr4e5.e5_1a.writer_receipt.v1"
+
+
+def _host_identity() -> str:
+    if sys.platform.startswith("linux"):
+        boot = Path("/proc/sys/kernel/random/boot_id")
+        if boot.is_file():
+            return f"{socket.gethostname()}:{boot.read_text(encoding='ascii').strip()}"
+    return socket.gethostname()
+
+
+def _process_start_token(pid: int) -> str | None:
+    """Return an OS process-instance token, not merely a reusable PID."""
+    if pid <= 0:
+        return None
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+            from ctypes import wintypes
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+            kernel32.OpenProcess.restype = wintypes.HANDLE
+            kernel32.GetProcessTimes.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.FILETIME),
+                                                  ctypes.POINTER(wintypes.FILETIME), ctypes.POINTER(wintypes.FILETIME),
+                                                  ctypes.POINTER(wintypes.FILETIME))
+            kernel32.GetProcessTimes.restype = wintypes.BOOL
+            kernel32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+            kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+            kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+            kernel32.CloseHandle.restype = wintypes.BOOL
+            handle = kernel32.OpenProcess(0x1000, False, int(pid))
+            if not handle:
+                return None
+            try:
+                exit_code = wintypes.DWORD()
+                if (not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
+                        or int(exit_code.value) != 259):  # STILL_ACTIVE
+                    return None
+                creation, exit_time, kernel, user = (wintypes.FILETIME() for _ in range(4))
+                if not kernel32.GetProcessTimes(handle, ctypes.byref(creation), ctypes.byref(exit_time),
+                                                ctypes.byref(kernel), ctypes.byref(user)):
+                    return None
+                return str((int(creation.dwHighDateTime) << 32) | int(creation.dwLowDateTime))
+            finally:
+                kernel32.CloseHandle(handle)
+        except Exception:
+            return None
+    if sys.platform.startswith("linux"):
+        try:
+            fields = Path(f"/proc/{int(pid)}/stat").read_text(encoding="ascii").split()
+            return fields[21] if len(fields) > 21 else None
+        except (OSError, ValueError):
+            return None
+    return None
+
+
+def process_identity(pid: int | None = None) -> dict[str, Any]:
+    value = int(os.getpid() if pid is None else pid)
+    token = _process_start_token(value)
+    if token is None:
+        raise StorageIntegrityError("process start identity is unavailable")
+    return {"pid": value, "host_identity": _host_identity(), "process_start_token": token}
+
+
+def probe_process_identity(identity: Mapping[str, Any]) -> dict[str, Any]:
+    """Classify a recorded process as LIVE, DEAD, or UNKNOWN fail-closed."""
+    if str(identity.get("host_identity", "")) != _host_identity():
+        return {"status": "UNKNOWN", "reason": "different_host"}
+    try:
+        pid = int(identity["pid"]); expected = str(identity["process_start_token"])
+    except (KeyError, TypeError, ValueError):
+        return {"status": "UNKNOWN", "reason": "invalid_identity"}
+    actual = _process_start_token(pid)
+    if actual is None:
+        return {"status": "DEAD", "reason": "pid_absent", "pid": pid}
+    if str(actual) != expected:
+        return {"status": "DEAD", "reason": "pid_reused", "pid": pid,
+                "observed_process_start_token": str(actual)}
+    return {"status": "LIVE", "reason": "identity_matches", "pid": pid}
 
 
 def plan_campaign_budget(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
@@ -396,6 +478,7 @@ class StorageBudget:
             "artifacts": {},
             "reservations": {},
             "intents": {},
+            "writers": {},
             "gc_plans": {},
             "events": [],
             "created_utc": _utc(),
@@ -430,7 +513,8 @@ class StorageBudget:
             raise StorageIntegrityError("storage ledger campaign identity conflicts with requested campaign")
         if (not isinstance(data.get("artifacts"), dict)
                 or not isinstance(data.get("reservations"), dict)
-                or not isinstance(data.get("intents", {}), dict)):
+                or not isinstance(data.get("intents", {}), dict)
+                or not isinstance(data.get("writers", {}), dict)):
             raise StorageBudgetError("storage ledger collections are invalid")
         for reservation_id, item in data.get("reservations", {}).items():
             if not isinstance(item, Mapping):
@@ -455,6 +539,11 @@ class StorageBudget:
                 for right in (str(path).replace("\\", "/") for path in allowed[index + 1:]):
                     if _relative_paths_overlap(left, right):
                         raise StorageIntegrityError(f"creation intent paths overlap: {intent_id}")
+        for writer_id, item in data.get("writers", {}).items():
+            if not isinstance(item, Mapping) or item.get("schema") != WRITER_SCHEMA:
+                raise StorageBudgetError(f"writer record is invalid: {writer_id}")
+            if str(item.get("campaign_id", "")) != self.campaign_id:
+                raise StorageIntegrityError(f"writer campaign mismatch: {writer_id}")
 
     def _write(self, data: Mapping[str, Any]) -> None:
         self._validate(data)
@@ -780,6 +869,134 @@ class StorageBudget:
     begin_creation_intent = create_intent
     create_reservation_intent = create_intent
 
+    def open_writer(
+        self, *, reservation_id: str, intent_id: str, coordinator_epoch: str | int,
+        trajectory: str, pulse: int, attempt: int, generation: str,
+        process: Mapping[str, Any] | None = None, writer_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Register an epoch-bound writer after reservation and intent exist."""
+        identity = dict(process or process_identity())
+        wid = str(writer_id or f"writer-{identity['pid']}-{time.time_ns()}")
+        with self._locked() as data:
+            reservation = data["reservations"].get(str(reservation_id))
+            intent = data["intents"].get(str(intent_id))
+            if not isinstance(reservation, Mapping) or reservation.get("status") != "ACTIVE":
+                raise StorageBudgetError("writer requires an active reservation")
+            if not isinstance(intent, Mapping) or intent.get("status") not in {"ACTIVE", "INTERRUPTED"}:
+                raise StorageBudgetError("writer requires an active or resumable intent")
+            if str(intent.get("reservation_id")) != str(reservation_id):
+                raise StorageIntegrityError("writer reservation differs from intent")
+            if intent.get("epoch") is not None and str(intent.get("epoch")) != str(coordinator_epoch):
+                stale_writer = next(
+                    (item for item in data["writers"].values()
+                     if item.get("status") == "INTERRUPTED_STALE"
+                     and str(item.get("intent_id")) == str(intent_id)
+                     and str(item.get("coordinator_epoch")) == str(intent.get("epoch"))),
+                    None,
+                )
+                if not isinstance(stale_writer, Mapping) or intent.get("status") != "INTERRUPTED":
+                    raise StorageIntegrityError("writer intent epoch differs from coordinator")
+                rebound = dict(intent)
+                rebound["epoch"] = str(coordinator_epoch)
+                rebound["status"] = "ACTIVE"
+                rebound["takeover_from_epoch"] = str(intent.get("epoch"))
+                rebound["takeover_utc"] = _utc()
+                data["intents"][str(intent_id)] = rebound
+                intent = rebound
+            for prior in data["writers"].values():
+                if prior.get("status") == "ACTIVE" and str(prior.get("intent_id")) == str(intent_id):
+                    raise StorageBudgetError("creation intent already has an active writer")
+            item = {
+                "schema": WRITER_SCHEMA, "writer_id": wid, "campaign_id": self.campaign_id,
+                "admission_hash": self.admission_hash, "coordinator_epoch": str(coordinator_epoch),
+                "process_identity": identity, "trajectory": str(trajectory), "pulse": int(pulse),
+                "attempt": int(attempt), "generation": str(generation),
+                "reservation_id": str(reservation_id), "intent_id": str(intent_id),
+                "role": str(intent.get("role", "")),
+                "allowed_paths": list(intent.get("allowed_paths", [])), "status": "ACTIVE",
+                "opened_utc": _utc(),
+            }
+            data["writers"][wid] = item
+            data["events"].append({"event": "WRITER_OPEN", "writer_id": wid,
+                                   "epoch": str(coordinator_epoch), "timestamp_utc": _utc()})
+            return dict(item)
+
+    def close_writer(self, writer_id: str, *, coordinator_epoch: str | int,
+                     status: str = "CLOSED", reason: str | None = None) -> dict[str, Any]:
+        if status not in {"CLOSED", "INTERRUPTED"}:
+            raise ValueError("writer close status is invalid")
+        with self._locked() as data:
+            item = data["writers"].get(str(writer_id))
+            if not isinstance(item, Mapping) or item.get("status") != "ACTIVE":
+                raise StorageBudgetError("writer is not active")
+            if str(item.get("coordinator_epoch")) != str(coordinator_epoch):
+                raise StorageIntegrityError("stale epoch cannot close writer")
+            mutable = dict(item)
+            mutable["status"] = status; mutable["closed_utc"] = _utc()
+            if reason is not None:
+                mutable["reason"] = str(reason)
+            data["writers"][str(writer_id)] = mutable
+            data["events"].append({"event": "WRITER_CLOSE", "writer_id": str(writer_id),
+                                   "status": status, "timestamp_utc": _utc()})
+            return mutable
+
+    def active_writers(self, *, coordinator_epoch: str | int | None = None,
+                       include_management: bool = True) -> list[dict[str, Any]]:
+        with _FileLock(self.lock_path):
+            data = self._read(); self._validate(data)
+            management_roles = {"TERMINAL_EVIDENCE", "REPORT", "GC_EVIDENCE"}
+            return [dict(item) for item in data["writers"].values()
+                    if item.get("status") == "ACTIVE" and
+                    (include_management or str(item.get("role", "")).upper() not in management_roles) and
+                    (coordinator_epoch is None or str(item.get("coordinator_epoch")) == str(coordinator_epoch))]
+
+    def interrupt_stale_writers(self, *, coordinator_epoch: str | int) -> dict[str, Any]:
+        """Verify dead writers and fence them without releasing reserved bytes."""
+        with self._locked() as data:
+            active = [(wid, item) for wid, item in data["writers"].items()
+                      if item.get("status") == "ACTIVE" and
+                      str(item.get("coordinator_epoch")) == str(coordinator_epoch)]
+            probes = [(wid, probe_process_identity(item.get("process_identity", {}))) for wid, item in active]
+            live = [wid for wid, probe in probes if probe["status"] == "LIVE"]
+            unknown = [wid for wid, probe in probes if probe["status"] == "UNKNOWN"]
+            if live:
+                raise StorageBudgetError(f"live ACTIVE writers block takeover: {live}")
+            if unknown:
+                raise StorageIntegrityError(f"unverifiable ACTIVE writers block takeover: {unknown}")
+            changed = []
+            for wid, probe in probes:
+                mutable = dict(data["writers"][wid]); mutable["status"] = "INTERRUPTED_STALE"
+                mutable["stale_verified_utc"] = _utc(); mutable["liveness_evidence"] = probe
+                data["writers"][wid] = mutable; changed.append(wid)
+                intent_id = str(mutable.get("intent_id", ""))
+                intent = data["intents"].get(intent_id)
+                if isinstance(intent, Mapping) and intent.get("status") == "ACTIVE":
+                    interrupted = dict(intent)
+                    interrupted["status"] = "INTERRUPTED"
+                    interrupted["interrupted_utc"] = _utc()
+                    interrupted["interrupted_by_stale_epoch"] = str(coordinator_epoch)
+                    data["intents"][intent_id] = interrupted
+            data["events"].append({"event": "WRITERS_INTERRUPTED_STALE", "epoch": str(coordinator_epoch),
+                                   "writer_ids": changed, "timestamp_utc": _utc()})
+            return {"status": "PASS", "coordinator_epoch": str(coordinator_epoch),
+                    "interrupted_writer_ids": changed, "probes": dict(probes)}
+
+    def write_quiescence_receipt(self, path: str | Path, *, coordinator_epoch: str | int,
+                                 trajectory: str | None = None, pulse: int | None = None,
+                                 attempt: int | None = None) -> dict[str, Any]:
+        active = self.active_writers(coordinator_epoch=coordinator_epoch, include_management=False)
+        if active:
+            raise StorageBudgetError("writer registry is not quiescent")
+        destination, _ = _relative(self.root, path)
+        payload = {"schema": WRITER_RECEIPT_SCHEMA, "status": "PASS", "campaign_id": self.campaign_id,
+                   "active_writers": [], "writer_epoch": str(coordinator_epoch),
+                   "coordinator_process_id": str(coordinator_epoch),
+                   "admission_identity_sha256": self.admission_hash,
+                   "trajectory": trajectory, "pulse": pulse, "attempt": attempt,
+                   "registry_backed": True, "created_utc": _utc()}
+        _atomic_json(destination, payload, overwrite=False)
+        return {"path": str(destination), "sha256": _sha256_file(destination), **payload}
+
     def _intent_file_list(self, item: Mapping[str, Any], files: Sequence[str | Path] | None) -> list[Path]:
         allowed = [str(path) for path in item.get("allowed_paths", [])]
         if files is None:
@@ -1004,6 +1221,24 @@ class StorageBudget:
             self._validate(data)
             return json.loads(json.dumps(data["artifacts"]))
 
+    def set_reclaimable(self, paths: Sequence[str | Path], *, value: bool = True) -> list[str]:
+        """Set retention only for artifacts already owned by completed formal intents."""
+        changed: list[str] = []
+        with self._locked() as data:
+            for raw in paths:
+                _, relative = _relative(self.root, raw)
+                item = data["artifacts"].get(relative)
+                if not isinstance(item, Mapping) or not item.get("intent_id"):
+                    raise StorageIntegrityError(f"retention target lacks creation ownership: {relative}")
+                intent = data["intents"].get(str(item["intent_id"]))
+                if not isinstance(intent, Mapping) or intent.get("status") != "COMPLETED":
+                    raise StorageIntegrityError(f"retention target intent is not complete: {relative}")
+                mutable = dict(item); mutable["reclaimable"] = bool(value)
+                data["artifacts"][relative] = mutable; changed.append(relative)
+            data["events"].append({"event": "RETENTION_SET", "paths": changed,
+                                   "reclaimable": bool(value), "timestamp_utc": _utc()})
+        return changed
+
     def final_output_bytes(self) -> int:
         total = 0
         for item in self.artifacts().values():
@@ -1045,9 +1280,17 @@ class StorageBudget:
         expected_paths = set().union(*expected_map.values()) if expected_map else set()
         actual_paths = {str(path.resolve()) for path in _iter_regular_files(base)}
         management = {str(path.resolve()) for path in self._management_paths()}
-        actual_payload = actual_paths - management
         artifacts = self.artifacts()
         registered = {str((self.root / relative).resolve()) for relative in artifacts}
+        scientific_suffixes = {".npy", ".npz", ".mat", ".h5", ".hdf5"}
+        suspicious_unregistered = {
+            path for path in actual_paths - management - registered
+            if Path(path).suffix.lower() in scientific_suffixes
+        }
+        # Durable orchestration manifests and locks are management state.  All
+        # registered evidence remains in the contract, while any unregistered
+        # scientific container is still an orphan and fails closed.
+        actual_payload = (registered & actual_paths) | suspicious_unregistered
         missing = sorted(path for path in expected_paths if path not in actual_payload)
         extras = sorted(path for path in actual_payload if path not in expected_paths)
         unregistered = sorted(path for path in actual_payload if path not in registered)
@@ -1117,6 +1360,7 @@ class StorageBudget:
         expected_epoch: str | int | None = None,
         expected_trajectory: str | None = None, expected_pulse: int | None = None,
         expected_attempt: int | None = None, expected_admission_hash: str | None = None,
+        _ledger_data: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Load a durable quiescence receipt and bind its file identity.
 
@@ -1148,6 +1392,9 @@ class StorageBudget:
             raise StorageIntegrityError("writer quiescence receipt is not valid JSON") from error
         if not isinstance(payload, Mapping) or str(payload.get("status", "")).upper() != "PASS":
             raise StorageBudgetError("writer quiescence receipt is not PASS")
+        if self.require_intents and (payload.get("schema") != WRITER_RECEIPT_SCHEMA
+                                     or payload.get("registry_backed") is not True):
+            raise StorageIntegrityError("formal writer receipt is not registry-backed")
         campaign = payload.get("campaign_id")
         if campaign is not None and str(campaign) != self.campaign_id:
             raise StorageIntegrityError("writer quiescence receipt campaign mismatch")
@@ -1176,6 +1423,17 @@ class StorageBudget:
                 raise StorageBudgetError(f"writer quiescence receipt lacks {name} binding")
             if str(actual) != str(expected):
                 raise StorageIntegrityError(f"writer quiescence receipt {name} changed")
+        if self.require_intents:
+            if _ledger_data is None:
+                active_now = self.active_writers(coordinator_epoch=epoch, include_management=False)
+            else:
+                management_roles = {"TERMINAL_EVIDENCE", "REPORT", "GC_EVIDENCE"}
+                active_now = [item for item in _ledger_data.get("writers", {}).values()
+                              if isinstance(item, Mapping) and item.get("status") == "ACTIVE"
+                              and str(item.get("coordinator_epoch")) == str(epoch)
+                              and str(item.get("role", "")).upper() not in management_roles]
+            if active_now:
+                raise StorageBudgetError("writer registry became active after quiescence receipt")
         return {
             "path": str(receipt_path), "sha256": digest, "writer_epoch": str(epoch),
             "coordinator_process_id": str(process_id), "status": "PASS",
@@ -1595,6 +1853,7 @@ class StorageBudget:
                 expected_trajectory=expected_trajectory,
                 expected_pulse=expected_pulse, expected_attempt=expected_attempt,
                 expected_admission_hash=expected_admission_hash,
+                _ledger_data=data,
             )
             stored_prerequisite = plan.get("prerequisite_receipt")
             if not isinstance(stored_prerequisite, Mapping):
@@ -1652,6 +1911,7 @@ class StorageBudget:
                 expected_trajectory=expected_trajectory,
                 expected_pulse=expected_pulse, expected_attempt=expected_attempt,
                 expected_admission_hash=expected_admission_hash,
+                _ledger_data=data,
             )
             stored_prerequisite = plan.get("prerequisite_receipt")
             if not isinstance(stored_prerequisite, Mapping):
@@ -1754,6 +2014,7 @@ class StorageBudget:
                 expected_trajectory=expected_trajectory,
                 expected_pulse=expected_pulse, expected_attempt=expected_attempt,
                 expected_admission_hash=expected_admission_hash,
+                _ledger_data=data,
             )
             stored_prerequisite = plan.get("prerequisite_receipt")
             if not isinstance(stored_prerequisite, Mapping):
@@ -1828,4 +2089,5 @@ __all__ = [
     "HARD_CAP_BYTES", "INTENT_SCHEMA", "MockQuotaProvider", "RECLAIM_PREREQUISITE_SCHEMA", "Reservation", "STORAGE_SCHEMA",
     "derive_budget_plan", "plan_campaign_budget",
     "StorageBudget", "StorageBudgetError", "StorageIntegrityError",
+    "WRITER_SCHEMA", "WRITER_RECEIPT_SCHEMA", "process_identity", "probe_process_identity",
 ]

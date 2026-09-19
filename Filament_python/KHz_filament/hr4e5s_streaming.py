@@ -199,7 +199,14 @@ def _atomic_json(path: Path, value: Mapping[str, Any]) -> None:
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        for attempt in range(20):
+            try:
+                os.replace(temporary, path)
+                break
+            except PermissionError:
+                if os.name != "nt" or attempt == 19:
+                    raise
+                time.sleep(0.01)
         _fsync_directory(path.parent)
     except Exception:
         try:
@@ -290,7 +297,14 @@ def _timed_phase(phase: str, **extra: Any):
 
 
 def _read_json(path: Path) -> dict[str, Any]:
-    return dict(json.loads(path.read_text(encoding="utf-8")))
+    for attempt in range(20):
+        try:
+            return dict(json.loads(path.read_text(encoding="utf-8")))
+        except PermissionError:
+            if os.name != "nt" or attempt == 19:
+                raise
+            time.sleep(0.01)
+    raise AssertionError("unreachable")
 
 
 def _validated_fields(fields: Mapping[str, Any], *, shape=None, dtype=None) -> dict[str, np.ndarray]:

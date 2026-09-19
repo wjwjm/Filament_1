@@ -6,6 +6,7 @@ import json
 import subprocess
 import sys
 import textwrap
+import time
 from pathlib import Path
 
 import numpy as np
@@ -55,7 +56,7 @@ def test_r01_same_driver_reaches_real_cpu_optical_path(tmp_path):
     from KHz_filament.hr4e5_formal_entry import (
         build_fixture_admission_identity, run_streaming_optical_pulse,
     )
-    from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver
+    from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver, _open_production_driver
     from KHz_filament.hr4e5s_streaming import StreamingLifecycle
 
     root = tmp_path / "controlled-real-optical"
@@ -337,16 +338,37 @@ def _complete_formal_gc(root, budget, identity, *, side, pulse, targets, writer_
     from KHz_filament.hr4e5_evidence import (
         atomic_json, bind_exact_report, build_expected_object_set, sha256_file,
     )
-    from KHz_filament.hr4e5_storage import RECLAIM_PREREQUISITE_SCHEMA, StorageIntegrityError
+    from KHz_filament.hr4e5_storage import (
+        RECLAIM_PREREQUISITE_SCHEMA, WRITER_RECEIPT_SCHEMA, StorageIntegrityError,
+    )
 
     writer = root / f"writer_{side}{pulse}.json"
-    atomic_json(writer, {
-        "status": "PASS", "campaign_id": identity["campaign_id"],
-        "active_writers": [], "writer_epoch": writer_epoch,
-        "coordinator_process_id": writer_epoch, "trajectory": side,
-        "pulse": int(pulse), "attempt": 0,
-        "admission_identity_sha256": identity["identity_sha256"],
-    })
+    reservation = budget.reserve(
+        1024**2, purpose=f"gc-writer-{side}-{pulse}",
+        allocation_paths=[writer],
+    )
+    intent = budget.create_intent(
+        reservation_id=reservation.reservation_id, trajectory=side,
+        pulse=int(pulse), attempt=0, role="GC_EVIDENCE",
+        allowed_paths=[writer], expected_bytes=1024**2,
+        admission_hash=identity["identity_sha256"], epoch=writer_epoch,
+        generation=f"gc:{side}:p{pulse}",
+    )
+    writer_record = budget.open_writer(
+        reservation_id=reservation.reservation_id, intent_id=intent["intent_id"],
+        coordinator_epoch=writer_epoch, trajectory=side, pulse=int(pulse),
+        attempt=0, generation=f"gc:{side}:p{pulse}",
+    )
+    writer_receipt = budget.write_quiescence_receipt(
+        writer, coordinator_epoch=writer_epoch, trajectory=side,
+        pulse=int(pulse), attempt=0,
+    )
+    assert writer_receipt["schema"] == WRITER_RECEIPT_SCHEMA
+    assert writer_receipt["registry_backed"] is True
+    completed_writer = budget.complete_intent(intent["intent_id"], files=[writer])
+    budget.consume(reservation.reservation_id, actual_bytes=completed_writer["actual_bytes"])
+    budget.close_writer(writer_record["writer_id"], coordinator_epoch=writer_epoch)
+    assert budget.active_writers(coordinator_epoch=writer_epoch, include_management=False) == []
     evidence = root / f"evidence_formal_{side}{pulse}"
     evidence.mkdir(parents=True, exist_ok=True)
     exact = evidence / "exact.json"
@@ -407,7 +429,7 @@ def _complete_formal_gc(root, budget, identity, *, side, pulse, targets, writer_
     plan = budget.plan_reclaim(
         targets, exact_complete=True, successor_ready=True,
         no_active_writers=True, no_future_dependency=True,
-        receipts_durable=True, writer_receipt=writer,
+        receipts_durable=True, writer_receipt=writer_receipt,
         prerequisite_receipt=prerequisite, plan_id=f"formal-{side}{pulse}",
         trajectory=side, pulse=int(pulse), attempt=0,
         admission_hash=identity["identity_sha256"],
@@ -448,14 +470,14 @@ def _complete_formal_gc(root, budget, identity, *, side, pulse, targets, writer_
 
 
 def test_r06_formal_exact_rejects_r_only_and_accepts_a_complete_paired_report(tmp_path):
-    from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver
+    from KHz_filament.hr4e5_paired_campaign import _open_production_driver
 
     identity = _formal_identity()
 
     def run_case(root):
         root.mkdir(exist_ok=True)
-        driver = FormalPairedDriver(root, admission_identity=identity, runner=object(), n_pulses=1,
-                                    campaign_id=identity["campaign_id"])
+        driver = _open_production_driver(root, admission_identity=identity, runner=object(), n_pulses=1,
+                                         campaign_id=identity["campaign_id"])
         from KHz_filament.hr4e5_storage import MockQuotaProvider
         driver.campaign.storage.provider = MockQuotaProvider(free_bytes=2**40, quota_bytes=2**40)
         exact = _formal_pair_report(root, root / "paired_exact.json", identity, driver.campaign.storage)
@@ -477,7 +499,7 @@ def test_r06_formal_exact_rejects_r_only_and_accepts_a_complete_paired_report(tm
         def run_exact(self, pulse): return {"status": "PASS", "report_path": report_r["report_path"]}
 
     with pytest.raises(Exception, match="formal exact|schema|object"):
-        FormalPairedDriver(bad_root, admission_identity=identity, runner=BadRunner(), n_pulses=1,
+        _open_production_driver(bad_root, admission_identity=identity, runner=BadRunner(), n_pulses=1,
                            campaign_id=identity["campaign_id"]).run()
 
     good_root = tmp_path / "paired"
@@ -487,7 +509,6 @@ def test_r06_formal_exact_rejects_r_only_and_accepts_a_complete_paired_report(tm
 
 
 def test_r07_crash_takeover_requires_hash_bound_stale_exit_receipt(tmp_path):
-    from KHz_filament.hr4e5_evidence import atomic_json, sha256_file
     from KHz_filament.hr4e5_paired_campaign import PairedCampaign
     from KHz_filament.hr4e5_storage import StorageIntegrityError
 
@@ -500,24 +521,17 @@ def test_r07_crash_takeover_requires_hash_bound_stale_exit_receipt(tmp_path):
     reopened = PairedCampaign.open(root, n_pulses=1, campaign_id=identity["campaign_id"],
                                    admission_identity=identity, formal=True,
                                    require_intents=True, require_quota=False)
-    with pytest.raises(StorageIntegrityError, match="durable stale/exit evidence"):
+    with pytest.raises(StorageIntegrityError, match="live ACTIVE coordinator"):
         reopened.register_process_start(process_id="new-coordinator", source="takeover", takeover=True)
-    receipt = root / "stale_exit.json"
-    atomic_json(receipt, {
-        "status": "PASS", "campaign_id": identity["campaign_id"], "active_writers": [],
-        "stale": True, "coordinator_process_id": "old-coordinator", "coordinator_epoch": 0,
-    })
-    epoch = reopened.register_process_start(
-        process_id="new-coordinator", source="takeover", takeover=True,
-        takeover_receipt={"path": str(receipt), "sha256": sha256_file(receipt)},
-    )
-    assert epoch["process_id"] == "new-coordinator"
-    assert reopened.state["active_coordinator"]["process_id"] == "new-coordinator"
+    with pytest.raises(StorageIntegrityError, match="external crash takeover receipts are forbidden"):
+        reopened.register_process_start(
+            process_id="new-coordinator", source="takeover", takeover=True,
+            takeover_receipt={"path": str(root / "forged.json"), "sha256": "0" * 64},
+        )
+    campaign.register_process_exit(process_id="old-coordinator")
 
 
 def test_r07_independent_process_crash_stale_takeover_and_resume(tmp_path):
-    from KHz_filament.hr4e5_evidence import atomic_json, sha256_file
-
     identity = _formal_identity(campaign_id="takeover-subprocess-r")
     root = tmp_path / "subprocess-takeover"
     identity_path = tmp_path / "admission.json"
@@ -526,12 +540,12 @@ def test_r07_independent_process_crash_stale_takeover_and_resume(tmp_path):
         """
         import json, os, sys
         from pathlib import Path
-        from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver
+        from KHz_filament.hr4e5_paired_campaign import _open_production_driver
         from KHz_filament.hr4e5_evidence import atomic_json
 
         root = Path(sys.argv[1]).resolve()
         identity = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-        driver = FormalPairedDriver(root, admission_identity=identity, runner=object(),
+        driver = _open_production_driver(root, admission_identity=identity, runner=object(),
                                     n_pulses=1, campaign_id=identity["campaign_id"])
         atomic_json(root / "child_one_started.json", {
             "process_id": driver.epoch, "campaign_id": identity["campaign_id"],
@@ -554,29 +568,18 @@ def test_r07_independent_process_crash_stale_takeover_and_resume(tmp_path):
     assert state_before["pairs"][0]["pulse_index"] == 0
     assert state_before["pairs"][0].get("formal_steps") == {}
 
-    stale_receipt = root / "durable_stale_exit.json"
-    atomic_json(stale_receipt, {
-        "status": "PASS", "campaign_id": identity["campaign_id"],
-        "active_writers": [], "stale": True,
-        "coordinator_process_id": active["process_id"],
-        "coordinator_epoch": active["epoch"],
-    })
-    stale_descriptor = {
-        "path": str(stale_receipt), "sha256": sha256_file(stale_receipt),
-    }
     child_two = textwrap.dedent(
         """
         import json, sys
         from pathlib import Path
-        from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver
+        from KHz_filament.hr4e5_paired_campaign import _open_production_driver
         from KHz_filament.hr4e5_evidence import atomic_json
 
         root = Path(sys.argv[1]).resolve()
         identity = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-        receipt = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
-        driver = FormalPairedDriver(root, admission_identity=identity, runner=object(),
+        driver = _open_production_driver(root, admission_identity=identity, runner=object(),
                                     n_pulses=1, campaign_id=identity["campaign_id"],
-                                    takeover_receipt=receipt)
+                                    takeover=True)
         new_epoch = driver.epoch
         report = driver.resume(run=False)
         assert report["admission_hash"] == identity["identity_sha256"]
@@ -592,10 +595,8 @@ def test_r07_independent_process_crash_stale_takeover_and_resume(tmp_path):
         })
         """
     )
-    receipt_path = tmp_path / "stale_descriptor.json"
-    receipt_path.write_text(json.dumps(stale_descriptor), encoding="utf-8")
     second = subprocess.run(
-        [sys.executable, "-s", "-B", "-c", child_two, str(root), str(identity_path), str(receipt_path)],
+        [sys.executable, "-s", "-B", "-c", child_two, str(root), str(identity_path)],
         capture_output=True, text=True, timeout=30,
     )
     assert second.returncode == 0, second.stdout + "\n" + second.stderr
@@ -604,9 +605,14 @@ def test_r07_independent_process_crash_stale_takeover_and_resume(tmp_path):
     epochs = state_after["process_epochs"]
     assert len(epochs) == 2
     assert len({str(item["process_id"]) for item in epochs}) == 2
-    assert epochs[0]["status"] == "EXITED"
+    assert epochs[0]["status"] == "EXITED_STALE"
     assert epochs[0]["exit_reason"] == "durable_crash_takeover_receipt"
-    assert epochs[0]["exit_receipt"]["sha256"] == stale_descriptor["sha256"]
+    takeover_path = Path(epochs[0]["exit_receipt"]["path"])
+    assert takeover_path == root / ".takeover" / f"epoch_{active['epoch']}.json"
+    takeover = json.loads(takeover_path.read_text(encoding="utf-8"))
+    assert takeover["registry_backed"] is True
+    assert takeover["stale"] is True and takeover["exit_observed"] is True
+    assert takeover["liveness_evidence"]["status"] == "DEAD"
     assert epochs[1]["status"] == "EXITED"
     assert resumed["process_id"] == epochs[1]["process_id"]
     assert resumed["process_id"] != epochs[0]["process_id"]
@@ -647,12 +653,12 @@ def test_r08_formal_old_epoch_cannot_record_or_commit(tmp_path):
 
 def test_r08_exact_resume_after_gc_uses_metadata_only_pair_validator(tmp_path):
     from KHz_filament.hr4e5_evidence import sha256_file
-    from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver
+    from KHz_filament.hr4e5_paired_campaign import _open_production_driver
     from KHz_filament.hr4e5_storage import MockQuotaProvider, StorageIntegrityError
 
     identity = _formal_identity(campaign_id="exact-after-gc-r", n_pulses=2)
     root = tmp_path / "exact-after-gc"
-    driver = FormalPairedDriver(
+    driver = _open_production_driver(
         root, admission_identity=identity, runner=object(), n_pulses=2,
         campaign_id=identity["campaign_id"], safety_margin_bytes=1024**2,
     )
@@ -692,7 +698,7 @@ def test_r08_exact_resume_after_gc_uses_metadata_only_pair_validator(tmp_path):
 
 
 def test_r09_formal_successor_requires_ready_receipt(tmp_path):
-    from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver
+    from KHz_filament.hr4e5_paired_campaign import _open_production_driver
     from KHz_filament.hr4e5_storage import StorageIntegrityError
 
     identity = _formal_identity(campaign_id="missing-ready-r", n_pulses=2)
@@ -703,7 +709,7 @@ def test_r09_formal_successor_requires_ready_receipt(tmp_path):
     parent.mkdir(parents=True)
     child = root / "child"
     child.mkdir(parents=True)
-    driver = FormalPairedDriver(
+    driver = _open_production_driver(
         root, admission_identity=identity, runner=object(), n_pulses=2,
         campaign_id=identity["campaign_id"], safety_margin_bytes=1024**2,
     )
@@ -723,7 +729,7 @@ def test_r09_formal_successor_requires_ready_receipt(tmp_path):
 
 def test_r09_formal_terminal_requires_inventory_contract(tmp_path):
     from KHz_filament.hr4e5_evidence import sha256_file
-    from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver
+    from KHz_filament.hr4e5_paired_campaign import _open_production_driver
     from KHz_filament.hr4e5_storage import StorageIntegrityError
 
     identity = _formal_identity(campaign_id="missing-terminal-inventory-r")
@@ -738,22 +744,374 @@ def test_r09_formal_terminal_requires_inventory_contract(tmp_path):
         root, root / "terminal.json", identity, "C",
         writer={"writer_receipt_path": str(writer_path), "writer_receipt_sha256": sha256_file(writer_path)},
     )
-    driver = FormalPairedDriver(
-        root, admission_identity=identity, runner=object(), n_pulses=1,
+    class Runner:
+        def expected_terminal_roles(self, pulse): return {"final": []}
+    driver = _open_production_driver(
+        root, admission_identity=identity, runner=Runner(), n_pulses=1,
         campaign_id=identity["campaign_id"], safety_margin_bytes=1024**2,
     )
     value = {
         "status": "PASS", "report_path": report["report_path"],
         "writer_receipt_path": str(writer_path), "writer_receipt_sha256": sha256_file(writer_path),
     }
-    with pytest.raises(StorageIntegrityError, match="expected_roles"):
+    with pytest.raises(StorageIntegrityError, match="registry-backed|writer receipt"):
         driver._validate_receipt(value, pulse=0, step="terminal")
-    inventory_root = root / "inventory"
-    inventory_root.mkdir()
-    with pytest.raises(StorageIntegrityError, match="complete campaign root|inventory"):
-        driver._validate_receipt(
-            {**value, "expected_roles": {"final": [str(inventory_root / "missing.bin")]},
-             "terminal_inventory_root": str(inventory_root)},
-            pulse=0, step="terminal",
-        )
     driver.close()
+
+
+def _local_production_spec(tmp_path, *, campaign_id="local-production", n_pulses=1, k=8):
+    from KHz_filament.hr4e5_evidence import sha256_file
+    from KHz_filament.hr4e5_production import E5AProductionSpec, _source_hash
+
+    inputs = tmp_path / "inputs"; inputs.mkdir(parents=True, exist_ok=True)
+    config = inputs / "config.json"
+    value = {
+        "grid": {"Nx": 8, "Ny": 8, "Nt": 8, "Lx": 8e-4, "Ly": 8e-4, "Twin": 80e-15},
+        "beam": {"w0": 1.5e-4, "tau_fwhm": 40e-15, "energy_J": 1e-10,
+                 "focal_length": None},
+        "propagation": {"z_max": k*1e-4, "dz": 1e-4, "linear_model": "paraxial",
+            "auto_substep": False, "focus_window_step": False, "limit_focus_window": False,
+            "progress_every_z": 0, "energy_probe_every": 0, "diag_extra": False,
+            "use_electronic_kerr": False, "use_raman_phase": False,
+            "use_raman_absorption": False, "use_plasma_phase": False,
+            "use_ionization_loss": False, "use_ionization_solver": False},
+        "ionization": {"species": []},
+        "heat": {"hr3b_enabled": True, "f_rep": 5e6, "dt_hydro": 1e-7,
+                 "chi": 2.17e-5, "D_th": 2.17e-5, "nu": 1.5e-5,
+                 "gravity_x": 0.0, "gravity_y": -9.81},
+        "run": {"Npulses": n_pulses},
+        "raman": {"enabled": False, "absorption": False},
+    }
+    config.write_text(json.dumps(value), encoding="utf-8")
+    source = inputs / "source.json"
+    source.write_text(json.dumps({"schema": "local-source.v1",
+                                  "canonical_array_hash": _source_hash(config)}), encoding="utf-8")
+    lut = inputs / "lut.json"
+    lut.write_text(json.dumps({"schema": "local-lut.v1", "mode": "DISABLED_BY_CONFIG",
+                               "config_sha256": sha256_file(config)}), encoding="utf-8")
+    pre0 = inputs / "pre0.npy"; np.save(pre0, np.zeros((k, 8, 8), dtype=np.float64))
+    return E5AProductionSpec(root=tmp_path/"campaign", campaign_id=campaign_id,
+        config_path=config, source_manifest_path=source, lut_manifest_path=lut,
+        pre0_delta_n_path=pre0, n_pulses=n_pulses, safety_margin_bytes=1024**2)
+
+
+def test_production_factory_is_unique_and_n1_real_cpu_path(tmp_path):
+    from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+    from KHz_filament.hr4e5_storage import StorageIntegrityError
+
+    with pytest.raises(StorageIntegrityError, match="production factory"):
+        FormalPairedDriver(tmp_path/"forbidden", admission_identity=_formal_identity(), runner=object(), n_pulses=1)
+    campaign = open_e5_1a_production_campaign(_local_production_spec(tmp_path))
+    result = campaign.run()
+    assert result["status"] == "COMPLETE"
+    assert result["admission_identity"]["execution_mode"] == "LOCAL_ORCHESTRATION_QUALIFICATION"
+
+
+def test_production_admission_recomputes_source_lut_and_budget_identity(tmp_path):
+    from dataclasses import replace
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+
+    source_spec = _local_production_spec(tmp_path / "source", campaign_id="tamper-source")
+    Path(source_spec.source_manifest_path).write_text(
+        json.dumps({"schema": "local-source.v1", "canonical_array_hash": "bad"}), encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="source manifest differs"):
+        open_e5_1a_production_campaign(source_spec)
+
+    lut_spec = _local_production_spec(tmp_path / "lut", campaign_id="tamper-lut")
+    Path(lut_spec.lut_manifest_path).write_text(
+        json.dumps({"schema": "local-lut.v1", "mode": "DISABLED_BY_CONFIG",
+                    "config_sha256": "bad"}), encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="disabled LUT manifest is not bound"):
+        open_e5_1a_production_campaign(lut_spec)
+
+    budget_spec = _local_production_spec(tmp_path / "budget", campaign_id="tamper-budget")
+    campaign = open_e5_1a_production_campaign(budget_spec)
+    campaign.close()
+    with pytest.raises((ValueError, RuntimeError), match="identity|safety margin|conflicts"):
+        open_e5_1a_production_campaign(
+            replace(budget_spec, safety_margin_bytes=2 * 1024**2)
+        )
+
+
+def test_production_n2_k16_multiblock_happy_path(tmp_path):
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+
+    campaign = open_e5_1a_production_campaign(
+        _local_production_spec(tmp_path, campaign_id="local-production-k16", n_pulses=2, k=16)
+    )
+    result = campaign.run()
+    assert result["status"] == "COMPLETE"
+    assert result["next_pair_index"] == 2
+    exact0 = json.loads((tmp_path / "campaign" / "exact" / "p0.json").read_text(encoding="utf-8"))
+    exact1 = json.loads((tmp_path / "campaign" / "exact" / "p1.json").read_text(encoding="utf-8"))
+    assert exact0["screen_count"] == 15 * 16
+    assert exact1["screen_count"] == 12 * 16
+    state0 = json.loads((tmp_path / "campaign" / "C" / "p0" / "state" / "streaming_manifest.json").read_text(encoding="utf-8"))
+    assert state0["barrier"]["status"] == "PASS"
+    assert state0["promotion"]["authoritative_namespace"] == "NEXT"
+    assert len(state0["records"]) == 16
+
+
+def test_production_n3_k8_split_process_matches_uninterrupted(tmp_path):
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+    from KHz_filament.hr4e5_storage import plan_campaign_budget
+
+    split_base = tmp_path / "split"
+    split_spec = _local_production_spec(
+        split_base, campaign_id="local-production-n3-split", n_pulses=3, k=8,
+    )
+    child = textwrap.dedent(
+        """
+        import sys
+        from KHz_filament.hr4e5_production import E5AProductionSpec, open_e5_1a_production_campaign
+        spec = E5AProductionSpec(
+            root=sys.argv[1], campaign_id=sys.argv[2], config_path=sys.argv[3],
+            source_manifest_path=sys.argv[4], lut_manifest_path=sys.argv[5],
+            pre0_delta_n_path=sys.argv[6], n_pulses=3, safety_margin_bytes=1024**2,
+        )
+        result = open_e5_1a_production_campaign(spec).run(stop_after=1)
+        assert result["next_pair_index"] == 1
+        """
+    )
+    first = subprocess.run(
+        [sys.executable, "-s", "-B", "-c", child, str(split_spec.root),
+         split_spec.campaign_id, str(split_spec.config_path), str(split_spec.source_manifest_path),
+         str(split_spec.lut_manifest_path), str(split_spec.pre0_delta_n_path)],
+        capture_output=True, text=True, timeout=120,
+    )
+    assert first.returncode == 0, first.stdout + "\n" + first.stderr
+    split_result = open_e5_1a_production_campaign(split_spec).run()
+    assert split_result["status"] == "COMPLETE" and split_result["next_pair_index"] == 3
+
+    baseline_base = tmp_path / "baseline"
+    baseline_seed = _local_production_spec(
+        baseline_base, campaign_id="local-production-n3-baseline", n_pulses=3, k=8,
+    )
+    baseline_result = open_e5_1a_production_campaign(baseline_seed).run()
+    assert baseline_result["status"] == "COMPLETE"
+
+    def exact_signature(root):
+        reports = [json.loads((root / "exact" / f"p{pulse}.json").read_text(encoding="utf-8"))
+                   for pulse in range(3)]
+        return reports, [
+            (row["comparison_key"], row["reference_sha256_array"], row["candidate_sha256_array"])
+            for report in reports for row in report["rows"]
+        ]
+
+    split_root = Path(split_spec.root)
+    baseline_root = Path(baseline_seed.root)
+    split_exact, split_signature = exact_signature(split_root)
+    baseline_exact, baseline_signature = exact_signature(baseline_root)
+    assert [item["screen_count"] for item in split_exact] == [120, 120, 96]
+    assert sum(item["screen_count"] for item in split_exact) == 336
+    assert sum(item["ledger_count"] for item in split_exact) == 27
+    assert sum(item["optical_count"] for item in split_exact) == 3
+    assert split_signature == baseline_signature
+
+    def handoff_count(root):
+        total = 0
+        for side in ("R", "C"):
+            for pulse in (1, 2):
+                report = json.loads((root / side / f"p{pulse}" / "state" /
+                                     "parent_next_child_current_exact.json").read_text(encoding="utf-8"))
+                total += int(report["compared_object_count"])
+        return total
+
+    assert handoff_count(split_root) == handoff_count(baseline_root) == 96
+
+    def durable_signature(root):
+        ledger = json.loads((root / "storage_ledger.json").read_text(encoding="utf-8"))
+        state = json.loads((root / "E5_1A_CAMPAIGN_STATE.json").read_text(encoding="utf-8"))
+        roles = json.loads((root / "E5_1A_TERMINAL_ROLE_CONTRACT.json").read_text(encoding="utf-8"))["roles"]
+        return {
+            "gc": sorted((plan["trajectory"], plan["pulse"], plan["status"], len(plan["targets"]))
+                         for plan in ledger["gc_plans"].values()),
+            "writers": sorted((item["role"], item["status"], item["trajectory"], item["pulse"])
+                              for item in ledger["writers"].values()),
+            "reservations": sorted(item["status"] for item in ledger["reservations"].values()),
+            "roles": {key: len(value) for key, value in roles.items()},
+            "pairs": [(pair["pulse_index"], pair["status"]) for pair in state["pairs"]],
+        }, state
+
+    split_durable, split_state = durable_signature(split_root)
+    baseline_durable, baseline_state = durable_signature(baseline_root)
+    assert split_durable == baseline_durable
+    assert set(split_durable["reservations"]) == {"CONSUMED"}
+    assert len(split_state["process_epochs"]) == 2
+    assert len(baseline_state["process_epochs"]) == 1
+    assert all(item["status"] == "EXITED" for item in split_state["process_epochs"])
+    local_plan = plan_campaign_budget(n_pulses=3, k=8, ny=8, nx=8, nt=8,
+                                      safety_margin_bytes=1024**2)
+    assert local_plan["peak_bytes"] < local_plan["max_campaign_live_bytes"]
+    admission_report = json.loads(
+        (split_root / "R" / "p0" / "reports" / "admission.json").read_text(encoding="utf-8")
+    )
+    assert admission_report["capacity_snapshot"]["scope"] == "LOCAL_POLICY_CAP_NOT_SITE_QUOTA"
+    assert admission_report["capacity_snapshot"]["filesystem_free_bytes"] > 0
+    assert admission_report["capacity_snapshot"]["site_quota_measured"] is False
+
+    readonly = textwrap.dedent(
+        """
+        import sys
+        from KHz_filament.hr4e5_production import E5AProductionSpec, open_e5_1a_production_campaign
+        spec = E5AProductionSpec(root=sys.argv[1], campaign_id=sys.argv[2], config_path=sys.argv[3],
+            source_manifest_path=sys.argv[4], lut_manifest_path=sys.argv[5], pre0_delta_n_path=sys.argv[6],
+            n_pulses=3, safety_margin_bytes=1024**2)
+        campaign = open_e5_1a_production_campaign(spec)
+        assert campaign.report()["status"] == "COMPLETE"
+        campaign.close()
+        """
+    )
+    third = subprocess.run(
+        [sys.executable, "-s", "-B", "-c", readonly, str(split_spec.root), split_spec.campaign_id,
+         str(split_spec.config_path), str(split_spec.source_manifest_path), str(split_spec.lut_manifest_path),
+         str(split_spec.pre0_delta_n_path)], capture_output=True, text=True, timeout=30,
+    )
+    assert third.returncode == 0, third.stdout + "\n" + third.stderr
+    assert not (split_root / "R" / "p3").exists()
+    assert not (split_root / "C" / "p3").exists()
+
+
+def test_production_writer_live_refusal_and_dead_stale_takeover(tmp_path):
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+    from KHz_filament.hr4e5_storage import StorageBudgetError, StorageIntegrityError
+
+    spec = _local_production_spec(
+        tmp_path, campaign_id="local-production-writer-takeover", n_pulses=2, k=8,
+    )
+    coordinator = textwrap.dedent(
+        """
+        import os, sys
+        from KHz_filament.hr4e5_production import E5AProductionSpec, open_e5_1a_production_campaign
+        spec = E5AProductionSpec(root=sys.argv[1], campaign_id=sys.argv[2], config_path=sys.argv[3],
+            source_manifest_path=sys.argv[4], lut_manifest_path=sys.argv[5], pre0_delta_n_path=sys.argv[6],
+            n_pulses=2, safety_margin_bytes=1024**2)
+        open_e5_1a_production_campaign(spec)
+        os._exit(17)
+        """
+    )
+    first = subprocess.run(
+        [sys.executable, "-s", "-B", "-c", coordinator, str(spec.root), spec.campaign_id,
+         str(spec.config_path), str(spec.source_manifest_path), str(spec.lut_manifest_path),
+         str(spec.pre0_delta_n_path)], capture_output=True, text=True, timeout=30,
+    )
+    assert first.returncode == 17
+
+    writer_script = textwrap.dedent(
+        """
+        import json, sys
+        from pathlib import Path
+        from KHz_filament.hr4e5_storage import StorageBudget, MockQuotaProvider
+        root = Path(sys.argv[1])
+        identity = json.loads((root / "E5_1A_ADMISSION_IDENTITY.json").read_text(encoding="utf-8"))
+        state = json.loads((root / "E5_1A_CAMPAIGN_STATE.json").read_text(encoding="utf-8"))
+        epoch = state["active_coordinator"]["epoch"]
+        budget = StorageBudget(root, safety_margin_bytes=1024**2,
+            provider=MockQuotaProvider(free_bytes=2**40, quota_bytes=2**40), require_quota=True,
+            campaign_id=identity["campaign_id"], require_intents=True,
+            admission_hash=identity["identity_sha256"], admission_identity=identity)
+        residual = root / "crash_writer" / "residual.bin"
+        reservation = budget.reserve(1024**2, purpose="crash-writer", allocation_paths=[residual])
+        intent = budget.create_intent(reservation_id=reservation.reservation_id, trajectory="C",
+            pulse=0, attempt=0, role="CRASH_TEST", allowed_paths=[residual], expected_bytes=1024**2,
+            admission_hash=identity["identity_sha256"], epoch=epoch, generation="crash:test")
+        writer = budget.open_writer(reservation_id=reservation.reservation_id, intent_id=intent["intent_id"],
+            coordinator_epoch=epoch, trajectory="C", pulse=0, attempt=0, generation="crash:test",
+            writer_id="crash-writer")
+        residual.parent.mkdir(parents=True, exist_ok=True)
+        residual.write_bytes(b"stale-residual")
+        (root / "writer_started.json").write_text(json.dumps({"reservation_id": reservation.reservation_id,
+            "intent_id": intent["intent_id"], "writer_id": writer["writer_id"], "epoch": epoch}), encoding="utf-8")
+        sys.stdin.read()
+        """
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-s", "-B", "-c", writer_script, str(spec.root)],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    marker = Path(spec.root) / "writer_started.json"
+    for _ in range(100):
+        if marker.is_file():
+            break
+        time.sleep(0.05)
+    assert marker.is_file()
+    with pytest.raises(StorageBudgetError, match="live ACTIVE writers block takeover"):
+        open_e5_1a_production_campaign(spec)
+    process.terminate()
+    process.wait(timeout=15)
+
+    recovered = open_e5_1a_production_campaign(spec)
+    storage = recovered._driver.campaign.storage
+    marker_value = json.loads(marker.read_text(encoding="utf-8"))
+    ledger = json.loads((Path(spec.root) / "storage_ledger.json").read_text(encoding="utf-8"))
+    stale = ledger["writers"][marker_value["writer_id"]]
+    assert stale["status"] == "INTERRUPTED_STALE"
+    assert stale["liveness_evidence"]["status"] == "DEAD"
+    assert ledger["reservations"][marker_value["reservation_id"]]["status"] == "ACTIVE"
+    assert (Path(spec.root) / "crash_writer" / "residual.bin").is_file()
+
+    new_epoch = recovered._driver.coordinator_epoch
+    replacement = storage.open_writer(
+        reservation_id=marker_value["reservation_id"], intent_id=marker_value["intent_id"],
+        coordinator_epoch=new_epoch, trajectory="C", pulse=0, attempt=0,
+        generation="crash:test", writer_id="replacement-writer",
+    )
+    with pytest.raises(StorageIntegrityError, match="stale epoch"):
+        storage.close_writer(replacement["writer_id"], coordinator_epoch=marker_value["epoch"])
+    completed = storage.complete_intent(
+        marker_value["intent_id"], files=[Path(spec.root) / "crash_writer" / "residual.bin"],
+    )
+    storage.consume(marker_value["reservation_id"], actual_bytes=completed["actual_bytes"])
+    storage.close_writer(replacement["writer_id"], coordinator_epoch=new_epoch)
+    recovered.close()
+
+    identity = storage.active_writers()
+    assert identity == []
+
+
+def test_writer_pid_reuse_and_unknown_liveness_fail_closed(tmp_path):
+    from KHz_filament.hr4e5_storage import (
+        MockQuotaProvider, StorageBudget, StorageIntegrityError, process_identity,
+    )
+
+    def opened(root, process, writer_id):
+        budget = StorageBudget(
+            root, provider=MockQuotaProvider(free_bytes=2**40, quota_bytes=2**40),
+            require_quota=True, campaign_id=writer_id, require_intents=True,
+            admission_hash="a" * 64,
+        )
+        target = root / "residual.bin"
+        reservation = budget.reserve(1024**2, purpose=writer_id, allocation_paths=[target])
+        intent = budget.create_intent(
+            reservation_id=reservation.reservation_id, trajectory="C", pulse=0, attempt=0,
+            role="CRASH_TEST", allowed_paths=[target], expected_bytes=1024**2,
+            admission_hash="a" * 64, epoch=0, generation="reuse:test",
+        )
+        budget.open_writer(
+            reservation_id=reservation.reservation_id, intent_id=intent["intent_id"],
+            coordinator_epoch=0, trajectory="C", pulse=0, attempt=0,
+            generation="reuse:test", process=process, writer_id=writer_id,
+        )
+        target.write_bytes(b"residual")
+        return budget, reservation
+
+    reused = process_identity()
+    reused["process_start_token"] += "-reused"
+    reused_budget, reused_reservation = opened(tmp_path / "reused", reused, "pid-reused")
+    result = reused_budget.interrupt_stale_writers(coordinator_epoch=0)
+    assert result["probes"]["pid-reused"]["reason"] == "pid_reused"
+    reused_ledger = json.loads((tmp_path / "reused" / "storage_ledger.json").read_text(encoding="utf-8"))
+    assert reused_ledger["writers"]["pid-reused"]["status"] == "INTERRUPTED_STALE"
+    assert reused_ledger["reservations"][reused_reservation.reservation_id]["status"] == "ACTIVE"
+
+    unknown = process_identity()
+    unknown["host_identity"] = "unknown-remote-host"
+    unknown_budget, unknown_reservation = opened(tmp_path / "unknown", unknown, "unknown-host")
+    with pytest.raises(StorageIntegrityError, match="unverifiable ACTIVE writers block takeover"):
+        unknown_budget.interrupt_stale_writers(coordinator_epoch=0)
+    unknown_ledger = json.loads((tmp_path / "unknown" / "storage_ledger.json").read_text(encoding="utf-8"))
+    assert unknown_ledger["writers"]["unknown-host"]["status"] == "ACTIVE"
+    assert unknown_ledger["reservations"][unknown_reservation.reservation_id]["status"] == "ACTIVE"

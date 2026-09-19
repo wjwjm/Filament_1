@@ -24,7 +24,9 @@ from .hr4e5_evidence import (atomic_json, compare_object_sets, sha256_file,
                               validate_durable_report, validate_paired_exact_report,
                               validate_paired_exact_report_metadata, validate_ready_receipt)
 from .hr4e5_formal_entry import create_successor_root
-from .hr4e5_storage import HARD_CAP_BYTES, StorageBudget, StorageBudgetError, StorageIntegrityError, _FileLock
+from .hr4e5_storage import (HARD_CAP_BYTES, StorageBudget, StorageBudgetError,
+                            StorageIntegrityError, _FileLock, process_identity,
+                            probe_process_identity)
 
 
 CAMPAIGN_SCHEMA = "khz_filament.hr4e5.e5_1a.paired_campaign.v1"
@@ -36,6 +38,7 @@ _FORMAL_STEPS = frozenset({
 })
 _FORMAL_STATUSES = frozenset({"IN_PROGRESS", "COMMITTED", "PASS", "INTERRUPTED", "FAIL"})
 _FORMAL_RECEIPT_STATUSES = frozenset({"COMMITTED", "PASS"})
+_PRODUCTION_DRIVER_CAPABILITY = object()
 
 
 def _utc() -> str:
@@ -413,12 +416,37 @@ class PairedCampaign:
         return {"path": str(path), "sha256": digest, "coordinator_process_id": str(process_id),
                 "coordinator_epoch": str(epoch), "status": "PASS"}
 
-    def _authorize_crash_takeover_locked(self, receipt: str | Path | Mapping[str, Any]) -> dict[str, Any]:
-        info = self._validate_crash_takeover_receipt(receipt)
+    def _authorize_crash_takeover_locked(self, receipt: str | Path | Mapping[str, Any] | None = None) -> dict[str, Any]:
+        if receipt is not None:
+            raise StorageIntegrityError("external crash takeover receipts are forbidden")
         active = self.state["active_coordinator"]
+        previous = next((item for item in reversed(self.state.get("process_epochs", []))
+                         if str(item.get("process_id")) == str(active.get("process_id"))
+                         and item.get("status") == "ACTIVE"), None)
+        if not isinstance(previous, Mapping):
+            raise StorageIntegrityError("active coordinator epoch record is missing")
+        probe = probe_process_identity(previous.get("process_identity", {}))
+        if probe["status"] == "LIVE":
+            raise StorageIntegrityError("live ACTIVE coordinator blocks takeover")
+        if probe["status"] != "DEAD":
+            raise StorageIntegrityError("coordinator liveness cannot be verified")
+        stale = self.storage.interrupt_stale_writers(coordinator_epoch=active.get("epoch"))
+        generated = self.storage.write_quiescence_receipt(
+            self.root / ".takeover" / f"epoch_{active.get('epoch')}.json",
+            coordinator_epoch=active.get("epoch"),
+        )
+        path = Path(str(generated["path"]))
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload.update({"stale": True, "exit_observed": True,
+                        "coordinator_process_id": str(active.get("process_id")),
+                        "coordinator_epoch": str(active.get("epoch")),
+                        "liveness_evidence": probe, "writer_transition": stale})
+        atomic_json(path, payload)
+        receipt = {"path": str(path), "sha256": sha256_file(path)}
+        info = self._validate_crash_takeover_receipt(receipt)
         for epoch in reversed(self.state.get("process_epochs", [])):
             if str(epoch.get("process_id")) == str(active.get("process_id")) and epoch.get("status") == "ACTIVE":
-                epoch["status"] = "EXITED"
+                epoch["status"] = "EXITED_STALE"
                 epoch["exited_utc"] = _utc()
                 epoch["exit_reason"] = "durable_crash_takeover_receipt"
                 epoch["exit_receipt"] = info
@@ -430,7 +458,7 @@ class PairedCampaign:
         return info
 
     @_serialized_transition
-    def authorize_crash_takeover(self, receipt: str | Path | Mapping[str, Any]) -> dict[str, Any]:
+    def authorize_crash_takeover(self, receipt: str | Path | Mapping[str, Any] | None = None) -> dict[str, Any]:
         """Authorize takeover only from hash-bound durable stale/exit evidence."""
         if not self.formal:
             raise StorageIntegrityError("crash takeover evidence is formal-only")
@@ -454,6 +482,7 @@ class PairedCampaign:
     def register_process_start(self, *, process_id: str | None = None, source: str = "new_process",
                                takeover: bool = False,
                                takeover_receipt: str | Path | Mapping[str, Any] | None = None) -> dict[str, Any]:
+        already_complete = self.is_complete
         active = self.state.get("active_coordinator")
         coordinator_enabled = self._coordinator_state_enabled()
         if coordinator_enabled and isinstance(active, Mapping) and str(active.get("status")) == "ACTIVE":
@@ -462,17 +491,17 @@ class PairedCampaign:
             if not takeover or not isinstance(previous, Mapping):
                 raise StorageIntegrityError("formal campaign already has an active coordinator")
             if previous.get("status") != "EXITED":
-                if takeover_receipt is None:
-                    raise StorageIntegrityError("formal takeover requires durable stale/exit evidence")
                 self._authorize_crash_takeover_locked(takeover_receipt)
             else:
                 self.state["active_coordinator"] = None
         process_name = str(process_id or f"pid:{os.getpid()}:{uuid.uuid4().hex}")
-        epoch = {"epoch": len(self.state["process_epochs"]), "process_id": process_name, "source": str(source), "started_utc": _utc(), "status": "ACTIVE"}
+        epoch = {"epoch": len(self.state["process_epochs"]), "process_id": process_name,
+                 "process_identity": process_identity(), "source": str(source),
+                 "started_utc": _utc(), "status": "ACTIVE"}
         self.state["process_epochs"].append(epoch)
         if coordinator_enabled:
             self.state["active_coordinator"] = {"epoch": epoch["epoch"], "process_id": process_name, "status": "ACTIVE", "started_utc": epoch["started_utc"]}
-        self.state["status"] = "RUNNING"
+        self.state["status"] = "COMPLETE" if already_complete else "RUNNING"
         self._persist()
         return epoch
 
@@ -799,7 +828,9 @@ class FormalPairedDriver:
          final_output_budget_bytes: int = 64 * 1024**3,
          safety_margin_bytes: int = 8 * 1024**3, require_quota: bool = True,
          fixture_only: bool = False,
+         takeover: bool = False,
          takeover_receipt: str | Path | Mapping[str, Any] | None = None,
+         _production_capability: object | None = None,
     ):
         self.root = Path(root).resolve()
         self.runner = runner
@@ -814,10 +845,14 @@ class FormalPairedDriver:
             if identity.get("execution_mode") != "TEST_FIXTURE_ONLY":
                 raise ValueError("fixture coordinator requires TEST_FIXTURE_ONLY identity")
         else:
+            if _production_capability is not _PRODUCTION_DRIVER_CAPABILITY:
+                raise StorageIntegrityError("formal driver can only be created by the production factory")
             from .hr4e5_formal_entry import validate_admission_identity
             identity = validate_admission_identity(admission_identity or {}, formal=True)
             if not require_quota:
                 raise ValueError("formal coordinator cannot disable quota reporting")
+            if takeover_receipt is not None:
+                raise StorageIntegrityError("external crash takeover receipts are forbidden")
         self.admission_identity = identity
         cid = str(campaign_id or identity.get("campaign_id"))
         self.campaign = PairedCampaign(
@@ -834,7 +869,7 @@ class FormalPairedDriver:
         self.epoch = f"{os.getpid()}:{uuid.uuid4().hex}"
         started = self.campaign.register_process_start(
             process_id=self.epoch, source="formal_driver",
-            takeover=takeover_receipt is not None, takeover_receipt=takeover_receipt,
+            takeover=bool(takeover), takeover_receipt=None,
         )
         self.coordinator_epoch = started["epoch"]
         self._closed = False
@@ -944,9 +979,12 @@ class FormalPairedDriver:
                 raise StorageIntegrityError(f"formal {step} GC plan is not durably complete")
             extras = {**extras, "gc_verification": verified_gc, "gc_plan_id": str(plan_id)}
         if step == "terminal":
-            if "expected_roles" not in value or value.get("expected_roles") is None:
-                raise StorageIntegrityError("formal terminal requires expected_roles")
-            expected_roles = value["expected_roles"]
+            if "expected_roles" in value:
+                raise StorageIntegrityError("formal terminal roles are generated by the production contract")
+            role_builder = getattr(self.runner, "expected_terminal_roles", None)
+            if not callable(role_builder):
+                raise StorageIntegrityError("production runner lacks terminal role contract")
+            expected_roles = role_builder(int(pulse))
             if not expected_roles or isinstance(expected_roles, (str, bytes)):
                 raise StorageIntegrityError("formal terminal expected_roles inventory is empty or invalid")
             inventory_root = self.root
@@ -1161,13 +1199,16 @@ class FormalPairedDriver:
         return result
 
     def resume(self, *, run: bool = True, stop_after: int | None = None,
+               takeover: bool = False,
                takeover_receipt: str | Path | Mapping[str, Any] | None = None) -> dict[str, Any]:
+        if takeover_receipt is not None:
+            raise StorageIntegrityError("external crash takeover receipts are forbidden")
         self.campaign.resume()
         if self._closed:
             self.epoch = f"{os.getpid()}:{uuid.uuid4().hex}"
             started = self.campaign.register_process_start(
                 process_id=self.epoch, source="formal_resume",
-                takeover=takeover_receipt is not None, takeover_receipt=takeover_receipt,
+                takeover=bool(takeover), takeover_receipt=None,
             )
             self.coordinator_epoch = started["epoch"]
             self._closed = False
@@ -1175,6 +1216,13 @@ class FormalPairedDriver:
 
     def report(self) -> dict[str, Any]:
         return {**self.campaign.report(), "formal_driver": True, "fixture_only": self.fixture_only, "epoch": self.epoch}
+
+
+def _open_production_driver(*args: Any, **kwargs: Any) -> FormalPairedDriver:
+    """Private capability-bearing construction point used by the production factory."""
+    if kwargs.get("fixture_only"):
+        raise StorageIntegrityError("production factory cannot create a fixture driver")
+    return FormalPairedDriver(*args, **kwargs, _production_capability=_PRODUCTION_DRIVER_CAPABILITY)
 
 
 def compare_named_arrays(reference: Mapping[str, Any], candidate: Mapping[str, Any], *, layer: str = "pair") -> dict[str, Any]:

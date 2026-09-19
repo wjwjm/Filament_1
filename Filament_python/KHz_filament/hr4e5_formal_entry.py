@@ -855,6 +855,7 @@ def run_streaming_optical_pulse(
     creation_intent: Mapping[str, Any] | str | None = None,
     fixture_only: bool = False, trajectory: str = "C", pulse: int = 0,
     attempt: int = 0, role: str = "OPTICAL",
+    defer_intent_completion: bool = False,
 ) -> dict[str, Any]:
     """Run one real optical pulse against an existing Streaming CURRENT root."""
     if not isinstance(schedule, LongitudinalSchedule):
@@ -869,6 +870,8 @@ def run_streaming_optical_pulse(
     inferred_fixture = str(admission_identity.get("execution_mode", "")) == "TEST_FIXTURE_ONLY"
     if inferred_fixture != bool(fixture_only):
         raise ValueError("optical fixture mode must explicitly match TEST_FIXTURE_ONLY admission")
+    if fixture_only and defer_intent_completion:
+        raise ValueError("fixture optical entry cannot defer reservation reconciliation")
     identity, budget, intent = _require_creation_context(
         admission_identity=admission_identity, storage_budget=storage_budget,
         creation_intent=creation_intent, fixture_only=bool(fixture_only),
@@ -1015,10 +1018,12 @@ def run_streaming_optical_pulse(
                     reclaimable=not retained, expected_sha256=sha256_file(path),
                     metadata={'reservation_id': reservation.reservation_id}, legacy_test_only=True)
         budget.consume(reservation.reservation_id)
-    else:
+    elif not defer_intent_completion:
         budget.complete_intent(str((intent or {})["intent_id"]), files=created_files,
                                metadata={'generation': str(lifecycle.manifest["current_generation"])})
         budget.consume(reservation.reservation_id)
+    else:
+        result["intent_completion_deferred"] = True
     return result
 
 
