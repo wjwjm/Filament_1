@@ -1222,6 +1222,9 @@ def _open_production_driver(*args: Any, **kwargs: Any) -> FormalPairedDriver:
     """Private capability-bearing construction point used by the production factory."""
     if kwargs.get("fixture_only"):
         raise StorageIntegrityError("production factory cannot create a fixture driver")
+    from .hr4e5_production import _E5AProductionRunner
+    if not isinstance(kwargs.get("runner"), _E5AProductionRunner):
+        raise StorageIntegrityError("production factory requires the fixed E5-1A production runner")
     return FormalPairedDriver(*args, **kwargs, _production_capability=_PRODUCTION_DRIVER_CAPABILITY)
 
 

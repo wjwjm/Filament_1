@@ -56,7 +56,7 @@ def test_r01_same_driver_reaches_real_cpu_optical_path(tmp_path):
     from KHz_filament.hr4e5_formal_entry import (
         build_fixture_admission_identity, run_streaming_optical_pulse,
     )
-    from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver, _open_production_driver
+    from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver
     from KHz_filament.hr4e5s_streaming import StreamingLifecycle
 
     root = tmp_path / "controlled-real-optical"
@@ -152,6 +152,43 @@ def test_r03_intent_preexisting_file_is_not_retroactively_owned(tmp_path):
     with pytest.raises(StorageIntegrityError, match="pre-existing"):
         budget.complete_intent(intent["intent_id"])
     assert budget.intents()[intent["intent_id"]]["status"] == "ACTIVE"
+
+
+def test_r03_terminal_inventory_requires_quiescent_storage_ledger(tmp_path):
+    from KHz_filament.hr4e5_storage import (
+        MockQuotaProvider, StorageBudget, StorageIntegrityError,
+    )
+
+    identity = _formal_identity(campaign_id="terminal-quiescence-r")
+    root = tmp_path / "terminal-quiescence"
+    target = root / "payload.npy"
+    budget = StorageBudget(
+        root, campaign_id=identity["campaign_id"], require_intents=True,
+        admission_hash=identity["identity_sha256"], require_quota=True,
+        provider=MockQuotaProvider(free_bytes=2**30, quota_bytes=2**30),
+        safety_margin_bytes=128,
+    )
+    reservation = budget.reserve(4096, purpose="unfinished", allocation_paths=[target])
+    intent = budget.create_intent(
+        reservation_id=reservation.reservation_id, trajectory="C", pulse=0,
+        attempt=0, role="FINAL", allowed_paths=[target], expected_bytes=4096,
+        admission_hash=identity["identity_sha256"], epoch="epoch-0",
+        generation="terminal:test",
+    )
+    writer = budget.open_writer(
+        reservation_id=reservation.reservation_id, intent_id=intent["intent_id"],
+        coordinator_epoch="epoch-0", trajectory="C", pulse=0, attempt=0,
+        generation="terminal:test",
+    )
+    with pytest.raises(StorageIntegrityError, match="not quiescent") as active:
+        budget.validate_terminal_inventory({})
+    assert "active_reservations" in str(active.value)
+    assert "unfinished_intents" in str(active.value)
+    assert "active_writers" in str(active.value)
+    budget.close_writer(writer["writer_id"], coordinator_epoch="epoch-0", status="INTERRUPTED")
+    budget.interrupt_intent(intent["intent_id"], reason="test interruption")
+    with pytest.raises(StorageIntegrityError, match="unfinished_intents"):
+        budget.validate_terminal_inventory({})
 
 
 def test_r03_formal_pre0_refuses_without_intent_and_fixture_is_explicit(tmp_path):
@@ -796,12 +833,17 @@ def _local_production_spec(tmp_path, *, campaign_id="local-production", n_pulses
 
 
 def test_production_factory_is_unique_and_n1_real_cpu_path(tmp_path):
-    from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver
+    from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver, _open_production_driver
     from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
     from KHz_filament.hr4e5_storage import StorageIntegrityError
 
     with pytest.raises(StorageIntegrityError, match="production factory"):
         FormalPairedDriver(tmp_path/"forbidden", admission_identity=_formal_identity(), runner=object(), n_pulses=1)
+    with pytest.raises(StorageIntegrityError, match="fixed E5-1A production runner"):
+        _open_production_driver(
+            tmp_path/"forbidden-private", admission_identity=_formal_identity(),
+            runner=object(), n_pulses=1,
+        )
     campaign = open_e5_1a_production_campaign(_local_production_spec(tmp_path))
     result = campaign.run()
     assert result["status"] == "COMPLETE"
@@ -853,6 +895,11 @@ def test_production_n2_k16_multiblock_happy_path(tmp_path):
     assert state0["barrier"]["status"] == "PASS"
     assert state0["promotion"]["authoritative_namespace"] == "NEXT"
     assert len(state0["records"]) == 16
+    ledger = json.loads((tmp_path / "campaign" / "storage_ledger.json").read_text(encoding="utf-8"))
+    for side in ("R", "C"):
+        relative = f"{side}/p0/state/E5_1A_ARCHIVED_AFTER_EXACT.json"
+        assert relative in ledger["artifacts"]
+        assert ledger["artifacts"][relative]["role"] == "SUCCESSOR"
 
 
 def test_production_n3_k8_split_process_matches_uninterrupted(tmp_path):

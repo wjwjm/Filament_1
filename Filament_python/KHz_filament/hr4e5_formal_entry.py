@@ -698,6 +698,7 @@ def create_successor_root(
     if budget is not None and intent is not None:
         try:
             files = [path for path in child_root_path.rglob("*") if path.is_file()]
+            files.append(archive)
             budget.complete_intent(str(intent["intent_id"]), files=files)
             current_intent = budget.validate_intent(str(intent["intent_id"]))
             if current_intent.get("status") == "COMPLETED":

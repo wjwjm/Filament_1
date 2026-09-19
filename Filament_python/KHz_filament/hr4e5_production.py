@@ -561,10 +561,11 @@ class _E5AProductionRunner:
     def _run_successor(self, trajectory: str, pulse: int):
         parent = self._track(trajectory, pulse) / "state"
         child = self._track(trajectory, pulse+1) / "state"
+        archive = parent / "E5_1A_ARCHIVED_AFTER_EXACT.json"
         child_generation = str(StreamingLifecycle.open(parent).manifest["next_generation"])
         estimate = max(4*1024**2, 4*3*self.schedule.n_intervals*self.components[0].Nx*self.components[0].Ny*8)
         reservation, intent, writer = self._intent(side=trajectory, pulse=pulse + 1, role="SUCCESSOR",
-            paths=[child], expected_bytes=estimate, generation=child_generation)
+            paths=[child, archive], expected_bytes=estimate, generation=child_generation)
         error = None
         try:
             lifecycle, ready = create_successor_root(

@@ -1280,7 +1280,28 @@ class StorageBudget:
         expected_paths = set().union(*expected_map.values()) if expected_map else set()
         actual_paths = {str(path.resolve()) for path in _iter_regular_files(base)}
         management = {str(path.resolve()) for path in self._management_paths()}
-        artifacts = self.artifacts()
+        with _FileLock(self.lock_path):
+            ledger = self._read()
+            self._validate(ledger)
+        artifacts = json.loads(json.dumps(ledger["artifacts"]))
+        active_reservations = sorted(
+            str(reservation_id) for reservation_id, item in ledger["reservations"].items()
+            if item.get("status") == "ACTIVE"
+        )
+        unfinished_intents = sorted(
+            str(intent_id) for intent_id, item in ledger["intents"].items()
+            if item.get("status") in {"ACTIVE", "INTERRUPTED"}
+        )
+        active_writers = sorted(
+            str(writer_id) for writer_id, item in ledger["writers"].items()
+            if item.get("status") == "ACTIVE"
+        )
+        if active_reservations or unfinished_intents or active_writers:
+            raise StorageIntegrityError(
+                "terminal storage ledger is not quiescent: "
+                f"active_reservations={active_reservations} "
+                f"unfinished_intents={unfinished_intents} active_writers={active_writers}"
+            )
         registered = {str((self.root / relative).resolve()) for relative in artifacts}
         scientific_suffixes = {".npy", ".npz", ".mat", ".h5", ".hdf5"}
         suspicious_unregistered = {
