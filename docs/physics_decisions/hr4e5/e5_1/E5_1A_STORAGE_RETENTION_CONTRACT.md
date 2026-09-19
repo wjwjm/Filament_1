@@ -132,3 +132,35 @@ PRE0/successor creation admission, arbitrary caller ownership registration and
 the combined interrupted pair/handoff/reclaim coordinator require the remaining
 outer-entry work identified in the implementation report. Do not use this
 partial delivery to authorize formal data reclamation.
+
+## 2026-09-20 production-path implementation update
+
+The preceding partial-disposition paragraph is historical. The retention rules
+are now exercised by the sealed production runner under
+`LOCAL_ORCHESTRATION_QUALIFICATION`:
+
+- every production writer is durable, epoch-bound and connected to its
+  reservation and creation intent;
+- a live or unverifiable ACTIVE writer blocks takeover;
+- a verified dead writer in a stale epoch becomes `INTERRUPTED_STALE` without
+  releasing its reservation or hiding residual files;
+- the new epoch may rebind the same interrupted intent/reservation, while the
+  old epoch is fenced from close, commit and GC;
+- quiescence receipts are generated from the registry and GC revalidates the
+  full trajectory/pulse/attempt/admission binding before unlink;
+- terminal roles are generated from owned artifacts plus required production
+  role minima; missing roles, nonzero attempts, unregistered scientific
+  containers, active writers, active reservations, or active/interrupted
+  intents prevent PASS;
+- the parent archive receipt is part of the successor reservation/intent and is
+  registered and charged together with the child successor root.
+
+The N3/K8 split-process and uninterrupted runs have identical retained-array
+exact signatures, GC structure, role inventory, writer-role/status inventory
+and reservation outcomes. N2/K16 covers two full block8 groups under queue16.
+The 300 GiB/64 GiB figures remain policy limits and formula results, not site
+quota or measured HPC capacity. Site quota/free space/QoS, RSS/VRAM/I/O,
+GPU/CUDA and K8048 materialization are explicitly E5-1B work.
+
+Disposition: `E5_1A_IMPLEMENTATION_READY_FOR_REVIEW`, not E5-1A CLOSED and not
+formal execution authorization.

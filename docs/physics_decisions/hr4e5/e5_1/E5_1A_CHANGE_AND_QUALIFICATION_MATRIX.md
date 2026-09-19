@@ -62,8 +62,38 @@ Streaming/HR4D regression selection remains the inherited-compatibility check.
 | A15 | successor READY and complete-campaign-root terminal inventory are mandatory | PARTIAL: no complete positive production role inventory |
 | A17 | unchanged 300 GiB/64 GiB formula is checked by runtime planner | PARTIAL: no full production lifecycle or site measurement |
 
-Latest code/test commit: `217f74587edcdf739127602afd73b2b830fc77bb`.
-Latest local results: 13 focused E5-1A-R, 43 total E5-1A, 34 existing
+Historical E5-1A-R code/test commit: `217f74587edcdf739127602afd73b2b830fc77bb`.
+Historical local results: 13 focused E5-1A-R, 43 total E5-1A, 34 existing
 Streaming/HR4D, sanity 1, backend and compileall all passed. These results do
 not change the final `E5_1A_PARTIAL / BLOCKED_BY_FORMAL_DRIVER_AND_RECOVERY_QUALIFICATION`
 disposition or authorize B/C.
+
+## Production-path closeout update (2026-09-20; supersedes the disposition above)
+
+Production-path code/test commit:
+`dd4b2c0019ea7d78c5ad06b3fa6710806a327356`.
+
+The unique public production factory is now
+`open_e5_1a_production_campaign(E5AProductionSpec)`. Formal construction cannot
+accept a caller runner, callback, terminal role list, optical double or bypass.
+The same sealed runner serves local qualification and future site-qualified
+admission; the execution mode changes evidence requirements only.
+
+| Item | Updated disposition | Local evidence and boundary |
+|---|---|---|
+| A05 | `PASS_LOCAL_PRODUCTION_PATH` | Real CPU R/C/exact chain through the unique factory; config/source/LUT/budget tampering is refused |
+| A07 | `PASS_LOCAL_PRODUCTION_RECOVERY` | N3/K8 exits after pair 0 and a fresh process completes pairs 1–2; live/dead/unknown writer rules and epoch fencing are exercised |
+| A09 | `PASS_LOCAL_PRODUCTION_PATH` | Registry-backed quiescence, trajectory/pulse/attempt/admission-bound GC, sequential R then C successor/reclaim |
+| A14 | `PASS_LOCAL_PRODUCTION_PATH` | Production PRE0, optical/hydro, successor, reports and terminal evidence use reservation→intent→writer→reconcile→close |
+| A15 | `PASS_LOCAL_PRODUCTION_PATH` | Automatically generated terminal role inventory, attempt fencing, unfinished reservation/intent/writer refusal, orphan/extra scientific-container refusal, final Candidate CURRENT+POST |
+| A17 | `PASS_LOCAL_RESOURCE_MODEL` | The same planner and durable ledger are exercised at N3/K8; local free space plus 300 GiB policy cap are labelled `LOCAL_POLICY_CAP_NOT_SITE_QUOTA` |
+
+Executed production qualifications are N3/K8 split plus uninterrupted comparison
+and one N2/K16 two-block happy path. N3 contains 336 screen exact rows, 27 ledger
+arrays, three final optical arrays and 96 successor-binding rows. This is
+`LOCAL_ORCHESTRATION_QUALIFICATION`, not formal-input equivalence, GPU/site
+qualification or a scientific result.
+
+Current status is `E5_1A_IMPLEMENTATION_READY_FOR_REVIEW`. It is not CLOSED.
+`formal_execution_authorized=false`, `resource_execution_gate=NOT_RELEASED`, and
+E5-1B/C remain `NOT_STARTED / NOT_AUTHORIZED`.

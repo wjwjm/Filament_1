@@ -118,10 +118,10 @@
     "duplicate_final_checkpoint_default": false,
     "growth": "bounded active large-state window; N-dependent retained optics and reports"
   },
-  "qualification_authority": "E5_1A_R_TEST_RESULTS.json and E5_1A_R_COMPLETION_REPORT_20260918.md; E5_1A_TEST_RESULTS.json and E5_1A_IMPLEMENTATION_REPORT_20260916.md remain historical evidence",
+  "qualification_authority": "E5_1A_PRODUCTION_PATH_COMPLETION_REPORT_20260920.md and E5_1A_R_TEST_RESULTS.json; prior reports remain historical evidence",
   "e5_1a_r": {
-    "repair_base": "b9b5f31d0875ee92b9ea98d23a0659a00e18fdde",
-    "code_test_commit": "217f74587edcdf739127602afd73b2b830fc77bb",
+    "repair_base": "493109fbe0bba41638bed709f2b04b9458bc609c",
+    "code_test_commit": "dd4b2c0019ea7d78c5ad06b3fa6710806a327356",
     "formal_gc_binding": [
       "trajectory",
       "pulse",
@@ -130,9 +130,21 @@
       "writer_receipt_sha256",
       "gc_plan_id"
     ],
-    "terminal_inventory_scope": "complete campaign root",
+    "terminal_inventory_scope": "complete campaign root; no ACTIVE reservation, ACTIVE or INTERRUPTED intent, or ACTIVE writer",
     "metadata_only_exact": "requires StorageBudget ownership and equal reference/candidate canonical array hashes",
-    "evidence_scope": "LOCAL_CPU_AND_TEST_FIXTURE_ONLY"
+    "evidence_scope": "LOCAL_ORCHESTRATION_QUALIFICATION",
+    "production_factory": "KHz_filament.hr4e5_production.open_e5_1a_production_campaign",
+    "local_qualification": {
+      "N3_K8_split_process": true,
+      "N3_K8_uninterrupted_comparison": true,
+      "N2_K16_multiblock": true,
+      "screen_exact_rows": 336,
+      "ledger_arrays": 27,
+      "final_optical_arrays": 3,
+      "successor_binding_rows": 96
+    },
+    "writer_takeover": "LIVE_REJECT; UNKNOWN_REJECT; DEAD_STALE_TO_INTERRUPTED_STALE_WITH_RESERVATION_RETAINED",
+    "resource_scope": "LOCAL_POLICY_CAP_NOT_SITE_QUOTA"
   },
   "b_gates": [
     "human review of A",
@@ -142,6 +154,8 @@
     "actual CPU RAM/GPU VRAM/I/O feasibility",
     "separate scientific execution authorization"
   ],
-  "implementation_status": "E5_1A_PARTIAL",
-  "blocker": "FORMAL_DRIVER_AND_RECOVERY_QUALIFICATION"
+  "implementation_status": "E5_1A_IMPLEMENTATION_READY_FOR_REVIEW",
+  "blocker": null,
+  "e5_1b_status": "NOT_STARTED_NOT_AUTHORIZED",
+  "e5_1c_status": "NOT_STARTED_NOT_AUTHORIZED"
 }
