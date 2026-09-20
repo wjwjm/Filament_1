@@ -1,0 +1,22 @@
+{
+  "schema": "filament.hr4e5.e5_1a.final_closeout_external_validation.v1",
+  "status": "PASS",
+  "bundle": "HR4E5_E5_1A_FINAL_CLOSEOUT_WEB_REVIEW_20260920.zip",
+  "sha256": "b194f191595f82020aaf255775b529b2178f82b7a69c5f264206bdaf4efc5d80",
+  "size_bytes": 186550,
+  "entry_count": 37,
+  "checks": [
+    "ZIP reopen and every-entry CRC read",
+    "unique safe relative paths",
+    "SHA256SUMS verification",
+    "WEB_REVIEW_INDEX payload coverage",
+    "index role and source_commit fields",
+    "JSON parse",
+    "CSV fixed-column parse",
+    "all relative Markdown links resolved inside ZIP",
+    "Git blob SHA verification for tracked payloads"
+  ],
+  "formal_execution_authorized": false,
+  "resource_execution_gate": "NOT_RELEASED",
+  "slurm_gpu_s5_actions": false
+}
