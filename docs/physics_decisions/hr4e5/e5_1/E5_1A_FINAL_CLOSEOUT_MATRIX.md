@@ -32,7 +32,7 @@ There is no unresolved E5-1A functional `PARTIAL`. Deferred rows identify site,
 formal-input, GPU, or scientific-interpretation authority that belongs to
 E5-1B/E5-1C; they are not silent deferrals of an A-stage failure.
 
-Current stage remains `E5_1A_IMPLEMENTATION_READY_FOR_REVIEW`. Human review is
-required before any `CLOSED / LOCAL_PRODUCTION_IMPLEMENTATION_QUALIFIED`
-classification. Formal execution remains unauthorized and the resource gate is
-not released.
+Human review accepted this evidence on 2026-09-20. The final classification is
+`E5-1A = CLOSED / LOCAL_PRODUCTION_IMPLEMENTATION_QUALIFIED`. E5-1B is
+`READY FOR DESIGN / NOT STARTED`; E5-1C is `NOT STARTED / NOT AUTHORIZED`.
+Formal execution remains unauthorized and the resource gate is not released.

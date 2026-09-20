@@ -7,10 +7,11 @@ Code/test commit: `a3fe5eb80f317735e59b50465728340960717d1d`
 
 ## Disposition
 
-`E5_1A_IMPLEMENTATION_READY_FOR_REVIEW`
+`CLOSED / LOCAL_PRODUCTION_IMPLEMENTATION_QUALIFIED`
 
-This is a local implementation-review gate, not E5-1A CLOSED. It does not
-authorize formal execution, HPC/Slurm, GPU work, S5 changes, E5-1B or E5-1C.
+Human review accepted the local production implementation on 2026-09-20. This
+closes E5-1A only; it does not authorize formal execution, HPC/Slurm, GPU work,
+S5 changes, E5-1B implementation/execution, or E5-1C.
 The executed evidence level is `LOCAL_ORCHESTRATION_QUALIFICATION`; it is not
 formal-input equivalence or scientific qualification.
 
@@ -134,3 +135,7 @@ the same production intent.
 
 Final verification and Git/ZIP receipts are recorded in
 `E5_1A_R_TEST_RESULTS.json` and the web-review bundle index.
+
+The subsequent human-review authority is recorded in
+`E5_1A_HUMAN_REVIEW_CLOSEOUT_20260920.md`. E5-1B is ready for design but not
+started; E5-1C remains not started and not authorized.

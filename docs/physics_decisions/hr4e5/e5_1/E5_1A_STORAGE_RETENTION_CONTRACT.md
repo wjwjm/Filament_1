@@ -162,5 +162,6 @@ The 300 GiB/64 GiB figures remain policy limits and formula results, not site
 quota or measured HPC capacity. Site quota/free space/QoS, RSS/VRAM/I/O,
 GPU/CUDA and K8048 materialization are explicitly E5-1B work.
 
-Disposition: `E5_1A_IMPLEMENTATION_READY_FOR_REVIEW`, not E5-1A CLOSED and not
-formal execution authorization.
+Human-review disposition: `E5-1A = CLOSED / LOCAL_PRODUCTION_IMPLEMENTATION_QUALIFIED`.
+This is not formal execution authorization; E5-1B is ready for design but not
+started, and the resource execution gate remains `NOT_RELEASED`.
