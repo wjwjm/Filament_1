@@ -118,10 +118,10 @@
     "duplicate_final_checkpoint_default": false,
     "growth": "bounded active large-state window; N-dependent retained optics and reports"
   },
-  "qualification_authority": "E5_1A_PRODUCTION_PATH_COMPLETION_REPORT_20260920.md and E5_1A_R_TEST_RESULTS.json; prior reports remain historical evidence",
+  "qualification_authority": "E5_1A_FINAL_CLOSEOUT_MATRIX.md, E5_1A_PRODUCTION_OVERLAP_EVIDENCE.json, E5_1A_PRODUCTION_PATH_COMPLETION_REPORT_20260920.md and E5_1A_R_TEST_RESULTS.json; prior reports remain historical evidence",
   "e5_1a_r": {
     "repair_base": "493109fbe0bba41638bed709f2b04b9458bc609c",
-    "code_test_commit": "dd4b2c0019ea7d78c5ad06b3fa6710806a327356",
+    "code_test_commit": "a3fe5eb80f317735e59b50465728340960717d1d",
     "formal_gc_binding": [
       "trajectory",
       "pulse",

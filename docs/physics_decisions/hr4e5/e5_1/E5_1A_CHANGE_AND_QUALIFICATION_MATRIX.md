@@ -48,8 +48,12 @@ A07/A09/A14/A15/A17 must retain the applicable partial scope; successful lower-l
 tests do not upgrade them. A01-A18 final command outcomes and coverage limitations
 are recorded individually in E5_1A_TEST_RESULTS.json.
 
-No narrow change to the original Streaming core was made. The original
-Streaming/HR4D regression selection remains the inherited-compatibility check.
+Scientific and lifecycle semantics are unchanged. The branch contains one
+narrow Windows-only filesystem robustness exception in
+`Filament_python/KHz_filament/hr4e5s_streaming.py`: manifest read/replace retries
+transient `PermissionError` only when `os.name == "nt"`, with a bounded 20 ×
+10 ms limit. Streaming/HR4D regressions cover the unchanged claim, queue,
+barrier and promotion semantics; Linux/HPC behavior does not enter the retry.
 
 ## E5-1A-R additive qualification (2026-09-19)
 
@@ -71,7 +75,7 @@ disposition or authorize B/C.
 ## Production-path closeout update (2026-09-20; supersedes the disposition above)
 
 Production-path code/test commit:
-`dd4b2c0019ea7d78c5ad06b3fa6710806a327356`.
+`a3fe5eb80f317735e59b50465728340960717d1d`.
 
 The unique public production factory is now
 `open_e5_1a_production_campaign(E5AProductionSpec)`. Formal construction cannot

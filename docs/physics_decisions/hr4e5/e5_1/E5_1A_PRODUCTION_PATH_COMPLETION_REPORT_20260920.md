@@ -3,7 +3,7 @@
 Date: 2026-09-20
 Branch: `codex/hr4e5-e5-1a-streaming-implementation`
 Repair base: `493109fbe0bba41638bed709f2b04b9458bc609c`
-Code/test commit: `dd4b2c0019ea7d78c5ad06b3fa6710806a327356`
+Code/test commit: `a3fe5eb80f317735e59b50465728340960717d1d`
 
 ## Disposition
 
@@ -81,6 +81,13 @@ optical path. It covered two complete block8 groups, queue16 POST consumption,
 barrier/promotion, one successor/GC and the second-pulse terminal inventory. It
 does not duplicate the N3 recovery or negative matrix.
 
+Candidate pulse 0 also records direct production-path overlap evidence. In the
+persisted telemetry sequence, `HYDRO_BLOCK_START` for block 0–7 is event 18 at
+118238.0197072 s and `OPTICAL_COMPLETE` is event 44 at 118238.4212553 s.
+Therefore the first hydro block began 0.4015481 s before optical completion;
+the production facade has no hidden full-POST-before-hydro barrier. The bound
+event and campaign identities are in `E5_1A_PRODUCTION_OVERLAP_EVIDENCE.json`.
+
 ## Terminal inventory and resource model
 
 Terminal roles are generated from the production contract and owned artifacts.
@@ -117,10 +124,13 @@ RSS/VRAM/I/O, GPU/CUDA and K8048 materialization move to E5-1B.
 
 Scientific propagation, nonlinear, ionization and Raman operators and frozen
 production config/LUT were not changed. One narrow Streaming infrastructure
-change retries Windows `os.replace` only for transient `PermissionError`
-(20 × 10 ms maximum); it does not alter claim, barrier, promotion or numerical
-semantics. The formal optical entry gained a narrow deferred-intent settlement
-option so concurrent C hydro NEXT files are owned by the same production intent.
+change in `Filament_python/KHz_filament/hr4e5s_streaming.py` retries manifest
+read/`os.replace` only for transient Windows `PermissionError` when
+`os.name == "nt"` (20 × 10 ms maximum). Streaming/HR4D regression tests cover
+the unchanged claim, queue, barrier and promotion behavior. Linux/HPC lifecycle
+semantics do not enter this retry. The formal optical entry gained a narrow
+deferred-intent settlement option so concurrent C hydro NEXT files are owned by
+the same production intent.
 
 Final verification and Git/ZIP receipts are recorded in
 `E5_1A_R_TEST_RESULTS.json` and the web-review bundle index.
