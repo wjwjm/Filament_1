@@ -31,6 +31,13 @@ def _formal_identity(campaign_id: str = "formal-r", *, n_pulses: int = 1):
     )
 
 
+def _production_runner_shell():
+    """Return a typed, non-running shell for private formal-gate unit tests."""
+    from KHz_filament.hr4e5_production import _E5AProductionRunner
+
+    return _E5AProductionRunner.__new__(_E5AProductionRunner)
+
+
 def test_r01_formal_identity_rejects_missing_and_tamper():
     from KHz_filament.hr4e5_formal_entry import validate_admission_identity
 
@@ -513,7 +520,7 @@ def test_r06_formal_exact_rejects_r_only_and_accepts_a_complete_paired_report(tm
 
     def run_case(root):
         root.mkdir(exist_ok=True)
-        driver = _open_production_driver(root, admission_identity=identity, runner=object(), n_pulses=1,
+        driver = _open_production_driver(root, admission_identity=identity, runner=_production_runner_shell(), n_pulses=1,
                                          campaign_id=identity["campaign_id"])
         from KHz_filament.hr4e5_storage import MockQuotaProvider
         driver.campaign.storage.provider = MockQuotaProvider(free_bytes=2**40, quota_bytes=2**40)
@@ -535,8 +542,13 @@ def test_r06_formal_exact_rejects_r_only_and_accepts_a_complete_paired_report(tm
         def run_candidate(self, pulse): return {"status": "PASS", "report_path": report_c["report_path"]}
         def run_exact(self, pulse): return {"status": "PASS", "report_path": report_r["report_path"]}
 
+    bad_runner = _production_runner_shell()
+    bad = BadRunner()
+    bad_runner.run_reference = bad.run_reference
+    bad_runner.run_candidate = bad.run_candidate
+    bad_runner.run_exact = bad.run_exact
     with pytest.raises(Exception, match="formal exact|schema|object"):
-        _open_production_driver(bad_root, admission_identity=identity, runner=BadRunner(), n_pulses=1,
+        _open_production_driver(bad_root, admission_identity=identity, runner=bad_runner, n_pulses=1,
                            campaign_id=identity["campaign_id"]).run()
 
     good_root = tmp_path / "paired"
@@ -579,10 +591,12 @@ def test_r07_independent_process_crash_stale_takeover_and_resume(tmp_path):
         from pathlib import Path
         from KHz_filament.hr4e5_paired_campaign import _open_production_driver
         from KHz_filament.hr4e5_evidence import atomic_json
+        from KHz_filament.hr4e5_production import _E5AProductionRunner
 
         root = Path(sys.argv[1]).resolve()
         identity = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-        driver = _open_production_driver(root, admission_identity=identity, runner=object(),
+        runner = _E5AProductionRunner.__new__(_E5AProductionRunner)
+        driver = _open_production_driver(root, admission_identity=identity, runner=runner,
                                     n_pulses=1, campaign_id=identity["campaign_id"])
         atomic_json(root / "child_one_started.json", {
             "process_id": driver.epoch, "campaign_id": identity["campaign_id"],
@@ -611,10 +625,12 @@ def test_r07_independent_process_crash_stale_takeover_and_resume(tmp_path):
         from pathlib import Path
         from KHz_filament.hr4e5_paired_campaign import _open_production_driver
         from KHz_filament.hr4e5_evidence import atomic_json
+        from KHz_filament.hr4e5_production import _E5AProductionRunner
 
         root = Path(sys.argv[1]).resolve()
         identity = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-        driver = _open_production_driver(root, admission_identity=identity, runner=object(),
+        runner = _E5AProductionRunner.__new__(_E5AProductionRunner)
+        driver = _open_production_driver(root, admission_identity=identity, runner=runner,
                                     n_pulses=1, campaign_id=identity["campaign_id"],
                                     takeover=True)
         new_epoch = driver.epoch
@@ -696,7 +712,7 @@ def test_r08_exact_resume_after_gc_uses_metadata_only_pair_validator(tmp_path):
     identity = _formal_identity(campaign_id="exact-after-gc-r", n_pulses=2)
     root = tmp_path / "exact-after-gc"
     driver = _open_production_driver(
-        root, admission_identity=identity, runner=object(), n_pulses=2,
+        root, admission_identity=identity, runner=_production_runner_shell(), n_pulses=2,
         campaign_id=identity["campaign_id"], safety_margin_bytes=1024**2,
     )
     driver.campaign.storage.provider = MockQuotaProvider(free_bytes=2**40, quota_bytes=2**40)
@@ -747,7 +763,7 @@ def test_r09_formal_successor_requires_ready_receipt(tmp_path):
     child = root / "child"
     child.mkdir(parents=True)
     driver = _open_production_driver(
-        root, admission_identity=identity, runner=object(), n_pulses=2,
+        root, admission_identity=identity, runner=_production_runner_shell(), n_pulses=2,
         campaign_id=identity["campaign_id"], safety_margin_bytes=1024**2,
     )
     with pytest.raises(StorageIntegrityError, match="READY"):
@@ -783,8 +799,10 @@ def test_r09_formal_terminal_requires_inventory_contract(tmp_path):
     )
     class Runner:
         def expected_terminal_roles(self, pulse): return {"final": []}
+    runner = _production_runner_shell()
+    runner.expected_terminal_roles = Runner().expected_terminal_roles
     driver = _open_production_driver(
-        root, admission_identity=identity, runner=Runner(), n_pulses=1,
+        root, admission_identity=identity, runner=runner, n_pulses=1,
         campaign_id=identity["campaign_id"], safety_margin_bytes=1024**2,
     )
     value = {
@@ -878,7 +896,8 @@ def test_production_admission_recomputes_source_lut_and_budget_identity(tmp_path
         )
 
 
-def test_production_n2_k16_multiblock_happy_path(tmp_path):
+def test_production_n2_k16_multiblock_overlap_happy_path(tmp_path):
+    from KHz_filament.hr4e5_paired_campaign import validate_overlap_events
     from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
 
     campaign = open_e5_1a_production_campaign(
@@ -895,6 +914,20 @@ def test_production_n2_k16_multiblock_happy_path(tmp_path):
     assert state0["barrier"]["status"] == "PASS"
     assert state0["promotion"]["authoritative_namespace"] == "NEXT"
     assert len(state0["records"]) == 16
+    events = state0["telemetry_events"]
+    overlap = validate_overlap_events(events)
+    assert overlap["status"] == "PASS"
+    first_hydro_index, first_hydro = next(
+        (index, event) for index, event in enumerate(events)
+        if event["event"] == "HYDRO_BLOCK_START"
+    )
+    optical_complete_index, optical_complete = next(
+        (index, event) for index, event in enumerate(events)
+        if event["event"] == "OPTICAL_COMPLETE"
+    )
+    assert first_hydro["block"] == list(range(8))
+    assert first_hydro_index < optical_complete_index
+    assert first_hydro["monotonic_s"] < optical_complete["monotonic_s"]
     ledger = json.loads((tmp_path / "campaign" / "storage_ledger.json").read_text(encoding="utf-8"))
     for side in ("R", "C"):
         relative = f"{side}/p0/state/E5_1A_ARCHIVED_AFTER_EXACT.json"
