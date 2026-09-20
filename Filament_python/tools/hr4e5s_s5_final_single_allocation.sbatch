@@ -24,97 +24,16 @@ readonly PHASE0_ROOT="$RUN_ROOT/phase0"
 readonly FINAL_RUNNER="$REPO_DIR/Filament_python/tools/run_hr4e5s_s5_final.py"
 readonly S3_RUNNER="$REPO_DIR/Filament_python/tools/run_hr4e5s_s3.py"
 readonly MONITOR="$REPO_DIR/Filament_python/tools/monitor_hr4e5s_s5_final.py"
-mkdir -m 700 -- "$PHASE0_ROOT" "$PHASE0_ROOT/identities" "$PHASE0_ROOT/heartbeats"
+readonly PHASE0_LAUNCHER="$REPO_DIR/Filament_python/tools/hr4e5s_s5_phase0.sh"
+test -f "$PHASE0_LAUNCHER"
 
-phase0_json() {
-  local destination="$1"; shift
-  "$PYTHON" - "$destination" "$@" <<'PY'
-import json, os, sys, tempfile
-out,*items=sys.argv[1:]; value={'schema':'khz_filament.hr4e5s.s5_final.phase0.v1'}
-for item in items:
-    key,raw=item.split('=',1); value[key]=(raw=='true' if raw in {'true','false'} else int(raw) if raw.lstrip('-').isdigit() else raw)
-fd,tmp=tempfile.mkstemp(prefix=os.path.basename(out)+'.',dir=os.path.dirname(out))
-with os.fdopen(fd,'w',encoding='utf-8',newline='\n') as h: json.dump(value,h,indent=2,sort_keys=True); h.write('\n'); h.flush(); os.fsync(h.fileno())
-os.replace(tmp,out)
-PY
-}
-phase0_fail() {
-  local reason="$1"
-  phase0_json "$PHASE0_ROOT/phase0_observability_result.json" "status=FAIL" "reason=$reason" "controller_hostname=$(hostname)" "science_started=false"
-  phase0_json "$RUN_ROOT/final_decision.json" "status=READY_FOR_S5_FINAL_DEFECT_REVIEW" "reason=PHASE0_${reason}" "science_started=false"
-  printf '# S5-FINAL single-allocation report\n\n- Final status: `READY_FOR_S5_FINAL_DEFECT_REVIEW`\n- Phase 0: `FAIL` (%s)\n- Scientific workers: not started\n' "$reason" >"$RUN_ROOT/S5_FINAL_SINGLE_ALLOCATION_REPORT.md"
-  exit 0
-}
-wait_for_file() { local path="$1" limit="$2" elapsed=0; while [[ ! -f "$path" && "$elapsed" -lt "$limit" ]]; do sleep 1; elapsed=$((elapsed+1)); done; test -f "$path"; }
-read_json_field() { "$PYTHON" - "$1" "$2" <<'PY'
-import json,sys
-print(json.load(open(sys.argv[1],encoding='utf-8'))[sys.argv[2]])
-PY
-}
-launch_phase0_probe() {
-  local actor="$1" identity="$2" heartbeat="$3"
-  # CVD is explicitly removed; the child only writes a receipt and a heartbeat.
-  srun --exclusive --ntasks=1 --cpus-per-task=1 --gpus-per-task=0 env -u CUDA_VISIBLE_DEVICES -u UPPE_USE_GPU bash -c '
-    set -euo pipefail
-    py="$1"; identity="$2"; actor="$3"; heartbeat="$4"
-    env -u CUDA_VISIBLE_DEVICES -u UPPE_USE_GPU "$py" - "$identity" "$actor" "$heartbeat" <<'"'"'PY'"'"'
-import json,os,socket,sys,tempfile,time
-out,actor,heartbeat=sys.argv[1:]
-value={'schema':'khz_filament.hr4e5s.s5_final.phase0.v1','kind':'identity','actor':actor,'job_id':os.environ['SLURM_JOB_ID'],'step_id':os.environ['SLURM_STEP_ID'],'pid':os.getpid(),'hostname':socket.gethostname(),'start_time':time.time(),'heartbeat_path':heartbeat,'cuda_visible_devices':os.environ.get('CUDA_VISIBLE_DEVICES',''),'cupy_imported':False,'cuda_context_initialized':False}
-fd,tmp=tempfile.mkstemp(prefix=os.path.basename(out)+'.',dir=os.path.dirname(out))
-with os.fdopen(fd,'w',encoding='utf-8',newline='\n') as h: json.dump(value,h,indent=2,sort_keys=True); h.write('\n'); h.flush(); os.fsync(h.fileno())
-os.replace(tmp,out)
-PY
-    while true; do date +%s%N >"$heartbeat"; sleep 1; done
-  ' bash "$PYTHON" "$identity" "$actor" "$heartbeat" &
-  launched_pid="$!"
-}
-capture_listpids() {
-  local name="$1" query="$2" stdout="$PHASE0_ROOT/${name}.stdout" stderr="$PHASE0_ROOT/${name}.stderr" rc=0
-  scontrol listpids "$query" >"$stdout" 2>"$stderr" || rc=$?
-  "$PYTHON" - "$PHASE0_ROOT/${name}.json" "$query" "$rc" "$stdout" "$stderr" <<'PY'
-import json,os,socket,sys,tempfile,time
-out,query,rc,stdout,stderr=sys.argv[1:]
-value={'schema':'khz_filament.hr4e5s.s5_final.phase0.v1','kind':'listpids_evidence','command':['scontrol','listpids',query],'hostname':socket.gethostname(),'return_code':int(rc),'stdout':open(stdout,encoding='utf-8').read(),'stderr':open(stderr,encoding='utf-8').read(),'timestamp':time.time()}
-fd,tmp=tempfile.mkstemp(prefix=os.path.basename(out)+'.',dir=os.path.dirname(out))
-with os.fdopen(fd,'w',encoding='utf-8',newline='\n') as h: json.dump(value,h,indent=2,sort_keys=True); h.write('\n'); h.flush(); os.fsync(h.fileno())
-os.replace(tmp,out)
-PY
-  return "$rc"
-}
-
-# Phase 0.  No CuPy import, lifecycle directory, scientific worker, or GPU context precedes this block.
-phase0_json "$PHASE0_ROOT/phase0_manifest.json" "status=RUNNING" "allocation_id=$SLURM_JOB_ID" "controller_hostname=$(hostname)" "allocated_gpus=3" "science_started=false"
-launch_phase0_probe probe_survivor "$PHASE0_ROOT/identities/probe_survivor.json" "$PHASE0_ROOT/heartbeats/probe_survivor"; phase0_survivor_srun="$launched_pid"
-launch_phase0_probe probe_target "$PHASE0_ROOT/identities/probe_target.json" "$PHASE0_ROOT/heartbeats/probe_target"; phase0_target_srun="$launched_pid"
-wait_for_file "$PHASE0_ROOT/identities/probe_survivor.json" 30 && wait_for_file "$PHASE0_ROOT/identities/probe_target.json" 30 || phase0_fail IDENTITY_RECEIPTS_INCOMPLETE
-readonly PHASE0_TARGET_JSON="$PHASE0_ROOT/identities/probe_target.json" PHASE0_SURVIVOR_JSON="$PHASE0_ROOT/identities/probe_survivor.json"
-readonly PHASE0_TARGET_STEP="$(read_json_field "$PHASE0_TARGET_JSON" job_id).$(read_json_field "$PHASE0_TARGET_JSON" step_id)" PHASE0_SURVIVOR_STEP="$(read_json_field "$PHASE0_SURVIVOR_JSON" job_id).$(read_json_field "$PHASE0_SURVIVOR_JSON" step_id)"
-readonly PHASE0_TARGET_PID="$(read_json_field "$PHASE0_TARGET_JSON" pid)" PHASE0_SURVIVOR_PID="$(read_json_field "$PHASE0_SURVIVOR_JSON" pid)"
-test "$(read_json_field "$PHASE0_TARGET_JSON" hostname)" = "$(hostname)" && test "$(read_json_field "$PHASE0_SURVIVOR_JSON" hostname)" = "$(hostname)" || phase0_fail CONTROLLER_HOSTNAME_MISMATCH
-test "$(read_json_field "$PHASE0_TARGET_JSON" cuda_visible_devices)" = "" && test "$(read_json_field "$PHASE0_SURVIVOR_JSON" cuda_visible_devices)" = "" || phase0_fail PROBE_GPU_ENV_PRESENT
-capture_listpids listpids_before "$SLURM_JOB_ID" || phase0_fail LISTPIDS_JOB_RETURN_NONZERO
-capture_listpids target_listpids_before "$PHASE0_TARGET_STEP" || phase0_fail TARGET_LISTPIDS_RETURN_NONZERO
-capture_listpids survivor_listpids_before "$PHASE0_SURVIVOR_STEP" || phase0_fail SURVIVOR_LISTPIDS_RETURN_NONZERO
-test -s "$PHASE0_ROOT/heartbeats/probe_target" && test -s "$PHASE0_ROOT/heartbeats/probe_survivor" || phase0_fail HEARTBEATS_NOT_LIVE
-test ! -e "$PHASE0_ROOT/signal_intent.json" && test ! -e "$PHASE0_ROOT/signal_receipt.json" || phase0_fail DUPLICATE_SIGNAL_INTENT
-test "$PHASE0_TARGET_STEP" != "$PHASE0_SURVIVOR_STEP" && test "$PHASE0_TARGET_PID" != "$PHASE0_SURVIVOR_PID" || phase0_fail IDENTITY_COLLISION
-grep -F -- "$PHASE0_TARGET_PID" "$PHASE0_ROOT/target_listpids_before.stdout" >/dev/null || phase0_fail TARGET_PID_NOT_PROVEN
-grep -F -- "$PHASE0_SURVIVOR_PID" "$PHASE0_ROOT/survivor_listpids_before.stdout" >/dev/null || phase0_fail SURVIVOR_PID_NOT_PROVEN
-phase0_json "$PHASE0_ROOT/signal_intent.json" "status=INTENT" "target_step=$PHASE0_TARGET_STEP" "target_pid=$PHASE0_TARGET_PID" "signal=TERM" "signal_scope=single_step"
-phase0_signal_rc=0; scancel --signal=TERM "$PHASE0_TARGET_STEP" || phase0_signal_rc=$?
-phase0_json "$PHASE0_ROOT/signal_receipt.json" "status=SENT" "target_step=$PHASE0_TARGET_STEP" "target_pid=$PHASE0_TARGET_PID" "signal=TERM" "return_code=$phase0_signal_rc" "signal_scope=single_step"
-test "$phase0_signal_rc" -eq 0 || phase0_fail TARGET_SIGNAL_FAILED
-phase0_target_wait=0; wait "$phase0_target_srun" || phase0_target_wait=$?
-test "$phase0_target_wait" -ne 0 || phase0_fail TARGET_DID_NOT_EXIT
-kill -0 "$PHASE0_TARGET_PID" 2>/dev/null && phase0_fail TARGET_STILL_LIVE
-kill -0 "$PHASE0_SURVIVOR_PID" 2>/dev/null || phase0_fail SIGNAL_SCOPE_TOO_BROAD
-capture_listpids target_listpids_after "$PHASE0_TARGET_STEP" || true
-grep -F -- "$PHASE0_TARGET_PID" "$PHASE0_ROOT/target_listpids_after.stdout" >/dev/null && phase0_fail TARGET_STILL_VISIBLE_AFTER_SIGNAL
-phase0_json "$PHASE0_ROOT/target_quiescence_receipt.json" "status=PASS" "target_step=$PHASE0_TARGET_STEP" "target_pid=$PHASE0_TARGET_PID" "target_wait_nonzero=true"
-phase0_json "$PHASE0_ROOT/survivor_status.json" "status=PASS" "survivor_step=$PHASE0_SURVIVOR_STEP" "survivor_pid=$PHASE0_SURVIVOR_PID"
-kill "$phase0_survivor_srun" 2>/dev/null || true; wait "$phase0_survivor_srun" 2>/dev/null || true
-phase0_json "$PHASE0_ROOT/phase0_observability_result.json" "status=PASS" "signal_count=1" "target_step=$PHASE0_TARGET_STEP" "survivor_step=$PHASE0_SURVIVOR_STEP" "controller_hostname=$(hostname)" "science_started=false"
+# Phase 0 is a separately versioned, stdlib-only program.  The batch invokes it
+# directly so no Python source traverses an additional ``bash -c`` parser.
+phase0_status=0
+bash "$PHASE0_LAUNCHER" || phase0_status=$?
+if [[ "$phase0_status" -ne 0 ]]; then
+  exit "$phase0_status"
+fi
 
 # Only after Phase 0 PASS may the CUDA backend and scientific lifecycle be initialized.
 export UPPE_USE_GPU=1 PYTHONPYCACHEPREFIX="$RUN_ROOT/pycache" CUPY_CACHE_DIR="$RUN_ROOT/cupy_cache" XDG_CACHE_HOME="$RUN_ROOT/xdg_cache"

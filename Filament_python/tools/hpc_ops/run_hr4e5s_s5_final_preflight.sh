@@ -15,11 +15,13 @@ conda activate Filament_python
 export UPPE_USE_GPU=1 PYTHONPATH="$REPO/Filament_python" PYTHONPYCACHEPREFIX="$RUN_ROOT/pycache" CUPY_CACHE_DIR="$RUN_ROOT/cupy_cache" XDG_CACHE_HOME="$RUN_ROOT/xdg_cache"
 "$PYTHON" "$REPO/Filament_python/tools/hpc_ops/provenance_v2.py" create --repo "$REPO" --output "$RUN_ROOT/s5_final_provenance_v2.json" --tracked \
   Filament_python/KHz_filament/hr4e5s_streaming.py Filament_python/KHz_filament/hr4e5s_s3.py Filament_python/KHz_filament/hr4e5s_s5.py Filament_python/KHz_filament/hr4e5s_s5_final.py \
-  Filament_python/tools/run_hr4e5s_s3.py Filament_python/tools/run_hr4e5s_s5_final.py Filament_python/tools/hr4e5s_s5_final.sbatch Filament_python/tools/hr4e5s_s5_final_single_allocation.sbatch \
+  Filament_python/tools/run_hr4e5s_s3.py Filament_python/tools/run_hr4e5s_s5_final.py Filament_python/tools/hr4e5s_s5_final.sbatch Filament_python/tools/hr4e5s_s5_final_single_allocation.sbatch Filament_python/tools/hr4e5s_s5_phase0.sh Filament_python/tools/hr4e5s_s5_probe_actor.py \
   Filament_python/tools/monitor_hr4e5s_s5_final.py Filament_python/tools/hpc_ops/audit_hr4e5s_s3_lut_workspace.py \
   Filament_python/tools/hpc_ops/run_hr4e5s_s5_final_preflight.sh Filament_python/tools/hpc_ops/start_hr4e5s_s5_final_preflight_async.sh Filament_python/tools/hpc_ops/submit_hr4e5s_s5_final.sh Filament_python/tools/hpc_ops/start_hr4e5s_s5_final_monitor.sh --external "$SOURCE_MANIFEST" "$SOURCE_STATE" "$SOURCE_CONFIG" >/dev/null
 "$PYTHON" "$REPO/Filament_python/tools/hpc_ops/provenance_v2.py" validate --repo "$REPO" --manifest "$RUN_ROOT/s5_final_provenance_v2.json" --require-hash-scope >/dev/null
 "$PYTHON" "$REPO/Filament_python/tools/hpc_ops/audit_batch_entry.py" --batch "$REPO/Filament_python/tools/hr4e5s_s5_final_single_allocation.sbatch" --fixed-python "$PYTHON" >"$RUN_ROOT/s5_final_batch_audit.json"
+bash -n "$REPO/Filament_python/tools/hr4e5s_s5_phase0.sh"
+"$PYTHON" -m py_compile "$REPO/Filament_python/tools/hr4e5s_s5_probe_actor.py"
 "$PYTHON" "$REPO/Filament_python/tools/hpc_ops/audit_hr4e5s_s3_lut_workspace.py" --config "$SOURCE_CONFIG" --workspace "$LUT_WORKSPACE" --out "$RUN_ROOT/s5_final_lut_workspace.json" >/dev/null
 "$PYTHON" "$REPO/Filament_python/tools/run_hr4e5s_s3.py" prepare --source-manifest "$SOURCE_MANIFEST" --source-state "$SOURCE_STATE" --config "$SOURCE_CONFIG" --out "$RUN_ROOT/s5_final_input_manifest.json" >/dev/null
 "$PYTHON" - "$OUT" "$RUN_ROOT" "$EXPECTED_SHA" "$SOURCE_MANIFEST" "$SOURCE_STATE" "$SOURCE_CONFIG" "$RUN_ROOT/s5_final_input_manifest.json" "$RUN_ROOT/s5_final_lut_workspace.json" <<'PY'

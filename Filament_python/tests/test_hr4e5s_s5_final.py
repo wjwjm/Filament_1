@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import importlib.util
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -207,6 +209,57 @@ def test_s5_final_single_allocation_controller_arms_both_workers_before_one_step
     assert (case / "initial" / "worker_loss_receipt.json").is_file()
 
 
+def test_s5_final_production_controller_local_flow_uses_real_processes_and_orders_recovery_gate(tmp_path, monkeypatch):
+    """L4 control-flow regression; physics and comparison are explicit local stubs."""
+    monitor = _monitor_module()
+    root, case = tmp_path / "run", tmp_path / "run" / "scenario"
+    (case / "initial" / "identities").mkdir(parents=True)
+    (case / "initial" / "arming").mkdir(parents=True)
+    manifest = root / "single.json"
+    manifest.write_text(json.dumps({"execution_mode": monitor.SINGLE_ALLOCATION_MODE, "repo": str(tmp_path), "run_root": str(root), "expected_sha": "a" * 40, "reference_case_root": str(root / "reference"), "allocation_id": "700", "target_actor": "hydro_consumer_1"}), encoding="utf-8")
+    workers = [subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"]) for _ in range(3)]
+    trace: list[str] = []
+    try:
+        for (actor, step), worker in zip((("optical_producer", "0"), ("hydro_consumer_0", "1"), ("hydro_consumer_1", "2")), workers):
+            identity = {"status": "READY", "actor": actor, "job_id": "700", "step_id": step, "worker_pid": worker.pid, "node": "local-node", "execution_epoch": "initial"}
+            (case / "initial" / "identities" / f"{actor}.json").write_text(json.dumps(identity), encoding="utf-8")
+            if actor.startswith("hydro_"):
+                (case / "initial" / "arming" / f"{actor}.json").write_text(json.dumps({"status": "ARMED", "actor": actor, "execution_epoch": "initial", "worker_pid": worker.pid, "node": "local-node", "block": [int(step)]}), encoding="utf-8")
+
+        def local_listpids(identity, _cwd):
+            pid = int(identity["worker_pid"])
+            live = next(item for item in workers if item.pid == pid).poll() is None
+            return live, {"returncode": 0, "target_pid": pid, "stdout": str(pid) if live else ""}
+
+        def local_run(args, _cwd):
+            if args[:2] == ["scancel", "--signal=KILL"]:
+                os.kill(workers[2].pid, 9); trace.append("worker_loss")
+            elif args[-1].endswith("interrupted_state_inventory.json"):
+                Path(args[-1]).write_text("{}", encoding="utf-8"); trace.append("snapshot")
+            elif args[-1].endswith("expected_recovery_effects.json"):
+                Path(args[-1]).write_text("{}", encoding="utf-8"); trace.append("freeze")
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        monkeypatch.setattr(monitor, "_single_listpids", local_listpids)
+        monkeypatch.setattr(monitor, "_run", local_run)
+        assert monitor.advance_single_allocation(manifest)["status"] == "WAIT_FOR_INITIAL_QUIESCENCE"
+        workers[2].wait(timeout=5)
+        for worker in workers[:2]:
+            worker.terminate(); worker.wait(timeout=5)
+        (case / "initial" / "initial_workers_stopped.json").write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
+        assert monitor.advance_single_allocation(manifest)["status"] == "WAIT_FOR_FINAL_AUDIT"
+        assert trace == ["worker_loss", "snapshot", "freeze"]
+        (case / "recovery").mkdir()
+        (case / "recovery" / "restart_reconstructed.json").write_text(json.dumps({"bootstrap_event": "S5_FINAL_RESTART_RECONSTRUCTED", "local_test": True}), encoding="utf-8")
+        (case / "comparison").mkdir()
+        (case / "comparison" / "exact_comparison.json").write_text(json.dumps({"status": "PASS", "expected_field_comparisons": 432, "completed_field_comparisons": 432, "mismatch_count": 0, "recovery_provenance": {"status": "PASS"}, "local_test": True}), encoding="utf-8")
+        assert monitor.advance_single_allocation(manifest)["status"] == "PASS"
+    finally:
+        for worker in workers:
+            if worker.poll() is None:
+                worker.kill(); worker.wait(timeout=5)
+
+
 def test_s5_final_single_allocation_batch_is_explicit_and_preserves_the_legacy_batch():
     root = Path(__file__).resolve().parents[1]
     single = (root / "tools" / "hr4e5s_s5_final_single_allocation.sbatch").read_text(encoding="utf-8")
@@ -280,14 +333,17 @@ def test_s5_final_phase0_post_signal_requires_target_quiescence_and_survivor_liv
 
 
 def test_s5_final_single_allocation_phase0_precedes_cuda_and_science_start():
-    batch = (Path(__file__).resolve().parents[1] / "tools" / "hr4e5s_s5_final_single_allocation.sbatch").read_text(encoding="utf-8")
+    root = Path(__file__).resolve().parents[1]
+    batch = (root / "tools" / "hr4e5s_s5_final_single_allocation.sbatch").read_text(encoding="utf-8")
+    phase0 = (root / "tools" / "hr4e5s_s5_phase0.sh").read_text(encoding="utf-8")
     phase0_pass = 'phase0_observability_result.json" "status=PASS"'
     cuda_enable = "export UPPE_USE_GPU=1"
     initialize = '"$PYTHON" "$S3_RUNNER" initialize-stream'
-    assert "--gpus-per-task=0" in batch
-    assert "env -u CUDA_VISIBLE_DEVICES -u UPPE_USE_GPU" in batch
-    assert 'capture_listpids listpids_before "$SLURM_JOB_ID"' in batch
-    assert 'scancel --signal=TERM "$PHASE0_TARGET_STEP"' in batch
-    assert phase0_pass in batch
-    assert batch.index(phase0_pass) < batch.index(cuda_enable) < batch.index(initialize)
-    assert "READY_FOR_S5_FINAL_DEFECT_REVIEW" in batch
+    assert "--gpus-per-task=0" in phase0
+    assert 'bash "$PHASE0_LAUNCHER"' in batch
+    assert "env -u CUDA_VISIBLE_DEVICES -u UPPE_USE_GPU" in phase0
+    assert 'capture listpids_before "$SLURM_JOB_ID"' in phase0
+    assert 'scancel --signal=TERM "$TARGET_STEP"' in phase0
+    assert phase0_pass in phase0
+    assert batch.index('bash "$PHASE0_LAUNCHER"') < batch.index(cuda_enable) < batch.index(initialize)
+    assert "READY_FOR_S5_FINAL_DEFECT_REVIEW" in phase0
