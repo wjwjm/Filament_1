@@ -100,8 +100,17 @@ def consume_final_streaming(*, lifecycle_root: str | Path, hydro: Mapping[str, A
                             producer_complete: str | Path, actor: str,
                             arming_dir: str | Path | None = None,
                             execution_epoch: str | None = None,
+                            bootstrap_ready_path: str | Path | None = None,
                             arm_timeout_s: float = 120.0) -> dict[str, Any]:
     """S5-FINAL consumer with an optional, non-scientific arming rendezvous."""
+    if execution_epoch == "recovery":
+        if bootstrap_ready_path is None:
+            raise ValueError("S5-FINAL recovery consumer requires bootstrap-ready receipt")
+        ready = _read(bootstrap_ready_path)
+        if (ready.get("schema") != S5_FINAL_SCHEMA or ready.get("kind") != "bootstrap_ready_receipt"
+                or ready.get("status") != "PASS" or ready.get("actor") != "optical_producer"
+                or ready.get("execution_epoch") != "recovery"):
+            raise ValueError("S5-FINAL recovery bootstrap-ready receipt is invalid")
     if arming_dir is None:
         from .hr4e5s_s3 import consume_streaming
         return consume_streaming(lifecycle_root=lifecycle_root, hydro=hydro,
@@ -266,6 +275,61 @@ def validate_bootstrap_receipt(*, receipt_path: str | Path, lifecycle_root: str 
         raise ValueError("S5-FINAL bootstrap queue depth is invalid")
 
 
+def _write_bootstrap_ready_receipt(*, ready_path: str | Path, receipt_path: str | Path,
+                                   lifecycle_root: str | Path, runtime_sha: str) -> dict[str, Any]:
+    """Atomically persist the optical-owned recovery launch boundary.
+
+    This private helper deliberately does not revalidate the bootstrap.  Its
+    sole caller in ``run_recovery_optical`` invokes it immediately *after* the
+    internal validator returns; the public helper below validates first.
+    """
+    _require_sha(runtime_sha, "runtime SHA")
+    destination, receipt, root = Path(ready_path), Path(receipt_path), Path(lifecycle_root)
+    lifecycle = StreamingLifecycle.open(root)
+    result = {
+        "schema": S5_FINAL_SCHEMA, "kind": "bootstrap_ready_receipt", "status": "PASS",
+        "actor": "optical_producer", "execution_epoch": "recovery",
+        "lifecycle_root": str(root.resolve()), "runtime_sha": runtime_sha,
+        "bootstrap_receipt": str(receipt.resolve()), "bootstrap_receipt_sha256": sha256_file(receipt),
+        "lifecycle_manifest_sha256": sha256_file(lifecycle.manifest_path),
+        "queue_ordinals": list(lifecycle.manifest["queue"]),
+        "backlog_ordinals": list(lifecycle.manifest.get("recovery_backlog", [])),
+        "ready_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    _atomic_json(destination, result)
+    return result
+
+
+def write_bootstrap_ready_receipt(*, ready_path: str | Path, receipt_path: str | Path,
+                                  lifecycle_root: str | Path, runtime_sha: str) -> dict[str, Any]:
+    """Validate a bootstrap boundary, then create its one-time ready receipt."""
+    if Path(ready_path).exists():
+        raise FileExistsError(ready_path)
+    validate_bootstrap_receipt(receipt_path=receipt_path, lifecycle_root=lifecycle_root, runtime_sha=runtime_sha,
+                               require_current_telemetry_count=False)
+    return _write_bootstrap_ready_receipt(ready_path=ready_path, receipt_path=receipt_path,
+                                          lifecycle_root=lifecycle_root, runtime_sha=runtime_sha)
+
+
+def validate_bootstrap_ready_receipt(*, ready_path: str | Path, receipt_path: str | Path,
+                                     lifecycle_root: str | Path, runtime_sha: str) -> None:
+    """Reject hydro launch unless the optical validator created this receipt."""
+    ready, receipt, root = _read(ready_path), Path(receipt_path), Path(lifecycle_root)
+    if (ready.get("schema") != S5_FINAL_SCHEMA or ready.get("kind") != "bootstrap_ready_receipt"
+            or ready.get("status") != "PASS" or ready.get("actor") != "optical_producer"
+            or ready.get("execution_epoch") != "recovery"):
+        raise ValueError("S5-FINAL bootstrap-ready receipt is invalid")
+    if (ready.get("lifecycle_root") != str(root.resolve()) or ready.get("runtime_sha") != runtime_sha
+            or ready.get("bootstrap_receipt") != str(receipt.resolve())
+            or ready.get("bootstrap_receipt_sha256") != sha256_file(receipt)):
+        raise ValueError("S5-FINAL bootstrap-ready receipt identity mismatch")
+    fingerprint = ready.get("lifecycle_manifest_sha256")
+    if not isinstance(fingerprint, str) or len(fingerprint) != 64:
+        raise ValueError("S5-FINAL bootstrap-ready lifecycle fingerprint is invalid")
+    validate_bootstrap_receipt(receipt_path=receipt, lifecycle_root=root, runtime_sha=runtime_sha,
+                               require_current_telemetry_count=False)
+
+
 def validate_recovery_provenance(*, reference_lifecycle_root: str | Path, candidate_lifecycle_root: str | Path,
                                  effects_path: str | Path, out_path: str | Path | None = None) -> dict[str, Any]:
     """Strictly compare multi-worker retry history to its pre-frozen contract."""
@@ -313,10 +377,20 @@ def compare_exact(*, reference_lifecycle_root: str | Path, reference_optical_dir
 
 
 def run_recovery_optical(*, input_manifest_path: str | Path, out_dir: str | Path,
-                         lifecycle_root: str | Path, bootstrap_receipt_path: str | Path) -> dict[str, Any]:
+                         lifecycle_root: str | Path, bootstrap_receipt_path: str | Path,
+                         bootstrap_ready_path: str | Path) -> dict[str, Any]:
+    runtime_sha = os.environ.get("EXPECTED_GIT_SHA")
+
+    def validated_bootstrap_boundary(**kwargs: Any) -> None:
+        validate_bootstrap_receipt(**kwargs)
+        _write_bootstrap_ready_receipt(ready_path=bootstrap_ready_path,
+                                       receipt_path=bootstrap_receipt_path,
+                                       lifecycle_root=lifecycle_root,
+                                       runtime_sha=_require_sha(runtime_sha, "runtime SHA"))
+
     return run_optical_path(input_manifest_path=input_manifest_path, out_dir=out_dir, streaming_root=lifecycle_root,
                             resume=True, bootstrap_receipt_path=bootstrap_receipt_path,
-                            bootstrap_receipt_validator=validate_bootstrap_receipt)
+                            bootstrap_receipt_validator=validated_bootstrap_boundary)
 
 
-__all__ = ["S5_FINAL_CASE_ID", "S5_FINAL_SCHEMA", "bootstrap_recovery", "compare_exact", "consume_final_streaming", "finalize_streaming", "freeze_expected_recovery_effects", "run_recovery_optical", "snapshot_interrupted_state", "validate_bootstrap_receipt", "validate_recovery_provenance", "write_worker_identity"]
+__all__ = ["S5_FINAL_CASE_ID", "S5_FINAL_SCHEMA", "bootstrap_recovery", "compare_exact", "consume_final_streaming", "finalize_streaming", "freeze_expected_recovery_effects", "run_recovery_optical", "snapshot_interrupted_state", "validate_bootstrap_ready_receipt", "validate_bootstrap_receipt", "validate_recovery_provenance", "write_bootstrap_ready_receipt", "write_worker_identity"]

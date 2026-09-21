@@ -22,6 +22,7 @@ from KHz_filament.hr4e5s_s5_final import (  # noqa: E402
     freeze_expected_recovery_effects,
     run_recovery_optical,
     snapshot_interrupted_state,
+    validate_bootstrap_ready_receipt,
     validate_bootstrap_receipt,
     write_worker_identity,
 )
@@ -53,10 +54,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     bootstrap.add_argument("--stream-root", type=Path, required=True); bootstrap.add_argument("--effects", type=Path, required=True); bootstrap.add_argument("--out", type=Path, required=True); bootstrap.add_argument("--runtime-sha", required=True)
     validate = sub.add_parser("validate-bootstrap")
     validate.add_argument("--stream-root", type=Path, required=True); validate.add_argument("--receipt", type=Path, required=True); validate.add_argument("--runtime-sha", required=True)
+    validate_ready = sub.add_parser("validate-bootstrap-ready")
+    validate_ready.add_argument("--stream-root", type=Path, required=True); validate_ready.add_argument("--receipt", type=Path, required=True); validate_ready.add_argument("--ready", type=Path, required=True); validate_ready.add_argument("--runtime-sha", required=True)
     optical = sub.add_parser("recovery-optical")
-    optical.add_argument("--input", type=Path, required=True); optical.add_argument("--stream-root", type=Path, required=True); optical.add_argument("--out-dir", type=Path, required=True); optical.add_argument("--bootstrap-receipt", type=Path, required=True)
+    optical.add_argument("--input", type=Path, required=True); optical.add_argument("--stream-root", type=Path, required=True); optical.add_argument("--out-dir", type=Path, required=True); optical.add_argument("--bootstrap-receipt", type=Path, required=True); optical.add_argument("--bootstrap-ready", type=Path, required=True)
     consume = sub.add_parser("consume")
-    consume.add_argument("--input", type=Path, required=True); consume.add_argument("--stream-root", type=Path, required=True); consume.add_argument("--producer-complete", type=Path, required=True); consume.add_argument("--actor", required=True); consume.add_argument("--out", type=Path, required=True); consume.add_argument("--arming-dir", type=Path); consume.add_argument("--execution-epoch")
+    consume.add_argument("--input", type=Path, required=True); consume.add_argument("--stream-root", type=Path, required=True); consume.add_argument("--producer-complete", type=Path, required=True); consume.add_argument("--actor", required=True); consume.add_argument("--out", type=Path, required=True); consume.add_argument("--arming-dir", type=Path); consume.add_argument("--execution-epoch"); consume.add_argument("--bootstrap-ready", type=Path)
     final = sub.add_parser("finalize")
     final.add_argument("--stream-root", type=Path, required=True); final.add_argument("--out", type=Path, required=True)
     compare = sub.add_parser("compare")
@@ -73,10 +76,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif args.command == "validate-bootstrap":
         validate_bootstrap_receipt(receipt_path=args.receipt, lifecycle_root=args.stream_root, runtime_sha=args.runtime_sha)
         result = {"status": "PASS", "receipt": str(args.receipt)}
+    elif args.command == "validate-bootstrap-ready":
+        validate_bootstrap_ready_receipt(ready_path=args.ready, receipt_path=args.receipt, lifecycle_root=args.stream_root, runtime_sha=args.runtime_sha)
+        result = {"status": "PASS", "receipt": str(args.receipt), "ready": str(args.ready)}
     elif args.command == "recovery-optical":
-        result = run_recovery_optical(input_manifest_path=args.input, lifecycle_root=args.stream_root, out_dir=args.out_dir, bootstrap_receipt_path=args.bootstrap_receipt)
+        result = run_recovery_optical(input_manifest_path=args.input, lifecycle_root=args.stream_root, out_dir=args.out_dir, bootstrap_receipt_path=args.bootstrap_receipt, bootstrap_ready_path=args.bootstrap_ready)
     elif args.command == "consume":
-        result = consume_final_streaming(lifecycle_root=args.stream_root, hydro=_read(args.input)["hydro"], producer_complete=args.producer_complete, actor=args.actor, arming_dir=args.arming_dir, execution_epoch=args.execution_epoch)
+        result = consume_final_streaming(lifecycle_root=args.stream_root, hydro=_read(args.input)["hydro"], producer_complete=args.producer_complete, actor=args.actor, arming_dir=args.arming_dir, execution_epoch=args.execution_epoch, bootstrap_ready_path=args.bootstrap_ready)
         _write(args.out, result)
     elif args.command == "finalize":
         result = finalize_streaming(lifecycle_root=args.stream_root, out_path=args.out)

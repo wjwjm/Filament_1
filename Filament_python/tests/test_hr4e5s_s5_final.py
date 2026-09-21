@@ -13,10 +13,13 @@ import pytest
 from KHz_filament.hr4e5s_s5_final import (
     S5_FINAL_SCHEMA,
     bootstrap_recovery,
+    consume_final_streaming,
     freeze_expected_recovery_effects,
     snapshot_interrupted_state,
+    validate_bootstrap_ready_receipt,
     validate_bootstrap_receipt,
     validate_recovery_provenance,
+    write_bootstrap_ready_receipt,
 )
 from KHz_filament.hr4e5s_streaming import StreamingLifecycle
 
@@ -99,6 +102,47 @@ def test_s5_final_rejects_effect_freeze_without_two_live_actors(tmp_path):
     snapshot_interrupted_state(lifecycle_root=lifecycle.root, out_path=inventory)
     with pytest.raises(ValueError, match="two distinct active"):
         freeze_expected_recovery_effects(lifecycle_root=lifecycle.root, inventory_path=inventory, out_path=tmp_path / "effects.json")
+
+
+def test_s5_final_recovery_bootstrap_ready_is_one_time_and_precedes_hydro_claim(tmp_path):
+    lifecycle = _lifecycle(tmp_path, "candidate")
+    _prepare_posts(lifecycle)
+    assert lifecycle.claim_block(actor="hydro_consumer_0") == list(range(8))
+    assert lifecycle.claim_block(actor="hydro_consumer_1") == list(range(8, 16))
+    lifecycle.begin_hydro_screen(0, actor="hydro_consumer_0")
+    lifecycle.begin_hydro_screen(8, actor="hydro_consumer_1")
+    inventory, effects = tmp_path / "inventory.json", tmp_path / "effects.json"
+    bootstrap, ready = tmp_path / "bootstrap.json", tmp_path / "bootstrap_ready.json"
+    snapshot_interrupted_state(lifecycle_root=lifecycle.root, out_path=inventory)
+    freeze_expected_recovery_effects(lifecycle_root=lifecycle.root, inventory_path=inventory, out_path=effects)
+    bootstrap_recovery(lifecycle_root=lifecycle.root, effects_path=effects, out_path=bootstrap, runtime_sha="a" * 40)
+
+    result = write_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap,
+                                           lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+    assert result["status"] == "PASS"
+    assert result["actor"] == "optical_producer"
+    assert result["execution_epoch"] == "recovery"
+    validate_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap,
+                                     lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+    assert StreamingLifecycle.open(lifecycle.root).claim_block(actor="hydro_consumer_0")
+    with pytest.raises(FileExistsError):
+        write_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap,
+                                      lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+
+
+def test_s5_final_recovery_consumer_cannot_claim_without_valid_bootstrap_ready(tmp_path):
+    lifecycle = _lifecycle(tmp_path, "candidate")
+    _prepare_posts(lifecycle)
+    queue_before = list(StreamingLifecycle.open(lifecycle.root).manifest["queue"])
+    with pytest.raises(ValueError, match="requires bootstrap-ready"):
+        consume_final_streaming(lifecycle_root=lifecycle.root, hydro={}, producer_complete=tmp_path / "complete",
+                                actor="hydro_consumer_0", execution_epoch="recovery")
+    invalid = tmp_path / "invalid_ready.json"
+    invalid.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
+    with pytest.raises(ValueError, match="bootstrap-ready receipt is invalid"):
+        consume_final_streaming(lifecycle_root=lifecycle.root, hydro={}, producer_complete=tmp_path / "complete",
+                                actor="hydro_consumer_0", execution_epoch="recovery", bootstrap_ready_path=invalid)
+    assert StreamingLifecycle.open(lifecycle.root).manifest["queue"] == queue_before
 
 
 def test_s5_final_batch_has_separate_worker_identity_and_faults_off_contract():
@@ -270,6 +314,21 @@ def test_s5_final_single_allocation_batch_is_explicit_and_preserves_the_legacy_b
     assert 'recovery_is_new_allocation' in (root / "tools" / "monitor_hr4e5s_s5_final.py").read_text(encoding="utf-8")
     assert 'single_allocation) BATCH="$SINGLE_ALLOCATION_BATCH"' in submit
     assert (root / "tools" / "hr4e5s_s5_final.sbatch").is_file()
+
+
+def test_s5_final_single_allocation_recovery_waits_for_optical_bootstrap_ready_before_hydro_launch():
+    root = Path(__file__).resolve().parents[1]
+    batch = (root / "tools" / "hr4e5s_s5_final_single_allocation.sbatch").read_text(encoding="utf-8")
+    optical = 'launch_worker optical_producer recovery'
+    wait_ready = 'wait_for_file_or_worker_exit "$BOOTSTRAP_READY" "$recovery_optical" 300'
+    validate_ready = 'validate-bootstrap-ready --stream-root "$CASE_ROOT/lifecycle"'
+    hydro_0, hydro_1 = 'launch_worker hydro_consumer_0 recovery', 'launch_worker hydro_consumer_1 recovery'
+    assert "readonly BOOTSTRAP_READY=" in batch
+    assert batch.index(optical) < batch.index(wait_ready) < batch.index(validate_ready) < batch.index(hydro_0) < batch.index(hydro_1)
+    assert batch.count('--bootstrap-ready "$BOOTSTRAP_READY"') == 3
+    assert batch.index('initial_workers_stopped.json') < batch.index('wait_for_file_or_defect "$CASE_ROOT/recovery_ready.json" 300')
+    source = (root / "KHz_filament" / "hr4e5s_s5_final.py").read_text(encoding="utf-8")
+    assert source.index("validate_bootstrap_receipt(**kwargs)") < source.index("_write_bootstrap_ready_receipt(ready_path=bootstrap_ready_path")
 
 
 def test_s5_final_site_observability_probe_is_cpu_only_and_step_scoped():
