@@ -326,6 +326,11 @@ def validate_bootstrap_ready_receipt(*, ready_path: str | Path, receipt_path: st
     fingerprint = ready.get("lifecycle_manifest_sha256")
     if not isinstance(fingerprint, str) or len(fingerprint) != 64:
         raise ValueError("S5-FINAL bootstrap-ready lifecycle fingerprint is invalid")
+    # The ready receipt captures the immutable bootstrap manifest identity.  It
+    # must match the receipt's frozen boundary, not the current live manifest:
+    # hydro is allowed to mutate queue/backlog after ready has been persisted.
+    if fingerprint != _read(receipt).get("manifest_sha256"):
+        raise ValueError("S5-FINAL bootstrap-ready lifecycle fingerprint mismatch")
     validate_bootstrap_receipt(receipt_path=receipt, lifecycle_root=root, runtime_sha=runtime_sha,
                                require_current_telemetry_count=False)
 

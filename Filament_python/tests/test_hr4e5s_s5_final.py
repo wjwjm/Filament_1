@@ -5,6 +5,7 @@ import importlib.util
 import os
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +22,7 @@ from KHz_filament.hr4e5s_s5_final import (
     validate_recovery_provenance,
     write_bootstrap_ready_receipt,
 )
+import KHz_filament.hr4e5s_s5_final as s5_final
 from KHz_filament.hr4e5s_streaming import StreamingLifecycle
 
 
@@ -33,8 +35,7 @@ def _monitor_module():
     return module
 
 
-def _lifecycle(tmp_path: Path, name: str) -> StreamingLifecycle:
-    count = 16
+def _lifecycle(tmp_path: Path, name: str, *, count: int = 16) -> StreamingLifecycle:
     current = {
         "delta_n": np.full((count, 8, 8), -1.0e-6, dtype=np.float64),
         "vx": np.zeros((count, 8, 8), dtype=np.float64),
@@ -47,10 +48,14 @@ def _lifecycle(tmp_path: Path, name: str) -> StreamingLifecycle:
 
 
 def _prepare_posts(lifecycle: StreamingLifecycle) -> None:
-    for ordinal in range(16):
+    for ordinal in range(int(lifecycle.manifest["expected_screen_count"])):
         lifecycle.deposition_finalized(ordinal, actor="optical")
         lifecycle.commit_post_from_delta_n(ordinal, lifecycle.current_fields(ordinal)["delta_n"] - 1.0e-8, actor="optical")
-        lifecycle.enqueue_post(ordinal, actor="optical")
+        # A real producer leaves post-commit records outside the bounded queue
+        # until capacity becomes available.  Recovery projects those records
+        # into its durable backlog rather than overflowing the queue.
+        if len(lifecycle.manifest["queue"]) < int(lifecycle.manifest["queue_depth"]):
+            lifecycle.enqueue_post(ordinal, actor="optical")
 
 
 def _finish(lifecycle: StreamingLifecycle) -> None:
@@ -63,6 +68,32 @@ def _finish(lifecycle: StreamingLifecycle) -> None:
             lifecycle.commit_next(ordinal, fields, actor="hydro_consumer_0")
     assert lifecycle.validate_barrier(actor="barrier")["status"] == "PASS"
     assert lifecycle.promote_next_to_current(actor="barrier")["authoritative_namespace"] == "NEXT"
+
+
+def _recovery_lifecycle(tmp_path: Path, name: str = "recovery-live-queue") -> tuple[StreamingLifecycle, Path, Path]:
+    """Create the 249184 shape: 16 queued items plus a 3-item recovery backlog."""
+    lifecycle = _lifecycle(tmp_path, name, count=19)
+    _prepare_posts(lifecycle)
+    assert lifecycle.claim_block(actor="hydro_consumer_0") == list(range(8))
+    assert lifecycle.claim_block(actor="hydro_consumer_1") == list(range(8, 16))
+    lifecycle.begin_hydro_screen(0, actor="hydro_consumer_0")
+    lifecycle.begin_hydro_screen(8, actor="hydro_consumer_1")
+    inventory, effects = tmp_path / f"{name}-inventory.json", tmp_path / f"{name}-effects.json"
+    bootstrap = tmp_path / f"{name}-bootstrap.json"
+    snapshot_interrupted_state(lifecycle_root=lifecycle.root, out_path=inventory)
+    freeze_expected_recovery_effects(lifecycle_root=lifecycle.root, inventory_path=inventory, out_path=effects)
+    bootstrap_recovery(lifecycle_root=lifecycle.root, effects_path=effects, out_path=bootstrap, runtime_sha="a" * 40)
+    reconstructed = StreamingLifecycle.open(lifecycle.root)
+    assert reconstructed.manifest["queue"] == list(range(16))
+    assert reconstructed.manifest["recovery_backlog"] == [16, 17, 18]
+    return reconstructed, bootstrap, effects
+
+
+def _commit_claimed_block(lifecycle: StreamingLifecycle, block: list[int], *, actor: str) -> None:
+    for ordinal in block:
+        post = lifecycle.manifest["records"][ordinal]["post"]
+        assert post is not None
+        lifecycle.commit_next(ordinal, lifecycle._artifact_fields(post, namespace="POST"), actor=actor)
 
 
 def test_s5_final_freezes_two_claims_before_single_bootstrap_and_checks_retry_history(tmp_path):
@@ -143,6 +174,150 @@ def test_s5_final_recovery_consumer_cannot_claim_without_valid_bootstrap_ready(t
         consume_final_streaming(lifecycle_root=lifecycle.root, hydro={}, producer_complete=tmp_path / "complete",
                                 actor="hydro_consumer_0", execution_epoch="recovery", bootstrap_ready_path=invalid)
     assert StreamingLifecycle.open(lifecycle.root).manifest["queue"] == queue_before
+
+
+def test_s5_final_live_queue_recovery_rejects_claim_before_ready_without_side_effects(tmp_path):
+    """A: recovery consumers are fail-closed before the optical-owned receipt exists."""
+    lifecycle, bootstrap, _effects = _recovery_lifecycle(tmp_path, "before-ready")
+    before = json.loads(lifecycle.manifest_path.read_text(encoding="utf-8"))
+    with pytest.raises(ValueError, match="requires bootstrap-ready"):
+        consume_final_streaming(
+            lifecycle_root=lifecycle.root, hydro={}, producer_complete=tmp_path / "producer-complete",
+            actor="hydro_consumer_0", execution_epoch="recovery",
+        )
+    after = json.loads(lifecycle.manifest_path.read_text(encoding="utf-8"))
+    assert after == before
+    assert after["queue"] == list(range(16))
+    assert after["recovery_backlog"] == [16, 17, 18]
+    assert [record["retry_count"] for record in after["records"]] == [record["retry_count"] for record in before["records"]]
+    assert all(record["next"] is None for record in after["records"])
+    assert not (tmp_path / "producer-complete").exists()
+    assert bootstrap.is_file()
+
+
+def test_s5_final_live_queue_is_mutable_only_after_optical_ready_and_legacy_semantics_fail(tmp_path, monkeypatch):
+    """B/C/D/F: event-ordered recovery permits legal queue progress, not old equality."""
+    lifecycle, bootstrap, _effects = _recovery_lifecycle(tmp_path, "concurrent-live-queue")
+    ready = tmp_path / "concurrent-live-queue-ready.json"
+    ready_written, queue_mutated = threading.Event(), threading.Event()
+    hydro_errors: list[BaseException] = []
+    consumed: list[int] = []
+
+    def hydro_consumer() -> None:
+        try:
+            assert ready_written.wait(timeout=2.0)
+            validate_bootstrap_ready_receipt(
+                ready_path=ready, receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40,
+            )
+            local = StreamingLifecycle.open(lifecycle.root)
+            while True:
+                block = local.claim_block(actor="hydro_consumer_0")
+                if not block:
+                    break
+                consumed.extend(block)
+                _commit_claimed_block(local, block, actor="hydro_consumer_0")
+            queue_mutated.set()
+        except BaseException as error:  # surfaced in the controlling test thread
+            hydro_errors.append(error)
+            queue_mutated.set()
+
+    worker = threading.Thread(target=hydro_consumer, name="deterministic-recovery-hydro")
+
+    def fake_optical_path(**kwargs):
+        # This is the real production callback, reached before the simulated
+        # optical continuation; no GPU/Slurm/physics path is involved here.
+        kwargs["bootstrap_receipt_validator"](
+            receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40,
+            require_current_telemetry_count=False,
+        )
+        ready_written.set()
+        assert queue_mutated.wait(timeout=2.0)
+        assert not hydro_errors
+        return {"status": "PASS", "continuation": "after_live_queue_mutation"}
+
+    monkeypatch.setattr(s5_final, "run_optical_path", fake_optical_path)
+    monkeypatch.setenv("EXPECTED_GIT_SHA", "a" * 40)
+    worker.start()
+    result = s5_final.run_recovery_optical(
+        input_manifest_path=tmp_path / "unused-input.json", lifecycle_root=lifecycle.root,
+        out_dir=tmp_path / "unused-optical", bootstrap_receipt_path=bootstrap, bootstrap_ready_path=ready,
+    )
+    worker.join(timeout=2.0)
+    assert not worker.is_alive() and not hydro_errors
+    assert result["status"] == "PASS"
+    final = StreamingLifecycle.open(lifecycle.root).manifest
+    assert consumed == list(range(19))
+    assert len(consumed) == len(set(consumed)) == 19
+    assert final["queue"] == [] and final["recovery_backlog"] == []
+    assert all(record["next"] is not None for record in final["records"])
+    assert all(record["state"] == "NEXT_COMMITTED" for record in final["records"])
+    # This is the prior 249184 semantic: treating the bootstrap queue snapshot
+    # as perpetually immutable makes the deterministic live queue progression fail.
+    with pytest.raises(ValueError, match="bootstrap queue does not match lifecycle"):
+        validate_bootstrap_receipt(
+            receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40,
+            require_current_telemetry_count=False,
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        (lambda ready: ready.__setitem__("bootstrap_receipt_sha256", "0" * 64), "identity mismatch"),
+        (lambda ready: ready.__setitem__("lifecycle_manifest_sha256", "0" * 64), "lifecycle fingerprint"),
+        (lambda ready: ready.__setitem__("actor", "hydro_consumer_0"), "invalid"),
+        (lambda ready: ready.__setitem__("execution_epoch", "initial"), "invalid"),
+    ],
+)
+def test_s5_final_bootstrap_ready_immutable_provenance_rejects_tampering(tmp_path, mutation, error):
+    """E: receipt identity is immutable even though the subsequent live queue is not."""
+    lifecycle, bootstrap, _effects = _recovery_lifecycle(tmp_path, "ready-provenance")
+    ready = tmp_path / "ready-provenance.json"
+    write_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+    payload = json.loads(ready.read_text(encoding="utf-8"))
+    mutation(payload)
+    ready.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match=error):
+        validate_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+
+
+def test_s5_final_bootstrap_ready_rejects_missing_or_corrupt_receipt(tmp_path):
+    lifecycle, bootstrap, _effects = _recovery_lifecycle(tmp_path, "ready-missing-corrupt")
+    missing = tmp_path / "not-present.json"
+    with pytest.raises(FileNotFoundError):
+        validate_bootstrap_ready_receipt(ready_path=missing, receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+    corrupt = tmp_path / "corrupt.json"
+    corrupt.write_text("not-json", encoding="utf-8")
+    with pytest.raises(json.JSONDecodeError):
+        validate_bootstrap_ready_receipt(ready_path=corrupt, receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+
+
+def test_s5_final_live_queue_does_not_retry_or_reenqueue_existing_next(tmp_path):
+    """G: a pre-existing authoritative NEXT stays excluded from recovery work."""
+    lifecycle = _lifecycle(tmp_path, "already-next", count=19)
+    _prepare_posts(lifecycle)
+    first = lifecycle.claim_block(actor="hydro_consumer_0")
+    assert first == list(range(8))
+    _commit_claimed_block(lifecycle, [0], actor="hydro_consumer_0")
+    second = lifecycle.claim_block(actor="hydro_consumer_1")
+    assert second == list(range(8, 16))
+    lifecycle.begin_hydro_screen(1, actor="hydro_consumer_0")
+    lifecycle.begin_hydro_screen(8, actor="hydro_consumer_1")
+    inventory, effects, bootstrap = tmp_path / "next-inventory.json", tmp_path / "next-effects.json", tmp_path / "next-bootstrap.json"
+    snapshot_interrupted_state(lifecycle_root=lifecycle.root, out_path=inventory)
+    freeze_expected_recovery_effects(lifecycle_root=lifecycle.root, inventory_path=inventory, out_path=effects)
+    bootstrap_recovery(lifecycle_root=lifecycle.root, effects_path=effects, out_path=bootstrap, runtime_sha="a" * 40)
+    ready = tmp_path / "next-ready.json"
+    write_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+    recovered = StreamingLifecycle.open(lifecycle.root)
+    target = recovered.manifest["records"][0]
+    retry_before, next_before = target["retry_count"], dict(target["next"])
+    while block := recovered.claim_block(actor="hydro_consumer_0"):
+        assert 0 not in block
+        _commit_claimed_block(recovered, block, actor="hydro_consumer_0")
+    target_after = StreamingLifecycle.open(lifecycle.root).manifest["records"][0]
+    assert target_after["retry_count"] == retry_before
+    assert target_after["next"] == next_before
 
 
 def test_s5_final_batch_has_separate_worker_identity_and_faults_off_contract():
