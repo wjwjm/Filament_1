@@ -32,7 +32,7 @@ launch_probe() {
   local actor="$1" identity="$2" heartbeat="$3" local_args=()
   [[ -n "$LOCAL_FLAG" ]] && local_args+=(--local-test)
   # This argv is intentionally direct: no nested shell and no embedded Python source.
-  srun --exclusive --ntasks=1 --cpus-per-task=1 --gpus-per-task=0 \
+  srun --exact --exclusive --ntasks=1 --cpus-per-task=1 --gres=none \
     env -u CUDA_VISIBLE_DEVICES -u UPPE_USE_GPU "$PYTHON" "$ACTOR" actor \
     --actor "$actor" --identity "$identity" --heartbeat "$heartbeat" "${local_args[@]}" &
   launched_pid="$!"
@@ -47,6 +47,8 @@ readonly TARGET_STEP="$(field "$TARGET_JSON" job_id).$(field "$TARGET_JSON" step
 readonly TARGET_PID="$(field "$TARGET_JSON" pid)" SURVIVOR_PID="$(field "$SURVIVOR_JSON" pid)"
 test "$(field "$TARGET_JSON" hostname)" = "$(hostname)" && test "$(field "$SURVIVOR_JSON" hostname)" = "$(hostname)" || fail CONTROLLER_HOSTNAME_MISMATCH
 test "$(field "$TARGET_JSON" cuda_visible_devices)" = "" && test "$(field "$SURVIVOR_JSON" cuda_visible_devices)" = "" || fail PROBE_GPU_ENV_PRESENT
+test "$(field "$TARGET_JSON" slurm_step_gpus)" = "" && test "$(field "$SURVIVOR_JSON" slurm_step_gpus)" = "" || fail PROBE_GPU_GRES_PRESENT
+test "$(field "$TARGET_JSON" slurm_step_gres)" = "" && test "$(field "$SURVIVOR_JSON" slurm_step_gres)" = "" || fail PROBE_GPU_GRES_PRESENT
 capture listpids_before "$SLURM_JOB_ID" || fail LISTPIDS_JOB_RETURN_NONZERO
 capture target_listpids_before "$TARGET_STEP" || fail TARGET_LISTPIDS_RETURN_NONZERO
 capture survivor_listpids_before "$SURVIVOR_STEP" || fail SURVIVOR_LISTPIDS_RETURN_NONZERO

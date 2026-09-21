@@ -339,7 +339,8 @@ def test_s5_final_single_allocation_phase0_precedes_cuda_and_science_start():
     phase0_pass = 'phase0_observability_result.json" "status=PASS"'
     cuda_enable = "export UPPE_USE_GPU=1"
     initialize = '"$PYTHON" "$S3_RUNNER" initialize-stream'
-    assert "--gpus-per-task=0" in phase0
+    assert "--exact --exclusive --ntasks=1 --cpus-per-task=1 --gres=none" in phase0
+    assert "--gpus-per-task=0" not in phase0
     assert 'bash "$PHASE0_LAUNCHER"' in batch
     assert "env -u CUDA_VISIBLE_DEVICES -u UPPE_USE_GPU" in phase0
     assert 'capture listpids_before "$SLURM_JOB_ID"' in phase0
@@ -347,3 +348,4 @@ def test_s5_final_single_allocation_phase0_precedes_cuda_and_science_start():
     assert phase0_pass in phase0
     assert batch.index('bash "$PHASE0_LAUNCHER"') < batch.index(cuda_enable) < batch.index(initialize)
     assert "READY_FOR_S5_FINAL_DEFECT_REVIEW" in phase0
+    assert "slurm_step_gpus" in phase0 and "slurm_step_gres" in phase0

@@ -87,6 +87,8 @@ def run_actor(args: argparse.Namespace) -> int:
         "start_time": time.time(),
         "heartbeat_path": str(heartbeat),
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES", ""),
+        "slurm_step_gpus": os.environ.get("SLURM_STEP_GPUS", ""),
+        "slurm_step_gres": os.environ.get("SLURM_STEP_GRES", ""),
         "cupy_imported": False,
         "cuda_context_initialized": False,
         "local_test": bool(args.local_test),

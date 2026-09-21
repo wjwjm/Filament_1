@@ -45,13 +45,14 @@ export MOCK_REGISTRY="$registry" MOCK_TRACE="$trace"
 cat >"$mock/srun" <<'SRUN'
 #!/usr/bin/env bash
 set -euo pipefail
-while (($#)); do case "$1" in --exclusive|--ntasks=*|--cpus-per-task=*|--gpus-per-task=*) shift ;; *) break ;; esac; done
+{ printf 'srun'; printf ' <%s>' "$@"; printf '\n'; } >>"$MOCK_TRACE"
+while (($#)); do case "$1" in --exact|--exclusive|--ntasks=*|--cpus-per-task=*|--gres=none|--gpus-per-task=*) shift ;; *) break ;; esac; done
 exec 9>"$MOCK_REGISTRY.lock"
 flock 9
 step="$(($(wc -l <"$MOCK_REGISTRY")+1))"
-{ printf 'srun'; printf ' <%s>' "$@"; printf '\n'; } >>"$MOCK_TRACE"
 (
   export SLURM_STEP_ID="$step" SLURMD_NODENAME="$(hostname)"
+  export SLURM_STEP_GPUS="${S5_MOCK_STEP_GPUS:-}" SLURM_STEP_GRES="${S5_MOCK_STEP_GRES:-}"
   exec "$@"
 ) &
 child="$!"
@@ -135,7 +136,8 @@ result=json.load(open(sys.argv[1], encoding='utf-8'))
 trace=open(sys.argv[2], encoding='utf-8').read()
 assert result['status']=='PASS' and result['signal_count']==1
 assert ' <bash>' not in trace and sys.argv[3] in trace
-assert '--actor> <probe_target>' in trace and '--actor> <probe_survivor>' in trace
+assert '--actor> <probe_target>' in trace and '--actor> <probe_survivor>' in trace, trace
+assert '--exact>' in trace and '--gres=none>' in trace and '--gpus-per-task=0>' not in trace, trace
 assert 'scancel <--signal=TERM> <700.2>' in trace
 print(json.dumps({{'actual_launcher_phase0_local_pass': True}}))
 PY
@@ -168,3 +170,27 @@ PY
     result = _run_bash(script)
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout.strip())["phase0_fail_blocks_science"] is True
+
+
+def test_phase0_rejects_probe_step_gpu_gres_before_signal_or_science():
+    phase0 = _wsl_path(ROOT / "tools" / "hr4e5s_s5_phase0.sh")
+    script = _fixture_prefix() + f"""
+phase0={phase0!r}
+export RUN_ROOT="$work/run" S5_MOCK_STEP_GRES='gpu:1'
+set +e
+bash "$phase0"
+rc="$?"
+set -e
+test "$rc" -eq 70
+test ! -e "$RUN_ROOT/phase0/signal_intent.json"
+test ! -e "$RUN_ROOT/scenario"
+/usr/bin/python3 - "$RUN_ROOT/phase0/phase0_observability_result.json" <<'PY'
+import json, sys
+result=json.load(open(sys.argv[1], encoding='utf-8'))
+assert result['status']=='FAIL' and result['reason']=='PROBE_GPU_GRES_PRESENT'
+print(json.dumps({{'probe_gres_hard_gate_pass': True}}))
+PY
+"""
+    result = _run_bash(script)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout.strip())["probe_gres_hard_gate_pass"] is True
