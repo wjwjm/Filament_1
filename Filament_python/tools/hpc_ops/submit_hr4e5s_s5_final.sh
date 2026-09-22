@@ -21,6 +21,7 @@ x=json.load(open(sys.argv[1],encoding='utf-8'))
 assert x['status']=='PASS' and x['git_sha']==sys.argv[2] and x['run_root']==sys.argv[3]
 assert x['resources']=={'optical_gpus':1,'hydro_gpus':2} and x['fault_injection_default']=='DISABLED'
 PY
+"$PYTHON" "$REPO/Filament_python/tools/run_hr4e5s_s5_final.py" validate-reference --reference-root "$REFERENCE_CASE_ROOT" --input "$RUN_ROOT/s5_final_input_manifest.json" >/dev/null
 export_args="ALL,EXPECTED_GIT_SHA=$EXPECTED_SHA,REPO_DIR=$REPO,RUN_ROOT=$RUN_ROOT,CASE_MODE=$CASE_MODE,INPUT_MANIFEST=$RUN_ROOT/s5_final_input_manifest.json,LUT_WORKSPACE=$RUN_ROOT/lut_workspace,REFERENCE_CASE_ROOT=$REFERENCE_CASE_ROOT"
 job="$(sbatch --parsable --job-name="e5s-s5-final-${CASE_MODE}" --chdir="$RUN_ROOT" --gres=gpu:3 --ntasks=3 --output="$RUN_ROOT/${CASE_MODE}-%j.out" --error="$RUN_ROOT/${CASE_MODE}-%j.err" --export="$export_args" "$BATCH")"
 job="${job%%;*}"; [[ "$job" =~ ^[0-9]+$ ]]

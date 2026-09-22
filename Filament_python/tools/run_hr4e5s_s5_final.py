@@ -24,6 +24,7 @@ from KHz_filament.hr4e5s_s5_final import (  # noqa: E402
     snapshot_interrupted_state,
     validate_bootstrap_ready_receipt,
     validate_bootstrap_receipt,
+    validate_reference_for_comparison,
     write_worker_identity,
 )
 
@@ -56,6 +57,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     validate.add_argument("--stream-root", type=Path, required=True); validate.add_argument("--receipt", type=Path, required=True); validate.add_argument("--runtime-sha", required=True)
     validate_ready = sub.add_parser("validate-bootstrap-ready")
     validate_ready.add_argument("--stream-root", type=Path, required=True); validate_ready.add_argument("--receipt", type=Path, required=True); validate_ready.add_argument("--ready", type=Path, required=True); validate_ready.add_argument("--runtime-sha", required=True)
+    reference = sub.add_parser("validate-reference")
+    reference.add_argument("--reference-root", type=Path, required=True); reference.add_argument("--input", type=Path, required=True)
+    reference.add_argument("--expected-lifecycle", type=Path)
     optical = sub.add_parser("recovery-optical")
     optical.add_argument("--input", type=Path, required=True); optical.add_argument("--stream-root", type=Path, required=True); optical.add_argument("--out-dir", type=Path, required=True); optical.add_argument("--bootstrap-receipt", type=Path, required=True); optical.add_argument("--bootstrap-ready", type=Path, required=True)
     consume = sub.add_parser("consume")
@@ -79,6 +83,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif args.command == "validate-bootstrap-ready":
         validate_bootstrap_ready_receipt(ready_path=args.ready, receipt_path=args.receipt, lifecycle_root=args.stream_root, runtime_sha=args.runtime_sha)
         result = {"status": "PASS", "receipt": str(args.receipt), "ready": str(args.ready)}
+    elif args.command == "validate-reference":
+        result = validate_reference_for_comparison(reference_root=args.reference_root,
+                                                   expected_lifecycle_root=args.expected_lifecycle,
+                                                   input_manifest_path=args.input)
+        if result["status"] != "PASS":
+            raise ValueError("S5-FINAL clean reference qualification failed")
     elif args.command == "recovery-optical":
         result = run_recovery_optical(input_manifest_path=args.input, lifecycle_root=args.stream_root, out_dir=args.out_dir, bootstrap_receipt_path=args.bootstrap_receipt, bootstrap_ready_path=args.bootstrap_ready)
     elif args.command == "consume":

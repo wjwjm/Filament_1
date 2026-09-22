@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import importlib.util
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -19,6 +20,7 @@ from KHz_filament.hr4e5s_s5_final import (
     snapshot_interrupted_state,
     validate_bootstrap_ready_receipt,
     validate_bootstrap_receipt,
+    validate_reference_for_comparison,
     validate_recovery_provenance,
     write_bootstrap_ready_receipt,
 )
@@ -94,6 +96,36 @@ def _commit_claimed_block(lifecycle: StreamingLifecycle, block: list[int], *, ac
         post = lifecycle.manifest["records"][ordinal]["post"]
         assert post is not None
         lifecycle.commit_next(ordinal, lifecycle._artifact_fields(post, namespace="POST"), actor=actor)
+
+
+def _write_reference_optical(root: Path, count: int) -> None:
+    optical = root / "optical"
+    optical.mkdir()
+    np.save(optical / "final_optical_field.npy", np.zeros((2, 2), dtype=np.complex128))
+    np.savez(optical / "scientific_ledger.npz", z=np.arange(count, dtype=np.float64))
+    for field in ("ion", "ib", "raman"):
+        np.save(optical / f"s3_optical.hr3a_q{field}_samples.npy", np.zeros((count, 2, 2), dtype=np.float64))
+    (optical / "optical_run.json").write_text(json.dumps({"final_optical_field": "final_optical_field.npy", "ledger": "scientific_ledger.npz"}), encoding="utf-8")
+
+
+def _reference_input(tmp_path: Path, lifecycle: StreamingLifecycle) -> Path:
+    manifest = StreamingLifecycle.open(lifecycle.root).manifest
+    path = tmp_path / f"{lifecycle.root.name}-input.json"
+    path.write_text(json.dumps({
+        "screen_records": [{key: record[key] for key in ("ordinal", "screen_id", "z_m")} for record in manifest["records"]],
+        "hydro": {"queue_depth": manifest["queue_depth"], "block_size": manifest["block_size"]},
+        "dx_m": manifest["dx_m"], "dy_m": manifest["dy_m"],
+    }), encoding="utf-8")
+    return path
+
+
+def _complete_reference(tmp_path: Path, name: str) -> tuple[StreamingLifecycle, Path]:
+    case_root = tmp_path / name
+    lifecycle = _lifecycle(case_root, "lifecycle")
+    _prepare_posts(lifecycle)
+    _finish(lifecycle)
+    _write_reference_optical(case_root, 16)
+    return lifecycle, _reference_input(tmp_path, lifecycle)
 
 
 def test_s5_final_freezes_two_claims_before_single_bootstrap_and_checks_retry_history(tmp_path):
@@ -174,6 +206,60 @@ def test_s5_final_recovery_consumer_cannot_claim_without_valid_bootstrap_ready(t
         consume_final_streaming(lifecycle_root=lifecycle.root, hydro={}, producer_complete=tmp_path / "complete",
                                 actor="hydro_consumer_0", execution_epoch="recovery", bootstrap_ready_path=invalid)
     assert StreamingLifecycle.open(lifecycle.root).manifest["queue"] == queue_before
+
+
+def test_s5_final_reference_qualification_fails_when_manifest_is_missing(tmp_path):
+    expected, input_path = _complete_reference(tmp_path, "expected")
+    result = validate_reference_for_comparison(reference_root=tmp_path / "missing", expected_lifecycle_root=expected.root,
+                                               input_manifest_path=input_path)
+    assert result["status"] == "FAIL"
+    assert next(item for item in result["checks"] if item["name"] == "streaming_manifest_exists")["pass"] is False
+
+
+def test_s5_final_reference_qualification_fails_when_manifest_is_corrupt(tmp_path):
+    expected, input_path = _complete_reference(tmp_path, "expected")
+    reference = tmp_path / "corrupt" / "lifecycle"
+    reference.mkdir(parents=True)
+    (reference / "streaming_manifest.json").write_text("not-json", encoding="utf-8")
+    result = validate_reference_for_comparison(reference_root=reference.parent, expected_lifecycle_root=expected.root,
+                                               input_manifest_path=input_path)
+    assert result["status"] == "FAIL"
+    assert next(item for item in result["checks"] if item["name"] == "streaming_manifest_json_parseable")["pass"] is False
+
+
+def test_s5_final_reference_qualification_fails_when_authoritative_field_is_missing(tmp_path):
+    expected, input_path = _complete_reference(tmp_path, "expected")
+    reference, _ = _complete_reference(tmp_path, "complete")
+    broken = tmp_path / "broken"
+    shutil.copytree(reference.root.parent, broken)
+    manifest_path = broken / "lifecycle" / "streaming_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["records"][0]["post"] = None
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    result = validate_reference_for_comparison(reference_root=broken, expected_lifecycle_root=expected.root,
+                                               input_manifest_path=input_path)
+    assert result["status"] == "FAIL"
+    assert any(not item["pass"] for item in result["checks"])
+
+
+def test_s5_final_reference_qualification_fails_when_identity_differs(tmp_path):
+    expected, input_path = _complete_reference(tmp_path, "expected")
+    reference, _ = _complete_reference(tmp_path, "reference")
+    input_payload = json.loads(input_path.read_text(encoding="utf-8"))
+    input_payload["dx_m"] = 2.0e-4
+    input_path.write_text(json.dumps(input_payload), encoding="utf-8")
+    result = validate_reference_for_comparison(reference_root=reference.root.parent, expected_lifecycle_root=expected.root,
+                                               input_manifest_path=input_path)
+    assert result["status"] == "FAIL"
+    assert next(item for item in result["checks"] if item["name"] == "input_dx_matches")["pass"] is False
+
+
+def test_s5_final_reference_qualification_accepts_complete_matching_reference(tmp_path):
+    expected, input_path = _complete_reference(tmp_path, "expected")
+    reference, _ = _complete_reference(tmp_path, "reference")
+    result = validate_reference_for_comparison(reference_root=reference.root.parent, expected_lifecycle_root=expected.root,
+                                               input_manifest_path=input_path)
+    assert result["status"] == "PASS", [item for item in result["checks"] if not item["pass"]]
 
 
 def test_s5_final_live_queue_recovery_rejects_claim_before_ready_without_side_effects(tmp_path):
@@ -504,6 +590,16 @@ def test_s5_final_single_allocation_recovery_waits_for_optical_bootstrap_ready_b
     assert batch.index('initial_workers_stopped.json') < batch.index('wait_for_file_or_defect "$CASE_ROOT/recovery_ready.json" 300')
     source = (root / "KHz_filament" / "hr4e5s_s5_final.py").read_text(encoding="utf-8")
     assert source.index("validate_bootstrap_receipt(**kwargs)") < source.index("_write_bootstrap_ready_receipt(ready_path=bootstrap_ready_path")
+
+
+def test_s5_final_submission_and_batch_entry_qualify_clean_reference_before_workers():
+    root = Path(__file__).resolve().parents[1]
+    submit = (root / "tools" / "hpc_ops" / "submit_hr4e5s_s5_final.sh").read_text(encoding="utf-8")
+    batch = (root / "tools" / "hr4e5s_s5_final_single_allocation.sbatch").read_text(encoding="utf-8")
+    gate = 'validate-reference --reference-root "$REFERENCE_CASE_ROOT" --input "$INPUT_MANIFEST"'
+    assert 'validate-reference --reference-root "$REFERENCE_CASE_ROOT" --input "$RUN_ROOT/s5_final_input_manifest.json"' in submit
+    assert gate in batch
+    assert batch.index(gate) < batch.index('launch_worker optical_producer initial')
 
 
 def test_s5_final_site_observability_probe_is_cpu_only_and_step_scoped():

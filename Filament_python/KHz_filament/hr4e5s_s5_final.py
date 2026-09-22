@@ -16,6 +16,8 @@ import time
 from pathlib import Path
 from typing import Any, Mapping
 
+import numpy as np
+
 from .hr4e5s_s3 import finalize_streaming, run_optical_path
 from .hr4e5s_s5 import (
     _artifact_inventory,
@@ -335,6 +337,112 @@ def validate_bootstrap_ready_receipt(*, ready_path: str | Path, receipt_path: st
                                require_current_telemetry_count=False)
 
 
+def validate_reference_for_comparison(*, reference_root: str | Path,
+                                      expected_lifecycle_root: str | Path | None,
+                                      input_manifest_path: str | Path) -> dict[str, Any]:
+    """Fail closed before S5-FINAL comparison accepts a clean-reference path.
+
+    The comparison itself remains the frozen exact comparator.  This gate only
+    proves that its reference inputs are complete, readable, and statically
+    compatible with the candidate contract before a long allocation reaches
+    final comparison startup.
+    """
+    reference_root, input_path = map(Path, (reference_root, input_manifest_path))
+    expected_root = None if expected_lifecycle_root is None else Path(expected_lifecycle_root)
+    checks: list[dict[str, Any]] = []
+
+    def check(name: str, passed: bool, **detail: Any) -> None:
+        checks.append({"name": name, "pass": bool(passed), **detail})
+
+    manifest_path = reference_root / "lifecycle" / "streaming_manifest.json"
+    check("streaming_manifest_exists", manifest_path.is_file())
+    try:
+        _read(manifest_path)
+        check("streaming_manifest_json_parseable", True)
+    except Exception as error:
+        check("streaming_manifest_json_parseable", False, error=f"{type(error).__name__}: {error}")
+    try:
+        reference = StreamingLifecycle.open(reference_root / "lifecycle")
+        check("streaming_lifecycle_open", True)
+    except Exception as error:
+        check("streaming_lifecycle_open", False, error=f"{type(error).__name__}: {error}")
+        return {"schema": S5_FINAL_SCHEMA, "status": "FAIL", "checks": checks}
+    expected = None
+    if expected_root is not None:
+        try:
+            expected = StreamingLifecycle.open(expected_root)
+            check("expected_lifecycle_open", True)
+        except Exception as error:
+            check("expected_lifecycle_open", False, error=f"{type(error).__name__}: {error}")
+            return {"schema": S5_FINAL_SCHEMA, "status": "FAIL", "checks": checks}
+    try:
+        input_manifest = _read(input_path)
+        check("input_manifest_parseable", True)
+    except Exception as error:
+        check("input_manifest_parseable", False, error=f"{type(error).__name__}: {error}")
+        return {"schema": S5_FINAL_SCHEMA, "status": "FAIL", "checks": checks}
+
+    ref_manifest = reference.manifest
+    if expected is not None:
+        expected_manifest = expected.manifest
+        for key in ("expected_screen_count", "queue_depth", "block_size", "dx_m", "dy_m", "shape", "dtype",
+                    "current_generation", "next_generation"):
+            check(f"identity_{key}", ref_manifest.get(key) == expected_manifest.get(key),
+                  reference=ref_manifest.get(key), expected=expected_manifest.get(key))
+    expected_count = (int(expected.manifest.get("expected_screen_count", -1)) if expected is not None else 48)
+    check("frozen_screen_count", expected_count == 48 if expected is None else True, expected=expected_count)
+    records = list(ref_manifest.get("records", []))
+    input_records = list(input_manifest.get("screen_records", []))
+    check("input_screen_count", len(input_records) == expected_count, observed=len(input_records), expected=expected_count)
+    identity = [(record.get("ordinal"), record.get("screen_id"), record.get("z_m")) for record in records]
+    expected_identity = [(record.get("ordinal"), record.get("screen_id"), record.get("z_m")) for record in input_records]
+    check("screen_identity_matches_input", identity == expected_identity)
+    hydro = dict(input_manifest.get("hydro", {}))
+    check("input_queue_depth_matches", int(ref_manifest.get("queue_depth", -1)) == int(hydro.get("queue_depth", -2)))
+    check("input_block_size_matches", int(ref_manifest.get("block_size", -1)) == int(hydro.get("block_size", -2)))
+    check("input_dx_matches", float(ref_manifest.get("dx_m", 0.0)) == float(input_manifest.get("dx_m", -1.0)))
+    check("input_dy_matches", float(ref_manifest.get("dy_m", 0.0)) == float(input_manifest.get("dy_m", -1.0)))
+    readable = {"POST": 0, "NEXT": 0}
+    for record in records:
+        for namespace in ("POST", "NEXT"):
+            try:
+                entry = record.get(namespace.lower())
+                if entry is None:
+                    raise ValueError("entry missing")
+                fields = reference._artifact_fields(entry, namespace=namespace)
+                if set(fields) != {"delta_n", "vx", "vy"}:
+                    raise ValueError("three authoritative fields are incomplete")
+                readable[namespace] += 1
+            except Exception as error:
+                check(f"{namespace.lower()}_screen_{record.get('ordinal')}_readable", False,
+                      error=f"{type(error).__name__}: {error}")
+    check("post_arrays_complete", readable["POST"] == expected_count, readable=readable["POST"], expected=expected_count)
+    check("next_arrays_complete", readable["NEXT"] == expected_count, readable=readable["NEXT"], expected=expected_count)
+    optical = reference_root / "optical"
+    required = ["optical_run.json", "final_optical_field.npy", "scientific_ledger.npz",
+                "s3_optical.hr3a_qion_samples.npy", "s3_optical.hr3a_qib_samples.npy",
+                "s3_optical.hr3a_qraman_samples.npy"]
+    for name in required:
+        check(f"optical_{name}_exists", (optical / name).is_file())
+    for name in required[1:]:
+        path = optical / name
+        try:
+            if path.suffix == ".npz":
+                with np.load(path, allow_pickle=False) as values:
+                    check(f"optical_{name}_readable", bool(values.files), fields=sorted(values.files))
+            else:
+                values = np.load(path, mmap_mode="r", allow_pickle=False)
+                count_ok = name == "final_optical_field.npy" or values.shape[0] == expected_count
+                check(f"optical_{name}_readable", bool(count_ok), shape=list(values.shape), dtype=str(values.dtype))
+        except Exception as error:
+            check(f"optical_{name}_readable", False, error=f"{type(error).__name__}: {error}")
+    result = {"schema": S5_FINAL_SCHEMA, "reference_root": str(reference_root.resolve()),
+              "expected_lifecycle_root": None if expected_root is None else str(expected_root.resolve()), "input_manifest": str(input_path.resolve()),
+              "checks": checks}
+    result["status"] = "PASS" if all(item["pass"] for item in checks) else "FAIL"
+    return result
+
+
 def validate_recovery_provenance(*, reference_lifecycle_root: str | Path, candidate_lifecycle_root: str | Path,
                                  effects_path: str | Path, out_path: str | Path | None = None) -> dict[str, Any]:
     """Strictly compare multi-worker retry history to its pre-frozen contract."""
@@ -398,4 +506,4 @@ def run_recovery_optical(*, input_manifest_path: str | Path, out_dir: str | Path
                             bootstrap_receipt_validator=validated_bootstrap_boundary)
 
 
-__all__ = ["S5_FINAL_CASE_ID", "S5_FINAL_SCHEMA", "bootstrap_recovery", "compare_exact", "consume_final_streaming", "finalize_streaming", "freeze_expected_recovery_effects", "run_recovery_optical", "snapshot_interrupted_state", "validate_bootstrap_ready_receipt", "validate_bootstrap_receipt", "validate_recovery_provenance", "write_bootstrap_ready_receipt", "write_worker_identity"]
+__all__ = ["S5_FINAL_CASE_ID", "S5_FINAL_SCHEMA", "bootstrap_recovery", "compare_exact", "consume_final_streaming", "finalize_streaming", "freeze_expected_recovery_effects", "run_recovery_optical", "snapshot_interrupted_state", "validate_bootstrap_ready_receipt", "validate_bootstrap_receipt", "validate_reference_for_comparison", "validate_recovery_provenance", "write_bootstrap_ready_receipt", "write_worker_identity"]
