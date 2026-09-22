@@ -61,7 +61,9 @@ _PREFLIGHT_REQUIRED = frozenset({
     "source_config_sha256", "source_manifest", "source_manifest_sha256", "source_state",
     "source_state_array_sha256", "source_state_file_sha256", "status",
 })
-_PREFLIGHT_ALLOWED = frozenset((_PREFLIGHT_REQUIRED, _PREFLIGHT_REQUIRED | {"case_id"}))
+_PREFLIGHT_ALLOWED = frozenset((_PREFLIGHT_REQUIRED, _PREFLIGHT_REQUIRED | {"case_id"},
+                                _PREFLIGHT_REQUIRED | {"lut_scientific_identity_sha256"},
+                                _PREFLIGHT_REQUIRED | {"case_id", "lut_scientific_identity_sha256"}))
 
 
 def scientific_input_identity(*, input_manifest_path: str | Path, preflight_path: str | Path) -> dict[str, Any]:
@@ -106,7 +108,10 @@ def scientific_input_identity(*, input_manifest_path: str | Path, preflight_path
         "source_state_array_sha256": source["source_state_array_sha256"],
         "source_state_file_sha256": source["source_state_file_sha256"], "stage": source["stage"],
         "window_selection_rule": source["window_selection_rule"],
-        "lut_workspace_sha256": gate["lut_workspace_sha256"],
+        # The raw workspace digest includes NPZ container build timestamps and
+        # paths.  A preflight that supplies the canonical field-content digest
+        # is authoritative; old preflights deliberately remain conservative.
+        "lut_scientific_identity_sha256": gate.get("lut_scientific_identity_sha256", gate["lut_workspace_sha256"]),
     }
     metadata = {
         "input_manifest_path": str(input_path.resolve()), "input_manifest_sha256": raw_input_sha256,

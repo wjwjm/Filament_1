@@ -133,10 +133,11 @@ def _reference_input(tmp_path: Path, lifecycle: StreamingLifecycle) -> Path:
     return path
 
 
-def _reference_preflight(tmp_path: Path, lifecycle: StreamingLifecycle, input_path: Path, *, lut_sha: str = "l" * 64) -> Path:
+def _reference_preflight(tmp_path: Path, lifecycle: StreamingLifecycle, input_path: Path, *, lut_sha: str = "l" * 64,
+                         lut_scientific_sha: str | None = None) -> Path:
     payload = json.loads(input_path.read_text(encoding="utf-8"))
     path = tmp_path / f"{lifecycle.root.parent.name}-{lifecycle.root.name}-preflight.json"
-    path.write_text(json.dumps({
+    value = {
         "fault_injection_default": "DISABLED", "git_sha": "a" * 40, "input_manifest": str(input_path),
         "input_manifest_sha256": s5_final.sha256_file(input_path), "lut_workspace": "/immutable/lut", "lut_workspace_sha256": lut_sha,
         "resources": {"optical_gpus": 1, "hydro_gpus": 2}, "run_root": "/metadata/run-root", "schema": "preflight.v1",
@@ -144,7 +145,10 @@ def _reference_preflight(tmp_path: Path, lifecycle: StreamingLifecycle, input_pa
         "source_manifest": payload["source_manifest"], "source_manifest_sha256": payload["source_manifest_sha256"],
         "source_state": payload["source_state"], "source_state_array_sha256": payload["source_state_array_sha256"],
         "source_state_file_sha256": payload["source_state_file_sha256"], "status": "PASS",
-    }, sort_keys=True), encoding="utf-8")
+    }
+    if lut_scientific_sha is not None:
+        value["lut_scientific_identity_sha256"] = lut_scientific_sha
+    path.write_text(json.dumps(value, sort_keys=True), encoding="utf-8")
     return path
 
 
@@ -343,7 +347,7 @@ def test_s5_final_scientific_identity_rejects_lut_or_authoritative_input_differe
                                                  reference_input_manifest_path=reference_input,
                                                  reference_preflight_path=reference_preflight)
     assert result["scientific_identity_match"] is False
-    assert next(item for item in result["fields"] if item["field"] == "lut_workspace_sha256")["match"] is False
+    assert next(item for item in result["fields"] if item["field"] == "lut_scientific_identity_sha256")["match"] is False
     source = json.loads(reference_input.read_text(encoding="utf-8")); source["screen_records"][0]["current_delta_n_sha256"] = "d" * 64
     reference_input.write_text(json.dumps(source, sort_keys=True), encoding="utf-8")
     _reference_preflight(tmp_path, reference, reference_input, lut_sha="z" * 64)
@@ -353,6 +357,21 @@ def test_s5_final_scientific_identity_rejects_lut_or_authoritative_input_differe
                                                  reference_preflight_path=reference_preflight)
     assert result["scientific_identity_match"] is False
     assert next(item for item in result["fields"] if item["field"] == "screen_records[0].current_delta_n_sha256")["match"] is False
+
+
+def test_s5_final_scientific_identity_uses_lut_content_not_npz_container_hash(tmp_path):
+    candidate, candidate_input, _ = _complete_reference(tmp_path, "candidate")
+    reference, reference_input, _ = _complete_reference(tmp_path, "reference")
+    candidate_preflight = _reference_preflight(tmp_path, candidate, candidate_input, lut_sha="a" * 64,
+                                               lut_scientific_sha="c" * 64)
+    reference_preflight = _reference_preflight(tmp_path, reference, reference_input, lut_sha="b" * 64,
+                                               lut_scientific_sha="c" * 64)
+    result = compare_scientific_input_identities(candidate_input_manifest_path=candidate_input,
+                                                 candidate_preflight_path=candidate_preflight,
+                                                 reference_input_manifest_path=reference_input,
+                                                 reference_preflight_path=reference_preflight)
+    assert result["scientific_identity_match"] is True
+    assert all(item["match"] for item in result["fields"] if item["classification"] == "SCIENTIFIC")
 
 
 def test_s5_final_reference_qualification_fails_when_lifecycle_json_cannot_open(tmp_path):
