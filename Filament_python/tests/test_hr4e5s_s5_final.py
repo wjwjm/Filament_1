@@ -98,14 +98,18 @@ def _commit_claimed_block(lifecycle: StreamingLifecycle, block: list[int], *, ac
         lifecycle.commit_next(ordinal, lifecycle._artifact_fields(post, namespace="POST"), actor=actor)
 
 
-def _write_reference_optical(root: Path, count: int) -> None:
+def _write_reference_optical(root: Path, count: int, *, input_manifest_sha256: str) -> None:
     optical = root / "optical"
     optical.mkdir()
     np.save(optical / "final_optical_field.npy", np.zeros((2, 2), dtype=np.complex128))
     np.savez(optical / "scientific_ledger.npz", z=np.arange(count, dtype=np.float64))
     for field in ("ion", "ib", "raman"):
         np.save(optical / f"s3_optical.hr3a_q{field}_samples.npy", np.zeros((count, 2, 2), dtype=np.float64))
-    (optical / "optical_run.json").write_text(json.dumps({"final_optical_field": "final_optical_field.npy", "ledger": "scientific_ledger.npz"}), encoding="utf-8")
+    (optical / "optical_run.json").write_text(json.dumps({
+        "final_optical_field": "final_optical_field.npy",
+        "ledger": "scientific_ledger.npz",
+        "input_manifest_sha256": input_manifest_sha256,
+    }), encoding="utf-8")
 
 
 def _reference_input(tmp_path: Path, lifecycle: StreamingLifecycle) -> Path:
@@ -124,8 +128,9 @@ def _complete_reference(tmp_path: Path, name: str) -> tuple[StreamingLifecycle, 
     lifecycle = _lifecycle(case_root, "lifecycle")
     _prepare_posts(lifecycle)
     _finish(lifecycle)
-    _write_reference_optical(case_root, 16)
-    return lifecycle, _reference_input(tmp_path, lifecycle)
+    input_path = _reference_input(tmp_path, lifecycle)
+    _write_reference_optical(case_root, 16, input_manifest_sha256=s5_final.sha256_file(input_path))
+    return lifecycle, input_path
 
 
 def test_s5_final_freezes_two_claims_before_single_bootstrap_and_checks_retry_history(tmp_path):
@@ -252,6 +257,19 @@ def test_s5_final_reference_qualification_fails_when_identity_differs(tmp_path):
                                                input_manifest_path=input_path)
     assert result["status"] == "FAIL"
     assert next(item for item in result["checks"] if item["name"] == "input_dx_matches")["pass"] is False
+
+
+def test_s5_final_reference_qualification_fails_when_optical_input_hash_differs(tmp_path):
+    expected, input_path = _complete_reference(tmp_path, "expected")
+    reference, _ = _complete_reference(tmp_path, "reference")
+    optical_run_path = reference.root.parent / "optical" / "optical_run.json"
+    optical_run = json.loads(optical_run_path.read_text(encoding="utf-8"))
+    optical_run["input_manifest_sha256"] = "0" * 64
+    optical_run_path.write_text(json.dumps(optical_run), encoding="utf-8")
+    result = validate_reference_for_comparison(reference_root=reference.root.parent, expected_lifecycle_root=expected.root,
+                                               input_manifest_path=input_path)
+    assert result["status"] == "FAIL"
+    assert next(item for item in result["checks"] if item["name"] == "reference_input_manifest_sha256_matches")["pass"] is False
 
 
 def test_s5_final_reference_qualification_accepts_complete_matching_reference(tmp_path):

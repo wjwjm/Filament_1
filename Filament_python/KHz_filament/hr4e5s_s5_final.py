@@ -424,6 +424,14 @@ def validate_reference_for_comparison(*, reference_root: str | Path,
                 "s3_optical.hr3a_qraman_samples.npy"]
     for name in required:
         check(f"optical_{name}_exists", (optical / name).is_file())
+    try:
+        reference_optical_run = _read(optical / "optical_run.json")
+        expected_input_sha256 = sha256_file(input_path)
+        observed_input_sha256 = reference_optical_run.get("input_manifest_sha256")
+        check("reference_input_manifest_sha256_matches", observed_input_sha256 == expected_input_sha256,
+              reference=observed_input_sha256, expected=expected_input_sha256)
+    except Exception as error:
+        check("reference_input_manifest_sha256_matches", False, error=f"{type(error).__name__}: {error}")
     for name in required[1:]:
         path = optical / name
         try:
