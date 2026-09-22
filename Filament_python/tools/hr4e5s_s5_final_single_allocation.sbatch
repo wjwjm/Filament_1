@@ -7,12 +7,12 @@
 set -euo pipefail
 
 readonly PYTHON=/data/home/scvi806/.conda/envs/Filament_python/bin/python
-: "${EXPECTED_GIT_SHA:?}" "${REPO_DIR:?}" "${RUN_ROOT:?}" "${LUT_WORKSPACE:?}" "${INPUT_MANIFEST:?}" "${CASE_MODE:?}" "${REFERENCE_CASE_ROOT:?}"
+: "${EXPECTED_GIT_SHA:?}" "${REPO_DIR:?}" "${RUN_ROOT:?}" "${LUT_WORKSPACE:?}" "${INPUT_MANIFEST:?}" "${CASE_MODE:?}" "${REFERENCE_CASE_ROOT:?}" "${REFERENCE_INPUT_MANIFEST:?}" "${REFERENCE_PREFLIGHT:?}"
 test "$CASE_MODE" = single_allocation
 test "$(git -C "$REPO_DIR" rev-parse HEAD)" = "$EXPECTED_GIT_SHA"
 test -z "$(git -C "$REPO_DIR" status --porcelain=v1 --untracked-files=all)"
 test -f "$INPUT_MANIFEST" && test -d "$LUT_WORKSPACE" && test "$(stat -c '%a' "$LUT_WORKSPACE")" = 700
-test -d "$REFERENCE_CASE_ROOT/lifecycle" && test -d "$REFERENCE_CASE_ROOT/optical"
+test -d "$REFERENCE_CASE_ROOT/lifecycle" && test -d "$REFERENCE_CASE_ROOT/optical" && test -f "$REFERENCE_INPUT_MANIFEST" && test -f "$REFERENCE_PREFLIGHT"
 unset HR4_S5_FAULT_ID HR4_S5_FAULT_SCREEN HR4_S5_FAULT_ONCE || true
 source /data/apps/miniforge/25.3.0-3/etc/profile.d/conda.sh
 conda activate Filament_python
@@ -62,7 +62,7 @@ PY
 "$PYTHON" "$MONITOR" --manifest "$MONITOR_MANIFEST" --single-allocation --resume --poll-seconds 5 >"$RUN_ROOT/controller.out" 2>"$RUN_ROOT/controller.err" & controller_pid="$!"
 wait_for_file_or_defect "$CASE_ROOT/controller_ready.json" 30 || { wait "$controller_pid" || true; exit 40; }
 "$PYTHON" "$S3_RUNNER" initialize-stream --input "$INPUT_MANIFEST" --root "$CASE_ROOT/lifecycle" >"$CASE_ROOT/initialize.out"
-"$PYTHON" "$FINAL_RUNNER" validate-reference --reference-root "$REFERENCE_CASE_ROOT" --input "$INPUT_MANIFEST" --expected-lifecycle "$CASE_ROOT/lifecycle" >"$CASE_ROOT/reference_qualification.out"
+"$PYTHON" "$FINAL_RUNNER" validate-reference --reference-root "$REFERENCE_CASE_ROOT" --input "$INPUT_MANIFEST" --candidate-preflight "$RUN_ROOT/s5_final_preflight.json" --reference-input "$REFERENCE_INPUT_MANIFEST" --reference-preflight "$REFERENCE_PREFLIGHT" --expected-lifecycle "$CASE_ROOT/lifecycle" >"$CASE_ROOT/reference_qualification.out"
 launch_worker optical_producer initial "$CASE_ROOT/initial/identities/optical_producer.json" "$PYTHON" "$S3_RUNNER" optical --input "$INPUT_MANIFEST" --out-dir "$CASE_ROOT/initial/optical" --stream-root "$CASE_ROOT/lifecycle"; initial_optical="$launched_pid"
 launch_worker hydro_consumer_0 initial "$CASE_ROOT/initial/identities/hydro_consumer_0.json" "$PYTHON" "$FINAL_RUNNER" consume --input "$INPUT_MANIFEST" --stream-root "$CASE_ROOT/lifecycle" --producer-complete "$CASE_ROOT/initial/producer_complete" --actor hydro_consumer_0 --out "$CASE_ROOT/initial/consumers/consumer_0.json" --arming-dir "$CASE_ROOT/initial/arming" --execution-epoch initial; initial_hydro_0="$launched_pid"
 launch_worker hydro_consumer_1 initial "$CASE_ROOT/initial/identities/hydro_consumer_1.json" "$PYTHON" "$FINAL_RUNNER" consume --input "$INPUT_MANIFEST" --stream-root "$CASE_ROOT/lifecycle" --producer-complete "$CASE_ROOT/initial/producer_complete" --actor hydro_consumer_1 --out "$CASE_ROOT/initial/consumers/consumer_1.json" --arming-dir "$CASE_ROOT/initial/arming" --execution-epoch initial; initial_hydro_1="$launched_pid"

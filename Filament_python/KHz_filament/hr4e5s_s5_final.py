@@ -13,6 +13,7 @@ import os
 import socket
 import tempfile
 import time
+import hashlib
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -38,6 +39,113 @@ S5_FINAL_CASE_ID = "S5_FINAL_WORKER_LOSS"
 
 def _read(path: str | Path) -> dict[str, Any]:
     return dict(json.loads(Path(path).read_text(encoding="utf-8")))
+
+
+def _canonical_sha256(value: Any) -> str:
+    """Hash a JSON value independent of whitespace and key insertion order."""
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+_INPUT_REQUIRED = frozenset({
+    "config", "config_sha256", "current_generation", "dtype", "dx_m", "dy_m", "frozen_at_utc", "hydro",
+    "peak_source_index", "pulse_source_identity", "schema", "screen_indices", "screen_records", "shape",
+    "source_manifest", "source_manifest_sha256", "source_state", "source_state_array_sha256",
+    "source_state_file_sha256", "stage", "window_selection_rule",
+})
+_HYDRO_REQUIRED = frozenset({"block_size", "cfl_limit", "chi", "dt_hydro", "gravity_x", "gravity_y", "n0", "n_hydro_steps", "nu", "queue_depth"})
+_SCREEN_REQUIRED = frozenset({"current_delta_n_sha256", "current_velocity_initialization", "ordinal", "screen_id", "source_index", "z_m"})
+_PREFLIGHT_REQUIRED = frozenset({
+    "fault_injection_default", "git_sha", "input_manifest", "input_manifest_sha256", "lut_workspace",
+    "lut_workspace_sha256", "resources", "run_root", "schema", "screen_indices", "source_config",
+    "source_config_sha256", "source_manifest", "source_manifest_sha256", "source_state",
+    "source_state_array_sha256", "source_state_file_sha256", "status",
+})
+_PREFLIGHT_ALLOWED = frozenset((_PREFLIGHT_REQUIRED, _PREFLIGHT_REQUIRED | {"case_id"}))
+
+
+def scientific_input_identity(*, input_manifest_path: str | Path, preflight_path: str | Path) -> dict[str, Any]:
+    """Return the immutable scientific identity of a S5 input/preflight pair.
+
+    Paths, timestamps, job metadata and Git/runtime packaging are deliberately
+    excluded.  Numerical input, authoritative current-state hashes and the
+    LUT workspace fingerprint are fail-closed scientific fields.
+    """
+    input_path, preflight = map(Path, (input_manifest_path, preflight_path))
+    source, gate = _read(input_path), _read(preflight)
+    if set(source) != _INPUT_REQUIRED:
+        raise ValueError("S5-FINAL input manifest schema is unknown or incomplete")
+    hydro = source.get("hydro")
+    records = source.get("screen_records")
+    if not isinstance(hydro, Mapping) or set(hydro) != _HYDRO_REQUIRED:
+        raise ValueError("S5-FINAL input hydro identity is unknown or incomplete")
+    if not isinstance(records, list) or not records or any(not isinstance(record, Mapping) or set(record) != _SCREEN_REQUIRED for record in records):
+        raise ValueError("S5-FINAL input screen identity is unknown or incomplete")
+    if frozenset(gate) not in _PREFLIGHT_ALLOWED:
+        raise ValueError("S5-FINAL preflight schema is unknown or incomplete")
+    raw_input_sha256 = sha256_file(input_path)
+    if gate.get("status") != "PASS" or gate.get("fault_injection_default") != "DISABLED":
+        raise ValueError("S5-FINAL preflight is not production fault-off PASS")
+    if gate.get("input_manifest_sha256") != raw_input_sha256:
+        raise ValueError("S5-FINAL preflight input manifest SHA mismatch")
+    cross_checks = {
+        "source_config_sha256": source["config_sha256"],
+        "source_manifest_sha256": source["source_manifest_sha256"],
+        "source_state_array_sha256": source["source_state_array_sha256"],
+        "source_state_file_sha256": source["source_state_file_sha256"],
+    }
+    if any(gate.get(key) != value for key, value in cross_checks.items()):
+        raise ValueError("S5-FINAL preflight source identity mismatch")
+    scientific = {
+        "config_sha256": source["config_sha256"], "current_generation": source["current_generation"],
+        "dtype": source["dtype"], "dx_m": source["dx_m"], "dy_m": source["dy_m"], "hydro": dict(hydro),
+        "peak_source_index": source["peak_source_index"], "pulse_source_identity": source["pulse_source_identity"],
+        "schema": source["schema"], "screen_indices": list(source["screen_indices"]),
+        "screen_records": [dict(record) for record in records], "shape": list(source["shape"]),
+        "source_manifest_sha256": source["source_manifest_sha256"],
+        "source_state_array_sha256": source["source_state_array_sha256"],
+        "source_state_file_sha256": source["source_state_file_sha256"], "stage": source["stage"],
+        "window_selection_rule": source["window_selection_rule"],
+        "lut_workspace_sha256": gate["lut_workspace_sha256"],
+    }
+    metadata = {
+        "input_manifest_path": str(input_path.resolve()), "input_manifest_sha256": raw_input_sha256,
+        "preflight_path": str(preflight.resolve()), "preflight_sha256": sha256_file(preflight),
+        "excluded_input_metadata": {key: source[key] for key in ("config", "frozen_at_utc", "source_manifest", "source_state")},
+        "excluded_preflight_metadata": {key: gate[key] for key in ("git_sha", "input_manifest", "lut_workspace", "resources", "run_root", "schema", "source_config", "source_manifest", "source_state")},
+    }
+    return {"schema": S5_FINAL_SCHEMA, "scientific": scientific, "scientific_identity_sha256": _canonical_sha256(scientific), **metadata}
+
+
+def _flatten_identity(value: Any, prefix: str = "") -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        result: dict[str, Any] = {}
+        for key in sorted(value):
+            result.update(_flatten_identity(value[key], f"{prefix}.{key}" if prefix else str(key)))
+        return result
+    if isinstance(value, list):
+        result: dict[str, Any] = {}
+        for index, item in enumerate(value):
+            result.update(_flatten_identity(item, f"{prefix}[{index}]"))
+        return result
+    return {prefix: value}
+
+
+def compare_scientific_input_identities(*, candidate_input_manifest_path: str | Path, candidate_preflight_path: str | Path,
+                                        reference_input_manifest_path: str | Path, reference_preflight_path: str | Path) -> dict[str, Any]:
+    """Make scientific and metadata differences explicit before exact comparison."""
+    candidate = scientific_input_identity(input_manifest_path=candidate_input_manifest_path, preflight_path=candidate_preflight_path)
+    reference = scientific_input_identity(input_manifest_path=reference_input_manifest_path, preflight_path=reference_preflight_path)
+    left, right = _flatten_identity(candidate["scientific"]), _flatten_identity(reference["scientific"])
+    scientific_fields = [{"field": key, "classification": "SCIENTIFIC", "candidate": left.get(key), "reference": right.get(key), "match": left.get(key) == right.get(key)} for key in sorted(set(left) | set(right))]
+    candidate_metadata = _flatten_identity({"input": candidate["excluded_input_metadata"], "preflight": candidate["excluded_preflight_metadata"]})
+    reference_metadata = _flatten_identity({"input": reference["excluded_input_metadata"], "preflight": reference["excluded_preflight_metadata"]})
+    metadata_fields = [{"field": key, "classification": "EXECUTION_METADATA", "candidate": candidate_metadata.get(key), "reference": reference_metadata.get(key), "match": candidate_metadata.get(key) == reference_metadata.get(key)} for key in sorted(set(candidate_metadata) | set(reference_metadata))]
+    fields = scientific_fields + metadata_fields
+    return {"schema": S5_FINAL_SCHEMA, "candidate": candidate, "reference": reference, "fields": fields,
+            "scientific_identity_match": candidate["scientific_identity_sha256"] == reference["scientific_identity_sha256"],
+            "metadata_only_raw_input_difference": candidate["input_manifest_sha256"] != reference["input_manifest_sha256"] and all(item["match"] for item in scientific_fields),
+            "unknown_field_count": 0}
 
 
 def _require_sha(value: object, name: str) -> str:
@@ -339,7 +447,10 @@ def validate_bootstrap_ready_receipt(*, ready_path: str | Path, receipt_path: st
 
 def validate_reference_for_comparison(*, reference_root: str | Path,
                                       expected_lifecycle_root: str | Path | None,
-                                      input_manifest_path: str | Path) -> dict[str, Any]:
+                                      input_manifest_path: str | Path,
+                                      candidate_preflight_path: str | Path,
+                                      reference_input_manifest_path: str | Path,
+                                      reference_preflight_path: str | Path) -> dict[str, Any]:
     """Fail closed before S5-FINAL comparison accepts a clean-reference path.
 
     The comparison itself remains the frozen exact comparator.  This gate only
@@ -347,7 +458,8 @@ def validate_reference_for_comparison(*, reference_root: str | Path,
     compatible with the candidate contract before a long allocation reaches
     final comparison startup.
     """
-    reference_root, input_path = map(Path, (reference_root, input_manifest_path))
+    reference_root, input_path, candidate_preflight, reference_input, reference_preflight = map(
+        Path, (reference_root, input_manifest_path, candidate_preflight_path, reference_input_manifest_path, reference_preflight_path))
     expected_root = None if expected_lifecycle_root is None else Path(expected_lifecycle_root)
     checks: list[dict[str, Any]] = []
 
@@ -381,6 +493,17 @@ def validate_reference_for_comparison(*, reference_root: str | Path,
     except Exception as error:
         check("input_manifest_parseable", False, error=f"{type(error).__name__}: {error}")
         return {"schema": S5_FINAL_SCHEMA, "status": "FAIL", "checks": checks}
+    try:
+        identity = compare_scientific_input_identities(
+            candidate_input_manifest_path=input_path, candidate_preflight_path=candidate_preflight,
+            reference_input_manifest_path=reference_input, reference_preflight_path=reference_preflight,
+        )
+        check("scientific_input_identity_matches", bool(identity["scientific_identity_match"]),
+              candidate=identity["candidate"]["scientific_identity_sha256"],
+              reference=identity["reference"]["scientific_identity_sha256"])
+    except Exception as error:
+        identity = None
+        check("scientific_input_identity_matches", False, error=f"{type(error).__name__}: {error}")
 
     ref_manifest = reference.manifest
     if expected is not None:
@@ -426,7 +549,7 @@ def validate_reference_for_comparison(*, reference_root: str | Path,
         check(f"optical_{name}_exists", (optical / name).is_file())
     try:
         reference_optical_run = _read(optical / "optical_run.json")
-        expected_input_sha256 = sha256_file(input_path)
+        expected_input_sha256 = sha256_file(reference_input)
         observed_input_sha256 = reference_optical_run.get("input_manifest_sha256")
         check("reference_input_manifest_sha256_matches", observed_input_sha256 == expected_input_sha256,
               reference=observed_input_sha256, expected=expected_input_sha256)
@@ -447,6 +570,8 @@ def validate_reference_for_comparison(*, reference_root: str | Path,
     result = {"schema": S5_FINAL_SCHEMA, "reference_root": str(reference_root.resolve()),
               "expected_lifecycle_root": None if expected_root is None else str(expected_root.resolve()), "input_manifest": str(input_path.resolve()),
               "checks": checks}
+    if identity is not None:
+        result["scientific_identity"] = identity
     result["status"] = "PASS" if all(item["pass"] for item in checks) else "FAIL"
     return result
 
@@ -514,4 +639,4 @@ def run_recovery_optical(*, input_manifest_path: str | Path, out_dir: str | Path
                             bootstrap_receipt_validator=validated_bootstrap_boundary)
 
 
-__all__ = ["S5_FINAL_CASE_ID", "S5_FINAL_SCHEMA", "bootstrap_recovery", "compare_exact", "consume_final_streaming", "finalize_streaming", "freeze_expected_recovery_effects", "run_recovery_optical", "snapshot_interrupted_state", "validate_bootstrap_ready_receipt", "validate_bootstrap_receipt", "validate_reference_for_comparison", "validate_recovery_provenance", "write_bootstrap_ready_receipt", "write_worker_identity"]
+__all__ = ["S5_FINAL_CASE_ID", "S5_FINAL_SCHEMA", "bootstrap_recovery", "compare_exact", "compare_scientific_input_identities", "consume_final_streaming", "finalize_streaming", "freeze_expected_recovery_effects", "run_recovery_optical", "scientific_input_identity", "snapshot_interrupted_state", "validate_bootstrap_ready_receipt", "validate_bootstrap_receipt", "validate_reference_for_comparison", "validate_recovery_provenance", "write_bootstrap_ready_receipt", "write_worker_identity"]

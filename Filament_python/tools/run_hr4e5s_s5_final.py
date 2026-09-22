@@ -59,6 +59,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     validate_ready.add_argument("--stream-root", type=Path, required=True); validate_ready.add_argument("--receipt", type=Path, required=True); validate_ready.add_argument("--ready", type=Path, required=True); validate_ready.add_argument("--runtime-sha", required=True)
     reference = sub.add_parser("validate-reference")
     reference.add_argument("--reference-root", type=Path, required=True); reference.add_argument("--input", type=Path, required=True)
+    reference.add_argument("--candidate-preflight", type=Path, required=True)
+    reference.add_argument("--reference-input", type=Path, required=True); reference.add_argument("--reference-preflight", type=Path, required=True)
     reference.add_argument("--expected-lifecycle", type=Path)
     optical = sub.add_parser("recovery-optical")
     optical.add_argument("--input", type=Path, required=True); optical.add_argument("--stream-root", type=Path, required=True); optical.add_argument("--out-dir", type=Path, required=True); optical.add_argument("--bootstrap-receipt", type=Path, required=True); optical.add_argument("--bootstrap-ready", type=Path, required=True)
@@ -86,7 +88,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif args.command == "validate-reference":
         result = validate_reference_for_comparison(reference_root=args.reference_root,
                                                    expected_lifecycle_root=args.expected_lifecycle,
-                                                   input_manifest_path=args.input)
+                                                   input_manifest_path=args.input, candidate_preflight_path=args.candidate_preflight,
+                                                   reference_input_manifest_path=args.reference_input,
+                                                   reference_preflight_path=args.reference_preflight)
         if result["status"] != "PASS":
             raise ValueError("S5-FINAL clean reference qualification failed")
     elif args.command == "recovery-optical":

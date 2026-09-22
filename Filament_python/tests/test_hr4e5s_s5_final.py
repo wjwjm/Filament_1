@@ -15,6 +15,7 @@ import pytest
 from KHz_filament.hr4e5s_s5_final import (
     S5_FINAL_SCHEMA,
     bootstrap_recovery,
+    compare_scientific_input_identities,
     consume_final_streaming,
     freeze_expected_recovery_effects,
     snapshot_interrupted_state,
@@ -114,23 +115,47 @@ def _write_reference_optical(root: Path, count: int, *, input_manifest_sha256: s
 
 def _reference_input(tmp_path: Path, lifecycle: StreamingLifecycle) -> Path:
     manifest = StreamingLifecycle.open(lifecycle.root).manifest
-    path = tmp_path / f"{lifecycle.root.name}-input.json"
+    path = tmp_path / f"{lifecycle.root.parent.name}-{lifecycle.root.name}-input.json"
     path.write_text(json.dumps({
-        "screen_records": [{key: record[key] for key in ("ordinal", "screen_id", "z_m")} for record in manifest["records"]],
-        "hydro": {"queue_depth": manifest["queue_depth"], "block_size": manifest["block_size"]},
-        "dx_m": manifest["dx_m"], "dy_m": manifest["dy_m"],
-    }), encoding="utf-8")
+        "config": "/immutable/config.json", "config_sha256": "c" * 64, "current_generation": manifest["current_generation"],
+        "dtype": manifest["dtype"], "dx_m": manifest["dx_m"], "dy_m": manifest["dy_m"], "frozen_at_utc": "2026-09-22T00:00:00Z",
+        "hydro": {"block_size": manifest["block_size"], "cfl_limit": 0.5, "chi": 1.0, "dt_hydro": 1.0e-6,
+                  "gravity_x": 0.0, "gravity_y": 0.0, "n0": 1.0, "n_hydro_steps": 1, "nu": 0.0,
+                  "queue_depth": manifest["queue_depth"]},
+        "peak_source_index": 8022, "pulse_source_identity": "frozen-pulse", "schema": "khz_filament.hr4e5s.s5_final_input.v1",
+        "screen_indices": list(range(len(manifest["records"]))),
+        "screen_records": [{"current_delta_n_sha256": f"{record['ordinal']:064x}", "current_velocity_initialization": "zero",
+                            "ordinal": record["ordinal"], "screen_id": record["screen_id"], "source_index": record["ordinal"], "z_m": record["z_m"]} for record in manifest["records"]],
+        "shape": [8, 8], "source_manifest": "/immutable/source-manifest.json", "source_manifest_sha256": "m" * 64,
+        "source_state": "/immutable/source-state.npy", "source_state_array_sha256": "a" * 64,
+        "source_state_file_sha256": "f" * 64, "stage": "S5", "window_selection_rule": "frozen-window",
+    }, sort_keys=True), encoding="utf-8")
     return path
 
 
-def _complete_reference(tmp_path: Path, name: str) -> tuple[StreamingLifecycle, Path]:
+def _reference_preflight(tmp_path: Path, lifecycle: StreamingLifecycle, input_path: Path, *, lut_sha: str = "l" * 64) -> Path:
+    payload = json.loads(input_path.read_text(encoding="utf-8"))
+    path = tmp_path / f"{lifecycle.root.parent.name}-{lifecycle.root.name}-preflight.json"
+    path.write_text(json.dumps({
+        "fault_injection_default": "DISABLED", "git_sha": "a" * 40, "input_manifest": str(input_path),
+        "input_manifest_sha256": s5_final.sha256_file(input_path), "lut_workspace": "/immutable/lut", "lut_workspace_sha256": lut_sha,
+        "resources": {"optical_gpus": 1, "hydro_gpus": 2}, "run_root": "/metadata/run-root", "schema": "preflight.v1",
+        "screen_indices": payload["screen_indices"], "source_config": payload["config"], "source_config_sha256": payload["config_sha256"],
+        "source_manifest": payload["source_manifest"], "source_manifest_sha256": payload["source_manifest_sha256"],
+        "source_state": payload["source_state"], "source_state_array_sha256": payload["source_state_array_sha256"],
+        "source_state_file_sha256": payload["source_state_file_sha256"], "status": "PASS",
+    }, sort_keys=True), encoding="utf-8")
+    return path
+
+
+def _complete_reference(tmp_path: Path, name: str) -> tuple[StreamingLifecycle, Path, Path]:
     case_root = tmp_path / name
     lifecycle = _lifecycle(case_root, "lifecycle")
     _prepare_posts(lifecycle)
     _finish(lifecycle)
     input_path = _reference_input(tmp_path, lifecycle)
     _write_reference_optical(case_root, 16, input_manifest_sha256=s5_final.sha256_file(input_path))
-    return lifecycle, input_path
+    return lifecycle, input_path, _reference_preflight(tmp_path, lifecycle, input_path)
 
 
 def test_s5_final_freezes_two_claims_before_single_bootstrap_and_checks_retry_history(tmp_path):
@@ -214,27 +239,29 @@ def test_s5_final_recovery_consumer_cannot_claim_without_valid_bootstrap_ready(t
 
 
 def test_s5_final_reference_qualification_fails_when_manifest_is_missing(tmp_path):
-    expected, input_path = _complete_reference(tmp_path, "expected")
+    expected, input_path, preflight_path = _complete_reference(tmp_path, "expected")
     result = validate_reference_for_comparison(reference_root=tmp_path / "missing", expected_lifecycle_root=expected.root,
-                                               input_manifest_path=input_path)
+                                               input_manifest_path=input_path, candidate_preflight_path=preflight_path,
+                                               reference_input_manifest_path=input_path, reference_preflight_path=preflight_path)
     assert result["status"] == "FAIL"
     assert next(item for item in result["checks"] if item["name"] == "streaming_manifest_exists")["pass"] is False
 
 
 def test_s5_final_reference_qualification_fails_when_manifest_is_corrupt(tmp_path):
-    expected, input_path = _complete_reference(tmp_path, "expected")
+    expected, input_path, preflight_path = _complete_reference(tmp_path, "expected")
     reference = tmp_path / "corrupt" / "lifecycle"
     reference.mkdir(parents=True)
     (reference / "streaming_manifest.json").write_text("not-json", encoding="utf-8")
     result = validate_reference_for_comparison(reference_root=reference.parent, expected_lifecycle_root=expected.root,
-                                               input_manifest_path=input_path)
+                                               input_manifest_path=input_path, candidate_preflight_path=preflight_path,
+                                               reference_input_manifest_path=input_path, reference_preflight_path=preflight_path)
     assert result["status"] == "FAIL"
     assert next(item for item in result["checks"] if item["name"] == "streaming_manifest_json_parseable")["pass"] is False
 
 
 def test_s5_final_reference_qualification_fails_when_authoritative_field_is_missing(tmp_path):
-    expected, input_path = _complete_reference(tmp_path, "expected")
-    reference, _ = _complete_reference(tmp_path, "complete")
+    expected, input_path, preflight_path = _complete_reference(tmp_path, "expected")
+    reference, reference_input, reference_preflight = _complete_reference(tmp_path, "complete")
     broken = tmp_path / "broken"
     shutil.copytree(reference.root.parent, broken)
     manifest_path = broken / "lifecycle" / "streaming_manifest.json"
@@ -242,42 +269,103 @@ def test_s5_final_reference_qualification_fails_when_authoritative_field_is_miss
     manifest["records"][0]["post"] = None
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     result = validate_reference_for_comparison(reference_root=broken, expected_lifecycle_root=expected.root,
-                                               input_manifest_path=input_path)
+                                               input_manifest_path=input_path, candidate_preflight_path=preflight_path,
+                                               reference_input_manifest_path=reference_input, reference_preflight_path=reference_preflight)
     assert result["status"] == "FAIL"
     assert any(not item["pass"] for item in result["checks"])
 
 
 def test_s5_final_reference_qualification_fails_when_identity_differs(tmp_path):
-    expected, input_path = _complete_reference(tmp_path, "expected")
-    reference, _ = _complete_reference(tmp_path, "reference")
-    input_payload = json.loads(input_path.read_text(encoding="utf-8"))
+    expected, input_path, preflight_path = _complete_reference(tmp_path, "expected")
+    reference, reference_input, reference_preflight = _complete_reference(tmp_path, "reference")
+    input_payload = json.loads(reference_input.read_text(encoding="utf-8"))
     input_payload["dx_m"] = 2.0e-4
-    input_path.write_text(json.dumps(input_payload), encoding="utf-8")
+    reference_input.write_text(json.dumps(input_payload), encoding="utf-8")
+    reference_preflight = _reference_preflight(tmp_path, reference, reference_input)
     result = validate_reference_for_comparison(reference_root=reference.root.parent, expected_lifecycle_root=expected.root,
-                                               input_manifest_path=input_path)
+                                               input_manifest_path=input_path, candidate_preflight_path=preflight_path,
+                                               reference_input_manifest_path=reference_input, reference_preflight_path=reference_preflight)
     assert result["status"] == "FAIL"
-    assert next(item for item in result["checks"] if item["name"] == "input_dx_matches")["pass"] is False
+    assert next(item for item in result["checks"] if item["name"] == "scientific_input_identity_matches")["pass"] is False
 
 
 def test_s5_final_reference_qualification_fails_when_optical_input_hash_differs(tmp_path):
-    expected, input_path = _complete_reference(tmp_path, "expected")
-    reference, _ = _complete_reference(tmp_path, "reference")
+    expected, input_path, preflight_path = _complete_reference(tmp_path, "expected")
+    reference, reference_input, reference_preflight = _complete_reference(tmp_path, "reference")
     optical_run_path = reference.root.parent / "optical" / "optical_run.json"
     optical_run = json.loads(optical_run_path.read_text(encoding="utf-8"))
     optical_run["input_manifest_sha256"] = "0" * 64
     optical_run_path.write_text(json.dumps(optical_run), encoding="utf-8")
     result = validate_reference_for_comparison(reference_root=reference.root.parent, expected_lifecycle_root=expected.root,
-                                               input_manifest_path=input_path)
+                                               input_manifest_path=input_path, candidate_preflight_path=preflight_path,
+                                               reference_input_manifest_path=reference_input, reference_preflight_path=reference_preflight)
     assert result["status"] == "FAIL"
     assert next(item for item in result["checks"] if item["name"] == "reference_input_manifest_sha256_matches")["pass"] is False
 
 
 def test_s5_final_reference_qualification_accepts_complete_matching_reference(tmp_path):
-    expected, input_path = _complete_reference(tmp_path, "expected")
-    reference, _ = _complete_reference(tmp_path, "reference")
+    expected, input_path, preflight_path = _complete_reference(tmp_path, "expected")
+    reference, reference_input, reference_preflight = _complete_reference(tmp_path, "reference")
     result = validate_reference_for_comparison(reference_root=reference.root.parent, expected_lifecycle_root=expected.root,
-                                               input_manifest_path=input_path)
+                                               input_manifest_path=input_path, candidate_preflight_path=preflight_path,
+                                               reference_input_manifest_path=reference_input, reference_preflight_path=reference_preflight)
     assert result["status"] == "PASS", [item for item in result["checks"] if not item["pass"]]
+
+
+def test_s5_final_scientific_identity_ignores_only_packaging_metadata(tmp_path):
+    candidate, candidate_input, candidate_preflight = _complete_reference(tmp_path, "candidate")
+    reference, reference_input, reference_preflight = _complete_reference(tmp_path, "reference")
+    source = json.loads(reference_input.read_text(encoding="utf-8"))
+    source["frozen_at_utc"] = "2030-01-01T00:00:00Z"
+    source["config"] = "/relocated/config.json"
+    reference_input.write_text(json.dumps(source, sort_keys=True), encoding="utf-8")
+    gate = json.loads(reference_preflight.read_text(encoding="utf-8"))
+    gate.update({"git_sha": "b" * 40, "input_manifest": "/relocated/input.json", "lut_workspace": "/relocated/lut",
+                 "run_root": "/relocated/run", "resources": {"optical_gpus": 9, "hydro_gpus": 9},
+                 "input_manifest_sha256": s5_final.sha256_file(reference_input)})
+    reference_preflight.write_text(json.dumps(gate, sort_keys=True), encoding="utf-8")
+    result = compare_scientific_input_identities(candidate_input_manifest_path=candidate_input,
+                                                 candidate_preflight_path=candidate_preflight,
+                                                 reference_input_manifest_path=reference_input,
+                                                 reference_preflight_path=reference_preflight)
+    assert result["scientific_identity_match"] is True
+    assert result["metadata_only_raw_input_difference"] is True
+    assert candidate.root != reference.root
+
+
+def test_s5_final_scientific_identity_rejects_lut_or_authoritative_input_difference(tmp_path):
+    _candidate, candidate_input, candidate_preflight = _complete_reference(tmp_path, "candidate")
+    reference, reference_input, reference_preflight = _complete_reference(tmp_path, "reference")
+    gate = json.loads(reference_preflight.read_text(encoding="utf-8")); gate["lut_workspace_sha256"] = "z" * 64
+    reference_preflight.write_text(json.dumps(gate, sort_keys=True), encoding="utf-8")
+    result = compare_scientific_input_identities(candidate_input_manifest_path=candidate_input,
+                                                 candidate_preflight_path=candidate_preflight,
+                                                 reference_input_manifest_path=reference_input,
+                                                 reference_preflight_path=reference_preflight)
+    assert result["scientific_identity_match"] is False
+    assert next(item for item in result["fields"] if item["field"] == "lut_workspace_sha256")["match"] is False
+    source = json.loads(reference_input.read_text(encoding="utf-8")); source["screen_records"][0]["current_delta_n_sha256"] = "d" * 64
+    reference_input.write_text(json.dumps(source, sort_keys=True), encoding="utf-8")
+    _reference_preflight(tmp_path, reference, reference_input, lut_sha="z" * 64)
+    result = compare_scientific_input_identities(candidate_input_manifest_path=candidate_input,
+                                                 candidate_preflight_path=candidate_preflight,
+                                                 reference_input_manifest_path=reference_input,
+                                                 reference_preflight_path=reference_preflight)
+    assert result["scientific_identity_match"] is False
+    assert next(item for item in result["fields"] if item["field"] == "screen_records[0].current_delta_n_sha256")["match"] is False
+
+
+def test_s5_final_reference_qualification_fails_when_lifecycle_json_cannot_open(tmp_path):
+    expected, input_path, preflight_path = _complete_reference(tmp_path, "expected")
+    reference, reference_input, reference_preflight = _complete_reference(tmp_path, "reference")
+    manifest_path = reference.root / "streaming_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")); manifest.pop("records")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    result = validate_reference_for_comparison(reference_root=reference.root.parent, expected_lifecycle_root=expected.root,
+                                               input_manifest_path=input_path, candidate_preflight_path=preflight_path,
+                                               reference_input_manifest_path=reference_input, reference_preflight_path=reference_preflight)
+    assert result["status"] == "FAIL"
+    assert next(item for item in result["checks"] if item["name"] == "streaming_lifecycle_open")["pass"] is False
 
 
 def test_s5_final_live_queue_recovery_rejects_claim_before_ready_without_side_effects(tmp_path):
@@ -614,8 +702,8 @@ def test_s5_final_submission_and_batch_entry_qualify_clean_reference_before_work
     root = Path(__file__).resolve().parents[1]
     submit = (root / "tools" / "hpc_ops" / "submit_hr4e5s_s5_final.sh").read_text(encoding="utf-8")
     batch = (root / "tools" / "hr4e5s_s5_final_single_allocation.sbatch").read_text(encoding="utf-8")
-    gate = 'validate-reference --reference-root "$REFERENCE_CASE_ROOT" --input "$INPUT_MANIFEST"'
-    assert 'validate-reference --reference-root "$REFERENCE_CASE_ROOT" --input "$RUN_ROOT/s5_final_input_manifest.json"' in submit
+    gate = 'validate-reference --reference-root "$REFERENCE_CASE_ROOT" --input "$INPUT_MANIFEST" --candidate-preflight "$RUN_ROOT/s5_final_preflight.json" --reference-input "$REFERENCE_INPUT_MANIFEST" --reference-preflight "$REFERENCE_PREFLIGHT"'
+    assert 'validate-reference --reference-root "$REFERENCE_CASE_ROOT" --input "$RUN_ROOT/s5_final_input_manifest.json" --candidate-preflight "$PREFLIGHT" --reference-input "$REFERENCE_INPUT_MANIFEST" --reference-preflight "$REFERENCE_PREFLIGHT"' in submit
     assert gate in batch
     assert batch.index(gate) < batch.index('launch_worker optical_producer initial')
 
