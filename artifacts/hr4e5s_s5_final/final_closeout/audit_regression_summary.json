@@ -1,0 +1,22 @@
+{
+  "schema": "khz_filament.hr4e5s.s5_final.audit_regression_summary.v1",
+  "status": "PASS",
+  "new_audit_regressions": {
+    "api_existence_and_old_error": "PASS",
+    "array_vs_raw_npy_hash": "PASS",
+    "final_optical_valid_digest": "PASS",
+    "final_optical_element_tamper": "PASS",
+    "terminal_48_screen_lifecycle": "PASS",
+    "missing_required_artifact_fail_closed": "PASS_8_CASES",
+    "exact_summary_ingest": "PASS"
+  },
+  "backend_probe": "PASS",
+  "sanity": "PASS_1_TEST",
+  "s5_final_targeted": "PASS_53_TESTS_334_DESELECTED",
+  "compileall": "PASS",
+  "py_compile": "PASS",
+  "bash_n": "PASS",
+  "batch_entry_audit": "PASS",
+  "local_existing_clean_audit": "PASS",
+  "gpu_rerun_performed": false
+}

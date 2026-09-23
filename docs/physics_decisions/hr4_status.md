@@ -1,6 +1,27 @@
 # HR-4 status: isobaric transverse slow flow
 
-## 2026-09-16：当前阶段状态（E5-0 人工收口）
+## 2026-09-23：S5 科学收口后的当前状态
+
+```text
+HR-4E                       ACTIVE / NOT CLOSED
+  E1–E4                     CLOSED
+  E5-P                      CLOSED
+  E5-S S1–S4R               CLOSED
+  E5-S S5                   CLOSED / RESTART_RECOVERY_EXACT_PASS
+  formal E5                 READY_FOR_DESIGN / NOT_STARTED
+HR-5                        NOT STARTED
+HR-4F                       NOT STARTED
+```
+
+S5 科学资格为 `PASS / RESTART_RECOVERY_EXACT_QUALIFIED`：`249485` 真实
+worker-loss 与 fresh-process recovery、`252545` clean 科学产物、补充审计 34/34、
+传输/复核 178/178 与 339/339、strict exact 432/432 且 `mismatch_count=0`。
+历史作业 `252545` 仍为 `FAILED / 1:0`（post-run audit script defect），
+记录为 `AUTOMATION_CLOSEOUT_WARNING_RETAINED`，不改写 Slurm 终态。
+[S5 最终收口](S5_FINAL_CLOSEOUT.md)与[证据索引](S5_EVIDENCE_INDEX.json)记录分层结论。
+formal E5 未启动；其设计、输入绑定、资源与存储准入仍需独立办理。
+
+## 2026-09-16：历史阶段状态（E5-0 人工收口时）
 
 ```text
 HR-4E                       ACTIVE / NOT CLOSED

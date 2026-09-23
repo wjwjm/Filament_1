@@ -1,0 +1,45 @@
+{
+  "artifact_inventory": "PASS",
+  "authoritative_namespace": "NEXT",
+  "barrier": "PASS",
+  "completed_screens": 48,
+  "deposition_archives": [
+    "s3_optical.hr3a_qib_samples.npy",
+    "s3_optical.hr3a_qion_samples.npy",
+    "s3_optical.hr3a_qraman_samples.npy",
+    "s3_optical.hr3a_qthermal_samples.npy",
+    "s3_optical.hr3b_delta_n_increment_samples.npy",
+    "s3_optical.hr3b_delta_n_state_after_update_samples.npy"
+  ],
+  "expected_screen_count": 48,
+  "fault_injection": "OFF",
+  "final_optical": {
+    "canonical_array_sha256": "d9b0b46633bffe32be0833f9183fbff7cf62120179c4da1149c14b8aaca55d52",
+    "dtype": "complex128",
+    "raw_npy_sha256": "8a1c247f684b7a5d856c17786d81c6080bc973e4b51d6b10e6965345dbc6fe1a",
+    "shape": [
+      384,
+      351,
+      301
+    ]
+  },
+  "ledger_fields": [
+    "E_dep_ib_interval_J",
+    "E_dep_ion_interval_J",
+    "E_dep_plasma_interval_J",
+    "E_dep_raman_interval_J",
+    "E_thermal_interval_J",
+    "delta_n_increment_min",
+    "delta_n_increment_onaxis",
+    "delta_n_state_min_after_update",
+    "delta_n_state_onaxis_after_update"
+  ],
+  "lifecycle_open": "PASS",
+  "manifest_sha256": "60ee5876f8f3a544ad980ddd45d7105da0b0a5bab90e11c566de33a8b573736f",
+  "promotion": "PASS",
+  "queue_depth": 0,
+  "recovery_backlog_depth": 0,
+  "schema": "khz_filament.hr4e5s.s5_final.clean_terminal_audit.v2",
+  "status": "PASS",
+  "validated_artifacts": 144
+}

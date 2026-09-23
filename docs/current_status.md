@@ -1,6 +1,29 @@
 # 当前项目状态 (Round 1 Restructuring)
 
-## 2026-09-16：当前阶段状态（E5-0 人工收口）
+## 2026-09-23：S5 科学收口与 formal E5 入口
+
+```text
+HR-4E                       ACTIVE / NOT CLOSED
+  E1–E4                     CLOSED
+  E5-P                      CLOSED
+  E5-S S1–S4R               CLOSED
+  E5-S S5                   CLOSED / RESTART_RECOVERY_EXACT_PASS
+  formal E5                 READY_FOR_DESIGN / NOT_STARTED
+HR-5                        NOT STARTED
+HR-4F                       NOT STARTED
+```
+
+S5 scientific qualification = `PASS / RESTART_RECOVERY_EXACT_QUALIFIED`：
+`249485` 真实 worker-loss 与 fresh-process recovery，`252545` 的 clean 科学产物，
+strict exact 432/432、`mismatch_count=0`，final optical、9 项 ledger、lifecycle、
+ownership、barrier、promotion 和 recovery provenance 全部通过。
+`252545` 的历史 Slurm 终态仍为 `FAILED / 1:0`，保留
+`AUTOMATION_CLOSEOUT_WARNING_RETAINED`；本地 post-run audit 修复不能追溯改写终态。
+没有 GPU 重跑，也没有启动 formal E5。见 [S5 最终收口](physics_decisions/S5_FINAL_CLOSEOUT.md)、
+[证据索引](physics_decisions/S5_EVIDENCE_INDEX.json)及
+[formal E5 入口状态](physics_decisions/hr4e5/FORMAL_E5_ENTRY_STATE.md)。
+
+## 2026-09-16：历史阶段状态（E5-0 人工收口时）
 
 ```text
 HR-4E                       ACTIVE / NOT CLOSED
