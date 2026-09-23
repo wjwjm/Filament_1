@@ -333,6 +333,10 @@ For these cases, stop and return the relevant code/data provenance, numerical ev
 - [`docs/experience/2026-08-24_hybrid_execution_postmortem.md`](docs/experience/2026-08-24_hybrid_execution_postmortem.md)
 - [`docs/experience/2026-08-24_hybrid_0p60_result_archive.md`](docs/experience/2026-08-24_hybrid_0p60_result_archive.md)
 
+处理 HR-4E-5S S5-FINAL launcher、recovery、终审或 formal E5 执行前门时，按需查阅
+[`docs/physics_decisions/S5_ENGINEERING_PREFLIGHT_CHECKLIST.md`](docs/physics_decisions/S5_ENGINEERING_PREFLIGHT_CHECKLIST.md)；
+其中的 S5 专用参数与生命周期合同不推广到其他 HPC 作业。
+
 强制规则：
 
 - Sol 保留科学决策、基线接受、commit/push、HPC staging、Slurm 提交和最终验收；Luna 必须按 `task_boundary`、`evidence`、`files_changed`、`commands_and_exit_codes`、`tests`、`unverified`、`parent_decisions` 返回。

@@ -804,3 +804,124 @@ def test_s5_final_single_allocation_phase0_precedes_cuda_and_science_start():
     assert batch.index('bash "$PHASE0_LAUNCHER"') < batch.index(cuda_enable) < batch.index(initialize)
     assert "READY_FOR_S5_FINAL_DEFECT_REVIEW" in phase0
     assert "slurm_step_gpus" in phase0 and "slurm_step_gres" in phase0
+
+
+def test_s5_final_clean_launcher_exports_runner_to_real_child_shells(tmp_path: Path):
+    """Exercise the external clean launcher function across the srun/Bash boundary."""
+    if shutil.which("wsl.exe") is None:
+        pytest.skip("Windows WSL Bash is required for the clean launcher regression")
+
+    def wsl_path(path: Path) -> str:
+        resolved = path.resolve()
+        drive = resolved.drive.rstrip(":").lower()
+        assert drive and resolved.is_absolute()
+        return "/mnt/" + drive + "/" + "/".join(resolved.parts[1:])
+
+    batch = Path(__file__).resolve().parents[2] / "artifacts/hr4e5s_s5_final/same_runtime_clean_closeout/hr4e5s_s5_final_clean.sbatch"
+    content = batch.read_text(encoding="utf-8")
+    export_line = "export FINAL_RUNNER S3_RUNNER"
+    assert export_line in content
+    assert content.index("readonly FINAL_RUNNER=") < content.index(export_line) < content.index("launch_worker() {")
+
+    script = tmp_path / "clean_launcher_child_shell_test.sh"
+    script.write_text(
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+work={wsl_path(tmp_path)!r}
+batch={wsl_path(batch)!r}
+mkdir -p "$work/mock"
+cat >"$work/mock/srun" <<'SRUN'
+#!/usr/bin/env bash
+set -euo pipefail
+while (($#)); do
+  case "$1" in
+    --exclusive|--ntasks=*|--gpus-per-task=*|--cpus-per-task=*) shift ;;
+    *) break ;;
+  esac
+done
+export SLURM_STEP_ID=1 SLURMD_NODENAME=mock-node
+exec "$@"
+SRUN
+cat >"$work/mock/python" <<'RUNNER'
+#!/usr/bin/env bash
+set -euo pipefail
+case "$2" in
+  write-identity)
+    test "$1" = "$FINAL_RUNNER"
+    shift 2
+    while (($#)); do
+      case "$1" in --out) out="$2"; shift 2 ;; *) shift ;; esac
+    done
+    printf '%s\\n' "$HR4E5S_WORKER_ID" >"$out"
+    ;;
+  mock-work)
+    printf '%s\\n' "$HR4E5S_WORKER_ID" >"$3"
+    ;;
+  *) exit 91 ;;
+esac
+RUNNER
+chmod 700 "$work/mock/srun" "$work/mock/python"
+export PATH="$work/mock:$PATH" PYTHON="$work/mock/python" SLURM_JOB_ID=700
+SLURM_CPUS_PER_TASK=8
+readonly FINAL_RUNNER="$work/final_runner.py"
+readonly S3_RUNNER="$work/s3_runner.py"
+source <(sed -n '/^export FINAL_RUNNER S3_RUNNER$/p' "$batch")
+source <(sed -n '/^launch_worker() {{/,/^}}/p' "$batch")
+children=()
+for actor in optical_producer hydro_consumer_0 hydro_consumer_1; do
+  runner="$FINAL_RUNNER"
+  if [[ "$actor" = optical_producer ]]; then runner="$S3_RUNNER"; fi
+  launch_worker "$actor" "$work/$actor.identity" "$work/$actor.out" "$work/$actor.err" \\
+    "$PYTHON" "$runner" mock-work "$work/$actor.done"
+done
+for child in "${{children[@]}}"; do wait "$child"; done
+for actor in optical_producer hydro_consumer_0 hydro_consumer_1; do
+  test "$(cat "$work/$actor.identity")" = "$actor"
+  test "$(cat "$work/$actor.done")" = "$actor"
+  test ! -s "$work/$actor.err"
+done
+
+# The pre-fix semantics fail deterministically when the child does not inherit FINAL_RUNNER.
+export -n FINAL_RUNNER
+launch_worker missing_export "$work/bad.identity" "$work/bad.out" "$work/bad.err" \\
+  "$PYTHON" "$FINAL_RUNNER" mock-work "$work/bad.done"
+set +e
+wait "${{children[-1]}}"
+bad_status=$?
+set -e
+test "$bad_status" -ne 0
+test ! -e "$work/bad.identity"
+test ! -e "$work/bad.done"
+grep -F 'FINAL_RUNNER: unbound variable' "$work/bad.err"
+""",
+        encoding="utf-8",
+        newline="\n",
+    )
+    result = subprocess.run(["wsl.exe", "--", "bash", wsl_path(script)], text=True, capture_output=True, timeout=90, check=False)
+    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+
+
+def test_s5_final_clean_launcher_uses_real_identity_cli_contract(tmp_path: Path):
+    root = Path(__file__).resolve().parents[2]
+    batch = (root / "artifacts/hr4e5s_s5_final/same_runtime_clean_closeout/hr4e5s_s5_final_clean.sbatch").read_text(encoding="utf-8")
+    assert "--phase clean" in batch
+    assert "--execution-epoch clean" not in batch
+
+    runner = root / "Filament_python/tools/run_hr4e5s_s5_final.py"
+    receipt = tmp_path / "clean_worker_identity.json"
+    command = [sys.executable, "-s", "-B", str(runner), "write-identity",
+               "--out", str(receipt), "--actor", "optical_producer", "--pid", str(os.getpid()),
+               "--step-id", "1", "--job-id", "700", "--node", "mock-node", "--phase", "clean"]
+    result = subprocess.run(command, text=True, capture_output=True, timeout=30, check=False)
+    assert result.returncode == 0, result.stderr
+    identity = json.loads(receipt.read_text(encoding="utf-8"))
+    assert identity["phase"] == "clean" and identity["actor"] == "optical_producer"
+    assert "execution_epoch" not in identity
+
+    rejected = tmp_path / "rejected_identity.json"
+    invalid_command = command.copy()
+    invalid_command[invalid_command.index(str(receipt))] = str(rejected)
+    invalid_command.extend(["--execution-epoch", "clean"])
+    negative = subprocess.run(invalid_command, text=True, capture_output=True, timeout=30, check=False)
+    assert negative.returncode != 0 and "S5-FINAL execution epoch is invalid" in negative.stderr
+    assert not rejected.exists()
