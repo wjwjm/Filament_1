@@ -477,6 +477,30 @@ class PairedCampaign:
             raise IndexError("pair pulse index is outside campaign")
         return self.state["pairs"][index]
 
+    @_serialized_transition
+    def bind_scientific_pair_identity(self, pulse_index: int, identity: Mapping[str, Any],
+                                      *, epoch: str | int) -> dict[str, Any]:
+        """Freeze one logical pair identity independently of execution epoch."""
+        self._active_coordinator_epoch(epoch)
+        pair = self._pair(pulse_index)
+        wanted = dict(identity)
+        if (not wanted.get("scientific_pair_id") or wanted.get("campaign_id") != self.campaign_id
+                or int(wanted.get("pulse", -1)) != int(pulse_index)
+                or wanted.get("admission_identity_sha256") != self.state.get("admission_hash")):
+            raise StorageIntegrityError("scientific pair identity scope is invalid")
+        prior = pair.get("scientific_pair_identity")
+        if prior is not None:
+            if not isinstance(prior, Mapping) or dict(prior) != wanted:
+                raise StorageIntegrityError("scientific pair identity changed on restart")
+            return dict(prior)
+        pair["scientific_pair_identity"] = wanted
+        pair.setdefault("events", []).append({
+            "event": "SCIENTIFIC_PAIR_IDENTITY_BOUND", "pulse_index": int(pulse_index),
+            "scientific_pair_id": wanted["scientific_pair_id"], "timestamp_utc": _utc(),
+        })
+        self._persist()
+        return wanted
+
     @property
     def next_pair_index(self) -> int:
         return int(self.state["next_pair_index"])
@@ -1177,6 +1201,13 @@ class FormalPairedDriver:
 
     def _run_concurrent_rc(self, pulse: int) -> tuple[dict[str, Any], dict[str, Any]]:
         """Execute R and C science concurrently under one coordinator epoch."""
+        if not self.fixture_only:
+            identity_builder = getattr(self.runner, "scientific_pair_identity", None)
+            if not callable(identity_builder):
+                raise StorageIntegrityError("production runner lacks scientific pair identity")
+            self.campaign.bind_scientific_pair_identity(
+                pulse, identity_builder(pulse), epoch=self.campaign.active_coordinator_epoch(),
+            )
         saved_reference = self._saved_receipt(pulse, "reference")
         saved_candidate = self._saved_receipt(pulse, "candidate")
         if saved_reference is not None and saved_candidate is not None:

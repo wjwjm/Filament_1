@@ -43,6 +43,9 @@ from .runner import apply_thin_lens_achromatic, build_transverse_input_field
 from .constants import c0
 from .device import to_cpu, xp
 from .hr4e5s_streaming import FIELDS, StreamingLifecycle
+from .hr4e5_recovery_identity import (build_scientific_pair_identity,
+                                      capture_implementation_identity,
+                                      require_same_implementation)
 from .hr4e_timestep import sha256_array_streaming
 
 
@@ -458,9 +461,10 @@ class _E5AProductionRunner:
     """Concrete runner; no callbacks or alternate test implementation exist."""
 
     def __init__(self, spec: E5AProductionSpec, identity: Mapping[str, Any], schedule: Any,
-                 components: tuple[Any, ...]):
+                 components: tuple[Any, ...], implementation_identity: Mapping[str, Any]):
         self.spec, self.root = spec, _checked_campaign_root(spec.root)
         self.identity, self.schedule, self.components = dict(identity), schedule, components
+        self.implementation_identity = dict(implementation_identity)
         self.driver = None
 
     @property
@@ -480,6 +484,15 @@ class _E5AProductionRunner:
 
     def _track(self, side: str, pulse: int) -> Path:
         return self.root / side / f"p{int(pulse)}"
+
+    def scientific_pair_identity(self, pulse: int) -> dict[str, Any]:
+        reference = StreamingLifecycle.open(self._track("R", pulse) / "state")
+        candidate = StreamingLifecycle.open(self._track("C", pulse) / "state")
+        return build_scientific_pair_identity(
+            admission_identity=self.identity, pulse=int(pulse),
+            reference_generation=str(reference.manifest["current_generation"]),
+            candidate_generation=str(candidate.manifest["current_generation"]),
+        )
 
     def _hydro(self) -> dict[str, Any]:
         grid, beam, prop, ion, heat, run, raman = self.components
@@ -1500,7 +1513,16 @@ def open_e5_1a_production_campaign(spec: E5AProductionSpec) -> E5AProductionCamp
     root = _checked_campaign_root(spec.root); root.mkdir(parents=True, exist_ok=True)
     reopening = (root / CAMPAIGN_STATE_FILENAME).is_file()
     persist_admission_identity(root / "E5_1A_ADMISSION_IDENTITY.json", identity)
-    runner = _E5AProductionRunner(spec, identity, schedule, components)
+    current_implementation = capture_implementation_identity()
+    implementation_path = root / "E5_1B_IMPLEMENTATION_IDENTITY.json"
+    if implementation_path.is_file():
+        persisted_implementation = json.loads(implementation_path.read_text(encoding="utf-8"))
+        require_same_implementation(persisted_implementation, current_implementation)
+    elif reopening:
+        raise StorageIntegrityError("reopened WP2 campaign lacks implementation identity")
+    else:
+        atomic_json(implementation_path, current_implementation, overwrite=False)
+    runner = _E5AProductionRunner(spec, identity, schedule, components, current_implementation)
     driver = _open_production_driver(
         root, admission_identity=identity, runner=runner, n_pulses=int(spec.n_pulses),
         campaign_id=str(spec.campaign_id), max_campaign_live_bytes=int(spec.max_campaign_live_bytes),
