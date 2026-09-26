@@ -154,6 +154,24 @@ def sha256_array(value: Any) -> str:
     return digest.hexdigest()
 
 
+def sha256_array_streaming(value: Any, *, chunk_bytes: int = 8 * 1024**2) -> str:
+    """Use the same canonical array identity without copying a large mmap."""
+    array = np.asarray(to_cpu(value))
+    if not array.flags.c_contiguous:
+        raise ValueError("streaming array hash requires C-contiguous input")
+    if chunk_bytes <= 0:
+        raise ValueError("chunk_bytes must be positive")
+    digest = hashlib.sha256()
+    digest.update(str(array.dtype).encode("ascii"))
+    digest.update(b"\0")
+    digest.update(_canonical_json(list(array.shape)).encode("ascii"))
+    digest.update(b"\0")
+    data = memoryview(array).cast("B")
+    for start in range(0, len(data), chunk_bytes):
+        digest.update(data[start:start + chunk_bytes])
+    return digest.hexdigest()
+
+
 def repository_git_sha(repo_root: str | Path | None = None) -> str | None:
     """Return the current Git SHA when available; otherwise return ``None``."""
     root = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[2]

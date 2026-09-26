@@ -28,6 +28,7 @@ from .device import to_cpu, xp
 from .hr4e5_evidence import (atomic_json, compare_arrays_exact, compare_object_sets,
     lineage_binding, sha256_array, sha256_file, validate_paired_exact_report,
     validate_ready_receipt, write_exact_report, _safe_child_path)
+from .hr4e_timestep import sha256_array_streaming
 from .hr4e5s_streaming import FIELDS, StreamingLifecycle, StreamingLifecycleError, _content_hash, make_post_commit_hook
 from .longitudinal import DepositionContract, LongitudinalSchedule, build_deposition_contract
 from .propagate import propagate_one_pulse
@@ -507,6 +508,10 @@ def create_pre0_root(
                                   role=role, trajectory=trajectory, pulse=pulse, attempt=attempt,
                                   generation=str(current_generation))
     fields = pre0_fields_from_delta_n(delta_n, expected_count=schedule.n_intervals)
+    if identity is not None and isinstance(identity.get("pre0_identity"), Mapping):
+        declared = identity["pre0_identity"].get("canonical_array_hash")
+        if declared is not None and sha256_array_streaming(fields["delta_n"]) != str(declared):
+            raise ValueError("PRE0 delta_n content differs from admission identity")
     if identity is not None and isinstance(grid_identity, Mapping):
         declared_shape = grid_identity.get("shape")
         if declared_shape is not None and list(declared_shape) != list(fields["delta_n"].shape[-2:]):
@@ -522,6 +527,7 @@ def create_pre0_root(
             "entry": "PRE0", "current_generation": str(current_generation),
             "current_content_sha256": lifecycle.manifest["current_content_sha256"],
             "schedule": schedule.as_metadata(), "source_identity": dict(source_identity or (identity or {}).get("source_identity", {})),
+            "slow_source_identity": dict((identity or {}).get("pre0_identity", {}).get("slow_source_identity", {})),
             "admission_identity_sha256": None if identity is None else identity["identity_sha256"],
             "creation_intent_id": None if intent is None else intent.get("intent_id"),
             "creation_intent_generation": None if intent is None else intent.get("generation"),
@@ -689,6 +695,7 @@ def create_successor_root(
             "creation_intent_id": None if intent is None else intent.get("intent_id"),
             "creation_intent_generation": None if intent is None else intent.get("generation", child_generation),
             "source_identity": identity.get("source_identity", {}),
+            "slow_source_identity": identity.get("pre0_identity", {}).get("slow_source_identity", {}),
             "scope": "TEST_FIXTURE_ONLY" if fixture_only else "FORMAL",
         })
     atomic_json(child_root_path / "E5_1A_READY.json", receipt, overwrite=False)
@@ -831,10 +838,17 @@ def _validate_optical_admission(
         declared_source = identity.get("source_identity")
         if isinstance(declared_source, Mapping) and metadata.get("source_identity") not in (None, dict(declared_source)):
             raise ValueError("optical root source identity differs from admission")
+        declared_slow = identity.get("pre0_identity", {}).get("slow_source_identity", {})
+        if declared_slow and metadata.get("slow_source_identity") != declared_slow:
+            raise ValueError("optical root slow source identity differs from admission")
     declared_schedule = identity.get("schedule_identity", {})
     if isinstance(declared_schedule, Mapping) and declared_schedule.get("k") is not None:
         if int(declared_schedule["k"]) != int(schedule.n_intervals):
             raise ValueError("optical schedule identity differs from admission")
+        if (declared_schedule.get("metadata") is not None and
+                json.loads(json.dumps(declared_schedule["metadata"])) !=
+                json.loads(json.dumps(schedule.as_metadata()))):
+            raise ValueError("optical prefix schedule differs from admission")
     if config_path is not None:
         config_identity = identity.get("config_identity")
         _validate_declared_file_identity(config_identity, label="config")
@@ -843,6 +857,18 @@ def _validate_optical_admission(
                 raise ValueError("optical config path differs from admission")
     _validate_declared_file_identity(identity.get("source_identity"), label="source")
     _validate_declared_file_identity(identity.get("lut_identity"), label="LUT")
+    _validate_declared_file_identity(identity.get("pre0_identity"), label="PRE0")
+    full_config = identity.get("config_identity", {}).get("full_source_config")
+    _validate_declared_file_identity(full_config, label="full config")
+
+
+def optical_write_forecast(*, k: int, ny: int, nx: int, nt: int,
+                           final: bool) -> int:
+    """One reservation forecast shared by the production caller and optical writer."""
+    screen_bytes = int(ny) * int(nx) * 8
+    optical_bytes = int(nt) * int(ny) * int(nx) * 16
+    return ((9 if final else 12) * int(k) * screen_bytes + optical_bytes
+            + max(1024**2, int(k) * 65536))
 
 
 def run_streaming_optical_pulse(
@@ -916,7 +942,7 @@ def run_streaming_optical_pulse(
     k = schedule.n_intervals
     screen_bytes = int(grid.Ny) * int(grid.Nx) * 8
     optical_bytes = int(grid.Nt) * int(grid.Ny) * int(grid.Nx) * 16
-    peak = (9 if final else 12) * k * screen_bytes + optical_bytes + max(1024**2, k*65536)
+    peak = optical_write_forecast(k=k, ny=grid.Ny, nx=grid.Nx, nt=grid.Nt, final=final)
     budget.check_final_output_budget(optical_bytes + 9*k*8)
     before_files = {p for base in (destination, Path(lifecycle_root)) for p in base.rglob('*') if p.is_file()}
     if fixture_only:
@@ -954,6 +980,8 @@ def run_streaming_optical_pulse(
             source *= xp.exp(xp.asarray(-1j * k0 * (X ** 2 + Y ** 2) / (2.0 * float(beam.focal_length)), dtype=xp.complex128))
     source_for_pulse = source.copy()
     source_sha = sha256_array(np.asarray(to_cpu(source_for_pulse)))
+    if not fixture_only and source_sha != str(identity.get("source_identity", {}).get("canonical_array_hash", "")):
+        raise ValueError("fresh optical source differs from admission identity")
     atomic_json(destination / "source_identity.json", {"schema": FORMAL_ENTRY_SCHEMA, "source_sha256_array": source_sha, "source_alias_checked": not np.shares_memory(np.asarray(to_cpu(source_for_pulse)), np.asarray(to_cpu(source))), "created_utc": _utc()}, overwrite=False)
     plan = _all_interval_sample_plan(schedule)
     thermal_sink = ThermalDiagnosticSink(plan=plan, output_path=str(destination / "sinks"), shape=(grid.Ny, grid.Nx), dtype=np.float64, enabled=True, mode="validation")
@@ -989,6 +1017,10 @@ def run_streaming_optical_pulse(
         view.close()
     if not view.complete:
         raise ValueError("optical path did not read/update every Streaming interval")
+    z_axis = np.asarray(diagnostics.get("z_axis", ()))
+    if z_axis.shape != (schedule.n_intervals,) or not np.allclose(
+            z_axis, np.asarray(schedule.z_edges[1:]), rtol=0.0, atol=1e-12):
+        raise ValueError("optical diagnostics do not cover the admitted prefix range")
     np.save(destination / "final_optical_field.npy", np.asarray(to_cpu(final_E)))
     ledger_fields = tuple(name for name in ("E_dep_ion_interval_J", "E_dep_ib_interval_J", "E_dep_raman_interval_J", "E_dep_plasma_interval_J", "E_thermal_interval_J", "delta_n_increment_min", "delta_n_increment_onaxis", "delta_n_state_min_after_update", "delta_n_state_onaxis_after_update") if name in diagnostics)
     if ledger_fields:
@@ -1063,6 +1095,8 @@ def validate_final_post(
                 if sha256_file(writer_path) != str(expected_writer_hash):
                     raise ValueError("writer receipt hash changed")
                 durable_writer = json.loads(writer_path.read_text(encoding="utf-8"))
+                durable_writer = {**durable_writer, "path": str(writer_path),
+                                  "sha256": str(expected_writer_hash)}
                 if durable_writer.get("status") != "PASS" or durable_writer.get("active_writers") not in ([], ()):
                     failures.append("writer_quiescence_receipt_not_pass")
                 if not durable_writer.get("writer_epoch") or not durable_writer.get("coordinator_process_id"):

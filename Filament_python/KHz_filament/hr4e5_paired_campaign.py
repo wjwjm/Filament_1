@@ -14,6 +14,7 @@ import math
 import os
 import time
 import uuid
+import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import wraps
@@ -210,6 +211,12 @@ class PairedCampaign:
             campaign_id=self.campaign_id,
             require_intents=self.formal if require_intents is None else bool(require_intents),
             admission_hash=None if self.admission_identity is None else str(self.admission_identity.get("identity_sha256")),
+            external_prefix_bytes=(0 if self.admission_identity is None else int(
+                self.admission_identity.get("budget_identity", {}).get("external_prefix_bytes", 0))),
+            external_full_source_bytes=(0 if self.admission_identity is None else int(
+                self.admission_identity.get("budget_identity", {}).get("existing_full_source_bytes", 0))),
+            planned_final_output_bytes=(0 if self.admission_identity is None else int(
+                self.admission_identity.get("budget_identity", {}).get("final_output_bytes", 0))),
         )
 
     @contextmanager
@@ -1083,6 +1090,13 @@ class FormalPairedDriver:
         if step == "exact":
             after_gc = any(str(formal_steps.get(name, {}).get("status", "")).upper() in _FORMAL_RECEIPT_STATUSES
                            for name in ("reference_gc", "candidate_gc"))
+            # A transaction can have deleted one file before its formal step
+            # receipt is committed.  The exact validator checks that precise
+            # missing object against durable DELETE_INTENT/DELETED evidence.
+            after_gc = after_gc or any(
+                self.campaign.storage.reclaim_plan(f"production-{side}-p{pulse}") is not None
+                for side in ("R", "C")
+            )
             validator = validate_paired_exact_report_metadata if after_gc else validate_paired_exact_report
             validated = validator(
                 path, admission_identity=self.admission_identity or {},
@@ -1161,12 +1175,94 @@ class FormalPairedDriver:
                 pass
             raise
 
+    def _run_concurrent_rc(self, pulse: int) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Execute R and C science concurrently under one coordinator epoch."""
+        saved_reference = self._saved_receipt(pulse, "reference")
+        saved_candidate = self._saved_receipt(pulse, "candidate")
+        if saved_reference is not None and saved_candidate is not None:
+            return saved_reference, saved_candidate
+        if saved_reference is None:
+            self.campaign.formal_step(
+                pulse, "reference", status="IN_PROGRESS",
+                epoch=self.campaign.active_coordinator_epoch(),
+            )
+        if saved_candidate is None:
+            self.campaign.formal_step(
+                pulse, "candidate", status="IN_PROGRESS",
+                epoch=self.campaign.active_coordinator_epoch(),
+            )
+        values: dict[str, Any] = {}
+        errors: dict[str, BaseException] = {}
+        started_monotonic = time.monotonic()
+        timing_events: list[dict[str, Any]] = []
+        for step, trajectory in (("reference", "R"), ("candidate", "C")):
+            if (step == "reference" and saved_reference is None) or (
+                step == "candidate" and saved_candidate is None
+            ):
+                timing_events.append({
+                    "event": f"{trajectory}_START", "trajectory": trajectory,
+                    "monotonic_s": started_monotonic, "timestamp_utc": _utc(),
+                })
+
+        def execute(step: str, track: str) -> None:
+            try:
+                values[step] = self._runner_call(step, pulse, track=track)
+                timing_events.append({
+                    "event": f"{step.upper()}_END", "trajectory": track,
+                    "monotonic_s": time.monotonic(), "timestamp_utc": _utc(),
+                })
+            except BaseException as exc:  # propagated after both tracks stop
+                errors[step] = exc
+                timing_events.append({
+                    "event": f"{step.upper()}_END", "trajectory": track,
+                    "status": "FAIL", "error": f"{type(exc).__name__}: {exc}",
+                    "monotonic_s": time.monotonic(), "timestamp_utc": _utc(),
+                })
+
+        threads = [
+            threading.Thread(target=execute, args=("reference", "R"), name=f"e5-rc-r-{pulse}"),
+            threading.Thread(target=execute, args=("candidate", "C"), name=f"e5-rc-c-{pulse}"),
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        with _FileLock(self.campaign.root / ".E5_1A_CAMPAIGN.lock"):
+            pair = self.campaign._pair(pulse)
+            seen_timing = {item.get("event") for item in pair.get("events", [])
+                           if item.get("trajectory") in {"R", "C"}}
+            pair.setdefault("events", []).extend(
+                item for item in timing_events if item.get("event") not in seen_timing)
+            self.campaign._persist()
+        pair = self.campaign._pair(pulse)
+        if errors:
+            for step in ("reference", "candidate"):
+                if step in errors:
+                    try:
+                        self.campaign.formal_step(
+                            pulse, step, status="INTERRUPTED",
+                            error=f"{type(errors[step]).__name__}: {errors[step]}",
+                            epoch=self.campaign.active_coordinator_epoch(),
+                        )
+                    except Exception:
+                        pass
+            raise errors[next(iter(errors))]
+        for step in ("reference", "candidate"):
+            receipt = self._validate_receipt(values[step], pulse=pulse, step=step)
+            self.campaign.formal_step(
+                pulse, step, status="COMMITTED", receipt=receipt,
+                epoch=self.campaign.active_coordinator_epoch(),
+            )
+        return (
+            self._saved_receipt(pulse, "reference"),
+            self._saved_receipt(pulse, "candidate"),
+        )
+
     def run(self, *, stop_after: int | None = None) -> dict[str, Any]:
         try:
             while self.campaign.next_pair_index < self.campaign.n_pulses:
                 pulse = self.campaign.next_pair_index
-                self._run_step(pulse, "reference", track="R")
-                self._run_step(pulse, "candidate", track="C")
+                self._run_concurrent_rc(pulse)
                 self._run_step(pulse, "exact")
                 if pulse == self.campaign.n_pulses - 1:
                     self._run_step(pulse, "terminal", track="C")

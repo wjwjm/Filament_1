@@ -395,9 +395,10 @@ def test_a15_a17_bounded_final_output_and_integer_hydro_contract():
     from KHz_filament.hr4e5_storage import plan_final_output, StorageBudgetError
     from KHz_filament.hr4e5_formal_entry import interpulse_worker_parameters
     args=dict(n_pulses=3,k=8048,ny=351,nx=301,nt=384)
-    plan=plan_final_output(**args)
-    assert plan['final_output_bytes']==47504725760
-    assert plan['final_output_budget_bytes']==68719476736
+    retained=plan_final_output(**args)
+    assert retained['final_output_bytes'] < retained['final_output_budget_bytes']
+    with pytest.raises(StorageBudgetError,match='final output'):
+        plan_final_output(**args,final_budget_bytes=retained['final_output_bytes']-1)
     with pytest.raises(StorageBudgetError):plan_final_output(**dict(args,n_pulses=100))
     with pytest.raises(StorageBudgetError):plan_final_output(**args,diagnostics=['ion'])
     assert interpulse_worker_parameters(f_rep=5e6,dt_hydro=1e-7)['n_hydro_steps']==2

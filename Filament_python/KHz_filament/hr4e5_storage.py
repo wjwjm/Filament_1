@@ -25,6 +25,8 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 HARD_CAP_BYTES = 300 * 1024**3
 DEFAULT_FINAL_OUTPUT_BUDGET_BYTES = 64 * 1024**3
 DEFAULT_SAFETY_MARGIN_BYTES = 8 * 1024**3
+BUDGET_OBJECT_SCHEMA = "khz_filament.hr4e5.e5_1b.budget_objects.v2"
+PROCESS_RECEIPT_SCHEMA = "khz_filament.hr4e5.e5_1b.wp2.process_receipt.v1"
 STORAGE_SCHEMA = "khz_filament.hr4e5.e5_1a.storage.v1"
 GC_SCHEMA = "khz_filament.hr4e5.e5_1a.gc.v1"
 RECLAIM_PREREQUISITE_SCHEMA = "khz_filament.hr4e5.e5_1a.reclaim_prerequisites.v1"
@@ -111,40 +113,183 @@ def probe_process_identity(identity: Mapping[str, Any]) -> dict[str, Any]:
     return {"status": "LIVE", "reason": "identity_matches", "pid": pid}
 
 
-def plan_campaign_budget(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
-                         max_campaign_live_bytes: int = HARD_CAP_BYTES,
-                         final_output_budget_bytes: int = DEFAULT_FINAL_OUTPUT_BUDGET_BYTES,
-                         safety_margin_bytes: int = DEFAULT_SAFETY_MARGIN_BYTES) -> dict[str, Any]:
-    """Derive the bounded campaign allocation/retention model.
-
-    This is deliberately scalar planning only.  It mirrors the sequential
-    R-then-C handoff used by the formal coordinator and never allocates a
-    scientific array.  The model keeps one failed handoff residue and a
-    positive receipt/ledger allowance so a plan cannot pass by declaring all
-    metadata free.
-    """
+def budget_object_table(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
+                        safety_margin_bytes: int = DEFAULT_SAFETY_MARGIN_BYTES,
+                        external_prefix_already_present: bool = False,
+                        existing_full_source_bytes: int = 0) -> dict[str, Any]:
+    """Scalar, versioned objects used by every E5 campaign budget projection."""
     values = (n_pulses, k, ny, nx, nt)
     if any(isinstance(v, bool) or not isinstance(v, int) or v <= 0 for v in values):
         raise ValueError("positive integer dimensions and pulse count required")
-    cap = _nonnegative_int(max_campaign_live_bytes, "max_campaign_live_bytes")
-    final_cap = _nonnegative_int(final_output_budget_bytes, "final_output_budget_bytes")
     margin = _nonnegative_int(safety_margin_bytes, "safety_margin_bytes")
-    if cap <= 0 or cap > HARD_CAP_BYTES or final_cap <= 0 or final_cap > cap or margin <= 0:
-        raise StorageBudgetError("invalid campaign budget limits")
+    if margin <= 0:
+        raise StorageBudgetError("budget margin must be positive")
     field = int(k) * int(ny) * int(nx) * 8
     generation = 3 * field
     optical = int(nt) * int(ny) * int(nx) * 16
-    # One R handoff and one C handoff are serialized.  The active pair keeps
-    # both tracks, while a failed handoff retains one extra slow-state copy.
-    reference_phase = 7 * generation
-    candidate_phase = 5 * generation
-    pair_peak = reference_phase + candidate_phase + generation
-    failed_residue = generation
-    retained_optics = (2 * int(n_pulses) + 1) * optical
-    source_copy = optical
     metadata = max(2 * 1024**3, (2 * 1024**3 * int(n_pulses) + 2) // 3)
-    peak = pair_peak + failed_residue + retained_optics + source_copy + metadata + margin
-    final_bytes = 2 * generation + retained_optics + source_copy + metadata
+    stages: dict[str, list[dict[str, Any]]] = {}
+
+    def add(stage: str, name: str, count: int, each: int, *, owner: str,
+            lifetime: str, kind: str = "campaign_disk") -> None:
+        stages.setdefault(stage, []).append({
+            "object": name, "owner": owner, "kind": kind,
+            "count": int(count), "bytes_each": int(each), "bytes": int(count * each),
+            "lifetime": lifetime, "capacity_domain": "campaign_filesystem",
+        })
+
+    # A historical R=7G/C=5G envelope already included six sinks per
+    # trajectory (2G each).  Split the real containers before summing:
+    # nonfinal R has 3G Streaming + 2G HR4C slots; C has 3G Streaming.
+    # Both tracks together have 12 sink files = 4G, not another 12G.
+    # Counts are independent physical containers: a Streaming generation is
+    # K NPZ files, while each HR4C slot is three NPY files.  Namespace labels
+    # in a manifest never create another counted copy.
+    windows = [("initialize", (1, 0, 0, 1, 0, 0, 0, 0, 0), 0, 0, 0)]
+    for pulse in range(n_pulses):
+        first = 2 * pulse
+        nonfinal = pulse < n_pulses - 1
+        r_window = (1, 1, 1 if nonfinal else 0, 1, 0, 0, 2 if nonfinal else 0, 0, 0)
+        pair_window = (1, 1, 1 if nonfinal else 0, 1, 1, 1 if nonfinal else 0, 2 if nonfinal else 0, 0, 0)
+        windows.append((f"p{pulse}_r_optical_hydro", r_window, first + 1, 0, 1))
+        windows.append((f"p{pulse}_c_streaming", pair_window, first + 2, 0, 2))
+        windows.append((f"p{pulse}_pair_exact", pair_window, first + 2, 0, 2))
+        if pulse < n_pulses - 1:
+            windows.extend((
+                (f"p{pulse}_r_successor_ready", (1, 1, 1, 1, 1, 1, 2, 1, 0), first + 2, 0, 2),
+                (f"p{pulse}_failed_handoff_stop", (1, 1, 1, 1, 1, 1, 2, 1, 0), first + 2, 1, 2),
+                (f"p{pulse}_r_gc_complete", (0, 0, 0, 1, 1, 1, 0, 1, 0), first + 2, 0, 1),
+                (f"p{pulse}_c_successor_ready", (0, 0, 0, 1, 1, 1, 0, 1, 1), first + 2, 0, 1),
+                (f"p{pulse}_c_gc_complete", (0, 0, 0, 0, 0, 0, 0, 1, 1), first + 2, 0, 0),
+            ))
+        else:
+            windows.extend((
+                ("terminal_ready", pair_window, first + 2, 0, 2),
+                ("terminal_reference_reclaimed", (0, 0, 0, 1, 1, 0, 0, 0, 0), first + 2, 0, 1),
+                ("final_retention", (0, 0, 0, 1, 1, 0, 0, 0, 0), first + 2, 0, 0),
+                ("reopen", (0, 0, 0, 1, 1, 0, 0, 0, 0), first + 2, 0, 0),
+            ))
+    slow_roles = ("r_parent_current", "r_parent_post", "r_parent_next",
+                  "c_parent_current", "c_parent_post", "c_parent_next",
+                  "r_hr4c_slots", "r_child_current", "c_child_current")
+    for stage, slow_counts, optical_count, failed_count, sink_outputs in windows:
+        for role, count in zip(slow_roles, slow_counts):
+            add(stage, role, count, generation, owner=role.split("_")[0].upper(),
+                lifetime="exact_READY_quiescence_then_whitelist_GC")
+        add(stage, "failed_generation_residue", failed_count, generation,
+            owner="failed_handoff", lifetime="retained_on_failure")
+        add(stage, "persistent_final_optical", optical_count, optical,
+            owner="R_and_C_optical", lifetime="retained")
+        add(stage, "full_interval_sink_arrays", 6 * sink_outputs, field,
+            owner="R_and_C_optical", lifetime="paired_exact_then_explicit_gated_reclaim")
+        add(stage, "external_delta_n_prefix", 1, field,
+            owner="input_materialization", lifetime="through_terminal_review",
+            kind="external_new_or_preexisting")
+        add(stage, "ledger_metadata_and_containers", 1, metadata,
+            owner="campaign", lifetime="retained_allowance", kind="allowance")
+    # The optical source is rebuilt in RAM for every pulse; no E_source array
+    # is persisted.  The writer and uncertainty allowances are explicit disk
+    # headroom, not additional final optical files or a second failed G.
+    for stage in stages:
+        if stage != "final_retention":
+            add(stage, "optical_writer_temporary", 1, optical,
+                owner="optical_writer", lifetime="during_write_or_failed_partial", kind="allowance")
+            # During Candidate pulse 0, one optical child is still committing
+            # POST/sink data while hydro children commit NEXT files.  This is
+            # one shared-reservation ownership sharding window, not one extra
+            # full-z generation per worker.
+            add(stage, "candidate_optical_hydro_overlap_temporary", 1, optical,
+                owner="C_OPTICAL_AND_C_HYDRO", lifetime="candidate_overlap_window",
+                kind="allowance")
+            add(stage, "conservative_optical_overlap", 3, optical,
+                owner="campaign", lifetime="peak_only", kind="allowance")
+            add(stage, "safety_margin", 1, margin,
+                owner="campaign", lifetime="unallocated_headroom", kind="allowance")
+    totals = {stage: sum(row["bytes"] for row in rows) for stage, rows in stages.items()}
+    peak_stage = max((stage for stage in stages if stage != "final_retention"), key=totals.__getitem__)
+    return {
+        "schema": BUDGET_OBJECT_SCHEMA, "stages": stages, "stage_bytes": totals,
+        "peak_stage": peak_stage, "peak_bytes": totals[peak_stage],
+        "final_output_bytes": totals["final_retention"],
+        "field_bytes": field, "generation_bytes": generation, "optical_bytes": optical,
+        "metadata_bytes": metadata, "safety_margin_bytes": margin,
+        "external_prefix_bytes": field,
+        "external_prefix_already_present": bool(external_prefix_already_present),
+        "file_templates": [
+            {"object_id": "{side}:p{pulse}:{namespace}:screen_{index}",
+             "path_template": "{side}/p{pulse}/state/{namespace}/screen_{index:06d}.npz",
+             "container": "npz", "members": ["delta_n", "vx", "vy", "metadata_json"],
+             "shape_each_field": [ny, nx], "dtype": "float64", "payload_bytes_each": 3*ny*nx*8,
+             "count_per_generation": k, "header_and_metadata": "ledger_metadata_and_containers"},
+            {"object_id": "R:p{pulse}:hr4c:{slot}:{field}",
+             "path_template": "R/p{pulse}/batch/store.hr4c_{field}_{slot}.npy",
+             "container": "npy", "shape": [k, ny, nx], "dtype": "float64",
+             "payload_bytes_each": field, "count_per_nonfinal_r": 6},
+            {"object_id": "{side}:p{pulse}:sink:{name}",
+             "path_template": "{side}/p{pulse}/optical/{filename}",
+             "container": "npy", "shape": [k, ny, nx], "dtype": "float64",
+             "payload_bytes_each": field, "count_per_track_pulse": 6,
+             "reclaim_prerequisite": "paired_actual_exact_and_ready_and_quiescence"},
+            {"object_id": "{side}:p{pulse}:final_optical",
+             "path_template": "{side}/p{pulse}/optical/final_optical_field.npy",
+             "container": "npy", "shape": [nt, ny, nx], "dtype": "complex128",
+             "payload_bytes_each": optical, "count_per_track_pulse": 1,
+             "retained_final": True},
+            {"object_id": "external_delta_n_prefix", "path_template": "bound PRE0 path",
+             "container": "npy", "shape": [k, ny, nx], "dtype": "float64",
+             "payload_bytes_each": field, "count": 1,
+             "capacity_domain": "campaign_filesystem", "retained_final": True,
+             "root_inside_charge": "actual root bytes", "root_outside_charge": "external_prefix_bytes"},
+            {"object_id": "{side}:p{pulse}:scientific_ledger",
+             "path_template": "{side}/p{pulse}/optical/scientific_ledger.npz",
+             "container": "npz", "members": 9, "shape_each_member": [k],
+             "dtype": "float64", "payload_bytes_each": 9*k*8,
+             "count_per_track_pulse": 1, "allowance": "ledger_metadata_and_containers",
+             "retained_final": True},
+            {"object_id": "exact_and_ready_gc_writer_evidence",
+             "path_template": "exact/p{pulse}.json and per-track receipt paths",
+             "container": "json/npy", "allowance": "ledger_metadata_and_containers",
+             "retained_final": True},
+            {"object_id": "candidate_optical_hydro_overlap_temporary",
+             "path_template": "C/p{pulse}/optical and C/p{pulse}/state/next temporary objects",
+             "container": "npy/npz", "payload_bytes_each": optical, "count_peak": 1,
+             "owner": "C_OPTICAL_AND_C_HYDRO", "capacity_domain": "campaign_filesystem",
+             "lifetime": "candidate_overlap_window", "retained_final": False,
+             "multiprocess_shared_reservation": True},
+            {"object_id": "atomic_and_incomplete_write", "path_template": "*.tmp",
+             "container": "temporary", "allowance": "optical_writer_temporary",
+             "retained_final": False},
+            {"object_id": "failed_generation_residue", "path_template": "failed attempt files",
+             "container": "npy/npz", "payload_bytes_each": generation,
+             "count_peak": 1, "retained_final": False},
+        ],
+        "incremental_requirement_bytes": totals[peak_stage] - (field if external_prefix_already_present else 0),
+        "existing_full_source_bytes": _nonnegative_int(existing_full_source_bytes, "existing_full_source_bytes"),
+        "existing_full_source_campaign_charge_bytes": 0,
+        "optical_e_source_ram_bytes": optical,
+        "capacity_domain": "campaign_filesystem",
+    }
+
+
+def plan_campaign_budget(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
+                         max_campaign_live_bytes: int = HARD_CAP_BYTES,
+                         final_output_budget_bytes: int = DEFAULT_FINAL_OUTPUT_BUDGET_BYTES,
+                         safety_margin_bytes: int = DEFAULT_SAFETY_MARGIN_BYTES,
+                         external_prefix_already_present: bool = False,
+                         existing_full_source_bytes: int = 0) -> dict[str, Any]:
+    """Apply the unchanged policy caps to the shared object table."""
+    cap = _nonnegative_int(max_campaign_live_bytes, "max_campaign_live_bytes")
+    final_cap = _nonnegative_int(final_output_budget_bytes, "final_output_budget_bytes")
+    if (cap <= 0 or cap > HARD_CAP_BYTES or final_cap <= 0
+            or final_cap > DEFAULT_FINAL_OUTPUT_BUDGET_BYTES or final_cap > cap):
+        raise StorageBudgetError("invalid campaign budget limits")
+    objects = budget_object_table(
+        n_pulses=n_pulses, k=k, ny=ny, nx=nx, nt=nt,
+        safety_margin_bytes=safety_margin_bytes,
+        external_prefix_already_present=external_prefix_already_present,
+        existing_full_source_bytes=existing_full_source_bytes,
+    )
+    peak, final_bytes = objects["peak_bytes"], objects["final_output_bytes"]
     if peak > cap:
         raise StorageBudgetError(
             f"campaign allocation model exceeds cap: projected={peak} cap={cap}"
@@ -154,13 +299,12 @@ def plan_campaign_budget(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
             f"campaign final retention model exceeds final budget: projected={final_bytes} cap={final_cap}"
         )
     return {
-        "schema": "khz_filament.hr4e5.e5_1a.budget_plan.v1",
+        **objects, "schema": "khz_filament.hr4e5.e5_1b.budget_plan.v1",
+        "object_schema": BUDGET_OBJECT_SCHEMA,
         "n_pulses": int(n_pulses), "k": int(k), "ny": int(ny), "nx": int(nx), "nt": int(nt),
-        "field_bytes": field, "generation_bytes": generation, "optical_bytes": optical,
-        "reference_phase_bytes": reference_phase, "candidate_phase_bytes": candidate_phase,
-        "pair_peak_bytes": pair_peak, "failed_handoff_residue_bytes": failed_residue,
-        "retained_optical_bytes": retained_optics, "source_copy_bytes": source_copy,
-        "metadata_bytes": metadata, "safety_margin_bytes": margin,
+        "retained_optical_bytes": 2 * int(n_pulses) * objects["optical_bytes"],
+        "source_copy_bytes": 0,
+        "failed_handoff_residue_bytes": objects["generation_bytes"] if n_pulses > 1 else 0,
         "peak_bytes": peak, "final_output_bytes": final_bytes,
         "max_campaign_live_bytes": cap, "final_output_budget_bytes": final_cap,
         "headroom_bytes": cap - peak, "final_headroom_bytes": final_cap - final_bytes,
@@ -173,23 +317,29 @@ derive_budget_plan = plan_campaign_budget
 
 def plan_final_output(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
                       diagnostics: Sequence[str] = (), checkpoints: int = 0,
-                      final_budget_bytes: int = DEFAULT_FINAL_OUTPUT_BUDGET_BYTES) -> dict[str, Any]:
+                      final_budget_bytes: int = DEFAULT_FINAL_OUTPUT_BUDGET_BYTES,
+                      existing_full_source_bytes: int = 0) -> dict[str, Any]:
     """Explicit bounded output policy; scalar planning only, never allocations."""
     values = (n_pulses, k, ny, nx, nt)
     if any(isinstance(v, bool) or not isinstance(v, int) or v <= 0 for v in values):
         raise ValueError('positive integer dimensions and pulse count required')
     if checkpoints < 0 or len(set(diagnostics)) != len(diagnostics) or not set(diagnostics) <= {'ion','ib','raman','qthermal','increment','state_after'}:
         raise ValueError('invalid finite output selection')
-    if not 0 < final_budget_bytes <= HARD_CAP_BYTES:
+    if not 0 < final_budget_bytes <= DEFAULT_FINAL_OUTPUT_BUDGET_BYTES:
         raise StorageBudgetError('invalid final output cap')
-    field = k*ny*nx*8; generation=3*field; optical=nt*ny*nx*16
-    metadata=(2*1024**3*n_pulses+2)//3
-    total=2*generation+(2*n_pulses+1)*optical+metadata+2*n_pulses*len(diagnostics)*field+checkpoints*generation
+    objects = budget_object_table(n_pulses=n_pulses, k=k, ny=ny, nx=nx, nt=nt,
+                                  existing_full_source_bytes=existing_full_source_bytes)
+    field, generation, optical = objects["field_bytes"], objects["generation_bytes"], objects["optical_bytes"]
+    total = (objects["final_output_bytes"] + 2*n_pulses*len(diagnostics)*field
+             + checkpoints*generation)
     if total > final_budget_bytes:
         raise StorageBudgetError('declared final diagnostics/checkpoints exceed final output budget')
     return dict(final_output_bytes=total, final_output_budget_bytes=final_budget_bytes,
-                candidate_final_state_bytes=2*generation, optical_bytes=(2*n_pulses+1)*optical,
-                metadata_allowance_bytes=metadata, selected_diagnostics=list(diagnostics), checkpoints=checkpoints)
+                candidate_final_state_bytes=2*generation, optical_bytes=2*n_pulses*optical,
+                external_prefix_bytes=field, existing_full_source_bytes=existing_full_source_bytes,
+                object_schema=BUDGET_OBJECT_SCHEMA,
+                metadata_allowance_bytes=objects["metadata_bytes"],
+                selected_diagnostics=list(diagnostics), checkpoints=checkpoints)
 
 
 class StorageBudgetError(RuntimeError):
@@ -438,6 +588,9 @@ class StorageBudget:
         require_intents: bool = False,
         admission_hash: str | None = None,
         admission_identity: Mapping[str, Any] | None = None,
+        external_prefix_bytes: int = 0,
+        external_full_source_bytes: int = 0,
+        planned_final_output_bytes: int | None = None,
     ):
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
@@ -457,6 +610,14 @@ class StorageBudget:
         self.require_quota = bool(require_quota)
         self.campaign_id = str(campaign_id)
         self.require_intents = bool(require_intents)
+        self.external_prefix_bytes = _nonnegative_int(external_prefix_bytes, "external_prefix_bytes")
+        bound_final = (admission_identity or {}).get("budget_identity", {}).get("final_output_bytes", 0)
+        if planned_final_output_bytes is None:
+            planned_final_output_bytes = bound_final
+        elif admission_identity is not None and int(planned_final_output_bytes) != int(bound_final):
+            raise StorageBudgetError("planned final output conflicts with admission identity")
+        self.planned_final_output_bytes = _nonnegative_int(planned_final_output_bytes, "planned_final_output_bytes")
+        self.external_full_source_bytes = _nonnegative_int(external_full_source_bytes, "external_full_source_bytes")
         if admission_hash is None and admission_identity is not None:
             admission_hash = admission_identity.get("identity_sha256")
         self.admission_hash = None if admission_hash is None else str(admission_hash)
@@ -472,6 +633,9 @@ class StorageBudget:
             "cap_bytes": self.cap_bytes,
             "final_output_budget_bytes": self.final_output_budget_bytes,
             "safety_margin_bytes": self.safety_margin_bytes,
+            "external_prefix_bytes": self.external_prefix_bytes,
+            "planned_final_output_bytes": self.planned_final_output_bytes,
+            "external_full_source_bytes": self.external_full_source_bytes,
             "require_quota": self.require_quota,
             "require_intents": self.require_intents,
             "admission_hash": self.admission_hash,
@@ -502,6 +666,12 @@ class StorageBudget:
             raise StorageBudgetError("final output budget conflicts with durable ledger")
         if int(data.get("safety_margin_bytes", -1)) != self.safety_margin_bytes:
             raise StorageBudgetError("storage safety margin conflicts with durable ledger")
+        if int(data.get("external_prefix_bytes", 0)) != self.external_prefix_bytes:
+            raise StorageBudgetError("external prefix charge conflicts with durable ledger")
+        if int(data.get("planned_final_output_bytes", 0)) != self.planned_final_output_bytes:
+            raise StorageBudgetError("planned final output conflicts with durable ledger")
+        if int(data.get("external_full_source_bytes", 0)) != self.external_full_source_bytes:
+            raise StorageBudgetError("external full source charge conflicts with durable ledger")
         if bool(data.get("require_quota", False)) != self.require_quota:
             raise StorageBudgetError("storage quota requirement conflicts with durable ledger")
         if bool(data.get("require_intents", False)) != self.require_intents:
@@ -551,11 +721,22 @@ class StorageBudget:
 
     @contextmanager
     def _locked(self):
+        # Windows can reject os.replace transiently while another handle in a
+        # freshly exited process is closing the same ledger.  The lock is held
+        # here, so retrying the same durable replacement is safe and bounded.
         with _FileLock(self.lock_path):
             data = self._read()
             self._validate(data)
             yield data
-            self._write(data)
+            deadline = time.monotonic() + 10.0
+            while True:
+                try:
+                    self._write(data)
+                    return
+                except PermissionError:
+                    if time.monotonic() >= deadline:
+                        raise
+                    time.sleep(0.02)
 
     def _management_paths(self) -> set[Path]:
         return {self.ledger_path.resolve(), self.lock_path.resolve()}
@@ -633,7 +814,7 @@ class StorageBudget:
             self._validate(data)
             used = self.actual_bytes()
             reserved = self._reserved_bytes(data)
-            projected = used + reserved + additional + peak + self.safety_margin_bytes
+            projected = used + self.external_prefix_bytes + reserved + additional + peak + self.safety_margin_bytes
             free = self._provider_free_bytes()
             quota = self._provider_quota_bytes()
             self._require_quota_if_configured(quota)
@@ -643,12 +824,14 @@ class StorageBudget:
                 )
             if free is not None and reserved + additional + peak + self.safety_margin_bytes > free:
                 raise StorageBudgetError(f"{purpose} exceeds current filesystem free space")
-            if quota is not None and used + reserved + additional + peak + self.safety_margin_bytes > quota:
+            if quota is not None and projected > quota:
                 raise StorageBudgetError(f"{purpose} exceeds reported quota")
             return {
                 "status": "PASS",
                 "purpose": purpose,
                 "actual_bytes": used,
+                "external_prefix_bytes": self.external_prefix_bytes,
+                "external_full_source_bytes": self.external_full_source_bytes,
                 "reserved_bytes": reserved,
                 "additional_bytes": additional,
                 "peak_bytes": peak,
@@ -680,7 +863,7 @@ class StorageBudget:
             free = self._provider_free_bytes()
             quota = self._provider_quota_bytes()
             self._require_quota_if_configured(quota)
-            projected = used + active + amount + self.safety_margin_bytes
+            projected = used + self.external_prefix_bytes + active + amount + self.safety_margin_bytes
             if projected > self.cap_bytes:
                 raise StorageBudgetError(f"reservation exceeds campaign cap: projected={projected} cap={self.cap_bytes}")
             if free is not None and active + amount + self.safety_margin_bytes > free:
@@ -887,14 +1070,15 @@ class StorageBudget:
             if str(intent.get("reservation_id")) != str(reservation_id):
                 raise StorageIntegrityError("writer reservation differs from intent")
             if intent.get("epoch") is not None and str(intent.get("epoch")) != str(coordinator_epoch):
-                stale_writer = next(
-                    (item for item in data["writers"].values()
-                     if item.get("status") == "INTERRUPTED_STALE"
-                     and str(item.get("intent_id")) == str(intent_id)
-                     and str(item.get("coordinator_epoch")) == str(intent.get("epoch"))),
-                    None,
-                )
-                if not isinstance(stale_writer, Mapping) or intent.get("status") != "INTERRUPTED":
+                prior_writers = [item for item in data["writers"].values()
+                                 if str(item.get("intent_id")) == str(intent_id)
+                                 and str(item.get("coordinator_epoch")) == str(intent.get("epoch"))]
+                fenced = any(item.get("status") == "INTERRUPTED_STALE" for item in prior_writers)
+                closed_and_dead = (bool(prior_writers) and all(
+                    item.get("status") in {"CLOSED", "INTERRUPTED", "INTERRUPTED_STALE"}
+                    and probe_process_identity(item.get("process_identity", {}))["status"] == "DEAD"
+                    for item in prior_writers))
+                if not (fenced or closed_and_dead):
                     raise StorageIntegrityError("writer intent epoch differs from coordinator")
                 rebound = dict(intent)
                 rebound["epoch"] = str(coordinator_epoch)
@@ -903,8 +1087,25 @@ class StorageBudget:
                 rebound["takeover_utc"] = _utc()
                 data["intents"][str(intent_id)] = rebound
                 intent = rebound
-            for prior in data["writers"].values():
-                if prior.get("status") == "ACTIVE" and str(prior.get("intent_id")) == str(intent_id):
+            elif intent.get("status") == "INTERRUPTED":
+                if any(item.get("status") == "ACTIVE" and str(item.get("intent_id")) == str(intent_id)
+                       for item in data["writers"].values()):
+                    raise StorageBudgetError("interrupted intent still has an active writer")
+                rebound = dict(intent); rebound["status"] = "ACTIVE"
+                data["intents"][str(intent_id)] = rebound
+                intent = rebound
+            active_for_intent = [item for item in data["writers"].values()
+                                 if item.get("status") == "ACTIVE"
+                                 and str(item.get("intent_id")) == str(intent_id)]
+            if active_for_intent:
+                # E5-1B WP2 permits one shared Candidate OPTICAL reservation to
+                # have one coordinator reconciler plus separate real optical and
+                # hydro child writers.  This is ownership sharding, never a
+                # second full-z scientific reservation.  All other intents stay
+                # single-writer.
+                allowed = (str(intent.get("role", "")) == "OPTICAL"
+                           and str(intent.get("trajectory", "")) == "C")
+                if not allowed:
                     raise StorageBudgetError("creation intent already has an active writer")
             item = {
                 "schema": WRITER_SCHEMA, "writer_id": wid, "campaign_id": self.campaign_id,
@@ -950,6 +1151,35 @@ class StorageBudget:
                     (include_management or str(item.get("role", "")).upper() not in management_roles) and
                     (coordinator_epoch is None or str(item.get("coordinator_epoch")) == str(coordinator_epoch))]
 
+    def interrupt_dead_writer(self, writer_id: str, *, probe: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        """Fence one verifiably dead writer without changing reserved bytes."""
+        with self._locked() as data:
+            wid = str(writer_id)
+            item = data["writers"].get(wid)
+            if not isinstance(item, Mapping) or item.get("status") != "ACTIVE":
+                raise StorageBudgetError(f"writer is not active: {wid}")
+            evidence = dict(probe) if probe is not None else probe_process_identity(item.get("process_identity", {}))
+            if evidence.get("status") != "DEAD":
+                raise StorageBudgetError(f"writer is not verifiably dead: {wid}")
+            mutable = dict(item)
+            mutable["status"] = "INTERRUPTED_STALE"
+            mutable["stale_verified_utc"] = _utc()
+            mutable["liveness_evidence"] = evidence
+            data["writers"][wid] = mutable
+            intent_id = str(mutable.get("intent_id", ""))
+            intent = data["intents"].get(intent_id)
+            if isinstance(intent, Mapping) and intent.get("status") == "ACTIVE":
+                interrupted = dict(intent)
+                interrupted["status"] = "INTERRUPTED"
+                interrupted["interrupted_utc"] = _utc()
+                interrupted["interrupted_by_dead_writer"] = wid
+                data["intents"][intent_id] = interrupted
+            data["events"].append({
+                "event": "WRITER_INTERRUPTED_STALE", "writer_id": wid,
+                "single_writer": True, "timestamp_utc": _utc(),
+            })
+            return mutable
+
     def interrupt_stale_writers(self, *, coordinator_epoch: str | int) -> dict[str, Any]:
         """Verify dead writers and fence them without releasing reserved bytes."""
         with self._locked() as data:
@@ -984,7 +1214,7 @@ class StorageBudget:
     def write_quiescence_receipt(self, path: str | Path, *, coordinator_epoch: str | int,
                                  trajectory: str | None = None, pulse: int | None = None,
                                  attempt: int | None = None) -> dict[str, Any]:
-        active = self.active_writers(coordinator_epoch=coordinator_epoch, include_management=False)
+        active = self.active_writers(coordinator_epoch=coordinator_epoch, include_management=True)
         if active:
             raise StorageBudgetError("writer registry is not quiescent")
         destination, _ = _relative(self.root, path)
@@ -1110,11 +1340,67 @@ class StorageBudget:
     abort_intent = interrupt_intent
     interrupt_creation_intent = interrupt_intent
 
+    def writer_receipt(self, writer_id: str) -> dict[str, Any]:
+        """Return one writer registration for a controlled worker entry."""
+        with _FileLock(self.lock_path):
+            data = self._read()
+            self._validate(data)
+            item = data.get("writers", {}).get(str(writer_id))
+            if not isinstance(item, Mapping):
+                raise StorageIntegrityError(f"writer receipt is missing: {writer_id}")
+            return json.loads(json.dumps(item))
+
+    def intent(self, intent_id: str) -> dict[str, Any]:
+        """Return one creation intent for a controlled worker entry."""
+        with _FileLock(self.lock_path):
+            data = self._read()
+            self._validate(data)
+            item = data.get("intents", {}).get(str(intent_id))
+            if not isinstance(item, Mapping):
+                raise StorageIntegrityError(f"creation intent is missing: {intent_id}")
+            return json.loads(json.dumps(item))
+
+    def admission_identity(self) -> dict[str, Any]:
+        """Return the admission identity bound to the durable ledger."""
+        if not isinstance(self._admission_identity, Mapping):
+            raise StorageIntegrityError("storage ledger has no admission identity")
+        return json.loads(json.dumps(self._admission_identity))
+
+    @classmethod
+    def open_for_worker(cls, root: str | Path, *, campaign_id: str,
+                        admission_identity: Mapping[str, Any]) -> "StorageBudget":
+        """Open a worker view that shares the coordinator ledger lock."""
+        budget_identity = (admission_identity or {}).get("budget_identity", {})
+        instance = cls.__new__(cls)
+        instance.root = Path(root).resolve()
+        instance.ledger_path = instance.root / "storage_ledger.json"
+        instance.lock_path = instance.root / ".storage_budget.lock"
+        instance.cap_bytes = int(budget_identity.get("max_campaign_live_bytes", HARD_CAP_BYTES))
+        instance.final_output_budget_bytes = int(budget_identity.get("final_output_budget_bytes", DEFAULT_FINAL_OUTPUT_BUDGET_BYTES))
+        instance.safety_margin_bytes = int(budget_identity.get("safety_margin_bytes", DEFAULT_SAFETY_MARGIN_BYTES))
+        instance.external_prefix_bytes = int(budget_identity.get("external_prefix_bytes", 0))
+        instance.planned_final_output_bytes = int(budget_identity.get("final_output_bytes", 0))
+        instance.external_full_source_bytes = int(budget_identity.get("existing_full_source_bytes", 0))
+        instance.require_quota = bool(json.loads(instance.ledger_path.read_text(encoding="utf-8")).get("require_quota", False))
+        instance.require_intents = True
+        instance.campaign_id = str(campaign_id)
+        instance._admission_identity = dict(admission_identity)
+        instance.admission_hash = str((admission_identity or {}).get("identity_sha256", ""))
+        instance.provider = MockQuotaProvider(free_bytes=None, quota_bytes=None)
+        instance._validate(instance._read())
+        return instance
+
+
     def intents(self) -> dict[str, Any]:
         with _FileLock(self.lock_path):
             data = self._read()
             self._validate(data)
             return json.loads(json.dumps(data.get("intents", {})))
+
+    def reservations(self) -> dict[str, Any]:
+        with _FileLock(self.lock_path):
+            data = self._read(); self._validate(data)
+            return json.loads(json.dumps(data.get("reservations", {})))
 
     creation_intents = intents
 
@@ -1221,6 +1507,33 @@ class StorageBudget:
             self._validate(data)
             return json.loads(json.dumps(data["artifacts"]))
 
+    def register_preexisting_prefix(self, path: str | Path, *, expected_sha256: str) -> dict[str, Any]:
+        """Account one immutable prefix already present inside the campaign root."""
+        checked, relative = _relative(self.root, path)
+        current = _identity(checked)
+        if int(current.get("st_nlink", 1)) != 1:
+            raise StorageIntegrityError("internal prefix is hard-linked")
+        digest = _sha256_file(checked)
+        if digest != str(expected_sha256):
+            raise StorageIntegrityError("internal prefix raw identity changed")
+        with self._locked() as data:
+            existing = data["artifacts"].get(relative)
+            if existing is not None:
+                if (existing.get("role") != "EXTERNAL_PREFIX" or existing.get("campaign_id") != self.campaign_id
+                        or existing.get("sha256") != digest or existing.get("identity") != current
+                        or existing.get("external_preexisting") is not True):
+                    raise StorageIntegrityError("internal prefix ownership changed")
+                return dict(existing)
+            item = {"campaign_id": self.campaign_id, "trajectory": None, "pulse": None,
+                    "attempt": 0, "role": "EXTERNAL_PREFIX", "relative_path": relative,
+                    "identity": current, "sha256": digest, "expected_sha256": digest,
+                    "external_preexisting": True, "reclaimable": False,
+                    "registered_utc": _utc()}
+            data["artifacts"][relative] = item
+            data["events"].append({"event": "PREEXISTING_PREFIX_BIND", "path": relative,
+                                   "sha256": digest, "timestamp_utc": _utc()})
+            return dict(item)
+
     def set_reclaimable(self, paths: Sequence[str | Path], *, value: bool = True) -> list[str]:
         """Set retention only for artifacts already owned by completed formal intents."""
         changed: list[str] = []
@@ -1240,14 +1553,22 @@ class StorageBudget:
         return changed
 
     def final_output_bytes(self) -> int:
-        total = 0
-        for item in self.artifacts().values():
-            if str(item.get("role", "")).startswith("final"):
-                total += int(item.get("identity", {}).get("size", 0))
+        if (self.root / "E5_1A_TERMINAL_ROLE_CONTRACT.json").is_file():
+            # The terminal view charges the complete retained tree, including
+            # ledger/lock and every durable receipt, exactly once.
+            return self.actual_bytes() + self.external_prefix_bytes
+        total = self.external_prefix_bytes
+        for relative, item in self.artifacts().items():
+            if (str(item.get("role", "")).startswith("final")
+                    or str(relative).endswith("/final_optical_field.npy")):
+                path, _ = _relative(self.root, relative)
+                if path.is_file():
+                    total += int(path.stat().st_size)
         return total
 
     def check_final_output_budget(self, additional_bytes: int = 0) -> dict[str, Any]:
-        total = self.final_output_bytes() + _nonnegative_int(additional_bytes, "additional_bytes")
+        forecast = self.final_output_bytes() + _nonnegative_int(additional_bytes, "additional_bytes")
+        total = max(forecast, self.planned_final_output_bytes)
         if total > self.final_output_budget_bytes:
             raise StorageBudgetError("final output budget exceeded")
         return {"status": "PASS", "final_output_bytes": total, "final_output_budget_bytes": self.final_output_budget_bytes}
@@ -1327,8 +1648,7 @@ class StorageBudget:
                     role_mismatches.append(relative)
         final_bytes = 0
         if final:
-            final_bytes = sum(int(artifacts.get(Path(path).relative_to(self.root).as_posix(), {}).get("identity", {}).get("size", 0))
-                             for path in expected_paths if Path(path).is_file() and Path(path).is_relative_to(self.root))
+            final_bytes = self.actual_bytes() + self.external_prefix_bytes
             if final_bytes > self.final_output_budget_bytes:
                 raise StorageBudgetError("terminal final output exceeds final budget")
         ok = not missing and not extras and not unregistered and not role_mismatches
@@ -1401,6 +1721,8 @@ class StorageBudget:
             raise StorageBudgetError("writer quiescence receipt is required")
         if not receipt_path.is_absolute():
             receipt_path = self.root.parent / receipt_path
+        if ".." in receipt_path.parts or any(_is_reparse(part) for part in (receipt_path, *receipt_path.parents)):
+            raise StorageIntegrityError("writer quiescence receipt path is linked or traverses a parent")
         receipt_path = receipt_path.resolve()
         if not receipt_path.is_file() or _is_reparse(receipt_path):
             raise StorageIntegrityError("writer quiescence receipt is missing or linked")
@@ -1446,13 +1768,11 @@ class StorageBudget:
                 raise StorageIntegrityError(f"writer quiescence receipt {name} changed")
         if self.require_intents:
             if _ledger_data is None:
-                active_now = self.active_writers(coordinator_epoch=epoch, include_management=False)
+                active_now = self.active_writers(coordinator_epoch=epoch, include_management=True)
             else:
-                management_roles = {"TERMINAL_EVIDENCE", "REPORT", "GC_EVIDENCE"}
                 active_now = [item for item in _ledger_data.get("writers", {}).values()
                               if isinstance(item, Mapping) and item.get("status") == "ACTIVE"
-                              and str(item.get("coordinator_epoch")) == str(epoch)
-                              and str(item.get("role", "")).upper() not in management_roles]
+                              and str(item.get("coordinator_epoch")) == str(epoch)]
             if active_now:
                 raise StorageBudgetError("writer registry became active after quiescence receipt")
         return {
@@ -1710,7 +2030,7 @@ class StorageBudget:
             try:
                 from .hr4e5_evidence import validate_durable_report
                 reclaimed = any(
-                    str(target.get("status")) == "DELETED"
+                    str(target.get("status")) in {"DELETE_INTENT", "DELETED"}
                     for plan in self._read().get("gc_plans", {}).values()
                     if isinstance(plan, Mapping)
                     for target in plan.get("targets", [])
@@ -1827,6 +2147,44 @@ class StorageBudget:
         if not isinstance(plan, dict) or plan.get("schema") != GC_SCHEMA or plan.get("campaign_id") != self.campaign_id:
             raise StorageBudgetError("reclamation plan is missing or invalid")
         return plan
+
+    def reclaim_plan(self, plan_id: str) -> dict[str, Any] | None:
+        """Return a snapshot of an existing transaction without creating one."""
+        with _FileLock(self.lock_path):
+            data = self._read(); self._validate(data)
+            plan = data.get("gc_plans", {}).get(str(plan_id))
+            return None if plan is None else json.loads(json.dumps(plan))
+
+    def reclaimed_target(self, relative_path: str | Path, *, campaign_id: str,
+                         trajectory: str, pulse: int, attempt: int,
+                         identity: Mapping[str, Any], sha256: str) -> bool:
+        """Prove a missing exact object has this transaction's durable deletion intent."""
+        path, relative = _relative(self.root, relative_path)
+        if path.exists():
+            return False
+        with _FileLock(self.lock_path):
+            data = self._read(); self._validate(data)
+            artifact = data["artifacts"].get(relative)
+            if (not isinstance(artifact, Mapping)
+                    or str(artifact.get("campaign_id")) != str(campaign_id)
+                    or dict(artifact.get("identity", {})) != dict(identity)
+                    or str(artifact.get("sha256", "")) != str(sha256)):
+                return False
+            for plan in data.get("gc_plans", {}).values():
+                if (not isinstance(plan, Mapping) or plan.get("schema") != GC_SCHEMA
+                        or str(plan.get("campaign_id")) != str(campaign_id)
+                        or str(plan.get("trajectory")) != str(trajectory)
+                        or int(plan.get("pulse", -1)) != int(pulse)
+                        or int(plan.get("attempt", -1)) != int(attempt)
+                        or plan.get("status") == "ABORTED"):
+                    continue
+                for target in plan.get("targets", []):
+                    if (str(target.get("relative_path")) == relative
+                            and target.get("status") in {"DELETE_INTENT", "DELETED"}
+                            and dict(target.get("identity", {})) == dict(identity)
+                            and str(target.get("artifact_sha256", "")) == str(sha256)):
+                        return True
+        return False
 
     def _validate_reclaim_step_binding(
         self, plan: Mapping[str, Any], *, expected_trajectory: str | None,
@@ -2061,20 +2419,28 @@ class StorageBudget:
             self._validate(data)
             used = self.actual_bytes()
             reserved = self._reserved_bytes(data)
-            final_bytes = sum(
-                int(item.get("identity", {}).get("size", 0))
-                for item in data.get("artifacts", {}).values()
-                if str(item.get("role", "")).startswith("final")
-            )
+            if (self.root / "E5_1A_TERMINAL_ROLE_CONTRACT.json").is_file():
+                final_bytes = used + self.external_prefix_bytes
+            else:
+                final_bytes = self.external_prefix_bytes + sum(
+                    int((self.root / relative).stat().st_size)
+                    for relative, item in data.get("artifacts", {}).items()
+                    if ((str(item.get("role", "")).startswith("final")
+                         or str(relative).endswith("/final_optical_field.npy"))
+                        and (self.root / relative).is_file())
+                )
             return {
                 "schema": STORAGE_SCHEMA,
                 "campaign_id": self.campaign_id,
                 "actual_bytes": used,
+                "external_prefix_bytes": self.external_prefix_bytes,
+                "external_full_source_bytes": self.external_full_source_bytes,
                 "reserved_bytes": reserved,
                 "safety_margin_bytes": self.safety_margin_bytes,
-                "projected_bytes": used + reserved + self.safety_margin_bytes,
+                "projected_bytes": used + self.external_prefix_bytes + reserved + self.safety_margin_bytes,
                 "cap_bytes": self.cap_bytes,
                 "final_output_bytes": final_bytes,
+                "planned_final_output_bytes": self.planned_final_output_bytes,
                 "final_output_budget_bytes": self.final_output_budget_bytes,
                 "free_bytes": self._provider_free_bytes(),
                 "quota_bytes": self._provider_quota_bytes(),
@@ -2110,5 +2476,5 @@ __all__ = [
     "HARD_CAP_BYTES", "INTENT_SCHEMA", "MockQuotaProvider", "RECLAIM_PREREQUISITE_SCHEMA", "Reservation", "STORAGE_SCHEMA",
     "derive_budget_plan", "plan_campaign_budget",
     "StorageBudget", "StorageBudgetError", "StorageIntegrityError",
-    "WRITER_SCHEMA", "WRITER_RECEIPT_SCHEMA", "process_identity", "probe_process_identity",
+    "PROCESS_RECEIPT_SCHEMA", "WRITER_SCHEMA", "WRITER_RECEIPT_SCHEMA", "process_identity", "probe_process_identity",
 ]

@@ -10,12 +10,14 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import threading
+import subprocess
 import time
+import sys
+from collections.abc import Mapping as MappingABC
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 
@@ -25,25 +27,36 @@ from .hr4c_state import HR4CThreeFieldStore, evolve_hr4_full_z
 from .hr4d_pulse_lifecycle import build_interpulse_step_schedule
 from .hr4e5_evidence import (PAIRED_EXACT_SCHEMA, _file_identity, _load_locator, _paired_exact_keys,
                               atomic_json, bind_exact_report, build_expected_object_set,
-                              compare_arrays_exact, sha256_array, sha256_file)
+                              compare_arrays_exact, sha256_array, sha256_file,
+                              validate_durable_report, validate_paired_exact_report)
 from .hr4e5_formal_entry import (BLOCK_SIZE, QUEUE_DEPTH, build_admission_identity,
-                                  create_pre0_root, create_successor_root,
-                                  persist_admission_identity, run_streaming_optical_pulse,
-                                  validate_final_post)
+                                  build_prefix_schedule, create_pre0_root, create_successor_root,
+                                  optical_write_forecast, persist_admission_identity, run_streaming_optical_pulse,
+                                  resume_final_post, validate_final_post)
 from .hr4e5_paired_campaign import CAMPAIGN_STATE_FILENAME, _open_production_driver
 from .hr4e5_storage import (DEFAULT_FINAL_OUTPUT_BUDGET_BYTES, DEFAULT_SAFETY_MARGIN_BYTES,
-                             HARD_CAP_BYTES, RECLAIM_PREREQUISITE_SCHEMA, StorageBudgetError,
-                             StorageIntegrityError)
+                              HARD_CAP_BYTES, PROCESS_RECEIPT_SCHEMA, RECLAIM_PREREQUISITE_SCHEMA,
+                              Reservation, StorageBudgetError, StorageIntegrityError,
+                              _is_reparse, plan_campaign_budget, process_identity)
 from .longitudinal import build_longitudinal_schedule
 from .runner import apply_thin_lens_achromatic, build_transverse_input_field
 from .constants import c0
 from .device import to_cpu, xp
 from .hr4e5s_streaming import FIELDS, StreamingLifecycle
+from .hr4e_timestep import sha256_array_streaming
 
 
 LOCAL_ORCHESTRATION_QUALIFICATION = "LOCAL_ORCHESTRATION_QUALIFICATION"
 FORMAL_SITE_ADMISSION = "FORMAL_SITE_ADMISSION"
 _ADMISSION_LEVELS = frozenset({LOCAL_ORCHESTRATION_QUALIFICATION, FORMAL_SITE_ADMISSION})
+_SINK_FILES = {
+    "ion": "sinks.hr3a_qion_samples.npy",
+    "ib": "sinks.hr3a_qib_samples.npy",
+    "raman": "sinks.hr3a_qraman_samples.npy",
+    "qthermal": "sinks.hr3a_qthermal_samples.npy",
+    "increment": "sinks.hr3b_delta_n_increment_samples.npy",
+    "state_after": "sinks.hr3b_delta_n_state_after_update_samples.npy",
+}
 
 
 @dataclass(frozen=True)
@@ -54,8 +67,12 @@ class E5AProductionSpec:
     source_manifest_path: str | Path
     lut_manifest_path: str | Path
     pre0_delta_n_path: str | Path
+    full_config_path: str | Path | None = None
+    prefix_intervals: int | None = None
+    slow_source_manifest_path: str | Path | None = None
     site_resource_manifest_path: str | Path | None = None
     n_pulses: int = 3
+    candidate_hydro_workers: int = 1
     admission_level: str = LOCAL_ORCHESTRATION_QUALIFICATION
     max_campaign_live_bytes: int = HARD_CAP_BYTES
     final_output_budget_bytes: int = DEFAULT_FINAL_OUTPUT_BUDGET_BYTES
@@ -96,6 +113,41 @@ def _read_manifest(path: Path, *, label: str) -> dict[str, Any]:
     return value
 
 
+def _checked_input_path(raw: str | Path, *, label: str, directory: bool = False) -> Path:
+    """Reject the caller's lexical link path before resolving its identity."""
+    candidate = Path(raw)
+    if ".." in candidate.parts:
+        raise StorageIntegrityError(f"{label} path traverses a parent")
+    lexical = Path(os.path.abspath(candidate))
+    for component in (lexical, *lexical.parents):
+        if _is_reparse(component):
+            raise StorageIntegrityError(f"{label} path contains a symlink or reparse point")
+    resolved = lexical.resolve(strict=True)
+    if (not resolved.is_dir() if directory else not resolved.is_file()):
+        raise ValueError(f"{label} path has the wrong file type")
+    if not directory and int(resolved.stat().st_nlink) != 1:
+        raise StorageIntegrityError(f"{label} has an unknown hardlink")
+    return resolved
+
+
+def _checked_campaign_root(raw: str | Path) -> Path:
+    candidate = Path(raw)
+    if ".." in candidate.parts:
+        raise StorageIntegrityError("campaign root traverses a parent")
+    lexical = Path(os.path.abspath(candidate))
+    if any(_is_reparse(part) for part in (lexical, *lexical.parents)):
+        raise StorageIntegrityError("campaign root contains a symlink or reparse point")
+    return lexical.resolve(strict=False)
+
+
+def _checked_owned_file(root: Path, path: Path, owned: Mapping[str, Any], *, label: str) -> None:
+    if (not path.is_relative_to(root) or any(_is_reparse(part) for part in (path, *path.parents))
+            or not path.is_file() or int(path.stat().st_nlink) != 1
+            or _file_identity(path) != owned.get("identity")
+            or sha256_file(path) != owned.get("sha256")):
+        raise StorageIntegrityError(f"{label} changed or is linked")
+
+
 def _source_hash(config_path: Path) -> str:
     grid, beam, prop, *_ = load_all(str(config_path))
     axes = make_axes(grid.Nx, grid.Ny, grid.Nt, grid.Lx, grid.Ly, grid.Twin)
@@ -113,21 +165,167 @@ def _source_hash(config_path: Path) -> str:
     return sha256_array(np.asarray(to_cpu(field)))
 
 
+def _schedule_from_config(prop: Any) -> Any:
+    return build_longitudinal_schedule(
+        dz=float(prop.dz), z_max=float(prop.z_max),
+        focus_window_step=bool(getattr(prop, "focus_window_step", False)),
+        focus_center_m=getattr(prop, "focus_center_m", None),
+        focus_halfwidth_m=float(getattr(prop, "focus_halfwidth_m", 0.0)),
+        dz_focus=getattr(prop, "dz_focus", None),
+    )
+
+
+def describe_e5_1b_input_contract(full_config_path: str | Path,
+                                  *, prefix_intervals: int = 8048) -> dict[str, Any]:
+    """Describe the official input range without opening any scientific array."""
+    full_config = _checked_input_path(full_config_path, label="full source config")
+    grid, beam, prop, ion, heat, run, raman = load_all(str(full_config))
+    full = _schedule_from_config(prop)
+    prefix = build_prefix_schedule(full, prefix_intervals)
+    return {
+        "schema": "khz_filament.hr4e5.e5_1b.input_contract.v1",
+        "status": "INPUT_NOT_MATERIALIZED",
+        "full_config_path": str(full_config), "full_config_raw_sha256": sha256_file(full_config),
+        "derived_config_rule": "change_run.Npulses_from_1_to_2_only",
+        "full_interval_count": full.n_intervals, "prefix_interval_count": prefix.n_intervals,
+        "source_indices": [0, prefix.n_intervals - 1], "block_size": BLOCK_SIZE,
+        "grid_shape": [int(grid.Ny), int(grid.Nx)],
+        "full_edges_array_sha256": sha256_array(np.asarray(full.z_edges, dtype=np.float64)),
+        "prefix_edges_array_sha256": sha256_array(np.asarray(prefix.z_edges, dtype=np.float64)),
+        "full_midpoints_array_sha256": sha256_array(np.asarray(
+            [(left + right) / 2 for left, right in zip(full.z_edges[:-1], full.z_edges[1:])],
+            dtype=np.float64)),
+        "prefix_end_m": float(prefix.z_end),
+        "optical_source_recipe": "build_transverse_input_field_then_optional_thin_lens_fresh_each_pulse",
+        "slow_prefix_recipe": "full_delta_n_indices_0_through_8047_no_rebuild",
+        "velocity_recipe": "positive_float64_zero_runtime_only",
+        "slow_prefix_raw_sha256": "NOT_MATERIALIZED",
+        "slow_prefix_array_sha256": "NOT_MATERIALIZED",
+        "pre0_r_root_sha256": "NOT_MATERIALIZED",
+        "pre0_c_root_sha256": "NOT_MATERIALIZED",
+        "formal_admission": "NOT_RUN", "formal_execution_authorized": False,
+        "resource_execution_gate": "NOT_RELEASED",
+    }
+
+
+def derive_e5_1b_execution_config(full_config_path: str | Path,
+                                   output_path: str | Path) -> dict[str, Any]:
+    """Write the sole permitted N=2 config derivation without changing its parent."""
+    source = _checked_input_path(full_config_path, label="full source config")
+    value = json.loads(source.read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or not isinstance(value.get("run"), dict):
+        raise ValueError("full source config lacks run settings")
+    if int(value["run"].get("Npulses", -1)) != 1:
+        raise ValueError("full source config must have Npulses=1")
+    value["run"]["Npulses"] = 2
+    destination = Path(output_path).resolve()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with destination.open("x", encoding="utf-8") as handle:
+        json.dump(value, handle, ensure_ascii=False, indent=2)
+        handle.write("\n")
+    _bound_configs(source, destination, 2)
+    return {"parent_path": str(source), "parent_raw_sha256": sha256_file(source),
+            "derived_path": str(destination), "derived_raw_sha256": sha256_file(destination),
+            "changed_field": "run.Npulses", "value": 2}
+
+
+def _bound_configs(full_config: Path, config: Path, n_pulses: int) -> dict[str, Any]:
+    _checked_input_path(full_config, label="full source config")
+    parent = json.loads(full_config.read_text(encoding="utf-8"))
+    derived = json.loads(config.read_text(encoding="utf-8"))
+    if not isinstance(parent, dict) or not isinstance(derived, dict):
+        raise ValueError("production configs must be JSON objects")
+    parent_run, derived_run = parent.get("run"), derived.get("run")
+    if not isinstance(parent_run, dict) or not isinstance(derived_run, dict):
+        raise ValueError("production configs lack run settings")
+    if int(derived_run.get("Npulses", -1)) != int(n_pulses):
+        raise ValueError("derived config pulse count differs from production spec")
+    if full_config != config:
+        if int(parent_run.get("Npulses", -1)) != 1 or int(n_pulses) != 2:
+            raise ValueError("formal config derivation must change Npulses from 1 to 2")
+        expected = json.loads(json.dumps(parent))
+        expected["run"]["Npulses"] = 2
+        if expected != derived:
+            raise ValueError("derived config changes fields besides run.Npulses")
+    return {"path": str(full_config), "sha256": sha256_file(full_config)}
+
+
+def _slow_prefix_identity(manifest_path: Path, pre0_path: Path, full_config: Path,
+                          full_schedule: Any, schedule: Any, grid: Any) -> dict[str, Any]:
+    manifest = _read_manifest(manifest_path, label="slow source")
+    if manifest.get("schema") != "khz_filament.hr4e5.e5_1b.slow_source.v1":
+        raise ValueError("slow source manifest schema is invalid")
+    source_path = _checked_input_path(str(manifest.get("source_path", "")), label="full slow source")
+    if str(manifest.get("source_config_sha256", "")) != sha256_file(full_config):
+        raise ValueError("slow source config identity differs from full config")
+    full_edges_hash = sha256_array(np.asarray(full_schedule.z_edges, dtype=np.float64))
+    full_midpoints_hash = sha256_array(np.asarray(
+        [(left + right) / 2 for left, right in zip(
+            full_schedule.z_edges[:-1], full_schedule.z_edges[1:])], dtype=np.float64))
+    if (manifest.get("axis_order") != ["interval", "y", "x"]
+            or manifest.get("source_indices") != [0, full_schedule.n_intervals - 1]
+            or str(manifest.get("full_edges_array_sha256", "")) != full_edges_hash
+            or str(manifest.get("full_midpoints_array_sha256", "")) != full_midpoints_hash):
+        raise ValueError("slow source axes or coordinates differ from full schedule")
+    if str(manifest.get("source_raw_sha256", "")) != sha256_file(source_path):
+        raise ValueError("full slow source raw identity differs from manifest")
+    source = np.load(source_path, mmap_mode="r", allow_pickle=False)
+    prefix = np.load(pre0_path, mmap_mode="r", allow_pickle=False)
+    expected_tail = (int(grid.Ny), int(grid.Nx))
+    if (source.ndim != 3 or source.dtype != np.float64 or
+            source.shape != (full_schedule.n_intervals, *expected_tail)):
+        raise ValueError("full slow source shape or dtype is invalid")
+    if (prefix.shape != (schedule.n_intervals, *expected_tail) or
+            prefix.dtype != np.float64):
+        raise ValueError("slow prefix shape or dtype is invalid")
+    if list(manifest.get("source_shape", [])) != list(source.shape):
+        raise ValueError("full slow source shape differs from manifest")
+    if str(manifest.get("source_array_sha256", "")) != sha256_array_streaming(source):
+        raise ValueError("full slow source array identity differs from manifest")
+    # Compare one screen at a time: the official prefix is never allocated here.
+    for index in range(schedule.n_intervals):
+        if not np.array_equal(source[index], prefix[index]):
+            raise ValueError(f"slow prefix differs from full source at index {index}")
+    return {
+        "manifest_path": str(manifest_path), "manifest_sha256": sha256_file(manifest_path),
+        "full_source_path": str(source_path),
+        "full_source_raw_bytes": source_path.stat().st_size,
+        "full_source_raw_sha256": str(manifest["source_raw_sha256"]),
+        "full_source_array_sha256": str(manifest.get("source_array_sha256", "")),
+        "source_shape": list(source.shape), "source_indices": [0, schedule.n_intervals - 1],
+        "axis_order": ["interval", "y", "x"],
+        "full_edges_array_sha256": full_edges_hash,
+        "full_midpoints_array_sha256": full_midpoints_hash,
+        "prefix_path": str(pre0_path), "prefix_raw_sha256": sha256_file(pre0_path),
+        "prefix_array_sha256": sha256_array_streaming(prefix),
+        "zero_velocity_recipe": "positive_float64_zero",
+        "capacity_domain": str(manifest.get("capacity_domain", "campaign_filesystem")),
+    }
+
+
 def _build_admission(spec: E5AProductionSpec) -> tuple[dict[str, Any], Any, tuple[Any, ...]]:
     level = str(spec.admission_level)
     if level not in _ADMISSION_LEVELS:
         raise ValueError("unsupported production admission level")
-    config = Path(spec.config_path).resolve()
-    source_path = Path(spec.source_manifest_path).resolve()
-    lut_path = Path(spec.lut_manifest_path).resolve()
-    pre0_path = Path(spec.pre0_delta_n_path).resolve()
+    config = _checked_input_path(spec.config_path, label="execution config")
+    source_path = _checked_input_path(spec.source_manifest_path, label="optical source manifest")
+    lut_path = _checked_input_path(spec.lut_manifest_path, label="LUT manifest")
+    pre0_path = _checked_input_path(spec.pre0_delta_n_path, label="PRE0 source")
+    full_config = (_checked_input_path(spec.full_config_path, label="full source config")
+                   if spec.full_config_path is not None else config)
+    full_config_identity = _bound_configs(full_config, config, spec.n_pulses)
     source = _read_manifest(source_path, label="source")
     lut = _read_manifest(lut_path, label="LUT")
     components = load_all(str(config))
     grid, beam, prop, ion, heat, run, raman = components
-    if not config.is_file() or config.is_symlink() or not pre0_path.is_file() or pre0_path.is_symlink():
-        raise ValueError("production config or PRE0 source is missing or linked")
-    schedule = build_longitudinal_schedule(dz=float(prop.dz), z_max=float(prop.z_max))
+    full_components = load_all(str(full_config))
+    full_schedule = _schedule_from_config(full_components[2])
+    requested_k = full_schedule.n_intervals if spec.prefix_intervals is None else int(spec.prefix_intervals)
+    schedule = build_prefix_schedule(full_schedule, requested_k)
+    if level == FORMAL_SITE_ADMISSION and (
+            full_config == config or full_schedule.n_intervals != 15000
+            or spec.prefix_intervals != 8048):
+        raise ValueError("formal source and derived config require full K15000 and prefix K8048")
     if schedule.n_intervals % BLOCK_SIZE or schedule.n_intervals <= 0:
         raise ValueError("production schedule requires complete blocks of eight")
     pre0 = np.load(pre0_path, mmap_mode="r", allow_pickle=False)
@@ -145,10 +343,29 @@ def _build_admission(spec: E5AProductionSpec) -> tuple[dict[str, Any], Any, tupl
         raise ValueError("production LUT manifest lacks a signature")
     if int(getattr(run, "Npulses", spec.n_pulses)) != int(spec.n_pulses):
         raise ValueError("production pulse count differs from effective config")
+    if int(spec.candidate_hydro_workers) not in {1, 2, 4}:
+        raise ValueError("Candidate hydro workers must be 1, 2, or 4")
+    slow_source_identity = None
+    if spec.slow_source_manifest_path is not None:
+        slow_source_identity = _slow_prefix_identity(
+            _checked_input_path(spec.slow_source_manifest_path, label="slow source manifest"), pre0_path,
+            full_config, full_schedule, schedule, grid,
+        )
+    elif level == FORMAL_SITE_ADMISSION or schedule.n_intervals != full_schedule.n_intervals:
+        raise ValueError("formal or shortened prefix requires bound full slow source")
+    budget_plan = plan_campaign_budget(
+        n_pulses=int(spec.n_pulses), k=schedule.n_intervals,
+        ny=int(grid.Ny), nx=int(grid.Nx), nt=int(grid.Nt),
+        max_campaign_live_bytes=int(spec.max_campaign_live_bytes),
+        final_output_budget_bytes=int(spec.final_output_budget_bytes),
+        safety_margin_bytes=int(spec.safety_margin_bytes),
+        external_prefix_already_present=True,
+        existing_full_source_bytes=int((slow_source_identity or {}).get("full_source_raw_bytes", 0)),
+    )
     if level == FORMAL_SITE_ADMISSION:
         if spec.site_resource_manifest_path is None:
             raise ValueError("formal site admission requires qualified resource evidence")
-        site_path = Path(spec.site_resource_manifest_path).resolve()
+        site_path = _checked_input_path(spec.site_resource_manifest_path, label="site resource manifest")
         site = _read_manifest(site_path, label="site resource")
         if (site.get("scope") != "SITE_QUALIFIED_RESOURCE_EVIDENCE"
                 or site.get("formal_input_authorized") is not True
@@ -158,6 +375,25 @@ def _build_admission(spec: E5AProductionSpec) -> tuple[dict[str, Any], Any, tupl
         for name in ("free_bytes", "quota_bytes"):
             if isinstance(site.get(name), bool) or int(site.get(name, 0)) <= 0:
                 raise ValueError(f"formal site admission {name} is invalid")
+        if (str(site.get("capacity_domain", "")) != "campaign_filesystem"
+                or str((slow_source_identity or {}).get("capacity_domain", "")) != "campaign_filesystem"):
+            raise ValueError("formal prefix and campaign capacity domains are not qualified together")
+        if not isinstance(site.get("capacity_root"), str) or not site["capacity_root"]:
+            raise ValueError("formal capacity root is not declared")
+        capacity_root = _checked_input_path(site["capacity_root"], label="formal capacity root", directory=True)
+        campaign_root = _checked_campaign_root(spec.root)
+        if Path(str(slow_source_identity["full_source_path"])).is_relative_to(campaign_root):
+            raise ValueError("pre-existing full slow source must be outside the campaign root")
+        bound_paths = (campaign_root, pre0_path,
+                       Path(str(slow_source_identity["full_source_path"])))
+        if any(not path.is_relative_to(capacity_root) for path in bound_paths):
+            raise ValueError("formal inputs and campaign do not share the qualified capacity root")
+        existing_parent = campaign_root
+        while not existing_parent.exists():
+            existing_parent = existing_parent.parent
+        volume = capacity_root.stat().st_dev
+        if any(path.stat().st_dev != volume for path in (pre0_path, bound_paths[2], existing_parent)):
+            raise ValueError("formal inputs and campaign occupy different filesystems")
         resource_evidence = {**site, "path": str(site_path), "sha256": sha256_file(site_path)}
     else:
         if spec.site_resource_manifest_path is not None:
@@ -166,25 +402,52 @@ def _build_admission(spec: E5AProductionSpec) -> tuple[dict[str, Any], Any, tupl
     identity = build_admission_identity(
         campaign_id=str(spec.campaign_id), execution_mode=level,
         runtime_or_compatibility={"module": "KHz_filament.hr4e5_production", "runner": "single-production-runner"},
-        config_identity={"path": str(config), "sha256": sha256_file(config)},
+        config_identity={"path": str(config), "sha256": sha256_file(config),
+                         "full_source_config": full_config_identity,
+                         "derivation": "run.Npulses=2_only" if full_config != config else "same_config"},
         effective_params={"f_rep": float(heat.f_rep), "dt_hydro": float(getattr(heat, "dt_hydro", 1e-7))},
         source_identity={"path": str(source_path), "sha256": sha256_file(source_path),
                          "canonical_array_hash": source_hash},
         lut_identity={"path": str(lut_path), "sha256": sha256_file(lut_path), **lut},
-        schedule_identity={"k": schedule.n_intervals, "metadata": schedule.as_metadata()},
+        schedule_identity={"k": schedule.n_intervals, "metadata": schedule.as_metadata(),
+                           "full_metadata": full_schedule.as_metadata(),
+                           "source_indices": [0, schedule.n_intervals - 1],
+                           "recipe": "build_full_then_prefix"},
         grid_identity={"Nx": grid.Nx, "Ny": grid.Ny, "Nt": grid.Nt,
                        "shape": [grid.Ny, grid.Nx], "dtype": "complex128"},
         pre0_identity={"path": str(pre0_path), "sha256": sha256_file(pre0_path),
-                       "canonical_array_hash": sha256_array(pre0)},
+                       "canonical_array_hash": sha256_array_streaming(pre0),
+                       "slow_source_identity": slow_source_identity or {"scope": "LOCAL_FULL_SCHEDULE_FIXTURE"}},
         n_pulses=int(spec.n_pulses), k=int(schedule.n_intervals), block_size=BLOCK_SIZE,
         queue_depth=QUEUE_DEPTH, f_rep=float(heat.f_rep),
+        hydro_topology={"candidate_optical_gpus_requested": 1,
+                         "candidate_hydro_workers_requested": int(spec.candidate_hydro_workers),
+                         "candidate_hydro_processes_requested": int(spec.candidate_hydro_workers),
+                         "candidate_hydro_gpus_requested": int(spec.candidate_hydro_workers),
+                         "candidate_hydro_local_process_qualification": "PENDING",
+                         "candidate_hydro_physical_gpu_binding_qualification": "PENDING_HPC",
+                         "reference_gpus_requested": 1,
+                         "reference_backend": "HR4CThreeFieldStore+evolve_hr4_full_z",
+                         "primary_topology_requested": {"reference_gpus": 1, "candidate_optical_gpus": 1, "candidate_hydro_gpus": 4},
+                         "fallback_topology_requested": {"reference_gpus": 1, "candidate_optical_gpus": 1, "candidate_hydro_gpus": 2},
+                         "allowed_values": [1, 2, 4], "gpu_topology_qualified": False},
         dt_hydro=float(getattr(heat, "dt_hydro", 1e-7)),
         precision={"fields": "float64", "optical": "complex128"},
         r_roots={"root": "R"}, c_roots={"root": "C"},
         pulse_attempt_epoch={"pulse": 0, "attempt": 0, "epoch": "factory-assigned"},
         budget_identity={"max_campaign_live_bytes": int(spec.max_campaign_live_bytes),
-                         "final_output_budget_bytes": int(spec.final_output_budget_bytes),
-                         "safety_margin_bytes": int(spec.safety_margin_bytes)},
+                          "final_output_budget_bytes": int(spec.final_output_budget_bytes),
+                          "safety_margin_bytes": int(spec.safety_margin_bytes),
+                          "object_schema": budget_plan["object_schema"],
+                          "peak_bytes": budget_plan["peak_bytes"],
+                          "final_output_bytes": budget_plan["final_output_bytes"],
+                           "external_prefix_bytes": (0 if pre0_path.is_relative_to(_checked_campaign_root(spec.root))
+                                                     else int(pre0_path.stat().st_size)),
+                           "prefix_owned_bytes": int(pre0_path.stat().st_size),
+                           "prefix_payload_bytes": budget_plan["external_prefix_bytes"],
+                           "prefix_inside_campaign_root": pre0_path.is_relative_to(_checked_campaign_root(spec.root)),
+                          "existing_full_source_bytes": budget_plan["existing_full_source_bytes"],
+                          "incremental_requirement_bytes": budget_plan["incremental_requirement_bytes"]},
         retention_identity={"policy": "E5_1A_MINIMUM_ENGINEERING_RETENTION_V1"},
         resource_evidence=resource_evidence,
     )
@@ -196,7 +459,7 @@ class _E5AProductionRunner:
 
     def __init__(self, spec: E5AProductionSpec, identity: Mapping[str, Any], schedule: Any,
                  components: tuple[Any, ...]):
-        self.spec, self.root = spec, Path(spec.root).resolve()
+        self.spec, self.root = spec, _checked_campaign_root(spec.root)
         self.identity, self.schedule, self.components = dict(identity), schedule, components
         self.driver = None
 
@@ -231,6 +494,34 @@ class _E5AProductionRunner:
     def _intent(self, *, side: str, pulse: int, role: str, paths: list[Path],
                 expected_bytes: int, generation: str) -> tuple[Any, dict[str, Any], dict[str, Any]]:
         epoch = self.driver.campaign.active_coordinator_epoch()
+        if role in {"gc_evidence", "TERMINAL_READY", "TERMINAL_EVIDENCE", "exact_report"}:
+            wanted_paths = {path.relative_to(self.root).as_posix() for path in paths}
+            prior = [item for item in self.budget.intents().values()
+                     if item.get("role") == role and item.get("trajectory") == side
+                     and int(item.get("pulse", -1)) == int(pulse)
+                     and item.get("generation") == generation
+                     and item.get("status") in {"ACTIVE", "INTERRUPTED"}]
+            if len(prior) > 1:
+                raise StorageIntegrityError("multiple resumable production intents")
+            if prior:
+                intent = prior[0]
+                if (set(intent.get("allowed_paths", [])) != wanted_paths
+                        or int(intent.get("expected_bytes", -1)) != int(expected_bytes)
+                        or int(intent.get("attempt", -1)) != 0
+                        or str(intent.get("admission_hash")) != self.identity["identity_sha256"]):
+                    raise StorageIntegrityError("resumable production intent scope changed")
+                record = self.budget.reservations().get(str(intent["reservation_id"]))
+                if not isinstance(record, Mapping) or record.get("status") != "ACTIVE":
+                    raise StorageIntegrityError("resumable production reservation is missing")
+                reservation = Reservation(str(record["reservation_id"]), int(record["bytes"]),
+                                          str(record["purpose"]), str(record["owner"]),
+                                          str(record["created_utc"]))
+                writer = self.budget.open_writer(
+                    reservation_id=reservation.reservation_id, intent_id=intent["intent_id"],
+                    coordinator_epoch=epoch, trajectory=side, pulse=int(pulse), attempt=0,
+                    generation=generation,
+                )
+                return reservation, intent, writer
         reservation = self.budget.reserve(expected_bytes, purpose=f"{role}:{side}:p{pulse}",
                                           owner=str(epoch), allocation_paths=paths)
         intent = self.budget.create_intent(
@@ -245,6 +536,47 @@ class _E5AProductionRunner:
             generation=generation,
         )
         return reservation, intent, writer
+
+    def _hydro_worker_command(self, state: Path, pulse: int, worker_index: int) -> list[str]:
+        return [
+            sys.executable, "-s", "-B", "-m", "KHz_filament.hr4e5_production_worker",
+            "--lifecycle-root", str(state), "--pulse", str(int(pulse)),
+            "--worker-index", str(int(worker_index)), "--hydro-workers", str(int(self.spec.candidate_hydro_workers)),
+            "--config-path", str(self.spec.config_path),
+            "--admission-identity-sha256", self.identity["identity_sha256"],
+        ]
+
+    def _launch_hydro_workers(self, state: Path, pulse: int) -> list[subprocess.Popen]:
+        processes: list[subprocess.Popen] = []
+        environment = os.environ.copy()
+        environment["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
+        environment["PYTHONNOUSERSITE"] = "1"
+        environment["HR4E5S_WORKER_ID"] = "pending"
+        for worker_index in range(int(self.spec.candidate_hydro_workers)):
+            environment["HR4E5S_WORKER_ID"] = f"e5_1b_c_hydro_{pulse}_{worker_index}"
+            process = subprocess.Popen(
+                self._hydro_worker_command(state, pulse, worker_index),
+                cwd=str(self.root), env=environment,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+            processes.append(process)
+        return processes
+
+    def _join_hydro_workers(self, processes: Sequence[subprocess.Popen]) -> None:
+        if not processes:
+            return
+        failures: list[str] = []
+        for process in processes:
+            try:
+                stdout, stderr = process.communicate(timeout=600)
+            except subprocess.TimeoutExpired as error:
+                process.kill(); stdout, stderr = process.communicate()
+                failures.append(f"pid={process.pid}:hydro worker timeout")
+                continue
+            if process.returncode != 0:
+                failures.append(f"pid={process.pid}:exit={process.returncode}:stderr={stderr.strip()}")
+        if failures:
+            raise RuntimeError("production hydro worker failed: " + "; ".join(failures))
 
     def _close_writer(self, writer: Mapping[str, Any], *, failed: BaseException | None = None) -> None:
         self.budget.close_writer(writer["writer_id"], coordinator_epoch=writer["coordinator_epoch"],
@@ -273,7 +605,10 @@ class _E5AProductionRunner:
                 },
             )
         grid = self.components[0]
-        delta_n = np.load(Path(self.spec.pre0_delta_n_path), allow_pickle=False)
+        pre0_path = _checked_input_path(self.spec.pre0_delta_n_path, label="PRE0 source")
+        if sha256_file(pre0_path) != self.identity["pre0_identity"]["sha256"]:
+            raise ValueError("PRE0 raw file differs from admission identity")
+        delta_n = np.load(pre0_path, allow_pickle=False)
         estimate = max(1024**2, int(delta_n.nbytes) * 4)
         for side in ("R", "C"):
             target = self._track(side, 0) / "state"
@@ -301,6 +636,20 @@ class _E5AProductionRunner:
                        extras: Mapping[str, Any] | None = None) -> dict[str, Any]:
         folder = self._track(side, pulse) / "reports"
         array_path, report_path = folder / f"{name}_summary.npy", folder / f"{name}.json"
+        if report_path.exists():
+            relative = report_path.relative_to(self.root).as_posix()
+            owned = self.budget.artifacts().get(relative)
+            if not isinstance(owned, Mapping):
+                raise StorageIntegrityError("existing production report has no completed ownership")
+            _checked_owned_file(self.root, report_path, owned, label="existing production report")
+            saved = validate_durable_report(
+                report_path, expected_sha256=str(owned["sha256"]),
+                campaign_id=self.identity["campaign_id"], root=self.root,
+                pulse=int(pulse), trajectory=side,
+            )
+            if any(saved.get(key) != value for key, value in dict(extras or {}).items()):
+                raise StorageIntegrityError("existing production report differs from retry")
+            return saved
         reservation, intent, writer = self._intent(
             side=side, pulse=pulse, role=f"report_{name}", paths=[folder], expected_bytes=4*1024**2,
             generation=f"{side}:p{pulse}:{name}",
@@ -349,130 +698,366 @@ class _E5AProductionRunner:
     def run_terminal(self, pulse: int):
         return self._run_terminal(pulse)
 
+    def _hydro_worker_command(self, state: Path, pulse: int, worker_index: int,
+                               *, intent_id: str | None = None,
+                               reservation_id: str | None = None,
+                               writer_id: str | None = None) -> list[str]:
+        command = [
+            sys.executable, "-s", "-B", "-m", "KHz_filament.hr4e5_production_worker",
+            "--lifecycle-root", str(state), "--pulse", str(int(pulse)),
+            "--worker-index", str(int(worker_index)), "--hydro-workers", str(int(self.spec.candidate_hydro_workers)),
+            "--config-path", str(self.spec.config_path),
+            "--admission-identity-sha256", self.identity["identity_sha256"],
+        ]
+        if intent_id is not None:
+            command.extend(["--storage-root", str(self.root), "--intent-id", str(intent_id)])
+        if reservation_id is not None:
+            command.extend(["--reservation-id", str(reservation_id)])
+        if writer_id is not None:
+            command.extend(["--writer-id", str(writer_id)])
+        return command
+
+    def _launch_hydro_workers(self, state: Path, pulse: int, *, intent_id: str,
+                              reservation_id: str, writer_ids: Sequence[str]) -> list[subprocess.Popen]:
+        processes: list[subprocess.Popen] = []
+        environment = os.environ.copy()
+        environment["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
+        environment["PYTHONNOUSERSITE"] = "1"
+        for worker_index, writer_id in enumerate(writer_ids):
+            environment["HR4E5S_WORKER_ID"] = f"e5_1b_c_hydro_{pulse}_{worker_index}"
+            process = subprocess.Popen(
+                self._hydro_worker_command(
+                    state, pulse, worker_index, intent_id=intent_id,
+                    reservation_id=reservation_id, writer_id=writer_id,
+                ),
+                cwd=str(self.root), env=environment,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+            processes.append(process)
+        return processes
+
+    @staticmethod
+    def _join_hydro_workers(processes: Sequence[subprocess.Popen]) -> None:
+        if not processes:
+            return
+        failures: list[str] = []
+        for process in processes:
+            try:
+                _stdout, stderr = process.communicate(timeout=900)
+            except subprocess.TimeoutExpired:
+                process.kill(); process.communicate()
+                failures.append(f"pid={process.pid}:hydro worker timeout")
+                continue
+            if process.returncode != 0:
+                failures.append(f"pid={process.pid}:exit={process.returncode}:stderr={stderr.strip()}")
+        if failures:
+            raise RuntimeError("production hydro worker failed: " + "; ".join(failures))
+
+    @staticmethod
+    def _stop_hydro_workers(processes: Sequence[subprocess.Popen]) -> None:
+        for process in processes:
+            if process.poll() is None:
+                process.terminate()
+        deadline = time.monotonic() + 10.0
+        for process in processes:
+            if process.poll() is None and time.monotonic() < deadline:
+                try:
+                    process.wait(timeout=max(0.1, deadline - time.monotonic()))
+                except subprocess.TimeoutExpired:
+                    pass
+        for process in processes:
+            if process.poll() is None:
+                process.kill()
+                try:
+                    process.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
+
+    def _process_receipt(self, *, trajectory: str, pulse: int, role: str,
+                         worker_index: int | None, lifecycle_root: Path,
+                         identity: Mapping[str, Any], started_monotonic_s: float,
+                         ended_monotonic_s: float, exit_status: str,
+                         created_files: Sequence[str | Path] = ()) -> dict[str, Any]:
+        folder = self._track(trajectory, pulse) / "state" / "process_receipts"
+        suffix = role if worker_index is None else f"{role}_{int(worker_index):03d}"
+        path = folder / f"{suffix}.json"
+        payload = {
+            "schema": PROCESS_RECEIPT_SCHEMA,
+            "campaign_id": self.identity["campaign_id"],
+            "pulse": int(pulse), "trajectory": str(trajectory), "role": str(role),
+            "worker_index": None if worker_index is None else int(worker_index),
+            "coordinator_epoch": str(self.driver.campaign.active_coordinator_epoch()),
+            "coordinator_process_identity": process_identity(),
+            "admission_identity_sha256": self.identity["identity_sha256"],
+            "lifecycle_root": str(lifecycle_root.resolve()),
+            "started_monotonic_s": float(started_monotonic_s),
+            "ended_monotonic_s": float(ended_monotonic_s),
+            "exit_status": str(exit_status),
+            "created_files": [str(Path(value).resolve()) for value in created_files],
+            "writer_id": str(identity.get("writer_id", "")),
+            "intent_id": str(identity.get("intent_id", "")),
+            "reservation_id": str(identity.get("reservation_id", "")),
+            "backend": "numpy/cpu",
+            "physical_gpu_identity": "NOT_APPLICABLE_LOCAL_CPU",
+            "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        atomic_json(path, payload, overwrite=True)
+        return {**payload, "report_path": str(path), "report_sha256": sha256_file(path)}
+
+    def _validate_process_receipt(self, receipt: Mapping[str, Any], *, trajectory: str,
+                                   pulse: int, role: str,
+                                   worker_index: int | None = None) -> None:
+        if not isinstance(receipt, MappingABC):
+            raise StorageIntegrityError("process receipt is invalid")
+        expected = {
+            "schema": PROCESS_RECEIPT_SCHEMA, "campaign_id": self.identity["campaign_id"],
+            "pulse": int(pulse), "trajectory": trajectory, "role": role,
+            "worker_index": worker_index,
+            "coordinator_epoch": str(self.driver.campaign.active_coordinator_epoch()),
+            "admission_identity_sha256": self.identity["identity_sha256"],
+            "backend": "numpy/cpu", "physical_gpu_identity": "NOT_APPLICABLE_LOCAL_CPU",
+            "exit_status": "PASS",
+        }
+        if any(receipt.get(key) != value for key, value in expected.items()):
+            raise StorageIntegrityError(f"{role} process receipt identity differs")
+        for key in ("pid", "process_start_token", "started_monotonic_s", "ended_monotonic_s"):
+            if not receipt.get(key):
+                raise StorageIntegrityError(f"{role} process receipt lacks {key}")
+        if not receipt.get("report_path") or not receipt.get("report_sha256"):
+            raise StorageIntegrityError(f"{role} process receipt lacks durable evidence")
+        if sha256_file(receipt["report_path"]) != receipt["report_sha256"]:
+            raise StorageIntegrityError(f"{role} process receipt evidence changed")
+
     def _run_pulse(self, trajectory: str, pulse: int):
         state = self._track(trajectory, pulse) / "state"
         output = self._track(trajectory, pulse) / "optical"
         lifecycle = StreamingLifecycle.open(state)
-        grid = self.components[0]; final = int(pulse) == int(self.spec.n_pulses) - 1
-        screen_bytes = int(grid.Nx) * int(grid.Ny) * 8
-        optical_bytes = int(grid.Nx) * int(grid.Ny) * int(grid.Nt) * 16
-        estimate = (9 if final or trajectory == "R" else 12) * self.schedule.n_intervals * screen_bytes + optical_bytes + 4*1024**2
+        grid = self.components[0]
+        final = int(pulse) == int(self.spec.n_pulses) - 1
+        estimate = optical_write_forecast(
+            k=self.schedule.n_intervals, ny=grid.Ny, nx=grid.Nx, nt=grid.Nt,
+            final=(final or trajectory == "R"),
+        )
         reservation, intent, writer = self._intent(
             side=trajectory, pulse=pulse, role="OPTICAL", paths=[output, state],
             expected_bytes=estimate, generation=str(lifecycle.manifest["current_generation"]),
         )
-        errors: list[BaseException] = []; finished = threading.Event(); available = threading.Event()
-        thread = None
         if trajectory == "C" and not final:
-            def consumer():
-                try:
-                    worker = StreamingLifecycle.open(state)
-                    while True:
-                        available.clear()
-                        if worker.run_one_hydro_block(**self._hydro(), actor="e5_1a_production_hydro"):
-                            continue
-                        if finished.is_set(): break
-                        if finished.wait(0.01): break
-                except BaseException as exc: errors.append(exc)
-            thread = threading.Thread(target=consumer, name=f"e5a-hydro-{pulse}")
-            thread.start()
-        error = None
+            return self._run_candidate_multipulse(
+                state=state, output=output, pulse=pulse, reservation=reservation,
+                intent=intent, writer=writer,
+            )
+
+        error: BaseException | None = None
         try:
             result = run_streaming_optical_pulse(
                 lifecycle_root=state, schedule=self.schedule, output_dir=output,
                 config_path=self.spec.config_path, final=(final or trajectory == "R"),
                 storage_budget=self.budget, admission_identity=self.identity,
                 creation_intent=intent, trajectory=trajectory, pulse=pulse, role="OPTICAL",
-                defer_intent_completion=(trajectory == "C" and not final),
+                defer_intent_completion=False,
             )
-            finished.set(); available.set()
-            if thread: thread.join(60)
-            if thread and thread.is_alive(): raise TimeoutError("production hydro writer did not exit")
-            if errors: raise errors[0]
-            if trajectory == "C" and not final:
-                initial = set(intent.get("initial_files", {}))
-                created = [
-                    path for base in (output, state) for path in base.rglob("*")
-                    if path.is_file() and path.relative_to(self.root).as_posix() not in initial
-                ]
-                completed = self.budget.complete_intent(
-                    intent["intent_id"], files=created,
-                    metadata={"generation": str(lifecycle.manifest["current_generation"])},
+            if trajectory == "R" and not final:
+                # Reopen after the optical child writes; R hydro runs only
+                # after its optical POST artifacts are durable.
+                lifecycle = StreamingLifecycle.open(state)
+                self._run_reference_hydro(
+                    state=state, pulse=pulse, lifecycle=lifecycle, grid=grid,
                 )
-                self.budget.consume(reservation.reservation_id)
-            lifecycle = StreamingLifecycle.open(state)
-            if trajectory == "C" and not final:
-                lifecycle.validate_barrier(actor="e5_1a_production_barrier")
-                lifecycle.promote_next_to_current(actor="e5_1a_production_promotion")
-            elif trajectory == "R" and not final:
-                batch_dir = self._track("R", pulse) / "batch"
-                before = {path for base in (state, batch_dir)
-                          for path in base.rglob("*") if path.is_file()}
-                hydro_res, hydro_intent, hydro_writer = self._intent(
-                    side="R", pulse=pulse, role="REFERENCE_HYDRO",
-                    paths=[state, batch_dir],
-                    expected_bytes=max(4*1024**2, 6*self.schedule.n_intervals*screen_bytes),
-                    generation=f"R:p{pulse}:NEXT",
-                )
-                hydro_error = None
-                post = {
-                    field: np.stack([
-                        lifecycle._artifact_fields(
-                            lifecycle.manifest["records"][i]["post"], namespace="POST"
-                        )[field]
-                        for i in range(self.schedule.n_intervals)
-                    ])
-                    for field in FIELDS
-                }
-                try:
-                    batch_dir.mkdir(parents=True, exist_ok=True)
-                    store = HR4CThreeFieldStore(
-                        output_path=str(batch_dir / "store"), n_intervals=self.schedule.n_intervals,
-                        shape=(grid.Ny, grid.Nx), dtype=np.float64, z_edges=self.schedule.z_edges,
-                        dx=float(grid.Lx/grid.Nx), dy=float(grid.Ly/grid.Ny),
-                        authoritative_metadata={"admission_identity_sha256": self.identity["identity_sha256"]},
-                    )
-                    try:
-                        store.begin_staging(); store.write_staging_batch(0, post)
-                        store.commit_staging({"operation": "production_post", "batch_intervals": BLOCK_SIZE})
-                        evolve_hr4_full_z(store, batch_intervals=BLOCK_SIZE, **self._hydro())
-                        nxt = store.read_authoritative_batch(0, self.schedule.n_intervals)
-                        for block_start in range(0, self.schedule.n_intervals, BLOCK_SIZE):
-                            block = list(range(block_start, block_start + BLOCK_SIZE))
-                            for index in block:
-                                lifecycle.enqueue_post(index, actor="hr4c_reference")
-                            claimed = lifecycle.claim_block(actor="hr4c_reference")
-                            if claimed != block:
-                                raise ValueError("reference hydro claim differs from frozen block8 order")
-                            for index in claimed:
-                                lifecycle.begin_hydro_screen(index, actor="hr4c_reference")
-                                lifecycle.commit_next(
-                                    index, {field: nxt[field][index] for field in FIELDS},
-                                    actor="hr4c_reference",
-                                )
-                        lifecycle.validate_barrier(actor="hr4c_reference")
-                        lifecycle.promote_next_to_current(actor="hr4c_reference")
-                    finally:
-                        store.close()
-                    created = [path for base in (state, batch_dir)
-                               for path in base.rglob("*") if path.is_file() and path not in before]
-                    completed = self.budget.complete_intent(hydro_intent["intent_id"], files=created,
-                                                            metadata={"reclaimable": True})
-                    self.budget.consume(hydro_res.reservation_id)
-                except BaseException as exc:
-                    hydro_error = exc
-                    try: self.budget.interrupt_intent(hydro_intent["intent_id"], reason=str(exc))
-                    except Exception: pass
-                    raise
-                finally:
-                    self._close_writer(hydro_writer, failed=hydro_error)
-            return self._simple_report(side=trajectory, pulse=pulse, name="pulse",
-                                       summary=np.asarray([pulse, self.schedule.n_intervals], dtype=np.int64))
+            return self._simple_report(
+                side=trajectory, pulse=pulse, name="pulse",
+                summary=np.asarray([pulse, self.schedule.n_intervals], dtype=np.int64),
+            )
         except BaseException as exc:
-            error = exc; finished.set(); available.set()
-            if thread: thread.join(5)
+            error = exc
             raise
         finally:
+            self._close_writer(writer, failed=error)
+
+    def _run_reference_hydro(self, *, state: Path, pulse: int, lifecycle: StreamingLifecycle,
+                             grid: Any) -> None:
+        batch_dir = self._track("R", pulse) / "batch"
+        before = {path for base in (state, batch_dir) for path in base.rglob("*") if path.is_file()}
+        screen_bytes = int(grid.Nx) * int(grid.Ny) * 8
+        hydro_res, hydro_intent, hydro_writer = self._intent(
+            side="R", pulse=pulse, role="REFERENCE_HYDRO", paths=[state, batch_dir],
+            expected_bytes=max(4*1024**2, 9*self.schedule.n_intervals*screen_bytes),
+            generation=f"R:p{pulse}:NEXT",
+        )
+        hydro_error: BaseException | None = None
+        post = {
+            field: np.stack([
+                lifecycle._artifact_fields(
+                    lifecycle.manifest["records"][i]["post"], namespace="POST"
+                )[field]
+                for i in range(self.schedule.n_intervals)
+            ])
+            for field in FIELDS
+        }
+        try:
+            batch_dir.mkdir(parents=True, exist_ok=True)
+            store = HR4CThreeFieldStore(
+                output_path=str(batch_dir / "store"), n_intervals=self.schedule.n_intervals,
+                shape=(grid.Ny, grid.Nx), dtype=np.float64, z_edges=self.schedule.z_edges,
+                dx=float(grid.Lx/grid.Nx), dy=float(grid.Ly/grid.Ny),
+                authoritative_metadata={"admission_identity_sha256": self.identity["identity_sha256"]},
+            )
+            try:
+                store.begin_staging(); store.write_staging_batch(0, post)
+                store.commit_staging({"operation": "production_post", "batch_intervals": BLOCK_SIZE})
+                evolve_hr4_full_z(store, batch_intervals=BLOCK_SIZE, **self._hydro())
+                nxt = store.read_authoritative_batch(0, self.schedule.n_intervals)
+                for block_start in range(0, self.schedule.n_intervals, BLOCK_SIZE):
+                    block = list(range(block_start, block_start + BLOCK_SIZE))
+                    for index in block:
+                        lifecycle.enqueue_post(index, actor="hr4c_reference")
+                    claimed = lifecycle.claim_block(actor="hr4c_reference")
+                    if claimed != block:
+                        raise ValueError("reference hydro claim differs from frozen block8 order")
+                    for index in claimed:
+                        lifecycle.begin_hydro_screen(index, actor="hr4c_reference")
+                        lifecycle.commit_next(
+                            index, {field: nxt[field][index] for field in FIELDS},
+                            actor="hr4c_reference",
+                        )
+                lifecycle.validate_barrier(actor="hr4c_reference")
+                lifecycle.promote_next_to_current(actor="hr4c_reference")
+            finally:
+                store.close()
+            created = [path for base in (state, batch_dir)
+                       for path in base.rglob("*") if path.is_file() and path not in before]
+            completed = self.budget.complete_intent(hydro_intent["intent_id"], files=created,
+                                                    metadata={"reclaimable": True})
+            self.budget.consume(hydro_res.reservation_id)
+        except BaseException as exc:
+            hydro_error = exc
+            try: self.budget.interrupt_intent(hydro_intent["intent_id"], reason=str(exc))
+            except Exception: pass
+            raise
+        finally:
+            self._close_writer(hydro_writer, failed=hydro_error)
+
+    def _run_candidate_multipulse(self, *, state: Path, output: Path, pulse: int,
+                                  reservation: Reservation, intent: Mapping[str, Any],
+                                  writer: Mapping[str, Any]) -> dict[str, Any]:
+        grid = self.components[0]
+        lifecycle = StreamingLifecycle.open(state)
+        epoch = self.driver.campaign.active_coordinator_epoch()
+        worker_count = int(self.spec.candidate_hydro_workers)
+        # The optical child owns a second writer on the existing shared
+        # physical reservation; the coordinator writer remains the owner of
+        # final reservation reconciliation, never a duplicate scientific copy.
+        optical_writer_id = f"C_OPTICAL_{pulse}_{time.time_ns()}"
+        # Register the child's durable writer identity before launch.  It
+        # shares the one optical reservation; the child records its own PID in
+        # the process receipt after completion.
+        self.budget.open_writer(
+            reservation_id=reservation.reservation_id, intent_id=intent["intent_id"],
+            coordinator_epoch=epoch, trajectory="C", pulse=int(pulse), attempt=0,
+            generation=str(lifecycle.manifest["current_generation"]),
+            writer_id=optical_writer_id,
+        )
+        optical_environment = os.environ.copy()
+        optical_environment["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
+        optical_environment["PYTHONNOUSERSITE"] = "1"
+        optical_environment["HR4E5S_WORKER_ID"] = f"e5_1b_c_optical_{pulse}"
+        optical_command = [
+            sys.executable, "-s", "-B", "-m", "KHz_filament.hr4e5_production_optical_worker",
+            "--lifecycle-root", str(state), "--output-dir", str(output),
+            "--pulse", str(int(pulse)), "--config-path", str(self.spec.config_path),
+            "--prefix-intervals", str(int(self.schedule.n_intervals)),
+            "--admission-identity-sha256", self.identity["identity_sha256"],
+            "--storage-root", str(self.root), "--intent-id", str(intent["intent_id"]),
+            "--reservation-id", str(reservation.reservation_id),
+            "--writer-id", optical_writer_id,
+        ]
+        optical_process = subprocess.Popen(
+            optical_command, cwd=str(self.root), env=optical_environment,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        hydro_processes: list[subprocess.Popen] = []
+        error: BaseException | None = None
+        try:
+            environment = os.environ.copy()
+            environment["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
+            environment["PYTHONNOUSERSITE"] = "1"
+            while True:
+                try:
+                    manifest = json.loads((state / "streaming_manifest.json").read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    manifest = None
+                if isinstance(manifest, dict) and manifest.get("queue"):
+                    break
+                if optical_process.poll() is not None:
+                    break
+                time.sleep(0.01)
+            if optical_process.poll() is not None:
+                _stdout, stderr = optical_process.communicate(timeout=5)
+                raise RuntimeError(
+                    f"Candidate optical worker failed: exit={optical_process.returncode}:stderr={stderr.strip()}"
+                )
+            existing = [item for item in self.budget.active_writers(
+                coordinator_epoch=epoch, include_management=True
+            ) if item.get("intent_id") == intent["intent_id"]]
+            if len(existing) != 2:
+                raise StorageIntegrityError(
+                    f"Candidate multiprocess expects optical + coordinator writers, found {len(existing)}"
+                )
+            for worker_index in range(worker_count):
+                hydro_writer_id = f"C_HYDRO_{pulse}_{worker_index}_{time.time_ns()}"
+                self.budget.open_writer(
+                    reservation_id=reservation.reservation_id, intent_id=intent["intent_id"],
+                    coordinator_epoch=epoch, trajectory="C", pulse=int(pulse), attempt=0,
+                    generation=str(lifecycle.manifest["current_generation"]),
+                    writer_id=hydro_writer_id,
+                )
+                environment["HR4E5S_WORKER_ID"] = f"e5_1b_c_hydro_{pulse}_{worker_index}"
+                hydro_processes.append(subprocess.Popen(
+                    self._hydro_worker_command(
+                        state, pulse, worker_index, intent_id=intent["intent_id"],
+                        reservation_id=reservation.reservation_id,
+                        writer_id=hydro_writer_id,
+                    ), cwd=str(self.root), env=environment,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                ))
+            self._join_hydro_workers(hydro_processes)
+            _stdout, stderr = optical_process.communicate(timeout=900)
+            if optical_process.returncode != 0:
+                raise RuntimeError(
+                    f"Candidate optical worker failed: exit={optical_process.returncode}:stderr={stderr.strip()}"
+                )
+            lifecycle = StreamingLifecycle.open(state)
+            lifecycle.validate_barrier(actor="e5_1b_production_barrier")
+            lifecycle.promote_next_to_current(actor="e5_1b_production_promotion")
+            initial = set(intent.get("initial_files", {}))
+            created = [
+                path for base in (output, state) for path in base.rglob("*")
+                if path.is_file() and path.relative_to(self.root).as_posix() not in initial
+            ]
+            if self.budget.writer_receipt(optical_writer_id)["status"] == "ACTIVE":
+                self._close_writer(self.budget.writer_receipt(optical_writer_id), failed=None)
+            completed = self.budget.complete_intent(
+                intent["intent_id"], files=created,
+                metadata={"generation": str(lifecycle.manifest["current_generation"])},
+            )
+            self.budget.consume(reservation.reservation_id)
+            return self._simple_report(
+                side="C", pulse=pulse, name="pulse",
+                summary=np.asarray([pulse, self.schedule.n_intervals], dtype=np.int64),
+            )
+        except BaseException as exc:
+            error = exc
+            raise
+        finally:
+            if error is not None:
+                self._stop_hydro_workers(hydro_processes)
+                if optical_process.poll() is None:
+                    optical_process.terminate()
+                    try:
+                        optical_process.communicate(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        optical_process.kill(); optical_process.communicate()
+                self.budget.interrupt_intent(intent["intent_id"], reason=str(error))
             self._close_writer(writer, failed=error)
 
     def _object_descriptor(self, side: str, pulse: int, key: str) -> dict[str, Any]:
@@ -490,11 +1075,7 @@ class _E5AProductionRunner:
             role, source_index = "screen", index
         elif parts[0] == "sink":
             name, source_index = parts[1], int(parts[2])
-            suffix = {"ion": "hr3a_qion_samples.npy", "ib": "hr3a_qib_samples.npy",
-                      "raman": "hr3a_qraman_samples.npy", "qthermal": "hr3a_qthermal_samples.npy",
-                      "increment": "hr3b_delta_n_increment_samples.npy",
-                      "state_after": "hr3b_delta_n_state_after_update_samples.npy"}[name]
-            path = output / f"sinks.{suffix}"; locator = {"slice": [source_index]}; role = "sink"
+            path = output / _SINK_FILES[name]; locator = {"slice": [source_index]}; role = "sink"
             namespace = "sink"
         elif parts[0] == "ledger":
             name = parts[1]; source_index = None; namespace = "ledger"; role = "ledger"
@@ -521,6 +1102,15 @@ class _E5AProductionRunner:
                 "role": role, "namespace": namespace, "source_index": source_index, "name": name}
 
     def _run_exact(self, pulse: int):
+        folder = self.root / "exact"; path = folder / f"p{pulse}.json"
+        owned = self.budget.artifacts().get(path.relative_to(self.root).as_posix())
+        if path.is_file() and isinstance(owned, Mapping):
+            _checked_owned_file(self.root, path, owned, label="existing paired exact report")
+            return validate_paired_exact_report(
+                path, admission_identity=self.identity, campaign_id=self.identity["campaign_id"],
+                pulse=pulse, root=self.root, storage_budget=self.budget,
+                expected_sha256=str(owned["sha256"]),
+            )
         keys = sorted(_paired_exact_keys(k=self.schedule.n_intervals,
                                          n_pulses=int(self.spec.n_pulses), pulse=int(pulse)))
         rows = []
@@ -536,7 +1126,6 @@ class _E5AProductionRunner:
             rows.append({"status": "PASS", "comparison_key": key, "reference": left, "candidate": right,
                          "reference_sha256_array": left["canonical_array_hash"],
                          "candidate_sha256_array": right["canonical_array_hash"]})
-        folder = self.root / "exact"; path = folder / f"p{pulse}.json"
         reservation, intent, writer = self._intent(side="C", pulse=pulse, role="exact_report",
             paths=[path], expected_bytes=max(4*1024**2, len(rows)*8192), generation=f"exact:p{pulse}")
         error = None
@@ -547,7 +1136,19 @@ class _E5AProductionRunner:
                        "screen_count": (12 if pulse == self.spec.n_pulses-1 else 15)*self.schedule.n_intervals,
                        "ledger_count": 9, "optical_count": 1, "expected_object_count": len(rows),
                        "compared_object_count": len(rows), "mismatch_count": 0, "rows": rows}
-            atomic_json(path, payload, overwrite=False)
+            if path.is_file():
+                saved = validate_paired_exact_report(
+                    path, admission_identity=self.identity, campaign_id=self.identity["campaign_id"],
+                    pulse=pulse, root=self.root, storage_budget=self.budget,
+                    expected_sha256=sha256_file(path),
+                )
+                if [(row["comparison_key"], row["reference_sha256_array"], row["candidate_sha256_array"])
+                        for row in saved["rows"]] != [
+                            (row["comparison_key"], row["reference_sha256_array"], row["candidate_sha256_array"])
+                            for row in rows]:
+                    raise StorageIntegrityError("interrupted exact report differs from recomputed comparisons")
+            else:
+                atomic_json(path, payload, overwrite=False)
             completed = self.budget.complete_intent(intent["intent_id"], files=[path], metadata={"reclaimable": False})
             self.budget.consume(reservation.reservation_id, actual_bytes=completed["actual_bytes"])
             return {**payload, "report_path": str(path), "report_sha256": sha256_file(path)}
@@ -579,19 +1180,81 @@ class _E5AProductionRunner:
         except BaseException as exc: error = exc; raise
         finally: self._close_writer(writer, failed=error)
 
-    def _run_gc(self, trajectory: str, pulse: int):
+    def _run_gc(self, trajectory: str, pulse: int, *, terminal_ready_path: Path | None = None):
+        final = pulse == self.spec.n_pulses - 1
+        if (terminal_ready_path is None) == final or trajectory not in {"R", "C"}:
+            raise ValueError("terminal reclaim requires the final POST_READY receipt")
         parent = self._track(trajectory, pulse)
         artifacts = self.budget.artifacts()
-        targets = []
+        targets: list[Path] = []
         for relative, item in artifacts.items():
             path = self.root / relative
-            if path.is_relative_to(parent / "state") and path.suffix in {".npy", ".npz"}:
+            if (not (final and trajectory == "C") and path.is_relative_to(parent / "state")
+                    and path.suffix in {".npy", ".npz"}):
                 targets.append(path)
-            elif (path.is_relative_to(parent / "batch") and path.is_file()
-                  and path.suffix in {".npy", ".npz"}):
+            elif (not (final and trajectory == "C") and path.is_relative_to(parent / "batch")
+                   and path.suffix in {".npy", ".npz"}):
                 targets.append(path)
+            elif path.parent == parent / "optical" and path.name in _SINK_FILES.values():
+                targets.append(path)
+        targets.sort(key=lambda path: path.as_posix())
+        sink_targets = {parent / "optical" / name for name in _SINK_FILES.values()}
+        if set(targets) & sink_targets != sink_targets:
+            raise StorageIntegrityError("production sink ownership is incomplete")
         if not targets:
             raise StorageBudgetError("production GC target set is empty")
+        plan_id = f"production-{trajectory}-p{pulse}"
+        saved_exact = self.driver._saved_receipt(pulse, "exact")
+        if saved_exact is None:
+            raise StorageIntegrityError("production reclaim lacks committed paired actual exact")
+        exact_path = self.root / "exact" / f"p{pulse}.json"
+        exact_owned = artifacts.get(exact_path.relative_to(self.root).as_posix())
+        if (not isinstance(exact_owned, Mapping)
+                or str(exact_owned.get("sha256")) != str(saved_exact.get("report_sha256"))):
+            raise StorageIntegrityError("paired exact report ownership or hash changed")
+        rows = {str(row.get("comparison_key")): row for row in saved_exact["rows"]}
+        sink_keys: list[str] = []
+        for name, filename in _SINK_FILES.items():
+            target = parent / "optical" / filename
+            relative = target.relative_to(self.root).as_posix()
+            owned = artifacts[relative]
+            for index in range(self.schedule.n_intervals):
+                key = f"sink:{name}:{index}"
+                row = rows.get(key)
+                descriptor = row.get("reference" if trajectory == "R" else "candidate") if isinstance(row, Mapping) else None
+                if (not isinstance(descriptor, Mapping) or row.get("status") != "PASS"
+                        or descriptor.get("relative_path") != relative
+                        or descriptor.get("locator") != {"slice": [index]}
+                        or descriptor.get("role") != "sink"
+                        or descriptor.get("source_index") != index
+                        or descriptor.get("shape") != [self.components[0].Ny, self.components[0].Nx]
+                        or descriptor.get("dtype") != "float64"
+                        or descriptor.get("finite") is not True
+                        or descriptor.get("file_sha256") != owned.get("sha256")
+                        or descriptor.get("file_identity") != owned.get("identity")
+                        or descriptor.get("creation_record") != owned.get("creation_record")):
+                    raise StorageIntegrityError(f"sink has no matching executed exact row: {key}")
+                sink_keys.append(key)
+        existing = self.budget.reclaim_plan(plan_id)
+        if existing is not None:
+            if (set(str(item["relative_path"]) for item in existing["targets"])
+                    != {path.relative_to(self.root).as_posix() for path in targets}):
+                raise StorageIntegrityError("existing reclaim plan target set changed")
+            result = self.budget.resume_reclaim(
+                plan_id, expected_trajectory=trajectory, expected_pulse=pulse,
+                expected_attempt=0, expected_admission_hash=self.identity["identity_sha256"],
+            )
+            verified = self.budget.verify_reclaim(
+                plan_id, expected_trajectory=trajectory, expected_pulse=pulse,
+                expected_attempt=0, expected_admission_hash=self.identity["identity_sha256"],
+            )
+            if result.get("status") != "COMPLETED" or verified.get("status") != "PASS":
+                raise StorageIntegrityError("resumed production reclaim is incomplete")
+            writer_receipt = existing["writer_receipt"]
+            return self._simple_report(side=trajectory, pulse=pulse, name="gc",
+                summary=np.asarray([pulse, len(targets)], dtype=np.int64),
+                extras={"gc_plan_id": plan_id, "writer_receipt_path": writer_receipt["path"],
+                        "writer_receipt_sha256": writer_receipt["sha256"]})
         self.budget.set_reclaimable(targets, value=True)
         evidence = parent / "gc_evidence"; files: list[Path] = []
         reservation, intent, writer = self._intent(side=trajectory, pulse=pulse, role="gc_evidence",
@@ -619,10 +1282,14 @@ class _E5AProductionRunner:
             bind_exact_report(exact, {"status": "PASS", "mismatch_count": 0,
                                       "missing_reference": [], "missing_candidate": []}, rows,
                               campaign_id=self.identity["campaign_id"], root=self.root)
-            ready = self._track(trajectory, pulse+1) / "state" / "E5_1A_READY.json"
+            ready = (terminal_ready_path if terminal_ready_path is not None else
+                     self._track(trajectory, pulse+1) / "state" / "E5_1A_READY.json")
             dependency = evidence / "dependency.json"
             atomic_json(dependency, {"status": "PASS", "no_future_dependency": True,
-                                     "paired_exact": str((self.root/"exact"/f"p{pulse}.json").resolve())}, overwrite=False)
+                                     "paired_exact": str(exact_path),
+                                     "paired_exact_sha256": saved_exact["report_sha256"],
+                                     "sink_comparison_keys": sink_keys,
+                                     "terminal_release": final}, overwrite=False)
             owned = self.budget.artifacts(); bindings = []
             for target in targets:
                 relative = target.relative_to(self.root).as_posix(); item = owned[relative]
@@ -650,12 +1317,12 @@ class _E5AProductionRunner:
         writer_receipt = self.budget.write_quiescence_receipt(
             evidence / "writer_quiescent.json", coordinator_epoch=epoch,
             trajectory=trajectory, pulse=pulse, attempt=0)
-        plan_id = f"production-{trajectory}-p{pulse}"
         self.budget.plan_reclaim(targets, exact_complete=True, successor_ready=True,
             no_active_writers=True, no_future_dependency=True, receipts_durable=True,
             writer_receipt=writer_receipt, writer_epoch=epoch, prerequisite_receipt=prerequisite,
             plan_id=plan_id, trajectory=trajectory, pulse=pulse, attempt=0,
-            admission_hash=self.identity["identity_sha256"])
+            admission_hash=self.identity["identity_sha256"],
+            reason="after_final_post_ready" if terminal_ready_path is not None else "after_exact_successor_ready")
         self.budget.apply_reclaim(plan_id, expected_trajectory=trajectory, expected_pulse=pulse,
             expected_attempt=0, expected_admission_hash=self.identity["identity_sha256"])
         self.budget.verify_reclaim(plan_id, expected_trajectory=trajectory, expected_pulse=pulse,
@@ -670,19 +1337,88 @@ class _E5AProductionRunner:
         folder = self.root / "terminal"; ready = state / "POST_FINAL_READY.json"
         writer_path = state / "writer_quiescent.json"
         contract = self.root / "E5_1A_TERMINAL_ROLE_CONTRACT.json"
+        ready_owned = self.budget.artifacts().get(ready.relative_to(self.root).as_posix())
+        if ready.is_file() and isinstance(ready_owned, Mapping):
+            _checked_owned_file(self.root, ready, ready_owned, label="terminal READY")
+            saved = json.loads(ready.read_text(encoding="utf-8"))
+            receipt = dict(saved.get("writer_receipt", {}))
+            if not receipt.get("path") or not receipt.get("sha256"):
+                raise StorageIntegrityError("terminal READY lacks its writer receipt")
+            resumed = resume_final_post(lifecycle_root=state, receipt_path=ready,
+                                        writer_receipt=receipt, fixture_only=False)
+            if resumed.get("status") != "PASS":
+                raise StorageIntegrityError("terminal READY cannot be reopened")
+        else:
+            ready_res, ready_intent, ready_writer = self._intent(
+                side="C", pulse=pulse, role="TERMINAL_READY",
+                paths=[ready, writer_path], expected_bytes=4*1024**2,
+                generation=f"terminal-ready:p{pulse}")
+            ready_error = None
+            try:
+                # Quiescence is sampled with the management writer closed.
+                self._close_writer(ready_writer)
+                ready_writer = None
+                if writer_path.is_file():
+                    receipt = self.budget._read_writer_receipt(
+                        writer_path, expected_trajectory="C", expected_pulse=pulse,
+                        expected_attempt=0, expected_admission_hash=self.identity["identity_sha256"])
+                else:
+                    receipt = self.budget.write_quiescence_receipt(
+                        writer_path, coordinator_epoch=self.driver.campaign.active_coordinator_epoch(),
+                        trajectory="C", pulse=pulse, attempt=0)
+                if not ready.is_file():
+                    ready_writer = self.budget.open_writer(
+                        reservation_id=ready_res.reservation_id, intent_id=ready_intent["intent_id"],
+                        coordinator_epoch=self.driver.campaign.active_coordinator_epoch(),
+                        trajectory="C", pulse=pulse, attempt=0,
+                        generation=f"terminal-ready:p{pulse}")
+                    result = validate_final_post(
+                        lifecycle_root=state, receipt_path=ready, writer_quiescent=False,
+                        fixture_only=False, expected_optical_dir=output, writer_receipt=receipt)
+                    if result.get("status") != "PASS":
+                        raise StorageIntegrityError("terminal POST failed initial validation")
+                else:
+                    resume_final_post(lifecycle_root=state, receipt_path=ready,
+                                      writer_receipt=receipt, fixture_only=False)
+                completed = self.budget.complete_intent(
+                    ready_intent["intent_id"], files=[writer_path, ready],
+                    metadata={"reclaimable": False})
+                self.budget.consume(ready_res.reservation_id, actual_bytes=completed["actual_bytes"])
+            except BaseException as exc:
+                ready_error = exc
+                try: self.budget.interrupt_intent(ready_intent["intent_id"], reason=str(exc))
+                except Exception: pass
+                raise
+            finally:
+                if ready_writer is not None:
+                    self._close_writer(ready_writer, failed=ready_error)
+        # Both tracks are quiescent before either final payload is released.
+        for side in ("R", "C"):
+            plan_id = f"production-{side}-p{pulse}"
+            # Reenter even after the reclaim plan completed: a process can
+            # stop before its separate durable GC report was written.
+            self._run_gc(side, pulse, terminal_ready_path=ready)
+            verified = self.budget.verify_reclaim(
+                plan_id, expected_trajectory=side, expected_pulse=pulse,
+                expected_attempt=0, expected_admission_hash=self.identity["identity_sha256"])
+            if verified.get("status") != "PASS":
+                raise StorageIntegrityError("terminal reclaim remains incomplete")
+        report = folder / "terminal.json"; summary = folder / "terminal_summary.npy"
+        if contract.is_file():
+            owned = self.budget.artifacts().get(contract.relative_to(self.root).as_posix())
+            if not isinstance(owned, Mapping):
+                raise StorageIntegrityError("terminal role contract changed or is unowned")
+            _checked_owned_file(self.root, contract, owned, label="terminal role contract")
+            return {**validate_durable_report(report, expected_sha256=self.budget.artifacts()[
+                report.relative_to(self.root).as_posix()]["sha256"],
+                campaign_id=self.identity["campaign_id"], root=self.root, pulse=pulse, trajectory="C"),
+                "writer_receipt_path": receipt["path"], "writer_receipt_sha256": receipt["sha256"]}
         reservation, intent, writer = self._intent(side="C", pulse=pulse, role="TERMINAL_EVIDENCE",
-            paths=[folder, ready, writer_path, contract], expected_bytes=16*1024**2,
+            paths=[folder, contract], expected_bytes=16*1024**2,
             generation=f"terminal:p{pulse}")
         error = None
         try:
             folder.mkdir(parents=True, exist_ok=True)
-            receipt = self.budget.write_quiescence_receipt(
-                writer_path, coordinator_epoch=writer["coordinator_epoch"],
-                trajectory="C", pulse=pulse, attempt=0)
-            validate_final_post(lifecycle_root=state, receipt_path=ready, writer_quiescent=False,
-                                fixture_only=False, expected_optical_dir=output,
-                                writer_receipt=receipt)
-            summary = folder / "terminal_summary.npy"; report = folder / "terminal.json"
             np.save(summary, np.asarray([pulse, self.schedule.n_intervals], dtype=np.int64))
             rows = build_expected_object_set(
                 {"terminal": summary}, campaign_id=self.identity["campaign_id"], trajectory="C",
@@ -703,8 +1439,9 @@ class _E5AProductionRunner:
                 "report_pulse": 4 * int(self.spec.n_pulses),
                 "exact_report": int(self.spec.n_pulses),
                 "report_successor": 4 * (int(self.spec.n_pulses) - 1),
-                "gc_evidence": 6 * (int(self.spec.n_pulses) - 1),
-                "report_gc": 4 * (int(self.spec.n_pulses) - 1),
+                "gc_evidence": 6 * int(self.spec.n_pulses),
+                "report_gc": 4 * int(self.spec.n_pulses),
+                "TERMINAL_READY": 2,
             }
             missing_roles = {
                 role: minimum for role, minimum in required_role_counts.items()
@@ -714,7 +1451,7 @@ class _E5AProductionRunner:
                 raise StorageIntegrityError(
                     f"terminal production role contract is incomplete: {missing_roles}"
                 )
-            terminal_files = [Path(receipt["path"]), ready, summary, report, contract]
+            terminal_files = [summary, report, contract]
             role_map.setdefault("TERMINAL_EVIDENCE", []).extend(
                 path.relative_to(self.root).as_posix() for path in terminal_files)
             atomic_json(contract, {"schema": "khz_filament.hr4e5.e5_1a.terminal_roles.v1",
@@ -738,8 +1475,17 @@ class E5AProductionCampaign:
         self._runner, self._driver = runner, driver
 
     def run(self, *, stop_after: int | None = None):
-        return {**self._driver.run(stop_after=stop_after),
-                "admission_identity": dict(self._runner.identity)}
+        result = self._driver.run(stop_after=stop_after)
+        if result.get("status") == "COMPLETE":
+            roles = self._runner.expected_terminal_roles(self._runner.spec.n_pulses - 1)
+            inventory = self._runner.budget.validate_terminal_inventory(
+                roles, root=self._runner.root, final=True)
+            measured = self._runner.budget.final_output_bytes()
+            if measured != inventory["final_output_bytes"]:
+                raise StorageIntegrityError("final byte views differ after campaign completion")
+            result = {**result, "terminal_inventory_after_close": inventory,
+                      "storage_after_close": self._runner.budget.budget_report()}
+        return {**result, "admission_identity": dict(self._runner.identity)}
     def pause(self, *, reason: str = "operator_pause"): return self._driver.pause(reason=reason)
     def close(self): return self._driver.close()
     def report(self):
@@ -750,9 +1496,9 @@ def open_e5_1a_production_campaign(spec: E5AProductionSpec) -> E5AProductionCamp
     """The only supported creator/resumer for a production-mode E5-1A run."""
     if not isinstance(spec, E5AProductionSpec):
         raise TypeError("E5AProductionSpec is required")
-    root = Path(spec.root).resolve(); root.mkdir(parents=True, exist_ok=True)
-    reopening = (root / CAMPAIGN_STATE_FILENAME).is_file()
     identity, schedule, components = _build_admission(spec)
+    root = _checked_campaign_root(spec.root); root.mkdir(parents=True, exist_ok=True)
+    reopening = (root / CAMPAIGN_STATE_FILENAME).is_file()
     persist_admission_identity(root / "E5_1A_ADMISSION_IDENTITY.json", identity)
     runner = _E5AProductionRunner(spec, identity, schedule, components)
     driver = _open_production_driver(
@@ -763,11 +1509,17 @@ def open_e5_1a_production_campaign(spec: E5AProductionSpec) -> E5AProductionCamp
         takeover=reopening,
     )
     runner.driver = driver
+    if identity["budget_identity"].get("prefix_inside_campaign_root"):
+        driver.campaign.storage.register_preexisting_prefix(
+            identity["pre0_identity"]["path"],
+            expected_sha256=identity["pre0_identity"]["sha256"],
+        )
     if spec.admission_level == LOCAL_ORCHESTRATION_QUALIFICATION:
         driver.campaign.storage.provider = _LocalPolicyCapacityProvider(root, spec.max_campaign_live_bytes)
     else:
         driver.campaign.storage.provider = _ManifestCapacityProvider(
-            _read_manifest(Path(spec.site_resource_manifest_path).resolve(), label="site resource")
+            _read_manifest(_checked_input_path(spec.site_resource_manifest_path,
+                label="site resource manifest"), label="site resource")
         )
     runner.initialize()
     return E5AProductionCampaign(runner, driver)

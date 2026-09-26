@@ -453,13 +453,57 @@ def _paired_descriptor_path(
     raw = descriptor.get("path", descriptor.get("relative_path"))
     if raw is None:
         raise ValueError(f"{label} path is missing")
-    candidate = Path(str(raw))
-    if candidate.is_absolute():
-        resolved = candidate.resolve()
+    raw_text = str(raw)
+    # Reject parent traversal from the serialized path before resolve() can
+    # normalize it away.  Treat both separators as delimiters so receipts
+    # remain safe when checked on Windows and POSIX hosts.
+    if ".." in raw_text.replace("\\", "/").split("/"):
+        raise ValueError(f"{label} path contains parent traversal")
+    candidate = Path(raw_text)
+    base = Path(root).resolve(strict=False)
+    lexical = candidate if candidate.is_absolute() else base / candidate
+    try:
+        relative = lexical.relative_to(base)
+    except ValueError as error:
+        raise ValueError(f"{label} path is outside exact root") from error
+    if not relative.parts or any(part == ".." for part in relative.parts):
+        raise ValueError(f"{label} path contains parent traversal or names the exact root")
+
+    # Inspect every existing lexical component before resolving.  This catches
+    # junctions/reparse points as well as symlinks, including links that would
+    # resolve back inside the root and therefore evade a post-resolve check.
+    current = base
+    for part in relative.parts:
+        current = current / part
+        try:
+            info = current.lstat()
+        except FileNotFoundError:
+            # A missing target is handled below; there cannot be a later
+            # existing component beneath a missing directory.
+            break
+        except OSError as error:
+            raise ValueError(f"{label} path cannot be inspected") from error
+        attributes = int(getattr(info, "st_file_attributes", 0))
+        if current.is_symlink() or attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400):
+            raise ValueError(f"{label} path contains a symlink or reparse point")
+    try:
+        resolved = lexical.resolve(strict=False)
+        resolved.relative_to(base)
+    except (OSError, ValueError) as error:
+        raise ValueError(f"{label} path is missing or outside exact root") from error
+    if require_file:
+        if not resolved.is_file():
+            raise ValueError(f"{label} path is missing or outside exact root")
     else:
-        resolved = (root / candidate).resolve()
-    if not resolved.is_relative_to(root) or resolved.is_symlink() or (require_file and not resolved.is_file()):
-        raise ValueError(f"{label} path is missing or outside exact root")
+        try:
+            info = resolved.lstat()
+        except FileNotFoundError:
+            pass
+        except OSError as error:
+            raise ValueError(f"{label} path cannot be inspected") from error
+        else:
+            if not stat.S_ISREG(info.st_mode):
+                raise ValueError(f"{label} path is not a regular file")
     return resolved
 
 
@@ -569,6 +613,18 @@ def _validate_paired_descriptor(
                 raise ValueError(f"formal exact {side} storage ownership {field} changed")
             if str(completed_intent.get(field)) != str(descriptor.get(field)):
                 raise ValueError(f"formal exact {side} completed intent {field} changed")
+        if not present:
+            try:
+                reclaimed = storage_budget.reclaimed_target(
+                    relative, campaign_id=campaign_id, trajectory=side,
+                    pulse=int(pulse), attempt=int(attempt),
+                    identity=dict(descriptor.get("file_identity", {})),
+                    sha256=file_digest,
+                )
+            except Exception as error:
+                raise ValueError(f"formal exact {side} missing object lacks durable GC evidence") from error
+            if reclaimed is not True:
+                raise ValueError(f"formal exact {side} missing object lacks durable GC evidence")
     return array, path, {"array_sha256": array_digest, "file_sha256": file_digest,
                           "objects_present": bool(present)}
 
@@ -649,11 +705,11 @@ def validate_paired_exact_report(
         if left_info["array_sha256"] != right_info["array_sha256"]:
             raise ValueError(f"formal exact paired array hash mismatch: {key}")
         if left is None or right is None:
-            if left is not None or right is not None:
-                raise ValueError(f"formal exact paired object retention differs: {key}")
             result = {
                 "schema": EVIDENCE_SCHEMA, "name": key, "status": "PASS",
                 "metadata_only": True, "objects_present": False,
+                "reference_present": left is not None,
+                "candidate_present": right is not None,
                 "reference_path": str(left_path), "candidate_path": str(right_path),
             }
         else:

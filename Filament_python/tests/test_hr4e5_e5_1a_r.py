@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
 import subprocess
 import sys
 import textwrap
@@ -267,14 +269,26 @@ def test_r02_object_binding_rejects_replaced_array(tmp_path):
         validate_object_set(rows, campaign_id="c", root=root)
 
 
-def test_r10_budget_plan_is_scalar_and_has_headroom():
-    from KHz_filament.hr4e5_storage import plan_campaign_budget
+def test_r10_budget_plan_is_scalar_and_refuses_unbudgeted_full_sinks():
+    from KHz_filament.hr4e5_storage import (StorageBudgetError, budget_object_table,
+                                            plan_campaign_budget, plan_final_output)
 
-    plan = plan_campaign_budget(n_pulses=3, k=8048, ny=351, nx=301, nt=384)
-    assert plan["peak_bytes"] <= 322122547200
-    assert plan["final_output_bytes"] <= 68719476736
-    assert plan["headroom_bytes"] > 0 and plan["final_headroom_bytes"] > 0
-    assert plan["k8048_arrays_created"] is False
+    args = dict(n_pulses=3, k=8048, ny=351, nx=301, nt=384)
+    objects = budget_object_table(**args)
+    assert objects["stage_bytes"][objects["peak_stage"]] == sum(
+        row["bytes"] for row in objects["stages"][objects["peak_stage"]])
+    assert objects["stage_bytes"]["final_retention"] < 68719476736
+    assert objects["peak_bytes"] < 322122547200
+    assert objects["external_prefix_bytes"] == 6802233984
+    plan = plan_campaign_budget(**args)
+    assert plan["peak_bytes"] == objects["peak_bytes"]
+    assert plan["final_output_bytes"] == objects["final_output_bytes"]
+    assert plan_campaign_budget(**args, max_campaign_live_bytes=plan["peak_bytes"])["headroom_bytes"] == 0
+    with pytest.raises(StorageBudgetError, match="exceeds cap"):
+        plan_campaign_budget(**args, max_campaign_live_bytes=plan["peak_bytes"] - 1)
+    assert objects["final_output_bytes"] + 36 * objects["field_bytes"] > 68719476736
+    with pytest.raises(StorageBudgetError, match="exceed"):
+        plan_final_output(**args, diagnostics=("ion", "ib", "raman", "qthermal", "increment", "state_after"))
 
 
 def _write_formal_simple_report(root, path, identity, trajectory, *, writer=None):
@@ -403,6 +417,7 @@ def _complete_formal_gc(root, budget, identity, *, side, pulse, targets, writer_
         coordinator_epoch=writer_epoch, trajectory=side, pulse=int(pulse),
         attempt=0, generation=f"gc:{side}:p{pulse}",
     )
+    budget.close_writer(writer_record["writer_id"], coordinator_epoch=writer_epoch)
     writer_receipt = budget.write_quiescence_receipt(
         writer, coordinator_epoch=writer_epoch, trajectory=side,
         pulse=int(pulse), attempt=0,
@@ -411,7 +426,6 @@ def _complete_formal_gc(root, budget, identity, *, side, pulse, targets, writer_
     assert writer_receipt["registry_backed"] is True
     completed_writer = budget.complete_intent(intent["intent_id"], files=[writer])
     budget.consume(reservation.reservation_id, actual_bytes=completed_writer["actual_bytes"])
-    budget.close_writer(writer_record["writer_id"], coordinator_epoch=writer_epoch)
     assert budget.active_writers(coordinator_epoch=writer_epoch, include_management=False) == []
     evidence = root / f"evidence_formal_{side}{pulse}"
     evidence.mkdir(parents=True, exist_ok=True)
@@ -814,7 +828,10 @@ def test_r09_formal_terminal_requires_inventory_contract(tmp_path):
     driver.close()
 
 
-def _local_production_spec(tmp_path, *, campaign_id="local-production", n_pulses=1, k=8):
+def _local_production_spec(tmp_path, *, campaign_id="local-production", n_pulses=1, k=8,
+                             candidate_hydro_workers=1, max_campaign_live_bytes=300*1024**3,
+                             final_output_budget_bytes=64*1024**3,
+                             safety_margin_bytes=1024**2):
     from KHz_filament.hr4e5_evidence import sha256_file
     from KHz_filament.hr4e5_production import E5AProductionSpec, _source_hash
 
@@ -847,7 +864,11 @@ def _local_production_spec(tmp_path, *, campaign_id="local-production", n_pulses
     pre0 = inputs / "pre0.npy"; np.save(pre0, np.zeros((k, 8, 8), dtype=np.float64))
     return E5AProductionSpec(root=tmp_path/"campaign", campaign_id=campaign_id,
         config_path=config, source_manifest_path=source, lut_manifest_path=lut,
-        pre0_delta_n_path=pre0, n_pulses=n_pulses, safety_margin_bytes=1024**2)
+        pre0_delta_n_path=pre0, n_pulses=n_pulses,
+        candidate_hydro_workers=candidate_hydro_workers,
+        max_campaign_live_bytes=max_campaign_live_bytes,
+        final_output_budget_bytes=final_output_budget_bytes,
+        safety_margin_bytes=safety_margin_bytes)
 
 
 def test_production_factory_is_unique_and_n1_real_cpu_path(tmp_path):
@@ -935,6 +956,387 @@ def test_production_n2_k16_multiblock_overlap_happy_path(tmp_path):
         assert ledger["artifacts"][relative]["role"] == "SUCCESSOR"
 
 
+def test_production_n2_k64_four_hydro_workers_matches_single_worker(tmp_path):
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+
+    multi_spec = _local_production_spec(
+        tmp_path / "multi", campaign_id="local-production-k64-4-workers",
+        n_pulses=2, k=64, candidate_hydro_workers=4,
+    )
+    too_small_spec = _local_production_spec(
+        tmp_path / "too-small", campaign_id="local-production-too-small",
+        n_pulses=2, k=64, candidate_hydro_workers=4,
+        max_campaign_live_bytes=2*1024**3,
+        final_output_budget_bytes=1024*1024,
+        safety_margin_bytes=1024*1024,
+    )
+    with pytest.raises(RuntimeError, match="exceeds cap"):
+        open_e5_1a_production_campaign(too_small_spec)
+    multi_result = open_e5_1a_production_campaign(multi_spec).run()
+    assert multi_result["status"] == "COMPLETE" and multi_result["next_pair_index"] == 2
+
+    single_spec = _local_production_spec(
+        tmp_path / "single", campaign_id="local-production-k64-single-worker",
+        n_pulses=2, k=64, candidate_hydro_workers=1,
+    )
+    single_result = open_e5_1a_production_campaign(single_spec).run()
+    assert single_result["status"] == "COMPLETE" and single_result["next_pair_index"] == 2
+
+    def exact_signature(root):
+        reports = [json.loads((Path(root) / "exact" / f"p{pulse}.json").read_text(encoding="utf-8"))
+                   for pulse in range(2)]
+        return [row["comparison_key"] for report in reports for row in report["rows"]], [
+            (row["comparison_key"], row["reference_sha256_array"], row["candidate_sha256_array"])
+            for report in reports for row in report["rows"]
+        ]
+
+    multi_keys, multi_values = exact_signature(multi_spec.root)
+    single_keys, single_values = exact_signature(single_spec.root)
+    assert multi_keys == single_keys and multi_values == single_values
+
+    manifest = json.loads((Path(multi_spec.root) / "C" / "p0" / "state" /
+                           "streaming_manifest.json").read_text(encoding="utf-8"))
+    hydro_receipts = [json.loads((Path(multi_spec.root) / "C" / "p0" / "state" /
+                                  "process_receipts" / f"C_HYDRO_{index:03d}.json").read_text(encoding="utf-8"))
+                      for index in range(4)]
+    assert {receipt["role"] for receipt in hydro_receipts} == {"C_HYDRO"}
+    assert len({receipt["pid"] for receipt in hydro_receipts}) == 4
+    assert {receipt["worker_index"] for receipt in hydro_receipts} == set(range(4))
+    assert {receipt["exit_status"] for receipt in hydro_receipts} == {"PASS"}
+    claimed = [ordinal for receipt in hydro_receipts for ordinal in receipt["claimed_ordinals"]]
+    assert sorted(claimed) == list(range(64)) and len(claimed) == len(set(claimed))
+    actors = {str(event.get("actor")) for event in manifest["telemetry_events"]
+              if str(event.get("event")) == "HYDRO_CLAIM"}
+    expected = {f"e5_1b_c_hydro_0_{index}" for index in range(4)}
+    assert actors <= expected
+    assert manifest["barrier"]["status"] == "PASS"
+    assert manifest["promotion"]["authoritative_namespace"] == "NEXT"
+    admission = json.loads((Path(multi_spec.root) / "R" / "p0" / "reports" /
+                            "admission.json").read_text(encoding="utf-8"))
+    assert admission["admission_identity_sha256"] == multi_result["admission_identity"]["identity_sha256"]
+    topology = multi_result["admission_identity"]["hydro_topology"]
+    assert topology["candidate_hydro_workers_requested"] == 4
+    assert topology["candidate_hydro_processes_requested"] == 4
+    assert topology["candidate_hydro_gpus_requested"] == 4
+    assert topology["candidate_hydro_local_process_qualification"] in {"PENDING", "PASS"}
+    assert topology["candidate_hydro_physical_gpu_binding_qualification"] == "PENDING_HPC"
+    assert topology["gpu_topology_qualified"] is False
+
+
+
+def test_production_n2_k64_h2_fallback_multiprocess(tmp_path):
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+
+    spec = _local_production_spec(
+        tmp_path, campaign_id="local-production-k64-h2-fallback", n_pulses=2, k=64,
+        candidate_hydro_workers=2,
+    )
+    result = open_e5_1a_production_campaign(spec).run()
+    assert result["status"] == "COMPLETE" and result["next_pair_index"] == 2
+    receipts = [json.loads((Path(spec.root) / "C" / "p0" / "state" / "process_receipts" /
+                            f"C_HYDRO_{index:03d}.json").read_text(encoding="utf-8"))
+                for index in range(2)]
+    assert len({receipt["pid"] for receipt in receipts}) == 2
+    assert {receipt["exit_status"] for receipt in receipts} == {"PASS"}
+    assert all(receipt["claimed_ordinals"] for receipt in receipts)
+    claimed = [ordinal for receipt in receipts for ordinal in receipt["claimed_ordinals"]]
+    assert sorted(claimed) == list(range(64)) and len(claimed) == len(set(claimed))
+    for pulse in range(2):
+        exact = json.loads((Path(spec.root) / "exact" / f"p{pulse}.json").read_text(encoding="utf-8"))
+        assert exact["status"] == "PASS" and exact["mismatch_count"] == 0
+    manifest = json.loads((Path(spec.root) / "C" / "p0" / "state" /
+                           "streaming_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["barrier"]["status"] == "PASS"
+    assert manifest["promotion"]["authoritative_namespace"] == "NEXT"
+    assert not manifest["queue"] and not manifest["recovery_backlog"]
+    ledger = json.loads((Path(spec.root) / "storage_ledger.json").read_text(encoding="utf-8"))
+    assert not [item for item in ledger["writers"].values() if item["status"] == "ACTIVE"]
+
+
+def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(tmp_path):
+    from KHz_filament.hr4e5_storage import probe_process_identity
+
+    spec = _local_production_spec(
+        tmp_path, campaign_id="local-production-k64-h4-dead-worker-recovery",
+        n_pulses=2, k=64, candidate_hydro_workers=4,
+    )
+    attempts = tmp_path / "attempt_evidence"
+    first_attempt = attempts / "initial"
+    replacement_attempt = attempts / "replacement"
+    first_attempt.mkdir(parents=True)
+    replacement_attempt.mkdir(parents=True)
+    claim_marker = first_attempt / "paused_hydro_claim.json"
+    replacement_result_path = replacement_attempt / "result.json"
+    python_root = Path(__file__).resolve().parents[1]
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(python_root) + os.pathsep + environment.get("PYTHONPATH", "")
+    environment["PYTHONNOUSERSITE"] = "1"
+
+    first_coordinator = textwrap.dedent(
+        """
+        import sys, textwrap
+        from pathlib import Path
+        from KHz_filament.hr4e5_production import (
+            E5AProductionSpec, _E5AProductionRunner, open_e5_1a_production_campaign,
+        )
+
+        root, campaign_id, config, source, lut, pre0, marker = sys.argv[1:]
+        spec = E5AProductionSpec(
+            root=Path(root), campaign_id=campaign_id, config_path=Path(config),
+            source_manifest_path=Path(source), lut_manifest_path=Path(lut),
+            pre0_delta_n_path=Path(pre0), n_pulses=2, candidate_hydro_workers=4,
+            safety_margin_bytes=1024**2,
+        )
+        worker_wrapper = textwrap.dedent(r'''
+            import json, os, sys, time
+            from pathlib import Path
+            from KHz_filament.hr4e5_production_worker import main
+            from KHz_filament.hr4e5_storage import process_identity
+            from KHz_filament.hr4e5s_streaming import StreamingLifecycle
+
+            marker = Path(sys.argv[1])
+            worker_args = sys.argv[2:]
+            worker_index = int(worker_args[worker_args.index("--worker-index") + 1])
+            sys.argv = [sys.argv[0], *worker_args]
+            original_claim = StreamingLifecycle.claim_block
+
+            def pause_after_durable_claim(self, *, actor="hydro"):
+                block = original_claim(self, actor=actor)
+                if worker_index == 0 and block and not marker.exists():
+                    marker.parent.mkdir(parents=True, exist_ok=True)
+                    temporary_marker = marker.with_suffix(".tmp")
+                    temporary_marker.write_text(json.dumps({
+                        "process_identity": process_identity(), "worker_index": worker_index,
+                        "actor": actor, "block": block,
+                        "lifecycle_root": str(self.root),
+                        "writer_id": worker_args[worker_args.index("--writer-id") + 1],
+                    }), encoding="utf-8")
+                    temporary_marker.replace(marker)
+                    deadline = time.monotonic() + 120.0
+                    while time.monotonic() < deadline:
+                        time.sleep(0.05)
+                return block
+
+            StreamingLifecycle.claim_block = pause_after_durable_claim
+            raise SystemExit(main())
+        ''')
+        original_command = _E5AProductionRunner._hydro_worker_command
+        def paused_worker_command(self, state, pulse, worker_index, **kwargs):
+            command = original_command(self, state, pulse, worker_index, **kwargs)
+            if int(worker_index) != 0:
+                return command
+            return [*command[:3], "-c", worker_wrapper, marker, *command[5:]]
+        _E5AProductionRunner._hydro_worker_command = paused_worker_command
+        open_e5_1a_production_campaign(spec).run()
+        """
+    )
+    first_stdout = first_attempt / "coordinator.stdout.txt"
+    first_stderr = first_attempt / "coordinator.stderr.txt"
+    with first_stdout.open("w", encoding="utf-8") as stdout_file, first_stderr.open(
+        "w", encoding="utf-8"
+    ) as stderr_file:
+        coordinator = subprocess.Popen(
+            [sys.executable, "-s", "-B", "-c", first_coordinator,
+             str(spec.root), spec.campaign_id, str(spec.config_path),
+             str(spec.source_manifest_path), str(spec.lut_manifest_path),
+             str(spec.pre0_delta_n_path), str(claim_marker)],
+            cwd=python_root, env=environment, stdout=stdout_file, stderr=stderr_file, text=True,
+        )
+        try:
+            claim_deadline = time.monotonic() + 90.0
+            while not claim_marker.is_file():
+                if coordinator.poll() is not None:
+                    pytest.fail(
+                        "initial coordinator exited before the hydro claim pause; "
+                        f"exit={coordinator.returncode}, stdout={first_stdout.read_text(encoding='utf-8')}, "
+                        f"stderr={first_stderr.read_text(encoding='utf-8')}"
+                    )
+                if time.monotonic() >= claim_deadline:
+                    pytest.fail("worker 0 did not reach its durable claim pause within 90 seconds")
+                time.sleep(0.05)
+            marker = json.loads(claim_marker.read_text(encoding="utf-8"))
+            worker_identity = marker["process_identity"]
+            assert coordinator.pid != os.getpid() and coordinator.poll() is None
+            assert marker["worker_index"] == 0
+            assert marker["actor"].endswith("_0")
+            assert int(worker_identity["pid"]) != coordinator.pid
+            assert probe_process_identity(worker_identity)["status"] == "LIVE"
+
+            lifecycle_root = Path(marker["lifecycle_root"])
+            manifest = json.loads((lifecycle_root / "streaming_manifest.json").read_text(encoding="utf-8"))
+            claimed = [int(value) for value in marker["block"]]
+            claim_events = [event for event in manifest["telemetry_events"]
+                            if event.get("event") == "HYDRO_CLAIM" and event.get("actor") == marker["actor"]]
+            assert claim_events and claim_events[-1]["block"] == claimed
+            for ordinal in claimed:
+                record = manifest["records"][ordinal]
+                assert record["state"] == "HYDRO_RUNNING" and record["next"] is None
+                assert not (lifecycle_root / "next" / f"screen_{ordinal:06d}.npz").exists()
+            (first_attempt / "claim_observation.json").write_text(json.dumps({
+                "coordinator_pid": coordinator.pid, "worker_process_identity": worker_identity,
+                "worker_liveness": "LIVE", "worker_index": marker["worker_index"],
+                "actor": marker["actor"], "claimed_ordinals": claimed,
+                "all_claimed_uncommitted": True,
+            }, indent=2), encoding="utf-8")
+
+            # The worker identity was probed LIVE immediately before this exact PID is killed.
+            os.kill(int(worker_identity["pid"]), signal.SIGTERM)
+            worker_deadline = time.monotonic() + 15.0
+            worker_probe = probe_process_identity(worker_identity)
+            while worker_probe["status"] == "LIVE" and time.monotonic() < worker_deadline:
+                time.sleep(0.05)
+                worker_probe = probe_process_identity(worker_identity)
+            assert worker_probe["status"] == "DEAD", worker_probe
+            coordinator.wait(timeout=180)
+            (first_attempt / "exit_observation.json").write_text(json.dumps({
+                "worker_liveness_after_kill": worker_probe,
+                "coordinator_returncode": coordinator.returncode,
+            }, indent=2), encoding="utf-8")
+            assert coordinator.returncode != 0, first_stdout.read_text(encoding="utf-8")
+        except BaseException:
+            if claim_marker.is_file():
+                failed_marker = json.loads(claim_marker.read_text(encoding="utf-8"))
+                failed_worker = failed_marker["process_identity"]
+                if probe_process_identity(failed_worker)["status"] == "LIVE":
+                    os.kill(int(failed_worker["pid"]), signal.SIGTERM)
+            if coordinator.poll() is None:
+                try:
+                    coordinator.wait(timeout=30)
+                except subprocess.TimeoutExpired:
+                    coordinator.terminate()
+                    try:
+                        coordinator.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        coordinator.kill()
+                        coordinator.wait(timeout=10)
+            raise
+
+    replacement_coordinator = textwrap.dedent(
+        """
+        import sys
+        from pathlib import Path
+        from KHz_filament.hr4e5_evidence import atomic_json
+        from KHz_filament.hr4e5_production import E5AProductionSpec, open_e5_1a_production_campaign
+
+        root, campaign_id, config, source, lut, pre0, result_path = sys.argv[1:]
+        spec = E5AProductionSpec(
+            root=Path(root), campaign_id=campaign_id, config_path=Path(config),
+            source_manifest_path=Path(source), lut_manifest_path=Path(lut),
+            pre0_delta_n_path=Path(pre0), n_pulses=2, candidate_hydro_workers=4,
+            safety_margin_bytes=1024**2,
+        )
+        result = open_e5_1a_production_campaign(spec).run()
+        atomic_json(result_path, result)
+        """
+    )
+    replacement_stdout = replacement_attempt / "coordinator.stdout.txt"
+    replacement_stderr = replacement_attempt / "coordinator.stderr.txt"
+    with replacement_stdout.open("w", encoding="utf-8") as stdout_file, replacement_stderr.open(
+        "w", encoding="utf-8"
+    ) as stderr_file:
+        replacement = subprocess.run(
+            [sys.executable, "-s", "-B", "-c", replacement_coordinator,
+             str(spec.root), spec.campaign_id, str(spec.config_path),
+             str(spec.source_manifest_path), str(spec.lut_manifest_path),
+             str(spec.pre0_delta_n_path), str(replacement_result_path)],
+            cwd=python_root, env=environment, stdout=stdout_file, stderr=stderr_file,
+            text=True, timeout=300,
+        )
+    assert replacement.returncode == 0, (
+        replacement_stdout.read_text(encoding="utf-8") + "\n" +
+        replacement_stderr.read_text(encoding="utf-8")
+    )
+    result = json.loads(replacement_result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "COMPLETE" and result["next_pair_index"] == 2
+    assert result["terminal_inventory_after_close"]["status"] == "PASS"
+
+    root = Path(spec.root)
+    for pulse in range(2):
+        exact = json.loads((root / "exact" / f"p{pulse}.json").read_text(encoding="utf-8"))
+        assert exact["status"] == "PASS" and exact["mismatch_count"] == 0
+        assert all(
+            row["status"] == "PASS"
+            and row["reference_sha256_array"] == row["candidate_sha256_array"]
+            for row in exact["rows"]
+        )
+    receipts = [json.loads((root / "C" / "p0" / "state" / "process_receipts" /
+                            f"C_HYDRO_{index:03d}.json").read_text(encoding="utf-8"))
+                for index in range(4)]
+    assert {receipt["exit_status"] for receipt in receipts} == {"PASS"}
+    assert len({receipt["pid"] for receipt in receipts}) == 4
+    covered = [int(ordinal) for receipt in receipts for ordinal in receipt["claimed_ordinals"]]
+    assert sorted(covered) == list(range(64)) and len(covered) == len(set(covered))
+
+    ledger = json.loads((root / "storage_ledger.json").read_text(encoding="utf-8"))
+    stale_writer = ledger["writers"][marker["writer_id"]]
+    assert stale_writer["status"] == "INTERRUPTED_STALE"
+    assert stale_writer["liveness_evidence"]["status"] == "DEAD"
+    assert not [item for item in ledger["writers"].values() if item["status"] == "ACTIVE"]
+    manifest = json.loads((root / "C" / "p0" / "state" /
+                           "streaming_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["barrier"]["status"] == "PASS"
+    assert manifest["promotion"]["authoritative_namespace"] == "NEXT"
+    assert not manifest["queue"] and not manifest["recovery_backlog"]
+
+
+def test_production_rc_and_candidate_internal_overlap_evidence(tmp_path):
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+
+    spec = _local_production_spec(
+        tmp_path, campaign_id="local-production-rc-overlap", n_pulses=2, k=16,
+        candidate_hydro_workers=4,
+    )
+    result = open_e5_1a_production_campaign(spec).run()
+    assert result["status"] == "COMPLETE"
+    state = json.loads((Path(spec.root) / "E5_1A_CAMPAIGN_STATE.json").read_text(encoding="utf-8"))
+    for pulse in range(2):
+        events = [item for item in state["pairs"][pulse]["events"]
+                  if item.get("event") in {"R_START", "REFERENCE_END", "C_START", "CANDIDATE_END"}]
+        rows = {item["event"]: float(item["monotonic_s"]) for item in events}
+        assert set(rows) == {"R_START", "REFERENCE_END", "C_START", "CANDIDATE_END"}
+        assert max(rows["R_START"], rows["C_START"]) < min(rows["REFERENCE_END"], rows["CANDIDATE_END"])
+    manifest = json.loads((Path(spec.root) / "C" / "p0" / "state" /
+                           "streaming_manifest.json").read_text(encoding="utf-8"))
+    first_hydro = min(float(item["monotonic_s"]) for item in manifest["telemetry_events"]
+                      if item.get("event") == "HYDRO_BLOCK_START")
+    optical_end = max(float(item["monotonic_s"]) for item in manifest["telemetry_events"]
+                      if item.get("event") == "OPTICAL_COMPLETE")
+    assert first_hydro < optical_end
+    assert result["status"] == "COMPLETE" and result["next_pair_index"] == 2
+
+def test_production_rejects_unsupported_candidate_hydro_workers(tmp_path):
+    from dataclasses import replace
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+
+    spec = _local_production_spec(tmp_path, campaign_id="bad-hydro-workers")
+    with pytest.raises(ValueError, match="Candidate hydro workers"):
+        open_e5_1a_production_campaign(replace(spec, candidate_hydro_workers=3))
+
+
+def test_formal_n2_derivation_changes_only_pulse_count(tmp_path):
+    import json
+    from KHz_filament.hr4e5_production import derive_e5_1b_execution_config
+
+    inputs = tmp_path / "inputs"; inputs.mkdir(parents=True)
+    value = {
+        "grid": {"Nx": 8, "Ny": 8, "Nt": 8, "Lx": 8e-4, "Ly": 8e-4, "Twin": 80e-15},
+        "beam": {"w0": 1.5e-4, "tau_fwhm": 40e-15, "energy_J": 1e-10, "focal_length": None},
+        "propagation": {"z_max": 8e-4, "dz": 1e-4, "linear_model": "paraxial"},
+        "ionization": {"species": []},
+        "heat": {"hr3b_enabled": True, "f_rep": 5e6, "dt_hydro": 1e-7,
+                 "chi": 2.17e-5, "D_th": 2.17e-5, "nu": 1.5e-5,
+                 "gravity_x": 0.0, "gravity_y": -9.81},
+        "run": {"Npulses": 1},
+        "raman": {"enabled": False, "absorption": False},
+    }
+    parent = inputs / "full.json"; parent.write_text(json.dumps(value), encoding="utf-8")
+    derived = inputs / "execution.json"
+    receipt = derive_e5_1b_execution_config(parent, derived)
+    result = json.loads(derived.read_text(encoding="utf-8"))
+    expected = json.loads(json.dumps(value)); expected["run"]["Npulses"] = 2
+    assert result == expected and receipt["value"] == 2
+
+
 def test_production_n3_k8_split_process_matches_uninterrupted(tmp_path):
     from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
     from KHz_filament.hr4e5_storage import plan_campaign_budget
@@ -990,6 +1392,13 @@ def test_production_n3_k8_split_process_matches_uninterrupted(tmp_path):
     assert sum(item["ledger_count"] for item in split_exact) == 27
     assert sum(item["optical_count"] for item in split_exact) == 3
     assert split_signature == baseline_signature
+    for root in (split_root, baseline_root):
+        assert not list(root.glob("*/p*/optical/sinks.*.npy"))
+        assert len(list(root.glob("*/p*/optical/final_optical_field.npy"))) == 6
+        assert len(list(root.glob("*/p*/optical/scientific_ledger.npz"))) == 6
+        storage = json.loads((root / "storage_ledger.json").read_text(encoding="utf-8"))
+        assert len(storage["gc_plans"]) == 6
+        assert all(plan["status"] == "COMPLETED" for plan in storage["gc_plans"].values())
 
     def handoff_count(root):
         total = 0
@@ -1055,6 +1464,308 @@ def test_production_n3_k8_split_process_matches_uninterrupted(tmp_path):
     assert not (split_root / "C" / "p3").exists()
 
 
+@pytest.mark.parametrize("fault", [
+    "after_exact", "after_ready", "partial_sink", "after_unlink", "after_gc_plan",
+    "after_reference_gc", "after_both_gc", "after_complete",
+])
+def test_storage_loop_terminal_new_process_recovery(tmp_path, fault):
+    """A real K8 optical run survives each durable terminal boundary."""
+    from KHz_filament.hr4e5_evidence import sha256_file
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+    from KHz_filament import hr4e5_production as production
+
+    spec = _local_production_spec(tmp_path / "interrupted", campaign_id=f"terminal-{fault}")
+    child = textwrap.dedent(r"""
+        import os, sys
+        from KHz_filament.hr4e5_production import E5AProductionSpec, open_e5_1a_production_campaign
+        from KHz_filament import hr4e5_production as production
+        from KHz_filament.hr4e5_storage import StorageBudget
+        fault = sys.argv[7]
+        if fault == 'after_exact':
+            original = production._E5AProductionRunner._run_exact
+            def injected(self, pulse):
+                original(self, pulse)
+                os._exit(79)
+            production._E5AProductionRunner._run_exact = injected
+        elif fault == 'after_ready':
+            original = production.validate_final_post
+            def injected(**kw):
+                result = original(**kw)
+                if result['status'] == 'PASS': os._exit(79)
+                return result
+            production.validate_final_post = injected
+        elif fault in {'partial_sink', 'after_unlink', 'after_gc_plan'}:
+            original = StorageBudget.apply_reclaim
+            def injected(self, plan_id, **kw):
+                if plan_id.endswith('-R-p0'):
+                    if fault == 'partial_sink':
+                        original(self, plan_id, interrupt_after=1, **kw)
+                        os._exit(79)
+                    if fault == 'after_gc_plan':
+                        result = original(self, plan_id, **kw)
+                        os._exit(79)
+                    def exit_after_unlink(stage, relative):
+                        if stage == 'after_unlink': os._exit(79)
+                    kw['fault_hook'] = exit_after_unlink
+                return original(self, plan_id, **kw)
+            StorageBudget.apply_reclaim = injected
+        elif fault in {'after_reference_gc', 'after_both_gc'}:
+            original = production._E5AProductionRunner._run_gc
+            def injected(self, trajectory, pulse, **kw):
+                result = original(self, trajectory, pulse, **kw)
+                if kw.get('terminal_ready_path') is not None and (
+                    trajectory == ('R' if fault == 'after_reference_gc' else 'C')):
+                    os._exit(79)
+                return result
+            production._E5AProductionRunner._run_gc = injected
+        spec = E5AProductionSpec(root=sys.argv[1], campaign_id=sys.argv[2],
+            config_path=sys.argv[3], source_manifest_path=sys.argv[4],
+            lut_manifest_path=sys.argv[5], pre0_delta_n_path=sys.argv[6],
+            n_pulses=1, safety_margin_bytes=1024**2)
+        assert open_e5_1a_production_campaign(spec).run()['status'] == 'COMPLETE'
+    """)
+    args = [sys.executable, "-s", "-B", "-c", child, str(spec.root), spec.campaign_id,
+            str(spec.config_path), str(spec.source_manifest_path), str(spec.lut_manifest_path),
+            str(spec.pre0_delta_n_path), fault]
+    first = subprocess.run(args, capture_output=True, text=True, timeout=120)
+    assert first.returncode == (0 if fault == "after_complete" else 79), first.stdout + first.stderr
+    before = Path(spec.root) / "exact" / "p0.json"
+    exact_hash = sha256_file(before)
+    resume_child = textwrap.dedent(r"""
+        import sys
+        from KHz_filament.hr4e5_production import E5AProductionSpec, open_e5_1a_production_campaign
+        spec = E5AProductionSpec(root=sys.argv[1], campaign_id=sys.argv[2],
+            config_path=sys.argv[3], source_manifest_path=sys.argv[4],
+            lut_manifest_path=sys.argv[5], pre0_delta_n_path=sys.argv[6],
+            n_pulses=1, safety_margin_bytes=1024**2)
+        assert open_e5_1a_production_campaign(spec).run()['status'] == 'COMPLETE'
+    """)
+    resumed = subprocess.run(args[:4] + [resume_child] + args[5:-1],
+                             capture_output=True, text=True, timeout=120)
+    assert resumed.returncode == 0, resumed.stdout + resumed.stderr
+    root = Path(spec.root)
+    assert sha256_file(before) == exact_hash
+
+
+    exact = json.loads(before.read_text(encoding="utf-8"))
+    assert (exact["screen_count"], exact["ledger_count"], exact["optical_count"]) == (96, 9, 1)
+    assert len(exact["rows"]) == 106
+    assert not list(root.glob("*/p0/optical/sinks.*.npy"))
+    assert len(list((root / "C" / "p0" / "state").rglob("screen_*.npz"))) == 16
+    assert not list((root / "R" / "p0" / "state").rglob("screen_*.npz"))
+    ledger = json.loads((root / "storage_ledger.json").read_text(encoding="utf-8"))
+    assert set(ledger["gc_plans"]) == {"production-R-p0", "production-C-p0"}
+    assert all(plan["status"] == "COMPLETED" for plan in ledger["gc_plans"].values())
+    assert sum(sum(target["relative_path"].endswith(name) for target in plan["targets"]
+                   for name in production._SINK_FILES.values())
+               for plan in ledger["gc_plans"].values()) == 12
+    baseline = _local_production_spec(tmp_path / "baseline", campaign_id=f"baseline-{fault}")
+    assert open_e5_1a_production_campaign(baseline).run()["status"] == "COMPLETE"
+    for side in ("R", "C"):
+        assert np.array_equal(np.load(root / side / "p0" / "optical" / "final_optical_field.npy"),
+                              np.load(Path(baseline.root) / side / "p0" / "optical" / "final_optical_field.npy"))
+    for namespace in ("current", "post"):
+        for index in range(8):
+            relative = Path("C") / "p0" / "state" / namespace / f"screen_{index:06d}.npz"
+            with np.load(root / relative, allow_pickle=False) as actual, np.load(Path(baseline.root) / relative, allow_pickle=False) as expected:
+                for field in ("delta_n", "vx", "vy"):
+                    assert np.array_equal(actual[field], expected[field])
+    again = subprocess.run(args[:4] + [resume_child] + args[5:-1],
+                           capture_output=True, text=True, timeout=120)
+    assert again.returncode == 0, again.stdout + again.stderr
+    assert sha256_file(before) == exact_hash
+
+
+def test_storage_loop_internal_prefix_charged_once_and_terminal_bytes_agree(tmp_path):
+    from dataclasses import replace
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+    from KHz_filament.hr4e5_storage import plan_campaign_budget
+
+    spec = _local_production_spec(tmp_path, campaign_id="internal-prefix")
+    internal = Path(spec.root) / "delta_n_prefix.npy"
+    internal.parent.mkdir(parents=True, exist_ok=True)
+    internal.write_bytes(Path(spec.pre0_delta_n_path).read_bytes())
+    campaign = open_e5_1a_production_campaign(replace(spec, pre0_delta_n_path=internal))
+    assert campaign.run()["status"] == "COMPLETE"
+    budget = campaign._runner.budget
+    roles = campaign._runner.expected_terminal_roles(0)
+    inventory = budget.validate_terminal_inventory(roles, root=spec.root, final=True)
+    assert roles["EXTERNAL_PREFIX"] == ["delta_n_prefix.npy"]
+    assert budget.external_prefix_bytes == 0
+    assert budget.final_output_bytes() == inventory["final_output_bytes"]
+    assert budget.final_output_bytes() == budget.actual_bytes()
+    args = {"n_pulses": 3, "k": 8, "ny": 8, "nx": 8, "nt": 8,
+            "safety_margin_bytes": 1024**2}
+    existing = plan_campaign_budget(**args, external_prefix_already_present=True)
+    new = plan_campaign_budget(**args, external_prefix_already_present=False)
+    assert existing["peak_bytes"] == new["peak_bytes"]
+    assert existing["final_output_bytes"] == new["final_output_bytes"]
+    assert new["incremental_requirement_bytes"] - existing["incremental_requirement_bytes"] == existing["field_bytes"]
+
+
+@pytest.mark.parametrize("damage", ["changed", "unknown_missing"])
+def test_storage_loop_rejects_sink_changed_before_reclaim(tmp_path, monkeypatch, damage):
+    from KHz_filament import hr4e5_production as production
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+
+    spec = _local_production_spec(tmp_path, campaign_id=f"sink-{damage}")
+    original = production._E5AProductionRunner._run_gc
+    def damaged_gc(self, trajectory, pulse, **kw):
+        if trajectory == "R" and kw.get("terminal_ready_path") is not None:
+            sink = self._track("R", pulse) / "optical" / production._SINK_FILES["ion"]
+            if damage == "changed":
+                values = np.load(sink, allow_pickle=False)
+                values[0, 0, 0] += 1.0
+                np.save(sink, values)
+            else:
+                sink.unlink()
+        return original(self, trajectory, pulse, **kw)
+    monkeypatch.setattr(production._E5AProductionRunner, "_run_gc", damaged_gc)
+    with pytest.raises((ValueError, RuntimeError), match="exact|missing|changed"):
+        open_e5_1a_production_campaign(spec).run()
+    root = Path(spec.root)
+    ledger = json.loads((root / "storage_ledger.json").read_text(encoding="utf-8"))
+    assert ledger["gc_plans"] == {}
+    assert (root / "R" / "p0" / "optical" / production._SINK_FILES["ib"]).is_file()
+
+
+@pytest.mark.parametrize("component", ["config", "parent", "root"])
+def test_storage_loop_rejects_lexical_reparse_before_root_creation(tmp_path, monkeypatch, component):
+    from KHz_filament import hr4e5_production as production
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+    from KHz_filament.hr4e5_storage import StorageIntegrityError
+
+    spec = _local_production_spec(tmp_path, campaign_id=f"reparse-{component}")
+    target = {"config": Path(spec.config_path),
+              "parent": Path(spec.config_path).parent,
+              "root": Path(spec.root)}[component]
+    actual = production._is_reparse
+    monkeypatch.setattr(production, "_is_reparse", lambda path: Path(path) == target or actual(path))
+    with pytest.raises(StorageIntegrityError, match="symlink|reparse"):
+        open_e5_1a_production_campaign(spec)
+    assert not Path(spec.root).exists()
+
+
+def _bound_prefix_spec(tmp_path):
+    """A full K16 source with a distinct K8 prefix and N3 execution config."""
+    from dataclasses import replace
+    from KHz_filament.hr4e5_evidence import sha256_file
+    from KHz_filament.hr4e5_production import (
+        _source_hash, derive_e5_1b_execution_config, describe_e5_1b_input_contract,
+    )
+    from KHz_filament.hr4e_timestep import sha256_array_streaming
+
+    seed = _local_production_spec(tmp_path, campaign_id="bound-prefix", n_pulses=2, k=8)
+    inputs = Path(seed.config_path).parent
+    full_config = inputs / "full_config.json"
+    full = json.loads(Path(seed.config_path).read_text(encoding="utf-8"))
+    full["run"]["Npulses"] = 1
+    full["propagation"]["z_max"] = 16e-4
+    full_config.write_text(json.dumps(full), encoding="utf-8")
+    derived = inputs / "execution_config.json"
+    derive_e5_1b_execution_config(full_config, derived)
+    Path(seed.source_manifest_path).write_text(json.dumps({
+        "schema": "local-source.v1", "canonical_array_hash": _source_hash(derived),
+    }), encoding="utf-8")
+    Path(seed.lut_manifest_path).write_text(json.dumps({
+        "schema": "local-lut.v1", "mode": "DISABLED_BY_CONFIG",
+        "config_sha256": sha256_file(derived),
+    }), encoding="utf-8")
+    full_slow = inputs / "full_slow.npy"
+    values = np.arange(16 * 8 * 8, dtype=np.float64).reshape(16, 8, 8) * 1e-12
+    np.save(full_slow, values)
+    np.save(seed.pre0_delta_n_path, values[:8])
+    slow_manifest = inputs / "slow_source.json"
+    contract = describe_e5_1b_input_contract(full_config, prefix_intervals=8)
+    slow_manifest.write_text(json.dumps({
+        "schema": "khz_filament.hr4e5.e5_1b.slow_source.v1",
+        "source_path": str(full_slow), "source_raw_sha256": sha256_file(full_slow),
+        "source_array_sha256": sha256_array_streaming(values),
+        "source_shape": list(values.shape),
+        "source_config_sha256": sha256_file(full_config),
+        "axis_order": ["interval", "y", "x"],
+        "source_indices": [0, 15],
+        "full_edges_array_sha256": contract["full_edges_array_sha256"],
+        "full_midpoints_array_sha256": contract["full_midpoints_array_sha256"],
+        "capacity_domain": "campaign_filesystem",
+    }), encoding="utf-8")
+    return replace(seed, config_path=derived, full_config_path=full_config,
+                   prefix_intervals=8, slow_source_manifest_path=slow_manifest)
+
+
+def test_e5_1b_full_prefix_runs_real_optical_and_retains_two_sources(tmp_path):
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+
+    spec = _bound_prefix_spec(tmp_path)
+    campaign = open_e5_1a_production_campaign(spec)
+    identity = campaign.report()["admission_identity"]
+    assert identity["schedule_identity"]["full_metadata"]["n_intervals"] == 16
+    assert identity["schedule_identity"]["metadata"]["n_intervals"] == 8
+    assert identity["schedule_identity"]["source_indices"] == [0, 7]
+    assert identity["config_identity"]["full_source_config"]["sha256"] != identity["config_identity"]["sha256"]
+    slow = identity["pre0_identity"]["slow_source_identity"]
+    assert slow["full_source_array_sha256"] != slow["prefix_array_sha256"]
+    result = campaign.run()
+    assert result["status"] == "COMPLETE"
+    root = Path(spec.root)
+    for side in ("R", "C"):
+        for pulse in range(2):
+            output = root / side / f"p{pulse}" / "optical"
+            assert (output / "final_optical_field.npy").is_file()
+            assert (output / "source_identity.json").is_file()
+    assert (root / "R" / "p1" / "reports" / "gc.json").is_file()
+
+
+@pytest.mark.parametrize("fault", ["prefix_value", "axis_order", "dtype", "shape", "source_value", "config_change"])
+def test_e5_1b_bound_prefix_rejects_tamper_before_campaign_root(tmp_path, fault):
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+
+    spec = _bound_prefix_spec(tmp_path)
+    prefix = Path(spec.pre0_delta_n_path)
+    full_source = Path(json.loads(Path(spec.slow_source_manifest_path).read_text(encoding="utf-8"))["source_path"])
+    if fault in {"prefix_value", "axis_order", "dtype", "shape"}:
+        values = np.load(prefix)
+        if fault == "prefix_value": values[0, 0, 0] += 1e-9
+        if fault == "axis_order": values = values.transpose(0, 2, 1)
+        if fault == "dtype": values = values.astype(np.float32)
+        if fault == "shape": values = values[:-1]
+        np.save(prefix, values)
+    elif fault == "source_value":
+        values = np.load(full_source); values[0, 0, 0] += 1e-9; np.save(full_source, values)
+    else:
+        config = json.loads(Path(spec.full_config_path).read_text(encoding="utf-8"))
+        config["propagation"]["dz"] *= 2
+        Path(spec.full_config_path).write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(ValueError):
+        open_e5_1a_production_campaign(spec)
+    assert not Path(spec.root).exists()
+
+
+def test_e5_1b_budget_objects_reconcile_and_reservation_is_shared():
+    from KHz_filament.hr4e5_formal_entry import optical_write_forecast
+    from KHz_filament.hr4e5_storage import StorageBudgetError, budget_object_table, plan_campaign_budget, plan_final_output
+
+    args = dict(n_pulses=3, k=8048, ny=351, nx=301, nt=384)
+    table = budget_object_table(**args, external_prefix_already_present=True)
+    for stage, rows in table["stages"].items():
+        assert sum(row["bytes"] for row in rows) == table["stage_bytes"][stage]
+        assert len({row["object"] for row in rows}) == len(rows)
+    plan = plan_campaign_budget(**args, external_prefix_already_present=True)
+    assert plan["peak_bytes"] == table["peak_bytes"]
+    assert plan["final_output_bytes"] == table["final_output_bytes"]
+    assert plan_final_output(**args)["final_output_bytes"] == table["final_output_bytes"]
+    with pytest.raises(StorageBudgetError, match="exceeds cap"):
+        plan_campaign_budget(**args, max_campaign_live_bytes=plan["peak_bytes"] - 1)
+    with pytest.raises(StorageBudgetError, match="exceeds final budget"):
+        plan_campaign_budget(**args, final_output_budget_bytes=plan["final_output_bytes"] - 1)
+    with pytest.raises(StorageBudgetError, match="exceed"):
+        plan_final_output(**args, diagnostics=("ion", "ib", "raman", "qthermal", "increment", "state_after"))
+    assert table["incremental_requirement_bytes"] == table["peak_bytes"] - table["external_prefix_bytes"]
+    assert table["stage_bytes"]["final_retention"] < 68719476736
+    assert next(row for row in table["stages"]["final_retention"] if row["object"] == "full_interval_sink_arrays")["bytes"] == 0
+    assert optical_write_forecast(k=8048, ny=351, nx=301, nt=384, final=True) > 0
+
+
 def test_production_writer_live_refusal_and_dead_stale_takeover(tmp_path):
     from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
     from KHz_filament.hr4e5_storage import StorageBudgetError, StorageIntegrityError
@@ -1092,7 +1803,9 @@ def test_production_writer_live_refusal_and_dead_stale_takeover(tmp_path):
         budget = StorageBudget(root, safety_margin_bytes=1024**2,
             provider=MockQuotaProvider(free_bytes=2**40, quota_bytes=2**40), require_quota=True,
             campaign_id=identity["campaign_id"], require_intents=True,
-            admission_hash=identity["identity_sha256"], admission_identity=identity)
+            admission_hash=identity["identity_sha256"], admission_identity=identity,
+            external_prefix_bytes=identity["budget_identity"]["external_prefix_bytes"],
+            external_full_source_bytes=identity["budget_identity"]["existing_full_source_bytes"])
         residual = root / "crash_writer" / "residual.bin"
         reservation = budget.reserve(1024**2, purpose="crash-writer", allocation_paths=[residual])
         intent = budget.create_intent(reservation_id=reservation.reservation_id, trajectory="C",
