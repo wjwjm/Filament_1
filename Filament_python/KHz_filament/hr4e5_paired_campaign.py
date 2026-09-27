@@ -10,6 +10,7 @@ the exact comparison, successor READY, and the reclamation step have passed.
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import os
 import time
@@ -40,6 +41,7 @@ _FORMAL_STEPS = frozenset({
 _FORMAL_STATUSES = frozenset({"IN_PROGRESS", "COMMITTED", "PASS", "INTERRUPTED", "FAIL"})
 _FORMAL_RECEIPT_STATUSES = frozenset({"COMMITTED", "PASS"})
 _PRODUCTION_DRIVER_CAPABILITY = object()
+PAIR_LINEAGE_SCHEMA = "khz_filament.hr4e5.wp2.pair_lineage.v1"
 
 
 def _utc() -> str:
@@ -210,6 +212,7 @@ class PairedCampaign:
             safety_margin_bytes=self.safety_margin_bytes, require_quota=self.require_quota,
             campaign_id=self.campaign_id,
             require_intents=self.formal if require_intents is None else bool(require_intents),
+            admission_identity=self.admission_identity,
             admission_hash=None if self.admission_identity is None else str(self.admission_identity.get("identity_sha256")),
             external_prefix_bytes=(0 if self.admission_identity is None else int(
                 self.admission_identity.get("budget_identity", {}).get("external_prefix_bytes", 0))),
@@ -437,6 +440,7 @@ class PairedCampaign:
             raise StorageIntegrityError("live ACTIVE coordinator blocks takeover")
         if probe["status"] != "DEAD":
             raise StorageIntegrityError("coordinator liveness cannot be verified")
+        child_transition = self.storage.fence_dead_writer_grants()
         stale = self.storage.interrupt_stale_writers(coordinator_epoch=active.get("epoch"))
         generated = self.storage.write_quiescence_receipt(
             self.root / ".takeover" / f"epoch_{active.get('epoch')}.json",
@@ -447,7 +451,8 @@ class PairedCampaign:
         payload.update({"stale": True, "exit_observed": True,
                         "coordinator_process_id": str(active.get("process_id")),
                         "coordinator_epoch": str(active.get("epoch")),
-                        "liveness_evidence": probe, "writer_transition": stale})
+                        "liveness_evidence": probe, "writer_transition": stale,
+                        "child_grant_transition": child_transition})
         atomic_json(path, payload)
         receipt = {"path": str(path), "sha256": sha256_file(path)}
         info = self._validate_crash_takeover_receipt(receipt)
@@ -501,6 +506,24 @@ class PairedCampaign:
         self._persist()
         return wanted
 
+    @_serialized_transition
+    def bind_pair_lineage(self, pulse_index: int, *, path: str | Path,
+                          sha256: str, epoch: str | int) -> dict[str, Any]:
+        """Bind one immutable lineage receipt before the strict exact step."""
+        self._active_coordinator_epoch(epoch)
+        pair = self._pair(pulse_index)
+        lineage_path = Path(path).resolve()
+        if (not lineage_path.is_relative_to(self.root) or not lineage_path.is_file()
+                or lineage_path.is_symlink() or sha256_file(lineage_path) != sha256):
+            raise StorageIntegrityError("pair lineage receipt path or hash is invalid")
+        wanted = {"path": str(lineage_path), "sha256": sha256}
+        old = pair.get("pair_lineage_receipt")
+        if old is not None and old != wanted:
+            raise StorageIntegrityError("pair lineage receipt changed after qualification")
+        pair["pair_lineage_receipt"] = wanted
+        self._persist()
+        return wanted
+
     @property
     def next_pair_index(self) -> int:
         return int(self.state["next_pair_index"])
@@ -516,6 +539,20 @@ class PairedCampaign:
         already_complete = self.is_complete
         active = self.state.get("active_coordinator")
         coordinator_enabled = self._coordinator_state_enabled()
+        if coordinator_enabled and takeover and not (isinstance(active, Mapping) and str(active.get("status")) == "ACTIVE"):
+            prior = next((item for item in reversed(self.state.get("process_epochs", []))), None)
+            if prior is not None:
+                child_transition = self.storage.fence_dead_writer_grants()
+                stale_transition = self.storage.interrupt_stale_writers(
+                    coordinator_epoch=prior.get("epoch"))
+                self.state.setdefault("events", []).append({
+                    "event": "CLEAN_EXIT_TAKEOVER_EVALUATED",
+                    "prior_coordinator_epoch": prior.get("epoch"),
+                    "prior_outcome": prior.get("outcome", prior.get("status")),
+                    "child_grant_transition": child_transition,
+                    "writer_transition": stale_transition,
+                    "timestamp_utc": _utc(),
+                })
         if coordinator_enabled and isinstance(active, Mapping) and str(active.get("status")) == "ACTIVE":
             previous = next((item for item in reversed(self.state.get("process_epochs", []))
                              if str(item.get("process_id")) == str(active.get("process_id"))), None)
@@ -537,11 +574,15 @@ class PairedCampaign:
         return epoch
 
     @_serialized_transition
-    def register_process_exit(self, *, process_id: str | None = None) -> dict[str, Any]:
+    def register_process_exit(self, *, process_id: str | None = None,
+                              outcome: str = "COMPLETED") -> dict[str, Any]:
+        if outcome not in {"COMPLETED", "FAILED_RECOVERABLE", "PAUSED"}:
+            raise ValueError("coordinator exit outcome is invalid")
         target = str(process_id or f"pid:{os.getpid()}")
         for epoch in reversed(self.state["process_epochs"]):
             if epoch.get("process_id") == target and epoch.get("status") == "ACTIVE":
                 epoch["status"] = "EXITED"
+                epoch["outcome"] = outcome
                 epoch["exited_utc"] = _utc()
                 if self._coordinator_state_enabled() and isinstance(self.state.get("active_coordinator"), Mapping) and self.state["active_coordinator"].get("process_id") == target:
                     self.state["active_coordinator"] = None
@@ -1176,6 +1217,8 @@ class FormalPairedDriver:
         return method(pulse)
 
     def _run_step(self, pulse: int, step: str, *, track: str | None = None) -> dict[str, Any]:
+        if step == "exact" and not self.fixture_only:
+            self._qualified_pair_lineage(pulse)
         saved = self._saved_receipt(pulse, step)
         if saved is not None:
             return saved
@@ -1198,6 +1241,103 @@ class FormalPairedDriver:
             except Exception:
                 pass
             raise
+
+    def _qualified_pair_lineage(self, pulse: int) -> dict[str, Any]:
+        """Require independently qualified R/C receipts and an immutable pair binding."""
+        from .hr4e5_recovery_output import validate_active_output
+
+        pair = self.campaign._pair(pulse)
+        identity = pair.get("scientific_pair_identity")
+        implementation = getattr(self.runner, "implementation_identity", None)
+        if not isinstance(identity, Mapping) or not isinstance(implementation, Mapping):
+            raise StorageIntegrityError("pair lineage lacks stable scientific or implementation identity")
+        steps = pair.get("formal_steps", {})
+        saved_lineage = pair.get("pair_lineage_receipt")
+        path = self.root / "pair_lineage" / f"p{pulse}.json"
+        if saved_lineage is not None:
+            if (str(path.resolve()) != str(saved_lineage.get("path"))
+                    or not path.is_file()
+                    or sha256_file(path) != str(saved_lineage.get("sha256"))):
+                raise StorageIntegrityError("pair lineage receipt hash changed")
+            old = json.loads(path.read_text(encoding="utf-8"))
+            if (old.get("schema") != PAIR_LINEAGE_SCHEMA
+                    or old.get("scientific_pair_id") != identity["scientific_pair_id"]
+                    or old.get("implementation_identity_sha256") != implementation["identity_sha256"]):
+                raise StorageIntegrityError("pair lineage shared identity changed")
+            if str(steps.get("exact", {}).get("status", "")).upper() in _FORMAL_RECEIPT_STATUSES:
+                return old
+
+        if self.campaign.storage.unresolved_writer_grants():
+            raise StorageIntegrityError("unresolved child grant blocks pair lineage")
+        sides: dict[str, Any] = {}
+        for side, step in (("R", "reference"), ("C", "candidate")):
+            receipt = self._saved_receipt(pulse, step)
+            formal = steps.get(step, {})
+            if receipt is None or not isinstance(formal, Mapping):
+                raise StorageIntegrityError(f"{side} trajectory is not independently qualified")
+            state_root = self.root / side / f"p{pulse}" / "state"
+            active = validate_active_output(
+                campaign_root=self.root, state_root=state_root,
+                scientific_pair_id=identity["scientific_pair_id"],
+                implementation_identity_sha256=implementation["identity_sha256"],
+            )
+            attempt = active["qualified_attempt"]
+            expected_generation = identity[
+                "reference_source_generation" if side == "R" else "candidate_source_generation"]
+            if (attempt["trajectory"] != side or int(attempt["pulse"]) != pulse
+                    or attempt["generation"] != expected_generation
+                    or attempt["admission_identity_sha256"] != identity["admission_identity_sha256"]):
+                raise StorageIntegrityError(f"{side} qualified output identity differs")
+            sides[side] = {
+                "trajectory": side,
+                "logical_scientific_attempt": 0,
+                "producer_coordinator_epoch": str(attempt["producer_coordinator_epoch"]),
+                "trajectory_commit_epoch": str(formal["epoch"]),
+                "writer_grant_id": attempt["writer_grant_id"],
+                "output_dir": active["output_dir"],
+                "output_locator_path": active["pointer_path"],
+                "output_locator_sha256": active["pointer_sha256"],
+                "object_set_record_path": attempt["record_path"],
+                "object_set_record_sha256": attempt["record_sha256"],
+                "report_path": formal["receipt_path"],
+                "report_sha256": formal["receipt_sha256"],
+                "report_object_set_binding": receipt.get("object_set_binding"),
+            }
+        admission = self.admission_identity or {}
+        def digest(value: Any) -> str:
+            encoded = json.dumps(value, sort_keys=True, separators=(",", ":"),
+                                 ensure_ascii=False).encode("utf-8")
+            return hashlib.sha256(encoded).hexdigest()
+        payload = {
+            "schema": PAIR_LINEAGE_SCHEMA, "status": "QUALIFIED_PAIR_INPUT",
+            "campaign_id": self.campaign.campaign_id,
+            "scientific_pair_id": identity["scientific_pair_id"],
+            "pulse": int(pulse), "logical_scientific_attempt": 0,
+            "source_generations": {
+                "R": identity["reference_source_generation"],
+                "C": identity["candidate_source_generation"],
+            },
+            "admission_identity_sha256": identity["admission_identity_sha256"],
+            "implementation_identity_sha256": implementation["identity_sha256"],
+            "source_identity_sha256": digest(admission.get("source_identity")),
+            "config_identity_sha256": digest(admission.get("config_identity")),
+            "lut_identity_sha256": digest(admission.get("lut_identity")),
+            "schedule_identity_sha256": digest(admission.get("schedule_identity")),
+            "trajectories": sides,
+            "cross_epoch": sides["R"]["trajectory_commit_epoch"] != sides["C"]["trajectory_commit_epoch"],
+            "exact_input_identity_sha256": digest(sides),
+        }
+        if path.exists():
+            if json.loads(path.read_text(encoding="utf-8")) != payload:
+                raise StorageIntegrityError("pair lineage receipt changed before exact")
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            atomic_json(path, payload, overwrite=False)
+        self.campaign.bind_pair_lineage(
+            pulse, path=path, sha256=sha256_file(path),
+            epoch=self.campaign.active_coordinator_epoch(),
+        )
+        return payload
 
     def _run_concurrent_rc(self, pulse: int) -> tuple[dict[str, Any], dict[str, Any]]:
         """Execute R and C science concurrently under one coordinator epoch."""
@@ -1251,8 +1391,11 @@ class FormalPairedDriver:
                 })
 
         threads = [
-            threading.Thread(target=execute, args=("reference", "R"), name=f"e5-rc-r-{pulse}"),
-            threading.Thread(target=execute, args=("candidate", "C"), name=f"e5-rc-c-{pulse}"),
+            threading.Thread(target=execute, args=(step, track), name=f"e5-rc-{track.lower()}-{pulse}")
+            for step, track, saved in (
+                ("reference", "R", saved_reference),
+                ("candidate", "C", saved_candidate),
+            ) if saved is None
         ]
         for thread in threads:
             thread.start()
@@ -1265,7 +1408,17 @@ class FormalPairedDriver:
             pair.setdefault("events", []).extend(
                 item for item in timing_events if item.get("event") not in seen_timing)
             self.campaign._persist()
-        pair = self.campaign._pair(pulse)
+        for step in ("reference", "candidate"):
+            if step not in values:
+                continue
+            try:
+                receipt = self._validate_receipt(values[step], pulse=pulse, step=step)
+                self.campaign.formal_step(
+                    pulse, step, status="COMMITTED", receipt=receipt,
+                    epoch=self.campaign.active_coordinator_epoch(),
+                )
+            except BaseException as exc:
+                errors[step] = exc
         if errors:
             for step in ("reference", "candidate"):
                 if step in errors:
@@ -1278,18 +1431,13 @@ class FormalPairedDriver:
                     except Exception:
                         pass
             raise errors[next(iter(errors))]
-        for step in ("reference", "candidate"):
-            receipt = self._validate_receipt(values[step], pulse=pulse, step=step)
-            self.campaign.formal_step(
-                pulse, step, status="COMMITTED", receipt=receipt,
-                epoch=self.campaign.active_coordinator_epoch(),
-            )
         return (
             self._saved_receipt(pulse, "reference"),
             self._saved_receipt(pulse, "candidate"),
         )
 
     def run(self, *, stop_after: int | None = None) -> dict[str, Any]:
+        outcome = "FAILED_RECOVERABLE"
         try:
             while self.campaign.next_pair_index < self.campaign.n_pulses:
                 pulse = self.campaign.next_pair_index
@@ -1307,14 +1455,18 @@ class FormalPairedDriver:
                 )
                 if stop_after is not None and self.campaign.next_pair_index >= int(stop_after):
                     break
+            outcome = "COMPLETED" if self.campaign.is_complete else "PAUSED"
             return self.report()
         finally:
-            self.close()
+            self.close(outcome=outcome)
 
-    def close(self) -> dict[str, Any]:
+    def close(self, *, outcome: str | None = None) -> dict[str, Any]:
         if not self._closed:
             try:
-                self.campaign.register_process_exit(process_id=self.epoch)
+                self.campaign.register_process_exit(
+                    process_id=self.epoch,
+                    outcome=outcome or ("COMPLETED" if self.campaign.is_complete else "PAUSED"),
+                )
             except ValueError:
                 pass
             self._closed = True
@@ -1322,7 +1474,7 @@ class FormalPairedDriver:
 
     def pause(self, *, reason: str = "operator_pause") -> dict[str, Any]:
         result = self.campaign.pause(reason=reason)
-        self.close()
+        self.close(outcome="PAUSED")
         return result
 
     def resume(self, *, run: bool = True, stop_after: int | None = None,

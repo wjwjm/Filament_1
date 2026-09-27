@@ -9,8 +9,10 @@ intentionally local to the E5-1A glue; it is not a general storage service.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
+import secrets
 import shutil
 import socket
 import sys
@@ -33,6 +35,14 @@ RECLAIM_PREREQUISITE_SCHEMA = "khz_filament.hr4e5.e5_1a.reclaim_prerequisites.v1
 INTENT_SCHEMA = "khz_filament.hr4e5.e5_1a.creation_intent.v1"
 WRITER_SCHEMA = "khz_filament.hr4e5.e5_1a.writer.v1"
 WRITER_RECEIPT_SCHEMA = "khz_filament.hr4e5.e5_1a.writer_receipt.v1"
+CHILD_WRITER_GRANT_SCHEMA = "khz_filament.hr4e5.e5_1b.child_writer_grant.v1"
+CHILD_GRANT_STATES = frozenset({
+    "PENDING", "BOUND_ACTIVE", "CLOSED", "INTERRUPTED", "INTERRUPTED_STALE", "ABANDONED",
+})
+CHILD_GRANT_OPERATIONS = {
+    "OPTICAL": ("OPTICAL_OUTPUT", "POST_WRITE"),
+    "HYDRO": ("NEXT_COMMIT",),
+}
 
 
 def _host_identity() -> str:
@@ -417,6 +427,33 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
+def _canonical_json(value: Any) -> str:
+    return json.dumps(_json_safe(value), sort_keys=True, separators=(",", ":"),
+                      ensure_ascii=False, allow_nan=False)
+
+
+def _checked_process_identity(value: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise StorageIntegrityError("child grant process identity is invalid")
+    try:
+        pid = value["pid"]
+        if isinstance(pid, bool):
+            raise ValueError
+        pid = int(pid)
+        host = str(value["host_identity"])
+        token = str(value["process_start_token"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise StorageIntegrityError("child grant process identity is incomplete") from error
+    if pid <= 0 or not host or not token:
+        raise StorageIntegrityError("child grant process identity is invalid")
+    return {"pid": pid, "host_identity": host, "process_start_token": token}
+
+
+def _is_sha256(value: Any) -> bool:
+    text = str(value)
+    return len(text) == 64 and all(char in "0123456789abcdefABCDEF" for char in text)
+
+
 def _atomic_json(path: Path, value: Mapping[str, Any], *, overwrite: bool = True) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
@@ -624,7 +661,8 @@ class StorageBudget:
         self.admission_identity = None if admission_identity is None else dict(admission_identity)
         if not self.ledger_path.exists():
             _atomic_json(self.ledger_path, self._new_ledger(), overwrite=False)
-        self._validate(self._read())
+        with _FileLock(self.lock_path):
+            self._validate(self._read())
 
     def _new_ledger(self) -> dict[str, Any]:
         return {
@@ -643,6 +681,7 @@ class StorageBudget:
             "reservations": {},
             "intents": {},
             "writers": {},
+            "child_writer_grants": {},
             "gc_plans": {},
             "events": [],
             "created_utc": _utc(),
@@ -684,7 +723,8 @@ class StorageBudget:
         if (not isinstance(data.get("artifacts"), dict)
                 or not isinstance(data.get("reservations"), dict)
                 or not isinstance(data.get("intents", {}), dict)
-                or not isinstance(data.get("writers", {}), dict)):
+                or not isinstance(data.get("writers", {}), dict)
+                or not isinstance(data.get("child_writer_grants", {}), dict)):
             raise StorageBudgetError("storage ledger collections are invalid")
         for reservation_id, item in data.get("reservations", {}).items():
             if not isinstance(item, Mapping):
@@ -714,6 +754,99 @@ class StorageBudget:
                 raise StorageBudgetError(f"writer record is invalid: {writer_id}")
             if str(item.get("campaign_id", "")) != self.campaign_id:
                 raise StorageIntegrityError(f"writer campaign mismatch: {writer_id}")
+        for grant_id, item in data.get("child_writer_grants", {}).items():
+            if (not isinstance(item, Mapping)
+                    or item.get("schema") != CHILD_WRITER_GRANT_SCHEMA
+                    or str(item.get("grant_id", "")) != str(grant_id)):
+                raise StorageBudgetError(f"child writer grant record is invalid: {grant_id}")
+            if str(item.get("campaign_id", "")) != self.campaign_id:
+                raise StorageIntegrityError(f"child writer grant campaign mismatch: {grant_id}")
+            if item.get("state") not in CHILD_GRANT_STATES:
+                raise StorageBudgetError(f"child writer grant state is invalid: {grant_id}")
+            if (not isinstance(item.get("nonce_sha256"), str)
+                    or len(str(item.get("nonce_sha256"))) != 64):
+                raise StorageIntegrityError(f"child writer grant nonce hash is invalid: {grant_id}")
+            scope = item.get("scope")
+            if not isinstance(scope, Mapping):
+                raise StorageBudgetError(f"child writer grant scope is invalid: {grant_id}")
+            role = str(scope.get("role", ""))
+            role_index = scope.get("role_index")
+            if role == "OPTICAL":
+                if role_index is not None:
+                    raise StorageIntegrityError(f"OPTICAL grant has an index: {grant_id}")
+            elif role == "HYDRO":
+                if isinstance(role_index, bool) or not isinstance(role_index, int) or role_index < 0:
+                    raise StorageIntegrityError(f"HYDRO grant index is invalid: {grant_id}")
+            else:
+                raise StorageIntegrityError(f"child writer grant role is invalid: {grant_id}")
+            if tuple(scope.get("permitted_operations", ())) != CHILD_GRANT_OPERATIONS[role]:
+                raise StorageIntegrityError(f"child writer grant operation scope is invalid: {grant_id}")
+            if (not _is_sha256(scope.get("scientific_pair_id"))
+                    or not _is_sha256(scope.get("admission_identity_sha256"))):
+                raise StorageIntegrityError(f"child writer grant pair/admission identity is invalid: {grant_id}")
+            implementation = scope.get("implementation_identity")
+            if (not isinstance(implementation, Mapping)
+                    or not str(implementation.get("schema", ""))
+                    or not _is_sha256(implementation.get("identity_sha256"))):
+                raise StorageIntegrityError(f"child writer grant implementation identity is invalid: {grant_id}")
+            paths = scope.get("allowed_paths", [])
+            if not isinstance(paths, list) or not paths:
+                raise StorageIntegrityError(f"child writer grant paths are invalid: {grant_id}")
+            normalized = [str(path).replace("\\", "/") for path in paths]
+            for index, left in enumerate(normalized):
+                for right in normalized[index + 1:]:
+                    if _relative_paths_overlap(left, right):
+                        raise StorageIntegrityError(f"child writer grant paths overlap: {grant_id}")
+            try:
+                _canonical_json(scope.get("implementation_identity"))
+                _nonnegative_int(scope.get("expected_bytes"), "grant expected_bytes")
+            except (TypeError, ValueError) as error:
+                raise StorageIntegrityError(f"child writer grant identity or byte bound is invalid: {grant_id}") from error
+            candidate = item.get("launch_candidate_identity")
+            owner = item.get("process_identity")
+            if (str(item.get("reservation_id")) != str(scope.get("reservation_id"))
+                    or str(item.get("intent_id")) != str(scope.get("intent_id"))
+                    or str(item.get("coordinator_epoch")) != str(scope.get("coordinator_epoch"))
+                    or str(item.get("role_label")) != str(scope.get("role_label"))):
+                raise StorageIntegrityError(f"child writer grant envelope differs from scope: {grant_id}")
+            intent = data.get("intents", {}).get(str(item.get("intent_id")))
+            reservation = data.get("reservations", {}).get(str(item.get("reservation_id")))
+            if not isinstance(intent, Mapping) or not isinstance(reservation, Mapping):
+                raise StorageIntegrityError(f"child writer grant references missing storage authority: {grant_id}")
+            metadata = intent.get("metadata", {})
+            if not isinstance(metadata, Mapping):
+                raise StorageIntegrityError(f"child writer grant intent metadata is invalid: {grant_id}")
+            intent_paths = [str(path) for path in intent.get("allowed_paths", [])]
+            allocation_paths = [str(path) for path in reservation.get("allocation_paths", [])]
+            if (str(intent.get("reservation_id")) != str(item.get("reservation_id"))
+                    or str(intent.get("campaign_id")) != self.campaign_id
+                    or str(intent.get("trajectory")) != str(scope.get("trajectory"))
+                    or int(intent.get("pulse", -1)) != int(scope.get("pulse", -2))
+                    or int(intent.get("attempt", -1)) != int(scope.get("logical_attempt", -2))
+                    or str(intent.get("generation")) != str(scope.get("generation"))
+                    or int(scope.get("expected_bytes", 0)) > int(intent.get("expected_bytes", 0))
+                    or str(intent.get("admission_hash")) != str(scope.get("admission_identity_sha256"))
+                    or str(metadata.get("scientific_pair_id", "")) != str(scope.get("scientific_pair_id"))
+                    or _canonical_json(metadata.get("implementation_identity"))
+                    != _canonical_json(implementation)):
+                raise StorageIntegrityError(f"child writer grant differs from durable intent identity: {grant_id}")
+            if (any(not any(self._path_is_allowed(path, [base]) for base in intent_paths)
+                    for path in paths)
+                    or (allocation_paths and any(not any(self._path_is_allowed(path, [base])
+                                                        for base in allocation_paths) for path in paths))):
+                raise StorageIntegrityError(f"child writer grant path exceeds durable allocation scope: {grant_id}")
+            if candidate is not None:
+                _checked_process_identity(candidate)
+            if item.get("state") == "BOUND_ACTIVE" and owner is None:
+                raise StorageIntegrityError(f"bound child writer grant lacks owner identity: {grant_id}")
+            if owner is not None:
+                _checked_process_identity(owner)
+            if item.get("state") == "PENDING" and owner is not None:
+                raise StorageIntegrityError(f"PENDING child writer grant already has a bound owner: {grant_id}")
+            if item.get("state") in {"ABANDONED", "INTERRUPTED_STALE"}:
+                evidence = item.get("liveness_evidence", {})
+                if not isinstance(evidence, Mapping) or evidence.get("status") != "DEAD":
+                    raise StorageIntegrityError(f"fenced child writer grant lacks DEAD evidence: {grant_id}")
 
     def _write(self, data: Mapping[str, Any]) -> None:
         self._validate(data)
@@ -762,6 +895,18 @@ class StorageBudget:
             materialized = max(0, self._allocation_bytes(item.get('allocation_paths', [])) - int(item.get('allocation_start_bytes', 0)))
             total += max(0, int(item['bytes']) - materialized)
         return total
+
+    @staticmethod
+    def _ensure_child_grants_quiescent(
+        data: Mapping[str, Any], *, reservation_id: str | None = None,
+        intent_id: str | None = None,
+    ) -> None:
+        unresolved = [str(grant_id) for grant_id, item in data.get("child_writer_grants", {}).items()
+                      if item.get("state") in {"PENDING", "BOUND_ACTIVE"}
+                      and (reservation_id is None or str(item.get("reservation_id")) == str(reservation_id))
+                      and (intent_id is None or str(item.get("intent_id")) == str(intent_id))]
+        if unresolved:
+            raise StorageBudgetError(f"unresolved child writer grants block storage completion: {unresolved}")
 
     def _allocation_bytes(self, paths: Sequence[str]) -> int:
         total = 0
@@ -895,6 +1040,7 @@ class StorageBudget:
                 raise StorageBudgetError(f"unknown reservation: {rid}")
             if item.get("status") != "ACTIVE":
                 return dict(item)
+            self._ensure_child_grants_quiescent(data, reservation_id=rid)
             if self.require_intents:
                 allocation_paths = item.get("allocation_paths", [])
                 current = self._allocation_bytes(allocation_paths)
@@ -914,6 +1060,7 @@ class StorageBudget:
             item = data["reservations"].get(rid)
             if not isinstance(item, Mapping) or item.get("status") != "ACTIVE":
                 raise StorageBudgetError(f"reservation is not active: {rid}")
+            self._ensure_child_grants_quiescent(data, reservation_id=rid)
             reserved_bytes = _nonnegative_int(item.get("bytes"), "reservation bytes")
             allocation_paths = item.get("allocation_paths", [])
             if not isinstance(allocation_paths, list):
@@ -1056,8 +1203,12 @@ class StorageBudget:
         self, *, reservation_id: str, intent_id: str, coordinator_epoch: str | int,
         trajectory: str, pulse: int, attempt: int, generation: str,
         process: Mapping[str, Any] | None = None, writer_id: str | None = None,
+        writer_kind: str = "LEGACY_WRITER",
     ) -> dict[str, Any]:
         """Register an epoch-bound writer after reservation and intent exist."""
+        kind = str(writer_kind).upper()
+        if kind not in {"LEGACY_WRITER", "COORDINATOR_RECONCILER"}:
+            raise ValueError("writer_kind must be LEGACY_WRITER or COORDINATOR_RECONCILER")
         identity = dict(process or process_identity())
         wid = str(writer_id or f"writer-{identity['pid']}-{time.time_ns()}")
         with self._locked() as data:
@@ -1114,6 +1265,8 @@ class StorageBudget:
                 "attempt": int(attempt), "generation": str(generation),
                 "reservation_id": str(reservation_id), "intent_id": str(intent_id),
                 "role": str(intent.get("role", "")),
+                "writer_kind": kind,
+                "manager_role": "RECONCILER" if kind == "COORDINATOR_RECONCILER" else None,
                 "allowed_paths": list(intent.get("allowed_paths", [])), "status": "ACTIVE",
                 "opened_utc": _utc(),
             }
@@ -1121,6 +1274,523 @@ class StorageBudget:
             data["events"].append({"event": "WRITER_OPEN", "writer_id": wid,
                                    "epoch": str(coordinator_epoch), "timestamp_utc": _utc()})
             return dict(item)
+
+    def open_coordinator_reconciler(
+        self, *, reservation_id: str, intent_id: str, coordinator_epoch: str | int,
+        trajectory: str, pulse: int, attempt: int, generation: str,
+        writer_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Register the manager-side reconciler, distinct from child writers."""
+        return self.open_writer(
+            reservation_id=reservation_id, intent_id=intent_id,
+            coordinator_epoch=coordinator_epoch, trajectory=trajectory,
+            pulse=pulse, attempt=attempt, generation=generation,
+            writer_id=writer_id, writer_kind="COORDINATOR_RECONCILER",
+        )
+
+    @staticmethod
+    def _check_child_grant_nonce(item: Mapping[str, Any], nonce: str) -> None:
+        supplied = hashlib.sha256(str(nonce).encode("utf-8")).hexdigest()
+        if not hmac.compare_digest(supplied, str(item.get("nonce_sha256", ""))):
+            raise StorageIntegrityError("child writer grant nonce is invalid")
+
+    @staticmethod
+    def _child_role(role: str, role_index: int | None) -> tuple[str, int | None, str]:
+        value = str(role).strip().upper()
+        if value.startswith("HYDRO[") and value.endswith("]"):
+            if role_index is not None:
+                raise StorageIntegrityError("HYDRO role index was supplied twice")
+            raw_index = value[6:-1]
+            if not raw_index.isdecimal():
+                raise StorageIntegrityError("HYDRO grant role index is invalid")
+            role_index = int(raw_index)
+            value = "HYDRO"
+        if value == "OPTICAL":
+            if role_index is not None:
+                raise StorageIntegrityError("OPTICAL child grant cannot have an index")
+            return value, None, value
+        if value == "HYDRO":
+            if isinstance(role_index, bool) or not isinstance(role_index, int) or role_index < 0:
+                raise StorageIntegrityError("HYDRO child grant requires a non-negative index")
+            return value, int(role_index), f"HYDRO[{int(role_index)}]"
+        if value == "RECONCILER":
+            raise StorageIntegrityError("coordinator RECONCILER cannot receive a child writer grant")
+        raise StorageIntegrityError("child writer grant role must be OPTICAL or HYDRO[index]")
+
+    def rebind_intent_epoch(
+        self, intent_id: str, *, reservation_id: str,
+        previous_coordinator_epoch: str | int, coordinator_epoch: str | int,
+        trajectory: str, pulse: int, logical_attempt: int, generation: str,
+        allowed_paths: Sequence[str | Path], expected_bytes: int,
+        admission_identity_sha256: str, scientific_pair_id: str,
+        implementation_identity: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Rebind the same intent to a fresh epoch after every old writer is quiescent."""
+        iid, rid = str(intent_id), str(reservation_id)
+        previous_epoch, new_epoch = str(previous_coordinator_epoch), str(coordinator_epoch)
+        paths = self._intent_paths(allowed_paths)
+        pulse_value = _nonnegative_int(pulse, "pulse")
+        attempt_value = _nonnegative_int(logical_attempt, "logical_attempt")
+        expected = _nonnegative_int(expected_bytes, "intent expected_bytes")
+        admission = str(admission_identity_sha256)
+        pair_id = str(scientific_pair_id)
+        if not isinstance(implementation_identity, Mapping) or not implementation_identity:
+            raise StorageIntegrityError("intent epoch rebound requires implementation identity")
+        implementation = _json_safe(dict(implementation_identity))
+        try:
+            _canonical_json(implementation)
+        except (TypeError, ValueError) as error:
+            raise StorageIntegrityError("intent epoch rebound implementation identity is not canonical JSON") from error
+        if new_epoch == previous_epoch:
+            raise StorageIntegrityError("intent epoch rebound requires a fresh coordinator epoch")
+        if (not _is_sha256(admission) or admission != str(self.admission_hash or "")
+                or not _is_sha256(pair_id)
+                or not str(implementation.get("schema", ""))
+                or not _is_sha256(implementation.get("identity_sha256"))):
+            raise StorageIntegrityError("intent epoch rebound identity is incomplete")
+        with self._locked() as data:
+            intent = data["intents"].get(iid)
+            reservation = data["reservations"].get(rid)
+            if not isinstance(intent, Mapping) or intent.get("status") not in {"ACTIVE", "INTERRUPTED"}:
+                raise StorageBudgetError("intent epoch rebound requires the original ACTIVE or INTERRUPTED intent")
+            if not isinstance(reservation, Mapping) or reservation.get("status") != "ACTIVE":
+                raise StorageBudgetError("intent epoch rebound requires the same active aggregate reservation")
+            if str(intent.get("reservation_id")) != rid:
+                raise StorageIntegrityError("intent epoch rebound reservation differs from original intent")
+            if str(intent.get("epoch")) != previous_epoch:
+                raise StorageIntegrityError("intent epoch rebound previous epoch differs from original intent")
+            original_paths = [str(path) for path in intent.get("allowed_paths", [])]
+            if (str(intent.get("campaign_id")) != self.campaign_id
+                    or str(intent.get("trajectory")) != str(trajectory)
+                    or int(intent.get("pulse", -1)) != pulse_value
+                    or int(intent.get("attempt", -1)) != attempt_value
+                    or str(intent.get("generation")) != str(generation)
+                    or original_paths != paths
+                    or int(intent.get("expected_bytes", -1)) != expected
+                    or str(intent.get("admission_hash")) != admission):
+                raise StorageIntegrityError("intent epoch rebound scope differs from original intent")
+            metadata = intent.get("metadata", {})
+            if (not isinstance(metadata, Mapping)
+                    or str(metadata.get("scientific_pair_id", "")) != pair_id
+                    or _canonical_json(metadata.get("implementation_identity")) != _canonical_json(implementation)):
+                raise StorageIntegrityError("intent epoch rebound pair or implementation identity differs from persisted intent")
+            child_grants = [item for item in data.get("child_writer_grants", {}).values()
+                            if str(item.get("intent_id")) == iid]
+            for grant in child_grants:
+                if grant.get("state") in {"PENDING", "BOUND_ACTIVE"}:
+                    raise StorageBudgetError("unresolved child writer grants block intent epoch rebound")
+                scope = grant.get("scope", {})
+                if (str(grant.get("reservation_id")) != rid
+                        or str(scope.get("scientific_pair_id")) != pair_id
+                        or _canonical_json(scope.get("implementation_identity")) != _canonical_json(implementation)
+                        or str(scope.get("admission_identity_sha256")) != admission
+                        or str(scope.get("trajectory")) != str(trajectory)
+                        or int(scope.get("pulse", -1)) != pulse_value
+                        or int(scope.get("logical_attempt", -1)) != attempt_value
+                        or str(scope.get("generation")) != str(generation)):
+                    raise StorageIntegrityError("old child writer grant identity differs from intent rebound")
+            active_writers = [writer_id for writer_id, writer in data.get("writers", {}).items()
+                              if writer.get("status") == "ACTIVE" and str(writer.get("intent_id")) == iid]
+            if active_writers:
+                raise StorageBudgetError(f"active intent writers block epoch rebound: {active_writers}")
+            mutable = dict(intent)
+            mutable["epoch"] = new_epoch
+            mutable["status"] = "ACTIVE"
+            mutable["takeover_from_epoch"] = previous_epoch
+            mutable["takeover_utc"] = _utc()
+            mutable["takeover_by_process_identity"] = process_identity()
+            data["intents"][iid] = mutable
+            data["events"].append({"event": "INTENT_EPOCH_REBOUND", "intent_id": iid,
+                                   "reservation_id": rid, "previous_epoch": previous_epoch,
+                                   "coordinator_epoch": new_epoch, "timestamp_utc": _utc()})
+            return dict(mutable)
+
+    def create_child_writer_grant(
+        self, *, reservation_id: str, intent_id: str,
+        coordinator_epoch: str | int, role: str, trajectory: str,
+        pulse: int, logical_attempt: int, generation: str,
+        scientific_pair_id: str, admission_identity_sha256: str,
+        implementation_identity: Mapping[str, Any],
+        allowed_paths: Sequence[str | Path], expected_bytes: int,
+        execution_attempt: int = 0, role_index: int | None = None,
+        launch_candidate_identity: Mapping[str, Any] | None = None,
+        grant_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a bounded PENDING child grant without adding a reservation.
+
+        The caller must pass the admitted implementation manifest and an exact
+        path subset of the already-active creation intent.  The returned nonce
+        is only returned to the launching coordinator; the ledger stores its
+        digest.
+        """
+        normalized_role, normalized_index, role_label = self._child_role(role, role_index)
+        if normalized_role == "HYDRO":
+            admission_identity = getattr(self, "admission_identity", None)
+            if not isinstance(admission_identity, Mapping):
+                admission_identity = getattr(self, "_admission_identity", None)
+            topology = admission_identity.get("hydro_topology", {}) if isinstance(admission_identity, Mapping) else {}
+            try:
+                admitted_hydro_workers = int(topology["candidate_hydro_workers_requested"])
+            except (KeyError, TypeError, ValueError) as error:
+                raise StorageIntegrityError("admission identity lacks the candidate hydro worker bound") from error
+            if admitted_hydro_workers <= 0 or int(normalized_index) >= admitted_hydro_workers:
+                raise StorageIntegrityError("HYDRO grant index exceeds admitted worker count")
+        rid, iid = str(reservation_id), str(intent_id)
+        epoch = str(coordinator_epoch)
+        side = str(trajectory)
+        pulse_value = _nonnegative_int(pulse, "pulse")
+        attempt_value = _nonnegative_int(logical_attempt, "logical_attempt")
+        execution_value = _nonnegative_int(execution_attempt, "execution_attempt")
+        if not str(generation) or not _is_sha256(scientific_pair_id):
+            raise StorageIntegrityError("child writer grant requires generation and scientific pair identity")
+        admission = str(admission_identity_sha256)
+        if not _is_sha256(admission) or admission != str(self.admission_hash or ""):
+            raise StorageIntegrityError("child writer grant admission identity differs from storage ledger")
+        if not isinstance(implementation_identity, Mapping) or not implementation_identity:
+            raise StorageIntegrityError("child writer grant requires an implementation identity manifest")
+        implementation = _json_safe(dict(implementation_identity))
+        try:
+            _canonical_json(implementation)
+        except (TypeError, ValueError) as error:
+            raise StorageIntegrityError("child writer grant implementation identity is not canonical JSON") from error
+        if (not str(implementation.get("schema", ""))
+                or not _is_sha256(implementation.get("identity_sha256"))):
+            raise StorageIntegrityError("child writer grant implementation identity manifest is incomplete")
+        paths = self._intent_paths(allowed_paths)
+        expected = _nonnegative_int(expected_bytes, "grant expected_bytes")
+        if expected <= 0:
+            raise StorageBudgetError("child writer grant byte bound must be positive")
+        candidate = None if launch_candidate_identity is None else _checked_process_identity(launch_candidate_identity)
+        gid = str(grant_id or f"grant-{os.getpid()}-{time.time_ns()}-{secrets.token_hex(6)}")
+        nonce = secrets.token_urlsafe(32)
+        scope = {
+            "campaign_id": self.campaign_id,
+            "reservation_id": rid,
+            "intent_id": iid,
+            "coordinator_epoch": epoch,
+            "role": normalized_role,
+            "role_index": normalized_index,
+            "role_label": role_label,
+            "trajectory": side,
+            "pulse": pulse_value,
+            "logical_attempt": attempt_value,
+            "execution_attempt": execution_value,
+            "generation": str(generation),
+            "scientific_pair_id": str(scientific_pair_id),
+            "admission_identity_sha256": admission,
+            "implementation_identity": implementation,
+            "permitted_operations": list(CHILD_GRANT_OPERATIONS[normalized_role]),
+            "allowed_paths": paths,
+            "expected_bytes": expected,
+        }
+        with self._locked() as data:
+            reservation = data["reservations"].get(rid)
+            intent = data["intents"].get(iid)
+            if not isinstance(reservation, Mapping) or reservation.get("status") != "ACTIVE":
+                raise StorageBudgetError("child writer grant requires the single active aggregate reservation")
+            if not isinstance(intent, Mapping) or intent.get("status") != "ACTIVE":
+                raise StorageBudgetError("child writer grant requires an active creation intent")
+            if str(intent.get("reservation_id")) != rid:
+                raise StorageIntegrityError("child writer grant reservation differs from intent")
+            if str(intent.get("campaign_id")) != self.campaign_id:
+                raise StorageIntegrityError("child writer grant campaign differs from intent")
+            if str(intent.get("epoch")) != epoch:
+                raise StorageIntegrityError("child writer grant epoch differs from active intent")
+            if (str(intent.get("trajectory")) != side
+                    or int(intent.get("pulse", -1)) != pulse_value
+                    or int(intent.get("attempt", -1)) != attempt_value
+                    or str(intent.get("generation")) != str(generation)):
+                raise StorageIntegrityError("child writer grant scope differs from creation intent")
+            if str(intent.get("admission_hash")) != admission:
+                raise StorageIntegrityError("child writer grant admission differs from creation intent")
+            metadata = dict(intent.get("metadata", {}))
+            prior_pair = metadata.get("scientific_pair_id")
+            prior_implementation = metadata.get("implementation_identity")
+            if prior_pair is None and prior_implementation is None:
+                metadata["scientific_pair_id"] = str(scientific_pair_id)
+                metadata["implementation_identity"] = implementation
+                rebound_identity = dict(intent)
+                rebound_identity["metadata"] = metadata
+                data["intents"][iid] = rebound_identity
+                intent = rebound_identity
+            elif (str(prior_pair) != str(scientific_pair_id)
+                  or _canonical_json(prior_implementation) != _canonical_json(implementation)):
+                raise StorageIntegrityError("child writer grant pair or implementation identity differs from intent")
+            if expected > int(intent.get("expected_bytes", 0)):
+                raise StorageBudgetError("child writer grant byte bound exceeds creation intent")
+            intent_paths = [str(path) for path in intent.get("allowed_paths", [])]
+            if any(not any(self._path_is_allowed(path, [base]) for base in intent_paths) for path in paths):
+                raise StorageIntegrityError("child writer grant path is outside creation intent")
+            allocation_paths = [str(path) for path in reservation.get("allocation_paths", [])]
+            if allocation_paths and any(not any(self._path_is_allowed(path, [base]) for base in allocation_paths)
+                                        for path in paths):
+                raise StorageIntegrityError("child writer grant path is outside aggregate reservation")
+            grants = data.setdefault("child_writer_grants", {})
+            if gid in grants:
+                raise StorageBudgetError(f"child writer grant already exists: {gid}")
+            for previous in grants.values():
+                previous_scope = previous.get("scope", {})
+                same_wave_slot = (
+                    previous_scope.get("scientific_pair_id") == scope["scientific_pair_id"]
+                    and previous_scope.get("coordinator_epoch") == epoch
+                    and previous_scope.get("role") == normalized_role
+                    and previous_scope.get("role_index") == normalized_index
+                )
+                if same_wave_slot and previous.get("state") in {"PENDING", "BOUND_ACTIVE"}:
+                    raise StorageBudgetError("duplicate unresolved child writer grant role/scope")
+                same_execution = (
+                    previous_scope.get("scientific_pair_id") == scope["scientific_pair_id"]
+                    and previous_scope.get("role") == normalized_role
+                    and previous_scope.get("role_index") == normalized_index
+                    and previous_scope.get("execution_attempt") == execution_value
+                )
+                if same_execution:
+                    if _canonical_json(previous_scope) == _canonical_json(scope):
+                        raise StorageIntegrityError("duplicate child writer grant scope")
+                    raise StorageIntegrityError("child writer grant execution attempt cannot be reused with changed scope")
+            item = {
+                "schema": CHILD_WRITER_GRANT_SCHEMA,
+                "grant_id": gid,
+                "campaign_id": self.campaign_id,
+                "reservation_id": rid,
+                "intent_id": iid,
+                "coordinator_epoch": epoch,
+                "role_label": role_label,
+                "scope": scope,
+                "nonce_sha256": hashlib.sha256(nonce.encode("utf-8")).hexdigest(),
+                "launch_candidate_identity": candidate,
+                "process_identity": None,
+                "state": "PENDING",
+                "created_utc": _utc(),
+            }
+            grants[gid] = item
+            data["events"].append({"event": "CHILD_WRITER_GRANT_CREATE", "grant_id": gid,
+                                   "role": role_label, "epoch": epoch, "timestamp_utc": _utc()})
+            return {**dict(item), "nonce": nonce}
+
+    def record_child_writer_launch_candidate(
+        self, grant_id: str, *, nonce: str, process: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Attach the launched, waiting child's OS identity to a PENDING grant."""
+        identity = _checked_process_identity(process)
+        with self._locked() as data:
+            item = data.setdefault("child_writer_grants", {}).get(str(grant_id))
+            if not isinstance(item, Mapping) or item.get("state") != "PENDING":
+                raise StorageBudgetError("child writer grant is not PENDING")
+            self._check_child_grant_nonce(item, nonce)
+            probe = probe_process_identity(identity)
+            if probe.get("status") != "LIVE":
+                if probe.get("status") == "UNKNOWN":
+                    raise StorageIntegrityError("child writer launch candidate identity is UNKNOWN")
+                raise StorageBudgetError("child writer launch candidate is already DEAD")
+            prior = item.get("launch_candidate_identity")
+            if prior is not None and _checked_process_identity(prior) != identity:
+                raise StorageIntegrityError("child writer launch candidate identity changed")
+            mutable = dict(item)
+            mutable["launch_candidate_identity"] = identity
+            mutable["launch_candidate_registered_utc"] = _utc()
+            data["child_writer_grants"][str(grant_id)] = mutable
+            data["events"].append({"event": "CHILD_WRITER_LAUNCH_CANDIDATE", "grant_id": str(grant_id),
+                                   "pid": identity["pid"], "timestamp_utc": _utc()})
+            return dict(mutable)
+
+    def bind_child_writer_grant(
+        self, grant_id: str, *, nonce: str, scope: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Atomically bind PENDING to this process before it performs science writes."""
+        if not isinstance(scope, Mapping):
+            raise StorageIntegrityError("child writer bind requires the intended scope")
+        with self._locked() as data:
+            item = data.setdefault("child_writer_grants", {}).get(str(grant_id))
+            if not isinstance(item, Mapping):
+                raise StorageBudgetError(f"child writer grant is missing: {grant_id}")
+            if item.get("state") != "PENDING":
+                raise StorageBudgetError("child writer grant is not PENDING or was already bound")
+            self._check_child_grant_nonce(item, nonce)
+            if _canonical_json(scope) != _canonical_json(item.get("scope", {})):
+                raise StorageIntegrityError("child writer bind scope differs from pending grant")
+            identity = _checked_process_identity(process_identity())
+            candidate = item.get("launch_candidate_identity")
+            if candidate is not None and _checked_process_identity(candidate) != identity:
+                raise StorageIntegrityError("child process identity differs from launch candidate")
+            probe = probe_process_identity(identity)
+            if probe.get("status") != "LIVE":
+                raise StorageIntegrityError("child process identity is not verifiably LIVE at bind")
+            mutable = dict(item)
+            mutable["state"] = "BOUND_ACTIVE"
+            mutable["process_identity"] = identity
+            mutable["launch_candidate_identity"] = identity
+            mutable["bound_utc"] = _utc()
+            data["child_writer_grants"][str(grant_id)] = mutable
+            data["events"].append({"event": "CHILD_WRITER_GRANT_BIND", "grant_id": str(grant_id),
+                                   "role": item.get("role_label"), "pid": identity["pid"],
+                                   "timestamp_utc": _utc()})
+            return dict(mutable)
+
+    def authorize_child_writer_operation(
+        self, grant_id: str, *, nonce: str, coordinator_epoch: str | int,
+        operation: str, path: str | Path,
+    ) -> dict[str, Any]:
+        """Check the bound child's role, epoch, process, operation and path scope."""
+        with _FileLock(self.lock_path):
+            data = self._read(); self._validate(data)
+            item = data.get("child_writer_grants", {}).get(str(grant_id))
+            if not isinstance(item, Mapping) or item.get("state") != "BOUND_ACTIVE":
+                raise StorageBudgetError("child writer operation requires a BOUND_ACTIVE grant")
+            self._check_child_grant_nonce(item, nonce)
+            if str(item.get("coordinator_epoch")) != str(coordinator_epoch):
+                raise StorageIntegrityError("stale coordinator epoch cannot use child writer grant")
+            identity = _checked_process_identity(process_identity())
+            if identity != _checked_process_identity(item.get("process_identity", {})):
+                raise StorageIntegrityError("only the bound child process can use its writer grant")
+            scope = item.get("scope", {})
+            operation_name = str(operation).upper()
+            if operation_name not in scope.get("permitted_operations", []):
+                raise StorageIntegrityError("child writer operation is outside grant role")
+            _, relative = _relative(self.root, path)
+            if not self._path_is_allowed(relative, scope.get("allowed_paths", [])):
+                raise StorageIntegrityError("child writer path is outside grant scope")
+            return {
+                "status": "PASS",
+                "grant_id": str(grant_id),
+                "role": item.get("role_label"),
+                "coordinator_epoch": str(coordinator_epoch),
+                "operation": operation_name,
+                "relative_path": relative,
+                "expected_bytes": int(scope.get("expected_bytes", 0)),
+            }
+
+    def close_child_writer_grant(
+        self, grant_id: str, *, nonce: str, coordinator_epoch: str | int,
+        status: str = "CLOSED", reason: str | None = None,
+    ) -> dict[str, Any]:
+        """Let only the bound child close its grant in the same coordinator epoch."""
+        if status not in {"CLOSED", "INTERRUPTED"}:
+            raise ValueError("child writer grant close status is invalid")
+        with self._locked() as data:
+            item = data.setdefault("child_writer_grants", {}).get(str(grant_id))
+            if not isinstance(item, Mapping) or item.get("state") != "BOUND_ACTIVE":
+                raise StorageBudgetError("child writer grant is not BOUND_ACTIVE")
+            self._check_child_grant_nonce(item, nonce)
+            if str(item.get("coordinator_epoch")) != str(coordinator_epoch):
+                raise StorageIntegrityError("stale coordinator epoch cannot close child writer grant")
+            identity = _checked_process_identity(process_identity())
+            if identity != _checked_process_identity(item.get("process_identity", {})):
+                raise StorageIntegrityError("only the bound child process can close its writer grant")
+            mutable = dict(item)
+            mutable["state"] = status
+            mutable["closed_utc"] = _utc()
+            mutable["closed_by_process_identity"] = identity
+            if reason is not None:
+                mutable["reason"] = str(reason)
+            data["child_writer_grants"][str(grant_id)] = mutable
+            data["events"].append({"event": "CHILD_WRITER_GRANT_CLOSE", "grant_id": str(grant_id),
+                                   "status": status, "timestamp_utc": _utc()})
+            return dict(mutable)
+
+    def abandon_pending_writer_grant(self, grant_id: str, *, nonce: str) -> dict[str, Any]:
+        """Abandon a pre-bind launch only when its recorded process is proved DEAD."""
+        with self._locked() as data:
+            item = data.setdefault("child_writer_grants", {}).get(str(grant_id))
+            if not isinstance(item, Mapping) or item.get("state") != "PENDING":
+                raise StorageBudgetError("only a PENDING child writer grant can be abandoned")
+            self._check_child_grant_nonce(item, nonce)
+            candidate = item.get("launch_candidate_identity")
+            if candidate is None:
+                raise StorageIntegrityError("PENDING grant has no launch candidate death evidence")
+            evidence = probe_process_identity(_checked_process_identity(candidate))
+            if evidence.get("status") != "DEAD":
+                if evidence.get("status") == "UNKNOWN":
+                    raise StorageIntegrityError("PENDING grant launch candidate liveness is UNKNOWN")
+                raise StorageBudgetError("PENDING grant launch candidate is still LIVE")
+            mutable = dict(item)
+            mutable["state"] = "ABANDONED"
+            mutable["abandoned_utc"] = _utc()
+            mutable["liveness_evidence"] = evidence
+            data["child_writer_grants"][str(grant_id)] = mutable
+            data["events"].append({"event": "CHILD_WRITER_GRANT_ABANDON", "grant_id": str(grant_id),
+                                   "timestamp_utc": _utc()})
+            return mutable
+
+    def fence_dead_writer_grants(
+        self, *, coordinator_epoch: str | int | None = None,
+    ) -> dict[str, Any]:
+        """Fence dead bound children and abandon dead pre-bind launches atomically."""
+        with self._locked() as data:
+            grants = data.setdefault("child_writer_grants", {})
+            pending = [(gid, item) for gid, item in grants.items()
+                       if item.get("state") == "PENDING"
+                       and (coordinator_epoch is None or str(item.get("coordinator_epoch")) == str(coordinator_epoch))]
+            bound = [(gid, item) for gid, item in grants.items()
+                     if item.get("state") == "BOUND_ACTIVE"
+                     and (coordinator_epoch is None or str(item.get("coordinator_epoch")) == str(coordinator_epoch))]
+            evidence_by_id: dict[str, dict[str, Any]] = {}
+            for grant_id, item in pending:
+                identity = item.get("launch_candidate_identity")
+                evidence_by_id[str(grant_id)] = (
+                    {"status": "UNKNOWN", "reason": "launch_candidate_missing"}
+                    if identity is None else probe_process_identity(_checked_process_identity(identity))
+                )
+            for grant_id, item in bound:
+                identity = item.get("process_identity")
+                evidence_by_id[str(grant_id)] = (
+                    {"status": "UNKNOWN", "reason": "bound_process_identity_missing"}
+                    if identity is None else probe_process_identity(_checked_process_identity(identity))
+                )
+            live = sorted(gid for gid, evidence in evidence_by_id.items() if evidence.get("status") == "LIVE")
+            unknown = sorted(gid for gid, evidence in evidence_by_id.items() if evidence.get("status") != "DEAD")
+            if live:
+                raise StorageBudgetError(f"live child writer grants block takeover: {live}")
+            if unknown:
+                raise StorageIntegrityError(f"unverifiable child writer grants block takeover: {unknown}")
+            abandoned: list[str] = []
+            fenced: list[str] = []
+            for grant_id, _item in pending:
+                mutable = dict(grants[grant_id])
+                mutable["state"] = "ABANDONED"
+                mutable["abandoned_utc"] = _utc()
+                mutable["liveness_evidence"] = evidence_by_id[grant_id]
+                grants[grant_id] = mutable
+                abandoned.append(str(grant_id))
+            for grant_id, _item in bound:
+                mutable = dict(grants[grant_id])
+                mutable["state"] = "INTERRUPTED_STALE"
+                mutable["stale_verified_utc"] = _utc()
+                mutable["liveness_evidence"] = evidence_by_id[grant_id]
+                grants[grant_id] = mutable
+                fenced.append(str(grant_id))
+            data["events"].append({
+                "event": "CHILD_WRITER_GRANTS_FENCED",
+                "coordinator_epoch": None if coordinator_epoch is None else str(coordinator_epoch),
+                "abandoned_grant_ids": abandoned,
+                "interrupted_stale_grant_ids": fenced,
+                "timestamp_utc": _utc(),
+            })
+            return {"status": "PASS", "abandoned_grant_ids": abandoned,
+                    "interrupted_stale_grant_ids": fenced, "probes": evidence_by_id}
+
+    def writer_grants(self) -> dict[str, Any]:
+        with _FileLock(self.lock_path):
+            data = self._read(); self._validate(data)
+            return json.loads(json.dumps(data.get("child_writer_grants", {})))
+
+    def unresolved_writer_grants(
+        self, *, coordinator_epoch: str | int | None = None,
+    ) -> list[dict[str, Any]]:
+        with _FileLock(self.lock_path):
+            data = self._read(); self._validate(data)
+            return [json.loads(json.dumps(item)) for item in data.get("child_writer_grants", {}).values()
+                    if item.get("state") in {"PENDING", "BOUND_ACTIVE"}
+                    and (coordinator_epoch is None or str(item.get("coordinator_epoch")) == str(coordinator_epoch))]
+
+    def pending_writer_grants(
+        self, *, coordinator_epoch: str | int | None = None,
+    ) -> list[dict[str, Any]]:
+        with _FileLock(self.lock_path):
+            data = self._read(); self._validate(data)
+            return [json.loads(json.dumps(item)) for item in data.get("child_writer_grants", {}).values()
+                    if item.get("state") == "PENDING"
+                    and (coordinator_epoch is None or str(item.get("coordinator_epoch")) == str(coordinator_epoch))]
 
     def close_writer(self, writer_id: str, *, coordinator_epoch: str | int,
                      status: str = "CLOSED", reason: str | None = None) -> dict[str, Any]:
@@ -1146,10 +1816,37 @@ class StorageBudget:
         with _FileLock(self.lock_path):
             data = self._read(); self._validate(data)
             management_roles = {"TERMINAL_EVIDENCE", "REPORT", "GC_EVIDENCE"}
-            return [dict(item) for item in data["writers"].values()
-                    if item.get("status") == "ACTIVE" and
-                    (include_management or str(item.get("role", "")).upper() not in management_roles) and
-                    (coordinator_epoch is None or str(item.get("coordinator_epoch")) == str(coordinator_epoch))]
+            active = [dict(item) for item in data["writers"].values()
+                      if item.get("status") == "ACTIVE" and
+                      (include_management or (str(item.get("role", "")).upper() not in management_roles
+                                               and item.get("writer_kind") != "COORDINATOR_RECONCILER")) and
+                      (coordinator_epoch is None or str(item.get("coordinator_epoch")) == str(coordinator_epoch))]
+            for grant_id, item in data.get("child_writer_grants", {}).items():
+                if item.get("state") != "BOUND_ACTIVE":
+                    continue
+                if coordinator_epoch is not None and str(item.get("coordinator_epoch")) != str(coordinator_epoch):
+                    continue
+                scope = item.get("scope", {})
+                active.append({
+                    "schema": CHILD_WRITER_GRANT_SCHEMA,
+                    "writer_id": f"child-grant:{grant_id}",
+                    "grant_id": str(grant_id),
+                    "writer_kind": "CHILD_GRANT",
+                    "grant_state": "BOUND_ACTIVE",
+                    "status": "ACTIVE",
+                    "campaign_id": item.get("campaign_id"),
+                    "reservation_id": item.get("reservation_id"),
+                    "intent_id": item.get("intent_id"),
+                    "coordinator_epoch": item.get("coordinator_epoch"),
+                    "trajectory": scope.get("trajectory"),
+                    "pulse": scope.get("pulse"),
+                    "attempt": scope.get("logical_attempt"),
+                    "generation": scope.get("generation"),
+                    "role": item.get("role_label"),
+                    "process_identity": item.get("process_identity"),
+                    "allowed_paths": list(scope.get("allowed_paths", [])),
+                })
+            return active
 
     def interrupt_dead_writer(self, writer_id: str, *, probe: Mapping[str, Any] | None = None) -> dict[str, Any]:
         """Fence one verifiably dead writer without changing reserved bytes."""
@@ -1217,6 +1914,8 @@ class StorageBudget:
         active = self.active_writers(coordinator_epoch=coordinator_epoch, include_management=True)
         if active:
             raise StorageBudgetError("writer registry is not quiescent")
+        if self.pending_writer_grants(coordinator_epoch=coordinator_epoch):
+            raise StorageBudgetError("pending child writer grants block quiescence")
         destination, _ = _relative(self.root, path)
         payload = {"schema": WRITER_RECEIPT_SCHEMA, "status": "PASS", "campaign_id": self.campaign_id,
                    "active_writers": [], "writer_epoch": str(coordinator_epoch),
@@ -1270,6 +1969,9 @@ class StorageBudget:
             item = data["intents"].get(iid)
             if not isinstance(item, Mapping):
                 raise StorageBudgetError(f"unknown creation intent: {iid}")
+            self._ensure_child_grants_quiescent(
+                data, reservation_id=str(item.get("reservation_id", "")), intent_id=iid,
+            )
             if item.get("status") == "COMPLETED":
                 return dict(item)
             if item.get("status") != "ACTIVE":
@@ -1381,13 +2083,15 @@ class StorageBudget:
         instance.external_prefix_bytes = int(budget_identity.get("external_prefix_bytes", 0))
         instance.planned_final_output_bytes = int(budget_identity.get("final_output_bytes", 0))
         instance.external_full_source_bytes = int(budget_identity.get("existing_full_source_bytes", 0))
-        instance.require_quota = bool(json.loads(instance.ledger_path.read_text(encoding="utf-8")).get("require_quota", False))
         instance.require_intents = True
         instance.campaign_id = str(campaign_id)
         instance._admission_identity = dict(admission_identity)
         instance.admission_hash = str((admission_identity or {}).get("identity_sha256", ""))
         instance.provider = MockQuotaProvider(free_bytes=None, quota_bytes=None)
-        instance._validate(instance._read())
+        with _FileLock(instance.lock_path):
+            data = instance._read()
+            instance.require_quota = bool(data.get("require_quota", False))
+            instance._validate(data)
         return instance
 
 

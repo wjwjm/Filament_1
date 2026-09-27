@@ -18,6 +18,7 @@ from .hr4d_pulse_lifecycle import build_interpulse_step_schedule
 from .hr4e5_evidence import atomic_json, sha256_file
 from .hr4e5s_streaming import StreamingLifecycle
 from .hr4e5_storage import PROCESS_RECEIPT_SCHEMA, StorageBudget, process_identity
+from .hr4e5_recovery_identity import capture_implementation_identity
 
 
 def _hydro_parameters(config_path: Path) -> dict[str, Any]:
@@ -39,7 +40,8 @@ def _hydro_parameters(config_path: Path) -> dict[str, Any]:
     }
 
 
-def _producer_complete(root: Path) -> bool:
+def _producer_complete(root: Path, *, scientific_pair_id: str,
+                       producer_grant_id: str) -> bool:
     path = root / "PRODUCER_COMPLETE.json"
     if not path.is_file():
         return False
@@ -50,6 +52,8 @@ def _producer_complete(root: Path) -> bool:
     return (
         value.get("schema") == "khz_filament.hr4e5.e5_1b.producer_complete.v1"
         and value.get("status") == "PASS"
+        and value.get("scientific_pair_id") == scientific_pair_id
+        and value.get("producer_grant_id") == producer_grant_id
     )
 
 
@@ -57,6 +61,8 @@ def _receipt(root: Path, *, pulse: int, worker_index: int, lifecycle_root: Path,
              storage_root: Path, admission_hash: str, started: float, ended: float,
              claimed: list[int], created: list[Path], identity: Mapping[str, Any]) -> dict[str, Any]:
     path = lifecycle_root / "process_receipts" / f"C_HYDRO_{int(worker_index):03d}.json"
+    if path.exists():
+        path = lifecycle_root / "process_receipts" / f"C_HYDRO_{int(worker_index):03d}_{identity['grant_id']}.json"
     payload = {
         "schema": PROCESS_RECEIPT_SCHEMA,
         "campaign_id": str(identity.get("campaign_id", "")),
@@ -69,13 +75,13 @@ def _receipt(root: Path, *, pulse: int, worker_index: int, lifecycle_root: Path,
         "started_monotonic_s": float(started), "ended_monotonic_s": float(ended),
         "exit_status": "PASS", "claimed_ordinals": [int(value) for value in claimed],
         "created_files": [str(path.resolve()) for path in created],
-        "writer_id": str(identity.get("writer_id", "")),
+        "writer_id": str(identity.get("grant_id", "")),
         "intent_id": str(identity.get("intent_id", "")),
         "reservation_id": str(identity.get("reservation_id", "")),
         "backend": "numpy/cpu", "physical_gpu_identity": "NOT_APPLICABLE_LOCAL_CPU",
         "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
-    atomic_json(path, payload, overwrite=True)
+    atomic_json(path, payload, overwrite=False)
     return {**payload, "report_path": str(path), "report_sha256": sha256_file(path)}
 
 
@@ -91,6 +97,11 @@ def main() -> int:
     parser.add_argument("--intent-id")
     parser.add_argument("--reservation-id")
     parser.add_argument("--writer-id")
+    parser.add_argument("--grant-id", required=True)
+    parser.add_argument("--grant-nonce", required=True)
+    parser.add_argument("--scientific-pair-id", required=True)
+    parser.add_argument("--producer-grant-id", required=True)
+    parser.add_argument("--implementation-identity-sha256", required=True)
     args = parser.parse_args()
 
     lifecycle_root = Path(args.lifecycle_root).resolve()
@@ -108,10 +119,29 @@ def main() -> int:
     budget = StorageBudget.open_for_worker(
         storage_root, campaign_id=str(admission["campaign_id"]), admission_identity=admission,
     )
-    identity = budget.writer_receipt(args.writer_id)
-    if (str(identity.get("intent_id", "")) != str(args.intent_id)
-            or str(identity.get("reservation_id", "")) != str(args.reservation_id)):
-        raise RuntimeError("hydro writer identity differs from requested ownership")
+    grant = budget.writer_grants().get(args.grant_id)
+    if not isinstance(grant, Mapping):
+        raise RuntimeError("hydro child grant is missing")
+    scope = grant["scope"]
+    implementation = capture_implementation_identity()
+    if (scope.get("role") != "HYDRO" or scope.get("role_index") != args.worker_index
+            or scope.get("trajectory") != "C" or scope.get("pulse") != args.pulse
+            or scope.get("scientific_pair_id") != args.scientific_pair_id
+            or scope.get("admission_identity_sha256") != args.admission_identity_sha256
+            or scope.get("reservation_id") != args.reservation_id
+            or scope.get("intent_id") != args.intent_id
+            or scope.get("implementation_identity") != implementation
+            or implementation.get("identity_sha256") != args.implementation_identity_sha256):
+        raise RuntimeError("hydro child grant scope or implementation differs")
+    budget.record_child_writer_launch_candidate(
+        args.grant_id, nonce=args.grant_nonce, process=process_identity())
+    identity = budget.bind_child_writer_grant(
+        args.grant_id, nonce=args.grant_nonce, scope=scope)
+    budget.authorize_child_writer_operation(
+        args.grant_id, nonce=args.grant_nonce,
+        coordinator_epoch=identity["coordinator_epoch"],
+        operation="NEXT_COMMIT", path=lifecycle_root / "next",
+    )
     hydro = _hydro_parameters(config_path)
     lifecycle = StreamingLifecycle.open(lifecycle_root)
     actor = f"e5_1b_c_hydro_{args.pulse}_{args.worker_index}"
@@ -128,7 +158,9 @@ def main() -> int:
                     lifecycle_root / "next" / f"screen_{int(value):06d}.npz" for value in block
                 )
                 continue
-            if _producer_complete(lifecycle_root):
+            if _producer_complete(
+                lifecycle_root, scientific_pair_id=args.scientific_pair_id,
+                producer_grant_id=args.producer_grant_id):
                 manifest = lifecycle.manifest
                 if not manifest.get("queue") and not manifest.get("recovery_backlog"):
                     break
@@ -139,8 +171,9 @@ def main() -> int:
     finally:
         ended = time.monotonic()
         try:
-            budget.close_writer(
-                args.writer_id, coordinator_epoch=identity["coordinator_epoch"],
+            budget.close_child_writer_grant(
+                args.grant_id, nonce=args.grant_nonce,
+                coordinator_epoch=identity["coordinator_epoch"],
                 status="INTERRUPTED" if error is not None else "CLOSED",
                 reason=None if error is None else f"{type(error).__name__}: {error}",
             )

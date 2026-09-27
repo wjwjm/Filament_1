@@ -1053,12 +1053,15 @@ def test_production_n2_k64_h2_fallback_multiprocess(tmp_path):
     assert not [item for item in ledger["writers"].values() if item["status"] == "ACTIVE"]
 
 
-def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(tmp_path):
+@pytest.mark.parametrize("k,extra_takeover", [(16, False), (16, True), (64, False)],
+                         ids=["k16", "k16-repeated", "k64"])
+def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(tmp_path, k, extra_takeover):
     from KHz_filament.hr4e5_storage import probe_process_identity
+    from KHz_filament.hr4e5_evidence import sha256_file
 
     spec = _local_production_spec(
         tmp_path, campaign_id="local-production-k64-h4-dead-worker-recovery",
-        n_pulses=2, k=64, candidate_hydro_workers=4,
+        n_pulses=2, k=k, candidate_hydro_workers=4,
     )
     attempts = tmp_path / "attempt_evidence"
     first_attempt = attempts / "initial"
@@ -1102,19 +1105,25 @@ def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(tmp_p
 
             def pause_after_durable_claim(self, *, actor="hydro"):
                 block = original_claim(self, actor=actor)
-                if worker_index == 0 and block and not marker.exists():
+                if block and not marker.exists():
                     marker.parent.mkdir(parents=True, exist_ok=True)
-                    temporary_marker = marker.with_suffix(".tmp")
-                    temporary_marker.write_text(json.dumps({
-                        "process_identity": process_identity(), "worker_index": worker_index,
-                        "actor": actor, "block": block,
-                        "lifecycle_root": str(self.root),
-                        "writer_id": worker_args[worker_args.index("--writer-id") + 1],
-                    }), encoding="utf-8")
-                    temporary_marker.replace(marker)
-                    deadline = time.monotonic() + 120.0
-                    while time.monotonic() < deadline:
-                        time.sleep(0.05)
+                    try:
+                        owner_fd = os.open(str(marker) + ".owner", os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+                    except FileExistsError:
+                        owner_fd = None
+                    if owner_fd is not None:
+                        os.close(owner_fd)
+                        temporary_marker = marker.with_name(marker.name + f".{os.getpid()}.tmp")
+                        temporary_marker.write_text(json.dumps({
+                            "process_identity": process_identity(), "worker_index": worker_index,
+                            "actor": actor, "block": block,
+                            "lifecycle_root": str(self.root),
+                            "writer_id": worker_args[worker_args.index("--writer-id") + 1],
+                        }), encoding="utf-8")
+                        temporary_marker.replace(marker)
+                        deadline = time.monotonic() + 120.0
+                        while time.monotonic() < deadline:
+                            time.sleep(0.05)
                 return block
 
             StreamingLifecycle.claim_block = pause_after_durable_claim
@@ -1123,8 +1132,6 @@ def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(tmp_p
         original_command = _E5AProductionRunner._hydro_worker_command
         def paused_worker_command(self, state, pulse, worker_index, **kwargs):
             command = original_command(self, state, pulse, worker_index, **kwargs)
-            if int(worker_index) != 0:
-                return command
             return [*command[:3], "-c", worker_wrapper, marker, *command[5:]]
         _E5AProductionRunner._hydro_worker_command = paused_worker_command
         open_e5_1a_production_campaign(spec).run()
@@ -1152,13 +1159,13 @@ def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(tmp_p
                         f"stderr={first_stderr.read_text(encoding='utf-8')}"
                     )
                 if time.monotonic() >= claim_deadline:
-                    pytest.fail("worker 0 did not reach its durable claim pause within 90 seconds")
+                    pytest.fail("no hydro child reached its durable claim pause within 90 seconds")
                 time.sleep(0.05)
             marker = json.loads(claim_marker.read_text(encoding="utf-8"))
             worker_identity = marker["process_identity"]
             assert coordinator.pid != os.getpid() and coordinator.poll() is None
-            assert marker["worker_index"] == 0
-            assert marker["actor"].endswith("_0")
+            assert marker["worker_index"] in range(4)
+            assert marker["actor"].endswith(f"_{marker['worker_index']}")
             assert int(worker_identity["pid"]) != coordinator.pid
             assert probe_process_identity(worker_identity)["status"] == "LIVE"
 
@@ -1187,7 +1194,7 @@ def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(tmp_p
                 time.sleep(0.05)
                 worker_probe = probe_process_identity(worker_identity)
             assert worker_probe["status"] == "DEAD", worker_probe
-            coordinator.wait(timeout=180)
+            coordinator.wait(timeout=600)
             (first_attempt / "exit_observation.json").write_text(json.dumps({
                 "worker_liveness_after_kill": worker_probe,
                 "coordinator_returncode": coordinator.returncode,
@@ -1210,6 +1217,33 @@ def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(tmp_p
                         coordinator.kill()
                         coordinator.wait(timeout=10)
             raise
+
+    active_locator = Path(spec.root) / "C" / "p0" / "state" / "ACTIVE_OUTPUT.json"
+    original_locator_sha256 = sha256_file(active_locator)
+    if extra_takeover:
+        intermediate = textwrap.dedent(
+            """
+            import sys
+            from pathlib import Path
+            from KHz_filament.hr4e5_production import E5AProductionSpec, open_e5_1a_production_campaign
+            root, campaign_id, config, source, lut, pre0 = sys.argv[1:]
+            spec = E5AProductionSpec(
+                root=Path(root), campaign_id=campaign_id, config_path=Path(config),
+                source_manifest_path=Path(source), lut_manifest_path=Path(lut),
+                pre0_delta_n_path=Path(pre0), n_pulses=2, candidate_hydro_workers=4,
+                safety_margin_bytes=1024**2,
+            )
+            open_e5_1a_production_campaign(spec).close()
+            """
+        )
+        interrupted = subprocess.run(
+            [sys.executable, "-s", "-B", "-c", intermediate,
+             str(spec.root), spec.campaign_id, str(spec.config_path),
+             str(spec.source_manifest_path), str(spec.lut_manifest_path),
+             str(spec.pre0_delta_n_path)],
+            cwd=python_root, env=environment, capture_output=True, text=True, timeout=120,
+        )
+        assert interrupted.returncode == 0, interrupted.stderr
 
     replacement_coordinator = textwrap.dedent(
         """
@@ -1240,7 +1274,7 @@ def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(tmp_p
              str(spec.source_manifest_path), str(spec.lut_manifest_path),
              str(spec.pre0_delta_n_path), str(replacement_result_path)],
             cwd=python_root, env=environment, stdout=stdout_file, stderr=stderr_file,
-            text=True, timeout=300,
+            text=True, timeout=1800 if k == 64 else 900,
         )
     assert replacement.returncode == 0, (
         replacement_stdout.read_text(encoding="utf-8") + "\n" +
@@ -1249,6 +1283,7 @@ def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(tmp_p
     result = json.loads(replacement_result_path.read_text(encoding="utf-8"))
     assert result["status"] == "COMPLETE" and result["next_pair_index"] == 2
     assert result["terminal_inventory_after_close"]["status"] == "PASS"
+    assert sha256_file(active_locator) == original_locator_sha256
 
     root = Path(spec.root)
     for pulse in range(2):
@@ -1259,24 +1294,493 @@ def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(tmp_p
             and row["reference_sha256_array"] == row["candidate_sha256_array"]
             for row in exact["rows"]
         )
-    receipts = [json.loads((root / "C" / "p0" / "state" / "process_receipts" /
-                            f"C_HYDRO_{index:03d}.json").read_text(encoding="utf-8"))
-                for index in range(4)]
+    receipt_paths = sorted((root / "C" / "p0" / "state" / "process_receipts").glob("C_HYDRO_*.json"))
+    receipts = [json.loads(path.read_text(encoding="utf-8")) for path in receipt_paths]
     assert {receipt["exit_status"] for receipt in receipts} == {"PASS"}
-    assert len({receipt["pid"] for receipt in receipts}) == 4
+    assert len({receipt["pid"] for receipt in receipts}) >= 4
     covered = [int(ordinal) for receipt in receipts for ordinal in receipt["claimed_ordinals"]]
-    assert sorted(covered) == list(range(64)) and len(covered) == len(set(covered))
+    assert sorted(covered) == list(range(k)) and len(covered) == len(set(covered))
 
     ledger = json.loads((root / "storage_ledger.json").read_text(encoding="utf-8"))
-    stale_writer = ledger["writers"][marker["writer_id"]]
-    assert stale_writer["status"] == "INTERRUPTED_STALE"
+    assert sum(item["purpose"] == "OPTICAL:C:p0" for item in ledger["reservations"].values()) == 1
+    stale_writer = ledger["child_writer_grants"][marker["writer_id"]]
+    assert stale_writer["state"] == "INTERRUPTED_STALE"
     assert stale_writer["liveness_evidence"]["status"] == "DEAD"
     assert not [item for item in ledger["writers"].values() if item["status"] == "ACTIVE"]
+    assert not [item for item in ledger["child_writer_grants"].values()
+                if item["state"] in {"PENDING", "BOUND_ACTIVE"}]
+    lineage = json.loads((root / "pair_lineage" / "p0.json").read_text(encoding="utf-8"))
+    assert lineage["cross_epoch"] is True
+    assert lineage["trajectories"]["R"]["trajectory_commit_epoch"] != lineage["trajectories"]["C"]["trajectory_commit_epoch"]
+    assert lineage["trajectories"]["C"]["trajectory_commit_epoch"] == ("2" if extra_takeover else "1")
     manifest = json.loads((root / "C" / "p0" / "state" /
                            "streaming_manifest.json").read_text(encoding="utf-8"))
     assert manifest["barrier"]["status"] == "PASS"
     assert manifest["promotion"]["authoritative_namespace"] == "NEXT"
     assert not manifest["queue"] and not manifest["recovery_backlog"]
+
+
+@pytest.mark.parametrize("interrupt_hydro", [False, True], ids=["c0-r1", "c0-r2-hydro-restart"])
+def test_production_reference_intents_rebind_and_completed_output_replays_across_epochs(tmp_path, interrupt_hydro):
+    from KHz_filament.hr4e5_evidence import sha256_file
+
+    spec = _local_production_spec(
+        tmp_path, campaign_id="local-production-reference-recovery", n_pulses=2, k=8,
+        candidate_hydro_workers=2,
+    )
+    python_root = Path(__file__).resolve().parents[1]
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(python_root) + os.pathsep + environment.get("PYTHONPATH", "")
+    environment["PYTHONNOUSERSITE"] = "1"
+
+    def run_coordinator(source, *arguments):
+        completed = subprocess.run(
+            [sys.executable, "-s", "-B", "-c", textwrap.dedent(source), *map(str, arguments)],
+            cwd=python_root, env=environment, capture_output=True, text=True, timeout=300,
+        )
+        assert completed.returncode == 0, completed.stdout + "\n" + completed.stderr
+
+    first = """
+        import sys
+        from pathlib import Path
+        import KHz_filament.hr4e5_production as production
+
+        root, campaign_id, config, source, lut, pre0 = sys.argv[1:]
+        spec = production.E5AProductionSpec(
+            root=Path(root), campaign_id=campaign_id, config_path=Path(config),
+            source_manifest_path=Path(source), lut_manifest_path=Path(lut),
+            pre0_delta_n_path=Path(pre0), n_pulses=2, candidate_hydro_workers=2,
+            safety_margin_bytes=1024**2,
+        )
+        def interrupt_reference_optical(**kwargs):
+            if kwargs.get("trajectory") == "R" and int(kwargs.get("pulse", -1)) == 0:
+                failed_output = Path(kwargs["output_dir"])
+                failed_output.mkdir(parents=True, exist_ok=False)
+                (failed_output / "failed_attempt.txt").write_text("retained failed attempt", encoding="utf-8")
+                kwargs["storage_budget"].interrupt_intent(
+                    kwargs["creation_intent"]["intent_id"], reason="injected reference optical interruption")
+                raise RuntimeError("injected reference optical interruption")
+            return original_optical(**kwargs)
+        original_optical = production.run_streaming_optical_pulse
+        production.run_streaming_optical_pulse = interrupt_reference_optical
+        try:
+            production.open_e5_1a_production_campaign(spec).run()
+        except RuntimeError as error:
+            if "injected reference optical interruption" not in str(error):
+                raise
+        else:
+            raise AssertionError("reference optical interruption did not occur")
+    """
+    run_coordinator(first, spec.root, spec.campaign_id, spec.config_path,
+                    spec.source_manifest_path, spec.lut_manifest_path, spec.pre0_delta_n_path)
+
+    root = Path(spec.root)
+    state_path = root / "E5_1A_CAMPAIGN_STATE.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    steps = state["pairs"][0]["formal_steps"]
+    assert steps["candidate"]["status"] == "COMMITTED"
+    assert steps["candidate"]["epoch"] == 0
+    assert steps["reference"]["status"] == "INTERRUPTED"
+    ledger = json.loads((root / "storage_ledger.json").read_text(encoding="utf-8"))
+    reference_optical = [item for item in ledger["intents"].values()
+                         if item["trajectory"] == "R" and item["pulse"] == 0
+                         and item["role"] == "OPTICAL"]
+    assert len(reference_optical) == 1
+    optical_intent_id = reference_optical[0]["intent_id"]
+    optical_reservation_id = reference_optical[0]["reservation_id"]
+    assert reference_optical[0]["status"] == "INTERRUPTED"
+    assert ledger["reservations"][optical_reservation_id]["status"] == "ACTIVE"
+    failed_attempt = root / "R" / "p0" / "optical" / "failed_attempt.txt"
+    failed_attempt_sha256 = sha256_file(failed_attempt)
+
+    if not interrupt_hydro:
+        result_path = tmp_path / "two_epoch_result.json"
+        second = """
+            import sys
+            from pathlib import Path
+            from KHz_filament.hr4e5_evidence import atomic_json
+            from KHz_filament.hr4e5_production import E5AProductionSpec, open_e5_1a_production_campaign
+
+            root, campaign_id, config, source, lut, pre0, result_path = sys.argv[1:]
+            spec = E5AProductionSpec(
+                root=Path(root), campaign_id=campaign_id, config_path=Path(config),
+                source_manifest_path=Path(source), lut_manifest_path=Path(lut),
+                pre0_delta_n_path=Path(pre0), n_pulses=2, candidate_hydro_workers=2,
+                safety_margin_bytes=1024**2,
+            )
+            atomic_json(result_path, open_e5_1a_production_campaign(spec).run())
+        """
+        run_coordinator(second, spec.root, spec.campaign_id, spec.config_path,
+                        spec.source_manifest_path, spec.lut_manifest_path, spec.pre0_delta_n_path,
+                        result_path)
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        assert result["status"] == "COMPLETE"
+        assert result["terminal_inventory_after_close"]["status"] == "PASS"
+        assert sha256_file(failed_attempt) == failed_attempt_sha256
+        ledger = json.loads((root / "storage_ledger.json").read_text(encoding="utf-8"))
+        rebound = ledger["intents"][optical_intent_id]
+        assert rebound["status"] == "COMPLETED"
+        assert rebound["reservation_id"] == optical_reservation_id
+        assert str(rebound["takeover_from_epoch"]) == "0"
+        assert sum(item["purpose"] == "OPTICAL:R:p0" for item in ledger["reservations"].values()) == 1
+        locator = json.loads((root / "R" / "p0" / "state" / "ACTIVE_OUTPUT.json").read_text(encoding="utf-8"))
+        active_record = json.loads((root / locator["record_path"]).read_text(encoding="utf-8"))
+        assert Path(active_record["output_dir"]).parts[-2] == "optical"
+        assert Path(active_record["output_dir"]).name.startswith("replay_")
+        lineage = json.loads((root / "pair_lineage" / "p0.json").read_text(encoding="utf-8"))
+        assert lineage["cross_epoch"] is True
+        assert lineage["trajectories"]["C"]["trajectory_commit_epoch"] == "0"
+        assert lineage["trajectories"]["R"]["trajectory_commit_epoch"] == "1"
+        exact = json.loads((root / "exact" / "p0.json").read_text(encoding="utf-8"))
+        assert exact["status"] == "PASS" and exact["mismatch_count"] == 0
+        return
+
+    second = """
+        import sys
+        from pathlib import Path
+        import KHz_filament.hr4e5_production as production
+
+        root, campaign_id, config, source, lut, pre0 = sys.argv[1:]
+        spec = production.E5AProductionSpec(
+            root=Path(root), campaign_id=campaign_id, config_path=Path(config),
+            source_manifest_path=Path(source), lut_manifest_path=Path(lut),
+            pre0_delta_n_path=Path(pre0), n_pulses=2, candidate_hydro_workers=2,
+            safety_margin_bytes=1024**2,
+        )
+        def interrupt_after_reference_hydro_store(store, **kwargs):
+            if not Path(store.manifest_path).is_file():
+                raise AssertionError("injected boundary did not follow HR-4C store creation")
+            raise RuntimeError("injected reference hydro interruption after store creation")
+        production.evolve_hr4_full_z = interrupt_after_reference_hydro_store
+        try:
+            production.open_e5_1a_production_campaign(spec).run()
+        except RuntimeError as error:
+            if "injected reference hydro interruption after store creation" not in str(error):
+                raise
+        else:
+            raise AssertionError("reference hydro interruption did not occur")
+    """
+    run_coordinator(second, spec.root, spec.campaign_id, spec.config_path,
+                    spec.source_manifest_path, spec.lut_manifest_path, spec.pre0_delta_n_path)
+
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    steps = state["pairs"][0]["formal_steps"]
+    assert steps["candidate"]["status"] == "COMMITTED" and steps["candidate"]["epoch"] == 0
+    assert steps["reference"]["status"] == "INTERRUPTED" and steps["reference"]["epoch"] == 1
+    pair_id = state["pairs"][0]["scientific_pair_identity"]["scientific_pair_id"]
+    implementation = json.loads((root / "E5_1B_IMPLEMENTATION_IDENTITY.json").read_text(encoding="utf-8"))
+    implementation_sha256 = implementation["identity_sha256"]
+    ledger = json.loads((root / "storage_ledger.json").read_text(encoding="utf-8"))
+    rebound_optical = ledger["intents"][optical_intent_id]
+    assert rebound_optical["status"] == "COMPLETED"
+    assert rebound_optical["reservation_id"] == optical_reservation_id
+    assert str(rebound_optical["takeover_from_epoch"]) == "0"
+    assert rebound_optical["metadata"]["scientific_pair_id"] == pair_id
+    assert rebound_optical["metadata"]["implementation_identity"]["identity_sha256"] == implementation_sha256
+    assert sum(item["purpose"] == "OPTICAL:R:p0" for item in ledger["reservations"].values()) == 1
+    reference_hydro = [item for item in ledger["intents"].values()
+                       if item["trajectory"] == "R" and item["pulse"] == 0
+                       and item["role"] == "REFERENCE_HYDRO"]
+    assert len(reference_hydro) == 1 and reference_hydro[0]["status"] == "INTERRUPTED"
+    hydro_intent_id = reference_hydro[0]["intent_id"]
+    hydro_reservation_id = reference_hydro[0]["reservation_id"]
+    assert ledger["reservations"][hydro_reservation_id]["status"] == "ACTIVE"
+    assert reference_hydro[0]["metadata"]["scientific_pair_id"] == pair_id
+    assert reference_hydro[0]["metadata"]["implementation_identity"]["identity_sha256"] == implementation_sha256
+
+    batch_dir = root / "R" / "p0" / "batch"
+    old_hr4c_files = sorted(batch_dir.glob("store.hr4c_*"))
+    assert old_hr4c_files
+    old_hr4c_hashes = {path.name: sha256_file(path) for path in old_hr4c_files}
+    incomplete_lifecycle = json.loads((root / "R" / "p0" / "state" / "streaming_manifest.json").read_text(encoding="utf-8"))
+    assert incomplete_lifecycle.get("promotion") is None
+    assert all(row.get("next") is None for row in incomplete_lifecycle["records"])
+
+    old_output = root / "R" / "p0" / "optical"
+    old_output_hashes = {
+        path.relative_to(old_output).as_posix(): sha256_file(path)
+        for path in old_output.rglob("*") if path.is_file()
+    }
+    assert old_output_hashes
+    active_locator = root / "R" / "p0" / "state" / "ACTIVE_OUTPUT.json"
+    old_locator_sha256 = sha256_file(active_locator)
+    replay_evidence = tmp_path / "reference_replay_evidence.json"
+    result_path = tmp_path / "recovered_result.json"
+    third = """
+        import json, sys
+        from pathlib import Path
+        from KHz_filament.hr4e5_evidence import atomic_json, sha256_file
+        from KHz_filament.hr4e5_recovery_output import validate_active_output
+        import KHz_filament.hr4e5_production as production
+
+        (root, campaign_id, config, source, lut, pre0, old_output, old_hashes_json, old_hr4c_hashes_json,
+         old_locator_sha256, evidence_path, result_path) = sys.argv[1:]
+        root, old_output = Path(root), Path(old_output)
+        old_hashes = json.loads(old_hashes_json)
+        old_hr4c_hashes = json.loads(old_hr4c_hashes_json)
+        spec = production.E5AProductionSpec(
+            root=root, campaign_id=campaign_id, config_path=Path(config),
+            source_manifest_path=Path(source), lut_manifest_path=Path(lut),
+            pre0_delta_n_path=Path(pre0), n_pulses=2, candidate_hydro_workers=2,
+            safety_margin_bytes=1024**2,
+        )
+        original_hydro = production._E5AProductionRunner._run_reference_hydro
+        def verify_replayed_reference_output(self, *, state, pulse, lifecycle, grid):
+            result = original_hydro(self, state=state, pulse=pulse, lifecycle=lifecycle, grid=grid)
+            if int(pulse) == 0:
+                identity = self.driver.campaign._pair(pulse)["scientific_pair_identity"]
+                active = validate_active_output(
+                    campaign_root=self.root, state_root=state,
+                    scientific_pair_id=identity["scientific_pair_id"],
+                    implementation_identity_sha256=self.implementation_identity["identity_sha256"],
+                )
+                active_output = Path(active["output_dir"]).resolve()
+                assert active_output.is_relative_to(old_output.resolve())
+                assert sha256_file(state / "ACTIVE_OUTPUT.json") == old_locator_sha256
+                for relative, expected in old_hashes.items():
+                    assert sha256_file(old_output / relative) == expected
+                batch_dir = self._track("R", pulse) / "batch"
+                for name, expected in old_hr4c_hashes.items():
+                    assert sha256_file(batch_dir / name) == expected
+                replay_manifests = sorted(batch_dir.glob("store_replay_*.hr4c_state_manifest.json"))
+                assert replay_manifests
+                atomic_json(evidence_path, {
+                    "status": "PASS", "old_output_dir": str(old_output.resolve()),
+                    "active_output_dir": str(active_output),
+                    "old_output_files_preserved": len(old_hashes),
+                    "old_hr4c_files_preserved": len(old_hr4c_hashes),
+                    "replay_hr4c_store_count": len(replay_manifests),
+                    "active_locator_sha256": sha256_file(state / "ACTIVE_OUTPUT.json"),
+                })
+            return result
+        production._E5AProductionRunner._run_reference_hydro = verify_replayed_reference_output
+        result = production.open_e5_1a_production_campaign(spec).run()
+        atomic_json(result_path, result)
+    """
+    run_coordinator(third, spec.root, spec.campaign_id, spec.config_path,
+                    spec.source_manifest_path, spec.lut_manifest_path, spec.pre0_delta_n_path,
+                    old_output, json.dumps(old_output_hashes, sort_keys=True),
+                    json.dumps(old_hr4c_hashes, sort_keys=True), old_locator_sha256,
+                    replay_evidence, result_path)
+
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "COMPLETE" and result["next_pair_index"] == 2
+    assert result["terminal_inventory_after_close"]["status"] == "PASS"
+    replay = json.loads(replay_evidence.read_text(encoding="utf-8"))
+    assert replay["status"] == "PASS" and replay["old_output_files_preserved"] == len(old_output_hashes)
+    assert replay["old_hr4c_files_preserved"] == len(old_hr4c_hashes)
+    assert replay["replay_hr4c_store_count"] >= 1
+    ledger = json.loads((root / "storage_ledger.json").read_text(encoding="utf-8"))
+    assert ledger["intents"][hydro_intent_id]["status"] == "COMPLETED"
+    assert ledger["intents"][hydro_intent_id]["reservation_id"] == hydro_reservation_id
+    assert str(ledger["intents"][hydro_intent_id]["takeover_from_epoch"]) == "1"
+    assert sum(item["purpose"] == "REFERENCE_HYDRO:R:p0" for item in ledger["reservations"].values()) == 1
+    assert sum(item["purpose"] == "OPTICAL:R:p0" for item in ledger["reservations"].values()) == 1
+    pair_steps = json.loads(state_path.read_text(encoding="utf-8"))["pairs"][0]["formal_steps"]
+    assert pair_steps["candidate"]["epoch"] == 0 and pair_steps["reference"]["epoch"] == 2
+    lineage = json.loads((root / "pair_lineage" / "p0.json").read_text(encoding="utf-8"))
+    assert lineage["cross_epoch"] is True
+    assert lineage["trajectories"]["C"]["trajectory_commit_epoch"] == "0"
+    assert lineage["trajectories"]["R"]["trajectory_commit_epoch"] == "2"
+    exact = json.loads((root / "exact" / "p0.json").read_text(encoding="utf-8"))
+    assert exact["status"] == "PASS" and exact["mismatch_count"] == 0
+
+
+@pytest.mark.parametrize("failure_point", ["before_complete", "before_consume", "after_rebind", "f08"])
+def test_production_reference_hydro_promotion_recovers_original_intent_and_reservation(
+    tmp_path, failure_point,
+):
+    from KHz_filament.hr4e5_evidence import sha256_file
+
+    spec = _local_production_spec(
+        tmp_path, campaign_id=f"local-production-reference-promotion-{failure_point}",
+        n_pulses=2, k=8, candidate_hydro_workers=2,
+    )
+    python_root = Path(__file__).resolve().parents[1]
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(python_root) + os.pathsep + environment.get("PYTHONPATH", "")
+    environment["PYTHONNOUSERSITE"] = "1"
+
+    def run_coordinator(source, *arguments):
+        completed = subprocess.run(
+            [sys.executable, "-s", "-B", "-c", textwrap.dedent(source), *map(str, arguments)],
+            cwd=python_root, env=environment, capture_output=True, text=True, timeout=300,
+        )
+        assert completed.returncode == 0, completed.stdout + "\n" + completed.stderr
+
+    first = """
+        import sys
+        from pathlib import Path
+        from KHz_filament.hr4e5_storage import StorageBudget
+        from KHz_filament.hr4e5_production import E5AProductionSpec, open_e5_1a_production_campaign
+
+        root, campaign_id, config, source, lut, pre0, failure_point = sys.argv[1:]
+        spec = E5AProductionSpec(
+            root=Path(root), campaign_id=campaign_id, config_path=Path(config),
+            source_manifest_path=Path(source), lut_manifest_path=Path(lut),
+            pre0_delta_n_path=Path(pre0), n_pulses=2, candidate_hydro_workers=2,
+            safety_margin_bytes=1024**2,
+        )
+        injected = {"done": False}
+        if failure_point in {"before_complete", "after_rebind"}:
+            original = StorageBudget.complete_intent
+            def fail_before_complete(self, intent_id, **kwargs):
+                item = self.intent(intent_id)
+                if item.get("role") == "REFERENCE_HYDRO" and not injected["done"]:
+                    injected["done"] = True
+                    raise RuntimeError("injected after promotion before hydro intent completion")
+                return original(self, intent_id, **kwargs)
+            StorageBudget.complete_intent = fail_before_complete
+        elif failure_point == "before_consume":
+            original = StorageBudget.consume
+            def fail_before_consume(self, reservation_id, **kwargs):
+                item = self.reservations().get(str(reservation_id), {})
+                if item.get("purpose") == "REFERENCE_HYDRO:R:p0" and not injected["done"]:
+                    injected["done"] = True
+                    raise RuntimeError("injected after hydro intent completion before reservation consume")
+                return original(self, reservation_id, **kwargs)
+            StorageBudget.consume = fail_before_consume
+        else:
+            from KHz_filament.hr4e5s_streaming import StreamingLifecycle
+            original = StreamingLifecycle.promote_next_to_current
+            reference_state = (Path(root) / "R" / "p0" / "state").resolve()
+            injected = {"done": False}
+            def inject_reference_f08(self, actor="barrier"):
+                if Path(self.root).resolve() == reference_state and not injected["done"]:
+                    self._s5_fault = {
+                        "fault_id": "F08_PROMOTION_TRANSACTION_BOUNDARY",
+                        "target_screen": str(self.manifest["records"][-1]["screen_id"]),
+                        "once": True,
+                    }
+                try:
+                    return original(self, actor=actor)
+                except RuntimeError as error:
+                    if "F08_PROMOTION_TRANSACTION_BOUNDARY" in str(error):
+                        injected["done"] = True
+                    raise
+            StreamingLifecycle.promote_next_to_current = inject_reference_f08
+        try:
+            open_e5_1a_production_campaign(spec).run()
+        except RuntimeError as error:
+            if failure_point == "f08":
+                expected = "F08_PROMOTION_TRANSACTION_BOUNDARY"
+            elif failure_point in {"before_complete", "after_rebind"}:
+                expected = "injected after promotion before hydro intent completion"
+            else:
+                expected = "injected after hydro intent completion before reservation consume"
+            if expected not in str(error) or not injected["done"]:
+                raise
+        else:
+            raise AssertionError("promotion bookkeeping fault did not occur")
+    """
+    run_coordinator(first, spec.root, spec.campaign_id, spec.config_path,
+                    spec.source_manifest_path, spec.lut_manifest_path,
+                    spec.pre0_delta_n_path, failure_point)
+
+    root = Path(spec.root)
+    state_path = root / "E5_1A_CAMPAIGN_STATE.json"
+    lifecycle_path = root / "R" / "p0" / "state" / "streaming_manifest.json"
+    lifecycle = json.loads(lifecycle_path.read_text(encoding="utf-8"))
+    assert lifecycle["barrier"]["status"] == "PASS"
+    pointer_path = root / "R" / "p0" / "state" / "authoritative_generation.json"
+    if failure_point == "f08":
+        assert lifecycle["promotion"] is None
+        assert pointer_path.is_file()
+        pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+        assert pointer["authoritative_namespace"] == "NEXT"
+        pointer_sha256 = sha256_file(pointer_path)
+    else:
+        assert lifecycle["promotion"]["authoritative_namespace"] == "NEXT"
+        pointer_sha256 = None
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["pairs"][0]["formal_steps"]["candidate"]["status"] == "COMMITTED"
+    assert state["pairs"][0]["formal_steps"]["reference"]["status"] == "INTERRUPTED"
+    ledger = json.loads((root / "storage_ledger.json").read_text(encoding="utf-8"))
+    intents = [item for item in ledger["intents"].values()
+               if item.get("role") == "REFERENCE_HYDRO" and item.get("trajectory") == "R"
+               and int(item.get("pulse", -1)) == 0]
+    assert len(intents) == 1
+    intent_id = intents[0]["intent_id"]
+    reservation_id = intents[0]["reservation_id"]
+    assert intents[0]["status"] == ("COMPLETED" if failure_point == "before_consume" else "INTERRUPTED")
+    assert intents[0]["metadata"]["reservation_owner_epoch"] == "0"
+    assert ledger["reservations"][reservation_id]["status"] == "ACTIVE"
+
+    if failure_point == "after_rebind":
+        interrupted_recovery = """
+            import sys
+            from pathlib import Path
+            from KHz_filament.hr4e5_storage import StorageBudget
+            from KHz_filament.hr4e5_production import E5AProductionSpec, open_e5_1a_production_campaign
+
+            root, campaign_id, config, source, lut, pre0 = sys.argv[1:]
+            spec = E5AProductionSpec(
+                root=Path(root), campaign_id=campaign_id, config_path=Path(config),
+                source_manifest_path=Path(source), lut_manifest_path=Path(lut),
+                pre0_delta_n_path=Path(pre0), n_pulses=2, candidate_hydro_workers=2,
+                safety_margin_bytes=1024**2,
+            )
+            original = StorageBudget.complete_intent
+            injected = {"done": False}
+            def fail_after_rebind(self, intent_id, **kwargs):
+                item = self.intent(intent_id)
+                if item.get("role") == "REFERENCE_HYDRO" and not injected["done"]:
+                    injected["done"] = True
+                    raise RuntimeError("injected after hydro intent epoch rebind")
+                return original(self, intent_id, **kwargs)
+            StorageBudget.complete_intent = fail_after_rebind
+            try:
+                open_e5_1a_production_campaign(spec).run()
+            except RuntimeError as error:
+                if "injected after hydro intent epoch rebind" not in str(error) or not injected["done"]:
+                    raise
+            else:
+                raise AssertionError("post-rebind fault did not occur")
+        """
+        run_coordinator(interrupted_recovery, spec.root, spec.campaign_id, spec.config_path,
+                        spec.source_manifest_path, spec.lut_manifest_path, spec.pre0_delta_n_path)
+        ledger = json.loads((root / "storage_ledger.json").read_text(encoding="utf-8"))
+        rebound = ledger["intents"][intent_id]
+        assert rebound["status"] == "INTERRUPTED" and rebound["epoch"] == "1"
+        assert rebound["takeover_from_epoch"] == "0"
+        assert ledger["reservations"][reservation_id]["status"] == "ACTIVE"
+        assert ledger["reservations"][reservation_id]["owner"] == "0"
+
+    second = """
+        import sys
+        from pathlib import Path
+        from KHz_filament.hr4e5_production import E5AProductionSpec, open_e5_1a_production_campaign
+
+        root, campaign_id, config, source, lut, pre0 = sys.argv[1:]
+        spec = E5AProductionSpec(
+            root=Path(root), campaign_id=campaign_id, config_path=Path(config),
+            source_manifest_path=Path(source), lut_manifest_path=Path(lut),
+            pre0_delta_n_path=Path(pre0), n_pulses=2, candidate_hydro_workers=2,
+            safety_margin_bytes=1024**2,
+        )
+        result = open_e5_1a_production_campaign(spec).run()
+        assert result["status"] == "COMPLETE"
+        assert result["terminal_inventory_after_close"]["status"] == "PASS"
+    """
+    run_coordinator(second, spec.root, spec.campaign_id, spec.config_path,
+                    spec.source_manifest_path, spec.lut_manifest_path, spec.pre0_delta_n_path)
+    ledger = json.loads((root / "storage_ledger.json").read_text(encoding="utf-8"))
+    assert ledger["intents"][intent_id]["status"] == "COMPLETED"
+    assert ledger["intents"][intent_id]["reservation_id"] == reservation_id
+    assert ledger["reservations"][reservation_id]["status"] == "CONSUMED"
+    if failure_point == "after_rebind":
+        assert ledger["intents"][intent_id]["takeover_from_epoch"] == "1"
+        assert ledger["reservations"][reservation_id]["owner"] == "0"
+    assert sum(item.get("purpose") == "REFERENCE_HYDRO:R:p0"
+               for item in ledger["reservations"].values()) == 1
+    assert sum(item.get("role") == "REFERENCE_HYDRO" and item.get("trajectory") == "R"
+               and int(item.get("pulse", -1)) == 0 for item in ledger["intents"].values()) == 1
+    if failure_point == "f08":
+        recovered_lifecycle = json.loads(lifecycle_path.read_text(encoding="utf-8"))
+        assert recovered_lifecycle["promotion"] == json.loads(pointer_path.read_text(encoding="utf-8"))
+        assert sha256_file(pointer_path) == pointer_sha256
+    exact = json.loads((root / "exact" / "p0.json").read_text(encoding="utf-8"))
+    assert exact["status"] == "PASS" and exact["mismatch_count"] == 0
 
 
 def test_production_rc_and_candidate_internal_overlap_evidence(tmp_path):
@@ -1908,3 +2412,219 @@ def test_writer_pid_reuse_and_unknown_liveness_fail_closed(tmp_path):
     unknown_ledger = json.loads((tmp_path / "unknown" / "storage_ledger.json").read_text(encoding="utf-8"))
     assert unknown_ledger["writers"]["unknown-host"]["status"] == "ACTIVE"
     assert unknown_ledger["reservations"][unknown_reservation.reservation_id]["status"] == "ACTIVE"
+
+
+def _child_grant_fixture(tmp_path, *, launch_candidate_identity=None):
+    from KHz_filament.hr4e5_storage import MockQuotaProvider, StorageBudget
+
+    root = tmp_path / "child-grants"
+    budget = StorageBudget(
+        root, safety_margin_bytes=1024**2,
+        provider=MockQuotaProvider(free_bytes=2**40, quota_bytes=2**40),
+        require_quota=True, campaign_id="child-grant-test", require_intents=True,
+        admission_hash="a" * 64,
+        admission_identity={"identity_sha256": "a" * 64,
+                           "hydro_topology": {"candidate_hydro_workers_requested": 2}},
+    )
+    allocation = root / "pulse0"
+    target = allocation / "optical"
+    reservation = budget.reserve(8192, purpose="single-aggregate", allocation_paths=[allocation])
+    intent = budget.create_intent(
+        reservation_id=reservation.reservation_id, trajectory="C", pulse=0,
+        attempt=0, role="OPTICAL", allowed_paths=[target], expected_bytes=4096,
+        admission_hash="a" * 64, epoch="epoch-0", generation="current:g0",
+    )
+    grant = budget.create_child_writer_grant(
+        reservation_id=reservation.reservation_id, intent_id=intent["intent_id"],
+        coordinator_epoch="epoch-0", role="OPTICAL", trajectory="C", pulse=0,
+        logical_attempt=0, generation="current:g0", scientific_pair_id="c" * 64,
+        admission_identity_sha256="a" * 64,
+        implementation_identity={"schema": "test-implementation.v1", "identity_sha256": "b" * 64},
+        allowed_paths=[target], expected_bytes=4096,
+        launch_candidate_identity=launch_candidate_identity,
+    )
+    return budget, reservation, intent, grant
+
+
+def test_child_writer_grant_scope_bind_and_close_are_atomic(tmp_path):
+    from KHz_filament.hr4e5_storage import StorageBudgetError, StorageIntegrityError, process_identity
+
+    budget, reservation, intent, grant = _child_grant_fixture(tmp_path, launch_candidate_identity=process_identity())
+    grant_id, nonce, scope = grant["grant_id"], grant["nonce"], grant["scope"]
+    assert len(budget.pending_writer_grants(coordinator_epoch="epoch-0")) == 1
+    assert budget.active_writers(coordinator_epoch="epoch-0") == []
+    persisted = json.loads((budget.root / "storage_ledger.json").read_text(encoding="utf-8"))
+    assert nonce not in (budget.root / "storage_ledger.json").read_text(encoding="utf-8")
+    assert persisted["reservations"][reservation.reservation_id]["status"] == "ACTIVE"
+    assert len(budget.reservations()) == 1
+    with pytest.raises(StorageBudgetError, match="unresolved child writer grants"):
+        budget.complete_intent(intent["intent_id"])
+
+    with pytest.raises(StorageBudgetError, match="duplicate unresolved"):
+        budget.create_child_writer_grant(
+            reservation_id=reservation.reservation_id, intent_id=intent["intent_id"],
+            coordinator_epoch="epoch-0", role="OPTICAL", trajectory="C", pulse=0,
+            logical_attempt=0, generation="current:g0", scientific_pair_id="c" * 64,
+            admission_identity_sha256="a" * 64,
+            implementation_identity={"schema": "test-implementation.v1", "identity_sha256": "b" * 64},
+            allowed_paths=[budget.root / "pulse0" / "optical"], expected_bytes=4096,
+        )
+    with pytest.raises(StorageIntegrityError, match="nonce"):
+        budget.bind_child_writer_grant(grant_id, nonce="wrong", scope=scope)
+    changed_scope = dict(scope, expected_bytes=4095)
+    with pytest.raises(StorageIntegrityError, match="scope"):
+        budget.bind_child_writer_grant(grant_id, nonce=nonce, scope=changed_scope)
+    assert budget.pending_writer_grants(coordinator_epoch="epoch-0")[0]["state"] == "PENDING"
+
+    bound = budget.bind_child_writer_grant(grant_id, nonce=nonce, scope=scope)
+    assert bound["state"] == "BOUND_ACTIVE"
+    assert bound["process_identity"] == process_identity()
+    active = budget.active_writers(coordinator_epoch="epoch-0")
+    assert len(active) == 1 and active[0]["writer_kind"] == "CHILD_GRANT"
+    permitted_path = budget.root / "pulse0" / "optical" / "payload.bin"
+    authorization = budget.authorize_child_writer_operation(
+        grant_id, nonce=nonce, coordinator_epoch="epoch-0",
+        operation="optical_output", path=permitted_path,
+    )
+    assert authorization["status"] == "PASS"
+    with pytest.raises(StorageIntegrityError, match="outside grant role"):
+        budget.authorize_child_writer_operation(
+            grant_id, nonce=nonce, coordinator_epoch="epoch-0",
+            operation="NEXT_COMMIT", path=permitted_path,
+        )
+    with pytest.raises(StorageIntegrityError, match="outside grant scope"):
+        budget.authorize_child_writer_operation(
+            grant_id, nonce=nonce, coordinator_epoch="epoch-0",
+            operation="OPTICAL_OUTPUT", path=budget.root / "pulse0" / "other" / "payload.bin",
+        )
+    with pytest.raises(StorageBudgetError, match="PENDING or was already bound"):
+        budget.bind_child_writer_grant(grant_id, nonce=nonce, scope=scope)
+    with pytest.raises(StorageIntegrityError, match="stale coordinator epoch"):
+        budget.close_child_writer_grant(grant_id, nonce=nonce, coordinator_epoch="epoch-old")
+    closed = budget.close_child_writer_grant(grant_id, nonce=nonce, coordinator_epoch="epoch-0")
+    assert closed["state"] == "CLOSED"
+    assert budget.active_writers(coordinator_epoch="epoch-0") == []
+    assert budget.unresolved_writer_grants(coordinator_epoch="epoch-0") == []
+    reconciler = budget.open_coordinator_reconciler(
+        reservation_id=reservation.reservation_id, intent_id=intent["intent_id"],
+        coordinator_epoch="epoch-0", trajectory="C", pulse=0, attempt=0,
+        generation="current:g0", writer_id="coordinator-reconciler",
+    )
+    assert reconciler["writer_kind"] == "COORDINATOR_RECONCILER"
+    assert reconciler["manager_role"] == "RECONCILER"
+    assert budget.active_writers(coordinator_epoch="epoch-0", include_management=False) == []
+    budget.close_writer(reconciler["writer_id"], coordinator_epoch="epoch-0")
+    with pytest.raises(StorageIntegrityError, match="cannot receive a child writer grant"):
+        budget._child_role("RECONCILER", None)
+    permitted_path.parent.mkdir(parents=True, exist_ok=True)
+    permitted_path.write_bytes(b"payload")
+    completed = budget.complete_intent(intent["intent_id"], files=[permitted_path])
+    consumed = budget.consume(reservation.reservation_id, actual_bytes=completed["actual_bytes"])
+    assert consumed["status"] == "CONSUMED"
+    assert len(budget.reservations()) == 1
+
+
+def test_pending_child_grant_requires_dead_launch_evidence_for_abandonment(tmp_path, monkeypatch):
+    from KHz_filament import hr4e5_storage as storage_module
+    from KHz_filament.hr4e5_storage import StorageBudgetError, StorageIntegrityError, process_identity
+
+    budget, _reservation, _intent, grant = _child_grant_fixture(tmp_path, launch_candidate_identity=process_identity())
+    with pytest.raises(StorageBudgetError, match="still LIVE"):
+        budget.abandon_pending_writer_grant(grant["grant_id"], nonce=grant["nonce"])
+    with pytest.raises(StorageBudgetError, match="live child writer grants"):
+        budget.fence_dead_writer_grants(coordinator_epoch="epoch-0")
+    assert budget.pending_writer_grants(coordinator_epoch="epoch-0")[0]["state"] == "PENDING"
+
+    monkeypatch.setattr(storage_module, "probe_process_identity",
+                        lambda _identity: {"status": "UNKNOWN", "reason": "test-unknown"})
+    with pytest.raises(StorageIntegrityError, match="UNKNOWN"):
+        budget.abandon_pending_writer_grant(grant["grant_id"], nonce=grant["nonce"])
+    with pytest.raises(StorageIntegrityError, match="unverifiable child writer grants"):
+        budget.fence_dead_writer_grants(coordinator_epoch="epoch-0")
+    assert budget.pending_writer_grants(coordinator_epoch="epoch-0")[0]["state"] == "PENDING"
+
+    monkeypatch.setattr(storage_module, "probe_process_identity",
+                        lambda _identity: {"status": "DEAD", "reason": "test-dead"})
+    abandoned = budget.abandon_pending_writer_grant(grant["grant_id"], nonce=grant["nonce"])
+    assert abandoned["state"] == "ABANDONED"
+    assert abandoned["liveness_evidence"]["status"] == "DEAD"
+    assert budget.pending_writer_grants(coordinator_epoch="epoch-0") == []
+
+
+def test_bound_child_grant_takeover_refuses_live_and_unknown_then_fences_dead(tmp_path, monkeypatch):
+    from KHz_filament import hr4e5_storage as storage_module
+    from KHz_filament.hr4e5_storage import StorageBudgetError, StorageIntegrityError
+
+    budget, _reservation, _intent, grant = _child_grant_fixture(tmp_path)
+    bound = budget.bind_child_writer_grant(
+        grant["grant_id"], nonce=grant["nonce"], scope=grant["scope"],
+    )
+    assert bound["state"] == "BOUND_ACTIVE"
+    with pytest.raises(StorageBudgetError, match="live child writer grants"):
+        budget.fence_dead_writer_grants(coordinator_epoch="epoch-0")
+    assert budget.active_writers(coordinator_epoch="epoch-0")[0]["grant_state"] == "BOUND_ACTIVE"
+
+    monkeypatch.setattr(storage_module, "probe_process_identity",
+                        lambda _identity: {"status": "UNKNOWN", "reason": "test-unknown"})
+    with pytest.raises(StorageIntegrityError, match="unverifiable child writer grants"):
+        budget.fence_dead_writer_grants(coordinator_epoch="epoch-0")
+    assert budget.active_writers(coordinator_epoch="epoch-0")[0]["grant_state"] == "BOUND_ACTIVE"
+
+    monkeypatch.setattr(storage_module, "probe_process_identity",
+                        lambda _identity: {"status": "DEAD", "reason": "test-dead"})
+    fenced = budget.fence_dead_writer_grants(coordinator_epoch="epoch-0")
+    assert fenced["interrupted_stale_grant_ids"] == [grant["grant_id"]]
+    assert fenced["probes"][grant["grant_id"]]["status"] == "DEAD"
+    assert budget.active_writers(coordinator_epoch="epoch-0") == []
+
+
+def test_intent_epoch_rebind_requires_quiescent_matching_grants_and_reuses_reservation(tmp_path, monkeypatch):
+    from KHz_filament import hr4e5_storage as storage_module
+    from KHz_filament.hr4e5_storage import StorageBudgetError, StorageIntegrityError, process_identity
+
+    budget, reservation, intent, grant = _child_grant_fixture(tmp_path, launch_candidate_identity=process_identity())
+    rebind = {
+        "reservation_id": reservation.reservation_id,
+        "previous_coordinator_epoch": "epoch-0",
+        "coordinator_epoch": "epoch-1",
+        "trajectory": "C",
+        "pulse": 0,
+        "logical_attempt": 0,
+        "generation": "current:g0",
+        "allowed_paths": [budget.root / "pulse0" / "optical"],
+        "expected_bytes": 4096,
+        "admission_identity_sha256": "a" * 64,
+        "scientific_pair_id": "c" * 64,
+        "implementation_identity": {"schema": "test-implementation.v1", "identity_sha256": "b" * 64},
+    }
+    with pytest.raises(StorageBudgetError, match="unresolved child writer grants"):
+        budget.rebind_intent_epoch(intent["intent_id"], **rebind)
+
+    monkeypatch.setattr(storage_module, "probe_process_identity",
+                        lambda _identity: {"status": "DEAD", "reason": "test-dead"})
+    abandoned = budget.abandon_pending_writer_grant(grant["grant_id"], nonce=grant["nonce"])
+    assert abandoned["state"] == "ABANDONED"
+    rebound = budget.rebind_intent_epoch(intent["intent_id"], **rebind)
+    assert rebound["intent_id"] == intent["intent_id"]
+    assert rebound["epoch"] == "epoch-1"
+    assert rebound["takeover_from_epoch"] == "epoch-0"
+    assert len(budget.reservations()) == 1
+    assert budget.reservations()[reservation.reservation_id]["status"] == "ACTIVE"
+
+    replay_grant = budget.create_child_writer_grant(
+        reservation_id=reservation.reservation_id, intent_id=intent["intent_id"],
+        coordinator_epoch="epoch-1", role="HYDRO[0]", trajectory="C", pulse=0,
+        logical_attempt=0, generation="current:g0", scientific_pair_id="c" * 64,
+        admission_identity_sha256="a" * 64,
+        implementation_identity={"schema": "test-implementation.v1", "identity_sha256": "b" * 64},
+        allowed_paths=[budget.root / "pulse0" / "optical"], expected_bytes=4096,
+        execution_attempt=1,
+    )
+    assert replay_grant["scope"]["role_label"] == "HYDRO[0]"
+    assert len(budget.reservations()) == 1
+
+    with pytest.raises(StorageIntegrityError, match="scope differs from original intent"):
+        budget.rebind_intent_epoch(
+            intent["intent_id"], **{**rebind, "previous_coordinator_epoch": "epoch-1",
+                                      "coordinator_epoch": "epoch-2", "pulse": 1}
+        )
