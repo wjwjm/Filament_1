@@ -1348,6 +1348,9 @@ class FormalPairedDriver:
             self.campaign.bind_scientific_pair_identity(
                 pulse, identity_builder(pulse), epoch=self.campaign.active_coordinator_epoch(),
             )
+            prepare_gpu_assignment = getattr(self.runner, "prepare_gpu_assignment", None)
+            if callable(prepare_gpu_assignment):
+                prepare_gpu_assignment(pulse)
         saved_reference = self._saved_receipt(pulse, "reference")
         saved_candidate = self._saved_receipt(pulse, "candidate")
         if saved_reference is not None and saved_candidate is not None:
@@ -1401,6 +1404,16 @@ class FormalPairedDriver:
             thread.start()
         for thread in threads:
             thread.join()
+        if not errors:
+            validate_gpu_receipts = getattr(self.runner, "validate_gpu_pulse_receipts", None)
+            if callable(validate_gpu_receipts):
+                validate_gpu_receipts(
+                    pulse,
+                    saved_reference_epoch=(self._step_state(pulse, "reference").get("epoch")
+                                           if saved_reference is not None else None),
+                    saved_candidate_epoch=(self._step_state(pulse, "candidate").get("epoch")
+                                           if saved_candidate is not None else None),
+                )
         with _FileLock(self.campaign.root / ".E5_1A_CAMPAIGN.lock"):
             pair = self.campaign._pair(pulse)
             seen_timing = {item.get("event") for item in pair.get("events", [])

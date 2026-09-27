@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from pathlib import Path
+from typing import Any, Mapping
 
 from .confio import load_all
 from .hr4e5_formal_entry import build_prefix_schedule, run_streaming_optical_pulse
@@ -13,6 +15,80 @@ from .hr4e5_evidence import atomic_json, sha256_file
 from .hr4e5_storage import PROCESS_RECEIPT_SCHEMA, StorageBudget, process_identity
 from .hr4e5_recovery_identity import capture_implementation_identity
 from .hr4e5_recovery_output import qualify_output_attempt, activate_output_attempt
+
+
+def _gpu_process_receipt_fields(
+    role: str,
+    *,
+    campaign_id: str,
+    scientific_pair_id: str,
+    coordinator_epoch: str,
+    implementation_identity_sha256: str,
+) -> dict[str, Any] | None:
+    gpu_mode = os.environ.get("UPPE_USE_GPU") == "1"
+    configured = any(os.environ.get(name) for name in (
+        "HR4E5_GPU_ROLE", "HR4E5_GPU_AUDIT_ROOT", "HR4E5_GPU_STARTUP_RECEIPT",
+    ))
+    if not gpu_mode:
+        if configured:
+            raise RuntimeError("GPU worker receipt environment is configured while GPU mode is disabled")
+        return None
+    if os.environ.get("HR4E5_GPU_ROLE") != role:
+        raise RuntimeError(f"GPU worker role does not match {role}")
+    audit_root = os.environ.get("HR4E5_GPU_AUDIT_ROOT")
+    if not audit_root:
+        raise RuntimeError("GPU worker receipt audit root is missing")
+    startup_value = os.environ.get("HR4E5_GPU_STARTUP_RECEIPT")
+    startup_path = Path(startup_value) if startup_value else Path(audit_root) / f"{role}.startup.json"
+    if not startup_path.is_absolute():
+        startup_path = Path(audit_root) / startup_path
+    startup_path = startup_path.resolve()
+    try:
+        startup = json.loads(startup_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"GPU startup receipt is unavailable for {role}") from exc
+    identity = startup.get("identity")
+    if not isinstance(identity, Mapping):
+        raise RuntimeError(f"GPU startup receipt identity is invalid for {role}")
+    process = identity.get("process")
+    gpu = identity.get("gpu")
+    assignment = startup.get("assignment")
+    if not isinstance(process, Mapping) or not isinstance(gpu, Mapping) or not isinstance(assignment, Mapping):
+        raise RuntimeError(f"GPU startup receipt identity is incomplete for {role}")
+    expected = {
+        "campaign_id": campaign_id,
+        "scientific_pair_id": scientific_pair_id,
+        "coordinator_epoch": coordinator_epoch,
+        "implementation_identity_sha256": implementation_identity_sha256,
+    }
+    if (startup.get("receipt_type") != "gpu_startup" or startup.get("status") != "PASS"
+            or startup.get("role") != role or startup.get("backend") != "cupy/cuda"
+            or any(startup.get(key) != value for key, value in expected.items())
+            or process.get("pid") != process_identity()["pid"]
+            or not isinstance(gpu.get("uuid"), str) or not gpu.get("uuid")
+            or assignment.get("uuid") != gpu.get("uuid")
+            or not isinstance(assignment.get("token"), str) or not assignment.get("token")
+            or assignment.get("token") != os.environ.get("HR4E5_GPU_ASSIGNED_TOKEN")
+            or startup.get("cuda_visible_devices") != os.environ.get("CUDA_VISIBLE_DEVICES")):
+        raise RuntimeError(f"GPU startup receipt identity is invalid for {role}")
+    return {
+        "backend": str(startup["backend"]),
+        "physical_gpu_identity": str(gpu["uuid"]),
+        "gpu_role": role,
+        "gpu_assignment_token": str(assignment["token"]),
+        "gpu_startup_receipt_path": str(startup_path),
+        "gpu_startup_receipt_sha256": sha256_file(startup_path),
+    }
+
+
+def _mark_gpu_success(role: str) -> None:
+    if os.environ.get("UPPE_USE_GPU") != "1":
+        return
+    if os.environ.get("HR4E5_GPU_ROLE") != role:
+        raise RuntimeError(f"GPU worker role does not match {role}")
+    from .hr4e5_gpu_bootstrap import update_final_metadata
+
+    update_final_metadata(science_output_status="PASS", writer_grant_status="CLOSED")
 
 
 def _schedule(config_path: Path, prefix_intervals: int):
@@ -79,6 +155,9 @@ def main() -> int:
     schedule = _schedule(config_path, args.prefix_intervals)
     started = time.monotonic()
     error: BaseException | None = None
+    receipt: dict[str, Any] | None = None
+    path: Path | None = None
+    grant_close: Mapping[str, Any] | None = None
     try:
         result = run_streaming_optical_pulse(
             lifecycle_root=args.lifecycle_root, schedule=schedule, output_dir=args.output_dir,
@@ -133,17 +212,25 @@ def main() -> int:
             "backend": "numpy/cpu", "physical_gpu_identity": "NOT_APPLICABLE_LOCAL_CPU",
             "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
+        gpu_fields = _gpu_process_receipt_fields(
+            "C_OPT",
+            campaign_id=str(admission["campaign_id"]),
+            scientific_pair_id=args.scientific_pair_id,
+            coordinator_epoch=str(identity["coordinator_epoch"]),
+            implementation_identity_sha256=args.implementation_identity_sha256,
+        )
+        if gpu_fields is not None:
+            receipt.update(gpu_fields)
         path = Path(args.lifecycle_root) / "process_receipts" / "C_OPTICAL.json"
         if path.exists():
             path = path.with_name(f"C_OPTICAL_{args.grant_id}.json")
-        atomic_json(path, receipt, overwrite=False)
     except BaseException as exc:
         error = exc
         raise
     finally:
         ended = time.monotonic()
         try:
-            budget.close_child_writer_grant(
+            grant_close = budget.close_child_writer_grant(
                 args.grant_id, nonce=args.grant_nonce,
                 coordinator_epoch=identity["coordinator_epoch"],
                 status="INTERRUPTED" if error is not None else "CLOSED",
@@ -152,6 +239,13 @@ def main() -> int:
         except Exception:
             if error is None:
                 raise
+        if error is None:
+            if not isinstance(grant_close, Mapping) or grant_close.get("state") != "CLOSED":
+                raise RuntimeError("optical child writer grant did not close successfully")
+            _mark_gpu_success("C_OPT")
+    if receipt is None or path is None:
+        raise RuntimeError("optical worker completed without a process receipt")
+    atomic_json(path, receipt, overwrite=False)
     print(json.dumps({**receipt, "optical_result": result}, sort_keys=True))
     return 0
 

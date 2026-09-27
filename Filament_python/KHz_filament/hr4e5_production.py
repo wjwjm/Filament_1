@@ -15,7 +15,7 @@ import time
 import sys
 from collections.abc import Mapping as MappingABC
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -42,6 +42,9 @@ from .longitudinal import build_longitudinal_schedule
 from .runner import apply_thin_lens_achromatic, build_transverse_input_field
 from .constants import c0
 from .device import to_cpu, xp
+from . import device
+from .hr4e5_gpu_binding import (build_assignment_record, validate_assignment_record,
+                                validate_startup_final_identities)
 from .hr4e5s_streaming import FIELDS, StreamingLifecycle
 from .hr4e5_recovery_identity import (build_scientific_pair_identity,
                                       capture_implementation_identity,
@@ -79,6 +82,8 @@ class E5AProductionSpec:
     n_pulses: int = 3
     candidate_hydro_workers: int = 1
     admission_level: str = LOCAL_ORCHESTRATION_QUALIFICATION
+    require_gpu_backend: bool = False
+    reference_subprocess: bool = False
     max_campaign_live_bytes: int = HARD_CAP_BYTES
     final_output_budget_bytes: int = DEFAULT_FINAL_OUTPUT_BUDGET_BYTES
     safety_margin_bytes: int = DEFAULT_SAFETY_MARGIN_BYTES
@@ -468,6 +473,166 @@ class _E5AProductionRunner:
         self.identity, self.schedule, self.components = dict(identity), schedule, components
         self.implementation_identity = dict(implementation_identity)
         self.driver = None
+        self.require_gpu_backend = bool(spec.require_gpu_backend or spec.admission_level == FORMAL_SITE_ADMISSION)
+        self._gpu_assignment_paths: dict[int, Path] = {}
+
+    def _gpu_audit_root(self, pulse: int) -> Path:
+        epoch = str(self.driver.campaign.active_coordinator_epoch())
+        if not epoch.isdecimal():
+            raise StorageIntegrityError("GPU audit path requires a numeric coordinator epoch")
+        return self.root.parent / f"{self.root.name}_gpu_audit" / f"p{int(pulse)}" / f"epoch_{epoch}"
+
+    def prepare_gpu_assignment(self, pulse: int) -> None:
+        """Persist one scheduler-visible role contract before R/C launch."""
+        if not self.require_gpu_backend:
+            return
+        from datetime import datetime, timezone
+
+        count = 2 + int(self.spec.candidate_hydro_workers)
+        contract = build_assignment_record(os.environ.get("CUDA_VISIBLE_DEVICES"), count)
+        pair = self.driver.campaign._pair(int(pulse)).get("scientific_pair_identity")
+        if not isinstance(pair, Mapping):
+            raise StorageIntegrityError("GPU assignment lacks a bound scientific pair")
+        contract.update({
+            "campaign_id": self.identity["campaign_id"],
+            "scientific_pair_id": str(pair["scientific_pair_id"]),
+            "coordinator_epoch": str(self.driver.campaign.active_coordinator_epoch()),
+            "implementation_identity_sha256": self.implementation_identity["identity_sha256"],
+            "scheduler_job_id": str(os.environ["SLURM_JOB_ID"]),
+            "assignment_source": "SLURM_CUDA_VISIBLE_DEVICES",
+            "assigned_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        })
+        audit = self._gpu_audit_root(pulse)
+        path = audit / "GPU_ROLE_ASSIGNMENT.json"
+        if path.is_file():
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            validate_assignment_record(saved, count)
+            for name in ("campaign_id", "scientific_pair_id", "coordinator_epoch",
+                         "implementation_identity_sha256", "scheduler_job_id"):
+                if saved.get(name) != contract[name]:
+                    raise StorageIntegrityError("persisted GPU role assignment differs")
+            contract = saved
+        else:
+            audit.mkdir(parents=True, exist_ok=True)
+            atomic_json(path, contract, overwrite=False)
+        self._gpu_assignment_paths[int(pulse)] = path
+
+    def _gpu_role_environment(self, *, pulse: int, role: str) -> dict[str, str]:
+        path = self._gpu_assignment_paths.get(int(pulse))
+        if path is None or not path.is_file():
+            raise StorageIntegrityError("GPU role assignment was not persisted before child launch")
+        contract = json.loads(path.read_text(encoding="utf-8"))
+        validate_assignment_record(contract, 2 + int(self.spec.candidate_hydro_workers))
+        if (contract.get("coordinator_epoch") != str(self.driver.campaign.active_coordinator_epoch())
+                or contract.get("implementation_identity_sha256") != self.implementation_identity["identity_sha256"]):
+            raise StorageIntegrityError("GPU role assignment epoch or implementation changed")
+        token = contract["role_to_token"].get(role)
+        if not token:
+            raise StorageIntegrityError("GPU role is not present in the assignment")
+        environment = os.environ.copy()
+        environment.update({
+            "CUDA_VISIBLE_DEVICES": token,
+            "UPPE_USE_GPU": "1",
+            "HR4E5_GPU_ROLE": role,
+            "HR4E5_GPU_ASSIGNED_TOKEN": token,
+            "HR4E5_SCHEDULER_VISIBLE_DEVICES": contract["scheduler_visible_devices"],
+            "HR4E5_GPU_AUDIT_ROOT": str(self._gpu_audit_root(pulse)),
+            "HR4E5_CAMPAIGN_ROOT": str(self.root),
+            "HR4E5_CAMPAIGN_ID": self.identity["campaign_id"],
+            "HR4E5_SCIENTIFIC_PAIR_ID": contract["scientific_pair_id"],
+            "HR4E5_COORDINATOR_EPOCH": contract["coordinator_epoch"],
+            "HR4E5_IMPLEMENTATION_IDENTITY_SHA256": self.implementation_identity["identity_sha256"],
+        })
+        return environment
+
+    def validate_gpu_pulse_receipts(self, pulse: int, *, saved_reference_epoch: str | int | None = None,
+                                    saved_candidate_epoch: str | int | None = None) -> None:
+        """Check new processes and explicitly qualified cross-epoch reuse."""
+        if not self.require_gpu_backend:
+            return
+        contract_path = self._gpu_assignment_paths.get(int(pulse))
+        if contract_path is None:
+            raise StorageIntegrityError("GPU role assignment is missing at the pair barrier")
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        validate_assignment_record(contract, 2 + int(self.spec.candidate_hydro_workers))
+        pair_id = contract["scientific_pair_id"]
+        epoch = contract["coordinator_epoch"]
+        final_pulse = int(pulse) == int(self.spec.n_pulses) - 1
+        expected_roles = ["R", "C_OPT"] + ([] if final_pulse else [
+            f"H{index}" for index in range(int(self.spec.candidate_hydro_workers))])
+        starts, finals = [], []
+        reused: dict[str, dict[str, Any]] = {}
+        audit = self._gpu_audit_root(pulse)
+        audit_parent = audit.parent
+        for role in expected_roles:
+            startup_path, final_path = audit / f"{role}.startup.json", audit / f"{role}.final.json"
+            if startup_path.is_file() or final_path.is_file():
+                if not startup_path.is_file() or not final_path.is_file():
+                    raise StorageIntegrityError(f"GPU process receipt pair is incomplete for {role}")
+                starts.append(json.loads(startup_path.read_text(encoding="utf-8")))
+                finals.append(json.loads(final_path.read_text(encoding="utf-8")))
+                continue
+            source_epoch = (saved_reference_epoch if role == "R" else saved_candidate_epoch)
+            if role == "C_OPT" and not final_pulse:
+                active = validate_active_output(
+                    campaign_root=self.root,
+                    state_root=self._track("C", pulse) / "state",
+                    scientific_pair_id=pair_id,
+                    implementation_identity_sha256=contract["implementation_identity_sha256"],
+                )
+                source_epoch = active["qualified_attempt"]["producer_coordinator_epoch"]
+            if source_epoch is None or str(source_epoch) == epoch or not str(source_epoch).isdecimal():
+                raise StorageIntegrityError(f"GPU process receipts are missing for {role}")
+            folder = audit_parent / f"epoch_{source_epoch}"
+            old_start, old_final = folder / f"{role}.startup.json", folder / f"{role}.final.json"
+            old_assignment = folder / "GPU_ROLE_ASSIGNMENT.json"
+            if not old_start.is_file() or not old_final.is_file() or not old_assignment.is_file():
+                raise StorageIntegrityError(f"qualified prior GPU receipts are missing for reused {role}")
+            prior_contract = json.loads(old_assignment.read_text(encoding="utf-8"))
+            validate_assignment_record(prior_contract, 2 + int(self.spec.candidate_hydro_workers))
+            prior_start = json.loads(old_start.read_text(encoding="utf-8"))
+            prior_final = json.loads(old_final.read_text(encoding="utf-8"))
+            if (str(prior_contract.get("coordinator_epoch")) != str(source_epoch)
+                    or str(prior_start.get("coordinator_epoch")) != str(source_epoch)
+                    or prior_contract.get("scientific_pair_id") != pair_id
+                    or prior_contract.get("implementation_identity_sha256") != contract["implementation_identity_sha256"]
+                    or prior_contract.get("campaign_id") != self.identity["campaign_id"]
+                    or prior_start.get("role") != role
+                    or prior_start.get("assignment", {}).get("token") != prior_contract["role_to_token"][role]):
+                raise StorageIntegrityError(f"reused GPU role is not bound to source epoch {source_epoch}")
+            try:
+                validate_startup_final_identities([prior_start], [prior_final])
+            except ValueError as exc:
+                raise StorageIntegrityError(f"reused GPU process receipt failed for {role}: {exc}") from exc
+            reused[role] = {"epoch": str(source_epoch),
+                            "pid": prior_start["identity"]["process"]["pid"],
+                            "gpu_uuid": prior_start["identity"]["gpu"]["uuid"],
+                            "assignment_path": str(old_assignment),
+                            "startup_path": str(old_start), "final_path": str(old_final)}
+        try:
+            if starts:
+                validate_startup_final_identities(starts, finals)
+        except ValueError as exc:
+            raise StorageIntegrityError(f"GPU role/process/device evidence failed: {exc}") from exc
+        for receipt in starts:
+            if (receipt["identity"]["process"]["ppid"] != os.getpid()
+                    or receipt["scientific_pair_id"] != contract["scientific_pair_id"]
+                    or receipt["coordinator_epoch"] != contract["coordinator_epoch"]
+                    or receipt["implementation_identity_sha256"] != contract["implementation_identity_sha256"]):
+                raise StorageIntegrityError("GPU child process or assignment identity differs")
+        current_roles = {receipt["role"] for receipt in starts}
+        if current_roles | reused.keys() != set(expected_roles):
+            raise StorageIntegrityError("GPU pulse role inventory is incomplete")
+        atomic_json(audit / "GPU_ROLE_RECEIPTS_VALIDATED.json", {
+            "schema": "khz_filament.hr4e5_gpu_role_receipts_validated.v1",
+            "status": "PASS", "campaign_id": self.identity["campaign_id"],
+            "scientific_pair_id": contract["scientific_pair_id"],
+            "coordinator_epoch": contract["coordinator_epoch"],
+            "roles": expected_roles, "current_roles": sorted(current_roles),
+            "reused_roles": reused,
+            "role_to_pid": {r["role"]: r["identity"]["process"]["pid"] for r in starts},
+            "role_to_gpu_uuid": {r["role"]: r["identity"]["gpu"]["uuid"] for r in starts},
+        }, overwrite=False)
 
     @property
     def budget(self):
@@ -747,9 +912,80 @@ class _E5AProductionRunner:
     # class.  They are filled by the production lifecycle below, never supplied
     # by a caller.
     def run_reference(self, pulse: int):
+        if self.require_gpu_backend or self.spec.reference_subprocess:
+            return self._run_reference_subprocess(pulse)
         return self._run_pulse("R", pulse)
 
+    def _run_reference_subprocess(self, pulse: int, *, trajectory: str = "R") -> dict[str, Any]:
+        if trajectory not in {"R", "C"}:
+            raise ValueError("independent science process trajectory must be R or C")
+        if trajectory == "C" and int(pulse) != int(self.spec.n_pulses) - 1:
+            raise ValueError("single-process Candidate path is only valid for the final pulse")
+        role = "R" if trajectory == "R" else "C_OPT"
+        label = "reference" if trajectory == "R" else "candidate_final"
+        audit = self._gpu_audit_root(pulse) if self.require_gpu_backend else (
+            self.root.parent / f"{self.root.name}_{label}_process_audit" / f"p{int(pulse)}"
+            / f"epoch_{self.driver.campaign.active_coordinator_epoch()}"
+        )
+        audit.mkdir(parents=True, exist_ok=True)
+        epoch = str(self.driver.campaign.active_coordinator_epoch())
+        result_path = audit / f"{role}_epoch_{epoch}.result.json"
+        spec_json = json.dumps(asdict(self.spec), default=str, sort_keys=True)
+        command = [
+            sys.executable, "-s", "-B", "-m", "KHz_filament.hr4e5_production_reference_worker",
+            "--spec-json", spec_json, "--pulse", str(int(pulse)),
+            "--trajectory", trajectory,
+            "--result-path", str(result_path),
+        ]
+        environment = os.environ.copy()
+        environment["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
+        environment["PYTHONNOUSERSITE"] = "1"
+        if self.require_gpu_backend:
+            environment.update(self._gpu_role_environment(pulse=pulse, role=role))
+            command = self._gpu_bootstrap_command(command)
+        else:
+            environment["UPPE_USE_GPU"] = "0"
+        stdout_path = audit / f"{role}.stdout.txt"
+        stderr_path = audit / f"{role}.stderr.txt"
+        with stdout_path.open("x", encoding="utf-8") as stdout_file, stderr_path.open("x", encoding="utf-8") as stderr_file:
+            process = subprocess.Popen(
+                command, cwd=str(self.root), env=environment,
+                stdout=stdout_file, stderr=stderr_file, text=True,
+            )
+        try:
+            process.wait(timeout=900)
+        except subprocess.TimeoutExpired as exc:
+            process.kill(); process.wait()
+            raise TimeoutError(f"{role} subprocess exceeded 900 seconds") from exc
+        stderr = stderr_path.read_text(encoding="utf-8")
+        if process.returncode != 0:
+            raise RuntimeError(f"{role} subprocess failed: exit={process.returncode}:stderr={stderr.strip()}")
+        if not result_path.is_file():
+            raise StorageIntegrityError(f"{role} subprocess produced no durable result")
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        if (result.get("schema") != "khz_filament.hr4e5.reference_process_result.v1"
+                or result.get("campaign_id") != self.identity["campaign_id"]
+                or result.get("trajectory") != trajectory
+                or int(result.get("pulse", -1)) != int(pulse)
+                or result.get("coordinator_epoch") != epoch
+                or int(result.get("process_identity", {}).get("pid", -1)) != process.pid
+                or int(result.get("parent_pid", -1)) != os.getpid()):
+            raise StorageIntegrityError(f"{role} subprocess result identity differs")
+        return result["result"]
+
+    @staticmethod
+    def _gpu_bootstrap_command(command: Sequence[str]) -> list[str]:
+        if len(command) < 5 or command[0] != sys.executable or command[3] != "-m":
+            raise ValueError("GPU bootstrap requires a controlled Python module command")
+        return [
+            sys.executable, "-s", "-B", "-m", "KHz_filament.hr4e5_gpu_bootstrap",
+            "--module", str(command[4]), "--", *map(str, command[5:]),
+        ]
+
     def run_candidate(self, pulse: int):
+        if int(pulse) == int(self.spec.n_pulses) - 1 and (
+                self.require_gpu_backend or self.spec.reference_subprocess):
+            return self._run_reference_subprocess(pulse, trajectory="C")
         return self._run_pulse("C", pulse)
 
     def run_exact(self, pulse: int):
@@ -1379,6 +1615,9 @@ class _E5AProductionRunner:
             ]
             if output.exists():
                 optical_command.append("--resume-output")
+            if self.require_gpu_backend:
+                optical_environment.update(self._gpu_role_environment(pulse=pulse, role="C_OPT"))
+                optical_command = self._gpu_bootstrap_command(optical_command)
             optical_process = None
             optical_launch = (optical_command, optical_environment)
         hydro_processes: list[subprocess.Popen] = []
@@ -1418,17 +1657,24 @@ class _E5AProductionRunner:
                     implementation_identity=self.implementation_identity,
                     allowed_paths=[state], expected_bytes=int(intent["expected_bytes"]),
                 )
-                environment["HR4E5S_WORKER_ID"] = f"e5_1b_c_hydro_{pulse}_{worker_index}"
+                worker_environment = dict(environment)
+                worker_environment["HR4E5S_WORKER_ID"] = f"e5_1b_c_hydro_{pulse}_{worker_index}"
+                if self.require_gpu_backend:
+                    worker_environment.update(self._gpu_role_environment(
+                        pulse=pulse, role=f"H{worker_index}"))
                 hydro_grants.append(str(hydro_grant["grant_id"]))
+                hydro_command = self._hydro_worker_command(
+                    state, pulse, worker_index, intent_id=intent["intent_id"],
+                    reservation_id=reservation.reservation_id,
+                    writer_id=hydro_grant["grant_id"], grant=hydro_grant,
+                    scientific_pair_id=pair_id,
+                    producer_grant_id=producer_grant_id,
+                )
+                if self.require_gpu_backend:
+                    hydro_command = self._gpu_bootstrap_command(hydro_command)
                 hydro_process, hydro_stderr = self._start_logged_child(
-                    self._hydro_worker_command(
-                        state, pulse, worker_index, intent_id=intent["intent_id"],
-                        reservation_id=reservation.reservation_id,
-                        writer_id=hydro_grant["grant_id"], grant=hydro_grant,
-                        scientific_pair_id=pair_id,
-                        producer_grant_id=producer_grant_id,
-                    ), state=state, grant_id=hydro_grant["grant_id"],
-                    environment=environment,
+                    hydro_command, state=state, grant_id=hydro_grant["grant_id"],
+                    environment=worker_environment,
                 )
                 hydro_processes.append(hydro_process)
                 hydro_stderr_paths[hydro_process.pid] = hydro_stderr
@@ -1967,6 +2213,15 @@ def open_e5_1a_production_campaign(spec: E5AProductionSpec) -> E5AProductionCamp
     """The only supported creator/resumer for a production-mode E5-1A run."""
     if not isinstance(spec, E5AProductionSpec):
         raise TypeError("E5AProductionSpec is required")
+    if spec.require_gpu_backend or spec.admission_level == FORMAL_SITE_ADMISSION:
+        if os.environ.get("UPPE_USE_GPU") != "0" or device.USE_GPU:
+            raise RuntimeError("formal GPU coordinator must start with UPPE_USE_GPU=0")
+        if not os.environ.get("SLURM_JOB_ID"):
+            raise RuntimeError("formal GPU admission requires a Slurm job allocation")
+        build_assignment_record(
+            os.environ.get("CUDA_VISIBLE_DEVICES"),
+            2 + int(spec.candidate_hydro_workers),
+        )
     identity, schedule, components = _build_admission(spec)
     root = _checked_campaign_root(spec.root); root.mkdir(parents=True, exist_ok=True)
     reopening = (root / CAMPAIGN_STATE_FILENAME).is_file()

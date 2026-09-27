@@ -9,6 +9,7 @@ import subprocess
 import sys
 import textwrap
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -887,6 +888,45 @@ def test_production_factory_is_unique_and_n1_real_cpu_path(tmp_path):
     result = campaign.run()
     assert result["status"] == "COMPLETE"
     assert result["admission_identity"]["execution_mode"] == "LOCAL_ORCHESTRATION_QUALIFICATION"
+
+
+def test_production_reference_subprocess_has_distinct_pid_and_exact_output(tmp_path):
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+
+    spec = replace(_local_production_spec(tmp_path), reference_subprocess=True)
+    result = open_e5_1a_production_campaign(spec).run()
+    assert result["status"] == "COMPLETE"
+    receipt_path = (tmp_path / "campaign_reference_process_audit" / "p0" / "epoch_0"
+                    / "R_epoch_0.result.json")
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert receipt["process_identity"]["pid"] != os.getpid()
+    assert receipt["parent_pid"] == os.getpid()
+    candidate_path = (tmp_path / "campaign_candidate_final_process_audit" / "p0" / "epoch_0"
+                      / "C_OPT_epoch_0.result.json")
+    candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+    assert candidate["trajectory"] == "C"
+    assert candidate["process_identity"]["pid"] not in {os.getpid(), receipt["process_identity"]["pid"]}
+    assert candidate["parent_pid"] == os.getpid()
+    exact = json.loads((spec.root / "exact" / "p0.json").read_text(encoding="utf-8"))
+    assert exact["status"] == "PASS" and exact["mismatch_count"] == 0
+
+
+def test_production_n2_reference_and_terminal_candidate_use_independent_processes(tmp_path):
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+
+    spec = replace(_local_production_spec(
+        tmp_path, n_pulses=2, k=8, candidate_hydro_workers=2),
+        reference_subprocess=True,
+    )
+    result = open_e5_1a_production_campaign(spec).run()
+    assert result["status"] == "COMPLETE"
+    final_candidate = (tmp_path / "campaign_candidate_final_process_audit" / "p1" / "epoch_0"
+                       / "C_OPT_epoch_0.result.json")
+    payload = json.loads(final_candidate.read_text(encoding="utf-8"))
+    assert payload["trajectory"] == "C" and payload["process_identity"]["pid"] != os.getpid()
+    for pulse in range(2):
+        exact = json.loads((spec.root / "exact" / f"p{pulse}.json").read_text(encoding="utf-8"))
+        assert exact["status"] == "PASS" and exact["mismatch_count"] == 0
 
 
 def test_production_admission_recomputes_source_lut_and_budget_identity(tmp_path):
