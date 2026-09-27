@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 import os
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
 
 import pytest
 import json
@@ -17,6 +18,7 @@ from KHz_filament.hr4e5_gpu_binding import (
     validate_startup_final_identities,
 )
 from KHz_filament.hr4e5_gpu_bootstrap import (
+    probe_gpu_runtime,
     resolve_receipt_paths,
     validate_child_device_assignment,
     write_durable_receipt,
@@ -102,6 +104,22 @@ def test_child_bootstrap_requires_exact_role_token_and_single_visible_gpu():
         validate_child_device_assignment("H1", "0,1", "0", "4,5,6,7")
     with pytest.raises(ValueError, match="disagrees"):
         validate_child_device_assignment("H1", "4", "4", "4,5,6,7")
+
+
+def test_gpu_probe_imports_device_submodule_when_package_exports_a_string(monkeypatch):
+    import KHz_filament
+
+    fake_cupy = ModuleType("cupy")
+    fake_cupy.cuda = SimpleNamespace(runtime=SimpleNamespace(getDeviceCount=lambda: 0))
+    fake_device = ModuleType("KHz_filament.device")
+    fake_device.USE_GPU = True
+    fake_device.xp = fake_cupy
+    monkeypatch.setitem(sys.modules, "cupy", fake_cupy)
+    monkeypatch.setitem(sys.modules, "KHz_filament.device", fake_device)
+    monkeypatch.setattr(KHz_filament, "device", "device")
+
+    with pytest.raises(RuntimeError, match="single-token CUDA mask"):
+        probe_gpu_runtime()
 
 
 def test_cpu_schema_fixture_has_no_synthetic_gpu_identity():

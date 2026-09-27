@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import importlib
 import json
 import os
 from pathlib import Path
@@ -206,7 +207,7 @@ def probe_gpu_runtime() -> dict[str, Any]:
     """Import CuPy/device after mask validation and fail closed on any CPU fallback."""
     import cupy as cp
 
-    from KHz_filament import device
+    device = importlib.import_module("KHz_filament.device")
 
     if not getattr(device, "USE_GPU", False) or getattr(device, "xp", None) is not cp:
         raise RuntimeError("KHz_filament.device did not initialize the CuPy backend")
