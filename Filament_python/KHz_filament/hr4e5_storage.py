@@ -126,14 +126,26 @@ def probe_process_identity(identity: Mapping[str, Any]) -> dict[str, Any]:
 def budget_object_table(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
                         safety_margin_bytes: int = DEFAULT_SAFETY_MARGIN_BYTES,
                         external_prefix_already_present: bool = False,
-                        existing_full_source_bytes: int = 0) -> dict[str, Any]:
+                        existing_full_source_bytes: int = 0,
+                        canonical_source_artifact_bytes: int = 0,
+                        canonical_source_manifest_allowance_bytes: int = 0,
+                        canonical_source_write_temporary_bytes: int = 0) -> dict[str, Any]:
     """Scalar, versioned objects used by every E5 campaign budget projection."""
     values = (n_pulses, k, ny, nx, nt)
     if any(isinstance(v, bool) or not isinstance(v, int) or v <= 0 for v in values):
         raise ValueError("positive integer dimensions and pulse count required")
     margin = _nonnegative_int(safety_margin_bytes, "safety_margin_bytes")
+    canonical_artifact = _nonnegative_int(
+        canonical_source_artifact_bytes, "canonical_source_artifact_bytes")
+    canonical_manifest = _nonnegative_int(
+        canonical_source_manifest_allowance_bytes, "canonical_source_manifest_allowance_bytes")
+    canonical_temporary = _nonnegative_int(
+        canonical_source_write_temporary_bytes, "canonical_source_write_temporary_bytes")
     if margin <= 0:
         raise StorageBudgetError("budget margin must be positive")
+    if bool(canonical_artifact) != bool(canonical_manifest) or (
+            canonical_artifact and canonical_temporary < max(canonical_artifact, canonical_manifest)):
+        raise StorageBudgetError("canonical source storage ledger is incomplete")
     field = int(k) * int(ny) * int(nx) * 8
     generation = 3 * field
     optical = int(nt) * int(ny) * int(nx) * 16
@@ -197,9 +209,17 @@ def budget_object_table(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
             kind="external_new_or_preexisting")
         add(stage, "ledger_metadata_and_containers", 1, metadata,
             owner="campaign", lifetime="retained_allowance", kind="allowance")
-    # The optical source is rebuilt in RAM for every pulse; no E_source array
-    # is persisted.  The writer and uncertainty allowances are explicit disk
-    # headroom, not additional final optical files or a second failed G.
+        if canonical_artifact:
+            add(stage, "canonical_source_artifact", 1, canonical_artifact,
+                owner="input_materialization", lifetime="retained_through_review",
+                kind="external_campaign_input")
+            add(stage, "canonical_source_sealed_manifest", 1, canonical_manifest,
+                owner="input_materialization", lifetime="retained_through_review",
+                kind="external_campaign_input_allowance")
+    # Legacy CPU fixtures rebuild E_source in RAM.  GPU/formal WP2 inputs bind
+    # one retained canonical artifact and load a private backend buffer per
+    # pulse; that external file and its seal are charged below.  The writer
+    # allowances remain disk headroom, not additional final optical files.
     for stage in stages:
         if stage != "final_retention":
             add(stage, "optical_writer_temporary", 1, optical,
@@ -215,6 +235,19 @@ def budget_object_table(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
                 owner="campaign", lifetime="peak_only", kind="allowance")
             add(stage, "safety_margin", 1, margin,
                 owner="campaign", lifetime="unallocated_headroom", kind="allowance")
+    if canonical_artifact:
+        # Input generation precedes campaign writes.  Track that phase as its
+        # own peak so the one atomic .npy temporary is not charged alongside
+        # the later campaign output peak.
+        add("canonical_source_materialization", "canonical_source_artifact", 1,
+            canonical_artifact, owner="input_materialization",
+            lifetime="retained_through_review", kind="external_campaign_input")
+        add("canonical_source_materialization", "canonical_source_sealed_manifest", 1,
+            canonical_manifest, owner="input_materialization",
+            lifetime="retained_through_review", kind="external_campaign_input_allowance")
+        add("canonical_source_materialization", "canonical_source_atomic_write_temporary", 1,
+            canonical_temporary, owner="input_materialization",
+            lifetime="single_atomic_publish_peak", kind="external_temporary")
     totals = {stage: sum(row["bytes"] for row in rows) for stage, rows in stages.items()}
     peak_stage = max((stage for stage in stages if stage != "final_retention"), key=totals.__getitem__)
     return {
@@ -250,6 +283,13 @@ def budget_object_table(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
              "payload_bytes_each": field, "count": 1,
              "capacity_domain": "campaign_filesystem", "retained_final": True,
              "root_inside_charge": "actual root bytes", "root_outside_charge": "external_prefix_bytes"},
+            {"object_id": "canonical_e_source", "path_template": "bound canonical E_source input path",
+             "container": "npy", "shape": [nt, ny, nx], "dtype": "<c16",
+             "payload_bytes_each": optical, "count": 1,
+             "file_bytes": canonical_artifact, "manifest_allowance_bytes": canonical_manifest,
+             "write_temporary_peak_bytes": canonical_temporary,
+             "capacity_domain": "campaign_filesystem", "retained_final": True,
+             "legacy_cpu_fixture": "not_materialized"},
             {"object_id": "{side}:p{pulse}:scientific_ledger",
              "path_template": "{side}/p{pulse}/optical/scientific_ledger.npz",
              "container": "npz", "members": 9, "shape_each_member": [k],
@@ -273,10 +313,15 @@ def budget_object_table(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
              "container": "npy/npz", "payload_bytes_each": generation,
              "count_peak": 1, "retained_final": False},
         ],
-        "incremental_requirement_bytes": totals[peak_stage] - (field if external_prefix_already_present else 0),
+        "incremental_requirement_bytes": totals[peak_stage] - (
+            (field if external_prefix_already_present else 0) + canonical_artifact),
         "existing_full_source_bytes": _nonnegative_int(existing_full_source_bytes, "existing_full_source_bytes"),
         "existing_full_source_campaign_charge_bytes": 0,
         "optical_e_source_ram_bytes": optical,
+        "legacy_cpu_source_rebuild": canonical_artifact == 0,
+        "canonical_source_artifact_bytes": canonical_artifact,
+        "canonical_source_manifest_allowance_bytes": canonical_manifest,
+        "canonical_source_write_temporary_bytes": canonical_temporary,
         "capacity_domain": "campaign_filesystem",
     }
 
@@ -286,7 +331,10 @@ def plan_campaign_budget(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
                          final_output_budget_bytes: int = DEFAULT_FINAL_OUTPUT_BUDGET_BYTES,
                          safety_margin_bytes: int = DEFAULT_SAFETY_MARGIN_BYTES,
                          external_prefix_already_present: bool = False,
-                         existing_full_source_bytes: int = 0) -> dict[str, Any]:
+                         existing_full_source_bytes: int = 0,
+                         canonical_source_artifact_bytes: int = 0,
+                         canonical_source_manifest_allowance_bytes: int = 0,
+                         canonical_source_write_temporary_bytes: int = 0) -> dict[str, Any]:
     """Apply the unchanged policy caps to the shared object table."""
     cap = _nonnegative_int(max_campaign_live_bytes, "max_campaign_live_bytes")
     final_cap = _nonnegative_int(final_output_budget_bytes, "final_output_budget_bytes")
@@ -298,6 +346,9 @@ def plan_campaign_budget(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
         safety_margin_bytes=safety_margin_bytes,
         external_prefix_already_present=external_prefix_already_present,
         existing_full_source_bytes=existing_full_source_bytes,
+        canonical_source_artifact_bytes=canonical_source_artifact_bytes,
+        canonical_source_manifest_allowance_bytes=canonical_source_manifest_allowance_bytes,
+        canonical_source_write_temporary_bytes=canonical_source_write_temporary_bytes,
     )
     peak, final_bytes = objects["peak_bytes"], objects["final_output_bytes"]
     if peak > cap:
@@ -313,6 +364,9 @@ def plan_campaign_budget(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
         "object_schema": BUDGET_OBJECT_SCHEMA,
         "n_pulses": int(n_pulses), "k": int(k), "ny": int(ny), "nx": int(nx), "nt": int(nt),
         "retained_optical_bytes": 2 * int(n_pulses) * objects["optical_bytes"],
+        "canonical_source_retained_bytes": (
+            objects["canonical_source_artifact_bytes"]
+            + objects["canonical_source_manifest_allowance_bytes"]),
         "source_copy_bytes": 0,
         "failed_handoff_residue_bytes": objects["generation_bytes"] if n_pulses > 1 else 0,
         "peak_bytes": peak, "final_output_bytes": final_bytes,
@@ -558,6 +612,126 @@ def _identity(path: Path) -> dict[str, Any]:
     }
 
 
+def _validated_external_canonical_source_identity(
+    campaign_root: Path, admission_identity: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Rebind one external E_source artifact and seal to the admission identity."""
+    if not isinstance(admission_identity, Mapping):
+        return None
+    source_identity = admission_identity.get("source_identity")
+    if not isinstance(source_identity, Mapping):
+        return None
+    record = source_identity.get("canonical_source")
+    if not isinstance(record, Mapping):
+        return None
+
+    from .hr4e5_canonical_source import (
+        CANONICAL_SOURCE_HASH_SCOPE,
+        CANONICAL_SOURCE_HASH_SCOPES,
+        CANONICAL_SOURCE_MANIFEST_ALLOWANCE_BYTES,
+        CANONICAL_SOURCE_MANIFEST_SCHEMA,
+        CANONICAL_SOURCE_SEAL_HASH_SCOPES,
+        CANONICAL_SOURCE_SEAL_SCHEMA,
+        CANONICAL_SOURCE_SCHEMA,
+    )
+
+    def external_file(raw: Any, label: str, *, must_be_external: bool = True) -> tuple[Path, dict[str, Any]]:
+        candidate = Path(str(raw))
+        if ".." in candidate.parts:
+            raise StorageIntegrityError(f"external canonical {label} path traverses a parent")
+        for component in (candidate, *candidate.parents):
+            if _is_reparse(component):
+                raise StorageIntegrityError(f"external canonical {label} path is linked")
+        try:
+            path = candidate.resolve(strict=True)
+            identity = _identity(path)
+        except (OSError, StorageIntegrityError) as error:
+            raise StorageIntegrityError(f"external canonical {label} is unavailable") from error
+        if int(identity.get("st_nlink", 1)) != 1:
+            raise StorageIntegrityError(f"external canonical {label} has an unknown hardlink")
+        if must_be_external and path.is_relative_to(campaign_root):
+            raise StorageIntegrityError(f"external canonical {label} is inside the campaign root")
+        return path, identity
+
+    try:
+        manifest_path, manifest_identity = external_file(source_identity.get("path", ""), "manifest")
+        config_path, _ = external_file(
+            admission_identity.get("config_identity", {}).get("path", ""), "config",
+            must_be_external=False,
+        )
+        expected_manifest_sha = str(source_identity.get("sha256", ""))
+        if not _is_sha256(expected_manifest_sha) or _sha256_file(manifest_path) != expected_manifest_sha:
+            raise StorageIntegrityError("external canonical source manifest differs from admission")
+        if _sha256_file(config_path) != str(record.get("config_sha256", "")):
+            raise StorageIntegrityError("external canonical source config differs from admission")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if (not isinstance(manifest, Mapping)
+                or manifest.get("schema") != CANONICAL_SOURCE_MANIFEST_SCHEMA
+                or manifest.get("hash_scope") != CANONICAL_SOURCE_HASH_SCOPE
+                or dict(manifest.get("canonical_source", {})) != dict(record)
+                or manifest.get("canonical_array_hash") != record.get("canonical_array_hash")
+                or manifest.get("canonical_source_artifact_path") != record.get("artifact_path")
+                or manifest.get("canonical_source_sealed_manifest_path") != record.get("sealed_manifest_path")):
+            raise StorageIntegrityError("external canonical source manifest bindings differ")
+        if (record.get("schema") != CANONICAL_SOURCE_SCHEMA
+                or record.get("hash_scopes") != CANONICAL_SOURCE_HASH_SCOPES):
+            raise StorageIntegrityError("external canonical source schema or hash scopes are invalid")
+        artifact_path, artifact_identity = external_file(record.get("artifact_path", ""), "artifact")
+        seal_path, seal_identity = external_file(record.get("sealed_manifest_path", ""), "seal")
+        if artifact_path.parent != manifest_path.parent or seal_path.parent != manifest_path.parent:
+            raise StorageIntegrityError("external canonical source files must share one input directory")
+        artifact_sha = _sha256_file(artifact_path)
+        if (int(artifact_identity["size"]) != int(record.get("file_size_bytes", -1))
+                or artifact_sha != str(record.get("file_sha256", ""))):
+            raise StorageIntegrityError("external canonical source artifact differs from admission")
+        seal_payload = json.loads(seal_path.read_text(encoding="utf-8"))
+        admission_sha = str(admission_identity.get("identity_sha256", ""))
+        implementation_sha = str(admission_identity.get("implementation_identity_sha256", ""))
+        required_seal = {
+            "schema": CANONICAL_SOURCE_SEAL_SCHEMA,
+            "hash_scope": CANONICAL_SOURCE_HASH_SCOPE,
+            "hash_scopes": CANONICAL_SOURCE_SEAL_HASH_SCOPES,
+            "sealed": True,
+            "source_logical_id": str(record.get("logical_id", "")),
+            "artifact_path": str(artifact_path),
+            "artifact_file_sha256": artifact_sha,
+            "artifact_file_size_bytes": int(artifact_identity["size"]),
+            "payload_bytes_sha256": str(record.get("payload_bytes_sha256", "")),
+            "canonical_array_hash": str(record.get("canonical_array_hash", "")),
+            "config_sha256": str(record.get("config_sha256", "")),
+            "admission_identity_sha256": admission_sha,
+            "implementation_identity_sha256": implementation_sha,
+        }
+        if (not isinstance(seal_payload, Mapping)
+                or set(seal_payload) != set(required_seal) | {"created_utc"}
+                or any(seal_payload.get(key) != value for key, value in required_seal.items())
+                or not isinstance(seal_payload.get("created_utc"), str)
+                or len(str(seal_payload.get("created_utc"))) < 20
+                or (int(manifest_identity["size"]) + int(seal_identity["size"]))
+                > CANONICAL_SOURCE_MANIFEST_ALLOWANCE_BYTES):
+            raise StorageIntegrityError("external canonical source seal differs from admission")
+        return {
+            "schema": "khz_filament.hr4e5.e5_1b.external_canonical_source.v1",
+            "source_manifest_path": str(manifest_path),
+            "source_manifest_sha256": expected_manifest_sha,
+            "source_manifest_bytes": int(manifest_identity["size"]),
+            "artifact_path": str(artifact_path),
+            "artifact_sha256": artifact_sha,
+            "artifact_bytes": int(artifact_identity["size"]),
+            "seal_path": str(seal_path),
+            "seal_sha256": _sha256_file(seal_path),
+            "seal_bytes": int(seal_identity["size"]),
+            "canonical_array_hash": str(record.get("canonical_array_hash", "")),
+            "payload_bytes_sha256": str(record.get("payload_bytes_sha256", "")),
+            "admission_identity_sha256": admission_sha,
+            "implementation_identity_sha256": implementation_sha,
+        }
+    except StorageIntegrityError:
+        raise
+    except (OSError, TypeError, ValueError, json.JSONDecodeError) as error:
+        raise StorageIntegrityError("external canonical source identity cannot be reconstructed") from error
+
+
 def _iter_regular_files(root: Path) -> Iterable[Path]:
     """Yield files without following directory links."""
     if not root.exists():
@@ -655,6 +829,15 @@ class StorageBudget:
             raise StorageBudgetError("planned final output conflicts with admission identity")
         self.planned_final_output_bytes = _nonnegative_int(planned_final_output_bytes, "planned_final_output_bytes")
         self.external_full_source_bytes = _nonnegative_int(external_full_source_bytes, "external_full_source_bytes")
+        self.external_canonical_source_identity = _validated_external_canonical_source_identity(
+            self.root, admission_identity,
+        )
+        self.external_canonical_source_bytes = (
+            0 if self.external_canonical_source_identity is None else
+            int(self.external_canonical_source_identity["source_manifest_bytes"])
+            + int(self.external_canonical_source_identity["artifact_bytes"])
+            + int(self.external_canonical_source_identity["seal_bytes"])
+        )
         if admission_hash is None and admission_identity is not None:
             admission_hash = admission_identity.get("identity_sha256")
         self.admission_hash = None if admission_hash is None else str(admission_hash)
@@ -672,6 +855,7 @@ class StorageBudget:
             "final_output_budget_bytes": self.final_output_budget_bytes,
             "safety_margin_bytes": self.safety_margin_bytes,
             "external_prefix_bytes": self.external_prefix_bytes,
+            "external_canonical_source_identity": self.external_canonical_source_identity,
             "planned_final_output_bytes": self.planned_final_output_bytes,
             "external_full_source_bytes": self.external_full_source_bytes,
             "require_quota": self.require_quota,
@@ -711,6 +895,8 @@ class StorageBudget:
             raise StorageBudgetError("planned final output conflicts with durable ledger")
         if int(data.get("external_full_source_bytes", 0)) != self.external_full_source_bytes:
             raise StorageBudgetError("external full source charge conflicts with durable ledger")
+        if data.get("external_canonical_source_identity") != self.external_canonical_source_identity:
+            raise StorageIntegrityError("external canonical source identity conflicts with durable ledger")
         if bool(data.get("require_quota", False)) != self.require_quota:
             raise StorageBudgetError("storage quota requirement conflicts with durable ledger")
         if bool(data.get("require_intents", False)) != self.require_intents:
@@ -959,7 +1145,8 @@ class StorageBudget:
             self._validate(data)
             used = self.actual_bytes()
             reserved = self._reserved_bytes(data)
-            projected = used + self.external_prefix_bytes + reserved + additional + peak + self.safety_margin_bytes
+            projected = (used + self.external_prefix_bytes + self.external_canonical_source_bytes
+                         + reserved + additional + peak + self.safety_margin_bytes)
             free = self._provider_free_bytes()
             quota = self._provider_quota_bytes()
             self._require_quota_if_configured(quota)
@@ -976,6 +1163,8 @@ class StorageBudget:
                 "purpose": purpose,
                 "actual_bytes": used,
                 "external_prefix_bytes": self.external_prefix_bytes,
+                "external_canonical_source_bytes": self.external_canonical_source_bytes,
+                "external_canonical_source_identity": self.external_canonical_source_identity,
                 "external_full_source_bytes": self.external_full_source_bytes,
                 "reserved_bytes": reserved,
                 "additional_bytes": additional,
@@ -1008,7 +1197,8 @@ class StorageBudget:
             free = self._provider_free_bytes()
             quota = self._provider_quota_bytes()
             self._require_quota_if_configured(quota)
-            projected = used + self.external_prefix_bytes + active + amount + self.safety_margin_bytes
+            projected = (used + self.external_prefix_bytes + self.external_canonical_source_bytes
+                         + active + amount + self.safety_margin_bytes)
             if projected > self.cap_bytes:
                 raise StorageBudgetError(f"reservation exceeds campaign cap: projected={projected} cap={self.cap_bytes}")
             if free is not None and active + amount + self.safety_margin_bytes > free:
@@ -2083,6 +2273,15 @@ class StorageBudget:
         instance.external_prefix_bytes = int(budget_identity.get("external_prefix_bytes", 0))
         instance.planned_final_output_bytes = int(budget_identity.get("final_output_bytes", 0))
         instance.external_full_source_bytes = int(budget_identity.get("existing_full_source_bytes", 0))
+        instance.external_canonical_source_identity = _validated_external_canonical_source_identity(
+            instance.root, admission_identity,
+        )
+        instance.external_canonical_source_bytes = (
+            0 if instance.external_canonical_source_identity is None else
+            int(instance.external_canonical_source_identity["source_manifest_bytes"])
+            + int(instance.external_canonical_source_identity["artifact_bytes"])
+            + int(instance.external_canonical_source_identity["seal_bytes"])
+        )
         instance.require_intents = True
         instance.campaign_id = str(campaign_id)
         instance._admission_identity = dict(admission_identity)
@@ -2211,6 +2410,77 @@ class StorageBudget:
             self._validate(data)
             return json.loads(json.dumps(data["artifacts"]))
 
+    def validate_paired_exact_ownership(self, bindings: Sequence[Mapping[str, Any]]) -> None:
+        """Validate one exact report's durable ownership in one ledger snapshot.
+
+        The caller has already checked every present array, file hash and file
+        identity.  Keep the ledger lock for the whole ownership pass so that
+        GC and intent transitions cannot mix records from different versions.
+        """
+        with _FileLock(self.lock_path):
+            data = self._read()
+            self._validate(data)
+            for binding in bindings:
+                side = str(binding["side"])
+                path, relative = _relative(self.root, binding["path"])
+                descriptor = binding["descriptor"]
+                creation = descriptor["creation_record"]
+                artifact = data["artifacts"].get(relative)
+                if not isinstance(artifact, Mapping):
+                    raise ValueError(f"formal exact {side} object has no storage ownership record")
+                if str(artifact.get("campaign_id", "")) != str(binding["campaign_id"]):
+                    raise ValueError(f"formal exact {side} storage ownership campaign changed")
+                intent_id = str(creation.get("intent_id"))
+                if str(artifact.get("intent_id", "")) != intent_id:
+                    raise ValueError(f"formal exact {side} storage ownership intent changed")
+                digest = str(binding["file_sha256"])
+                if str(artifact.get("sha256", artifact.get("expected_sha256", ""))) != digest:
+                    raise ValueError(f"formal exact {side} storage ownership file hash changed")
+                if dict(artifact.get("identity", {})) != dict(descriptor.get("file_identity", {})):
+                    raise ValueError(f"formal exact {side} storage ownership file identity changed")
+                intent = data["intents"].get(intent_id)
+                if (not isinstance(intent, Mapping) or intent.get("status") != "COMPLETED"
+                        or not self._path_is_allowed(relative, intent.get("allowed_paths", []))):
+                    raise ValueError(f"formal exact {side} creation intent is not durably complete")
+                artifact_creation = artifact.get("creation_record")
+                if not isinstance(artifact_creation, Mapping):
+                    raise ValueError(f"formal exact {side} artifact creation record is incomplete")
+                generation = str(creation.get("generation", ""))
+                if str(artifact_creation.get("generation", "")) != generation:
+                    raise ValueError(f"formal exact {side} storage ownership generation changed")
+                if str(intent.get("generation", "")) != generation:
+                    raise ValueError(f"formal exact {side} completed intent generation changed")
+                if str(intent.get("admission_hash", "")) != str(self.admission_hash or ""):
+                    raise ValueError(f"formal exact {side} completed intent admission changed")
+                for field in ("trajectory", "pulse", "attempt"):
+                    if str(artifact.get(field)) != str(descriptor.get(field)):
+                        raise ValueError(f"formal exact {side} storage ownership {field} changed")
+                    if str(intent.get(field)) != str(descriptor.get(field)):
+                        raise ValueError(f"formal exact {side} completed intent {field} changed")
+                if not bool(binding["present"]):
+                    if path.exists():
+                        raise ValueError(f"formal exact {side} missing object reappeared")
+                    reclaimed = False
+                    for plan in data.get("gc_plans", {}).values():
+                        if (not isinstance(plan, Mapping) or plan.get("schema") != GC_SCHEMA
+                                or str(plan.get("campaign_id")) != str(binding["campaign_id"])
+                                or str(plan.get("trajectory")) != side
+                                or int(plan.get("pulse", -1)) != int(descriptor["pulse"])
+                                or int(plan.get("attempt", -1)) != int(descriptor["attempt"])
+                                or plan.get("status") == "ABORTED"):
+                            continue
+                        for target in plan.get("targets", []):
+                            if (str(target.get("relative_path")) == relative
+                                    and target.get("status") in {"DELETE_INTENT", "DELETED"}
+                                    and dict(target.get("identity", {})) == dict(descriptor.get("file_identity", {}))
+                                    and str(target.get("artifact_sha256", "")) == digest):
+                                reclaimed = True
+                                break
+                        if reclaimed:
+                            break
+                    if not reclaimed:
+                        raise ValueError(f"formal exact {side} missing object lacks durable GC evidence")
+
     def register_preexisting_prefix(self, path: str | Path, *, expected_sha256: str) -> dict[str, Any]:
         """Account one immutable prefix already present inside the campaign root."""
         checked, relative = _relative(self.root, path)
@@ -2260,8 +2530,9 @@ class StorageBudget:
         if (self.root / "E5_1A_TERMINAL_ROLE_CONTRACT.json").is_file():
             # The terminal view charges the complete retained tree, including
             # ledger/lock and every durable receipt, exactly once.
-            return self.actual_bytes() + self.external_prefix_bytes
-        total = self.external_prefix_bytes
+            return (self.actual_bytes() + self.external_prefix_bytes
+                    + self.external_canonical_source_bytes)
+        total = self.external_prefix_bytes + self.external_canonical_source_bytes
         for relative, item in self.artifacts().items():
             if (str(item.get("role", "")).startswith("final")
                     or str(relative).endswith("/final_optical_field.npy")):
@@ -2352,7 +2623,8 @@ class StorageBudget:
                     role_mismatches.append(relative)
         final_bytes = 0
         if final:
-            final_bytes = self.actual_bytes() + self.external_prefix_bytes
+            final_bytes = (self.actual_bytes() + self.external_prefix_bytes
+                           + self.external_canonical_source_bytes)
             if final_bytes > self.final_output_budget_bytes:
                 raise StorageBudgetError("terminal final output exceeds final budget")
         ok = not missing and not extras and not unregistered and not role_mismatches
@@ -2365,6 +2637,8 @@ class StorageBudget:
             "schema": "khz_filament.hr4e5.e5_1a.terminal_inventory.v1",
             "status": "PASS", "root": str(base), "expected_count": len(expected_paths),
             "actual_count": len(actual_payload), "final_output_bytes": final_bytes,
+            "external_canonical_source_bytes": self.external_canonical_source_bytes,
+            "external_canonical_source_identity": self.external_canonical_source_identity,
             "roles": {role: sorted(paths) for role, paths in expected_map.items()},
         }
 
@@ -3124,9 +3398,10 @@ class StorageBudget:
             used = self.actual_bytes()
             reserved = self._reserved_bytes(data)
             if (self.root / "E5_1A_TERMINAL_ROLE_CONTRACT.json").is_file():
-                final_bytes = used + self.external_prefix_bytes
+                final_bytes = (used + self.external_prefix_bytes
+                               + self.external_canonical_source_bytes)
             else:
-                final_bytes = self.external_prefix_bytes + sum(
+                final_bytes = self.external_prefix_bytes + self.external_canonical_source_bytes + sum(
                     int((self.root / relative).stat().st_size)
                     for relative, item in data.get("artifacts", {}).items()
                     if ((str(item.get("role", "")).startswith("final")
@@ -3138,10 +3413,14 @@ class StorageBudget:
                 "campaign_id": self.campaign_id,
                 "actual_bytes": used,
                 "external_prefix_bytes": self.external_prefix_bytes,
+                "external_canonical_source_bytes": self.external_canonical_source_bytes,
+                "external_canonical_source_identity": self.external_canonical_source_identity,
                 "external_full_source_bytes": self.external_full_source_bytes,
                 "reserved_bytes": reserved,
                 "safety_margin_bytes": self.safety_margin_bytes,
-                "projected_bytes": used + self.external_prefix_bytes + reserved + self.safety_margin_bytes,
+                "projected_bytes": (used + self.external_prefix_bytes
+                                    + self.external_canonical_source_bytes + reserved
+                                    + self.safety_margin_bytes),
                 "cap_bytes": self.cap_bytes,
                 "final_output_bytes": final_bytes,
                 "planned_final_output_bytes": self.planned_final_output_bytes,

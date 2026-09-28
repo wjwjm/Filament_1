@@ -12,9 +12,10 @@ from datetime import datetime, timezone
 import numpy as np
 
 from KHz_filament.hr4e5_evidence import sha256_file
+from KHz_filament.hr4e5_canonical_source import prepare_canonical_source_inputs
 from KHz_filament.hr4e5_production import (
     E5AProductionSpec, LOCAL_ORCHESTRATION_QUALIFICATION,
-    _source_hash, open_e5_1a_production_campaign,
+    open_e5_1a_production_campaign,
 )
 
 
@@ -46,8 +47,7 @@ def _prepare_inputs(root: Path) -> tuple[Path, Path, Path, Path]:
     }
     config.write_text(json.dumps(value, sort_keys=True), encoding="utf-8")
     source = inputs / "source.json"
-    source.write_text(json.dumps({"schema": "local-source.v1",
-        "canonical_array_hash": _source_hash(config)}, sort_keys=True), encoding="utf-8")
+    prepare_canonical_source_inputs(config, source)
     lut = inputs / "lut.json"
     lut.write_text(json.dumps({"schema": "local-lut.v1", "mode": "DISABLED_BY_CONFIG",
         "config_sha256": sha256_file(config)}, sort_keys=True), encoding="utf-8")

@@ -832,10 +832,12 @@ def test_r09_formal_terminal_requires_inventory_contract(tmp_path):
 def _local_production_spec(tmp_path, *, campaign_id="local-production", n_pulses=1, k=8,
                              candidate_hydro_workers=1, max_campaign_live_bytes=300*1024**3,
                              final_output_budget_bytes=64*1024**3,
-                             safety_margin_bytes=1024**2):
+                             safety_margin_bytes=1024**2, canonical_source=False):
     from KHz_filament.hr4e5_evidence import sha256_file
     from KHz_filament.hr4e5_production import E5AProductionSpec, _source_hash
 
+    if canonical_source and (int(n_pulses), int(k)) != (2, 64):
+        raise ValueError("canonical production fixtures use the frozen N2/K64 source config")
     inputs = tmp_path / "inputs"; inputs.mkdir(parents=True, exist_ok=True)
     config = inputs / "config.json"
     value = {
@@ -855,10 +857,14 @@ def _local_production_spec(tmp_path, *, campaign_id="local-production", n_pulses
         "run": {"Npulses": n_pulses},
         "raman": {"enabled": False, "absorption": False},
     }
-    config.write_text(json.dumps(value), encoding="utf-8")
+    config.write_text(json.dumps(value, sort_keys=bool(canonical_source)), encoding="utf-8")
     source = inputs / "source.json"
-    source.write_text(json.dumps({"schema": "local-source.v1",
-                                  "canonical_array_hash": _source_hash(config)}), encoding="utf-8")
+    if canonical_source:
+        from KHz_filament.hr4e5_canonical_source import prepare_canonical_source_inputs
+        prepare_canonical_source_inputs(config, source)
+    else:
+        source.write_text(json.dumps({"schema": "local-source.v1",
+                                      "canonical_array_hash": _source_hash(config)}), encoding="utf-8")
     lut = inputs / "lut.json"
     lut.write_text(json.dumps({"schema": "local-lut.v1", "mode": "DISABLED_BY_CONFIG",
                                "config_sha256": sha256_file(config)}), encoding="utf-8")
@@ -1001,7 +1007,7 @@ def test_production_n2_k64_four_hydro_workers_matches_single_worker(tmp_path):
 
     multi_spec = _local_production_spec(
         tmp_path / "multi", campaign_id="local-production-k64-4-workers",
-        n_pulses=2, k=64, candidate_hydro_workers=4,
+        n_pulses=2, k=64, candidate_hydro_workers=4, canonical_source=True,
     )
     too_small_spec = _local_production_spec(
         tmp_path / "too-small", campaign_id="local-production-too-small",
@@ -1069,7 +1075,7 @@ def test_production_n2_k64_h2_fallback_multiprocess(tmp_path):
 
     spec = _local_production_spec(
         tmp_path, campaign_id="local-production-k64-h2-fallback", n_pulses=2, k=64,
-        candidate_hydro_workers=2,
+        candidate_hydro_workers=2, canonical_source=True,
     )
     result = open_e5_1a_production_campaign(spec).run()
     assert result["status"] == "COMPLETE" and result["next_pair_index"] == 2
@@ -1093,15 +1099,18 @@ def test_production_n2_k64_h2_fallback_multiprocess(tmp_path):
     assert not [item for item in ledger["writers"].values() if item["status"] == "ACTIVE"]
 
 
-@pytest.mark.parametrize("k,extra_takeover", [(16, False), (16, True), (64, False)],
-                         ids=["k16", "k16-repeated", "k64"])
-def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(tmp_path, k, extra_takeover):
+@pytest.mark.parametrize("k,extra_takeover,terminal_interrupt", [
+    (16, False, False), (16, True, False), (64, False, False), (64, True, True),
+], ids=["k16", "k16-repeated", "k64", "k64-repeated-terminal-resume"])
+def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(
+    tmp_path, k, extra_takeover, terminal_interrupt,
+):
     from KHz_filament.hr4e5_storage import probe_process_identity
     from KHz_filament.hr4e5_evidence import sha256_file
 
     spec = _local_production_spec(
         tmp_path, campaign_id="local-production-k64-h4-dead-worker-recovery",
-        n_pulses=2, k=k, candidate_hydro_workers=4,
+        n_pulses=2, k=k, candidate_hydro_workers=4, canonical_source=(k == 64),
     )
     attempts = tmp_path / "attempt_evidence"
     first_attempt = attempts / "initial"
@@ -1292,13 +1301,21 @@ def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(tmp_p
         from KHz_filament.hr4e5_evidence import atomic_json
         from KHz_filament.hr4e5_production import E5AProductionSpec, open_e5_1a_production_campaign
 
-        root, campaign_id, config, source, lut, pre0, result_path = sys.argv[1:]
+        root, campaign_id, config, source, lut, pre0, result_path, interrupt_terminal = sys.argv[1:]
         spec = E5AProductionSpec(
             root=Path(root), campaign_id=campaign_id, config_path=Path(config),
             source_manifest_path=Path(source), lut_manifest_path=Path(lut),
             pre0_delta_n_path=Path(pre0), n_pulses=2, candidate_hydro_workers=4,
             safety_margin_bytes=1024**2,
         )
+        if interrupt_terminal == "1":
+            from KHz_filament.hr4e5_production import _E5AProductionRunner
+            original_gc = _E5AProductionRunner._run_gc
+            def interrupt_after_exact(self, trajectory, pulse, **kwargs):
+                if trajectory == "C" and pulse == 1:
+                    raise RuntimeError("injected terminal-only interruption before C/p1 GC")
+                return original_gc(self, trajectory, pulse, **kwargs)
+            _E5AProductionRunner._run_gc = interrupt_after_exact
         result = open_e5_1a_production_campaign(spec).run()
         atomic_json(result_path, result)
         """
@@ -1312,10 +1329,42 @@ def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(tmp_p
             [sys.executable, "-s", "-B", "-c", replacement_coordinator,
              str(spec.root), spec.campaign_id, str(spec.config_path),
              str(spec.source_manifest_path), str(spec.lut_manifest_path),
-             str(spec.pre0_delta_n_path), str(replacement_result_path)],
+             str(spec.pre0_delta_n_path), str(replacement_result_path),
+             "1" if terminal_interrupt else "0"],
             cwd=python_root, env=environment, stdout=stdout_file, stderr=stderr_file,
             text=True, timeout=1800 if k == 64 else 900,
         )
+    if terminal_interrupt:
+        assert replacement.returncode != 0
+        assert "injected terminal-only interruption before C/p1 GC" in replacement_stderr.read_text(encoding="utf-8")
+        root = Path(spec.root)
+        exact_hashes = {pulse: sha256_file(root / "exact" / f"p{pulse}.json") for pulse in range(2)}
+        science_receipts = {
+            path.relative_to(root).as_posix(): sha256_file(path)
+            for path in root.rglob("process_receipts/*.json")
+        }
+        assert science_receipts
+        assert not (root / "terminal" / "terminal.json").exists()
+        terminal_resume = replacement_attempt / "terminal_resume"
+        terminal_resume.mkdir()
+        replacement_stdout = terminal_resume / "coordinator.stdout.txt"
+        replacement_stderr = terminal_resume / "coordinator.stderr.txt"
+        with replacement_stdout.open("w", encoding="utf-8") as stdout_file, replacement_stderr.open(
+            "w", encoding="utf-8"
+        ) as stderr_file:
+            replacement = subprocess.run(
+                [sys.executable, "-s", "-B", "-c", replacement_coordinator,
+                 str(spec.root), spec.campaign_id, str(spec.config_path),
+                 str(spec.source_manifest_path), str(spec.lut_manifest_path),
+                 str(spec.pre0_delta_n_path), str(replacement_result_path), "0"],
+                cwd=python_root, env=environment, stdout=stdout_file, stderr=stderr_file,
+                text=True, timeout=900,
+            )
+        assert {pulse: sha256_file(root / "exact" / f"p{pulse}.json") for pulse in range(2)} == exact_hashes
+        assert {
+            path.relative_to(root).as_posix(): sha256_file(path)
+            for path in root.rglob("process_receipts/*.json")
+        } == science_receipts
     assert replacement.returncode == 0, (
         replacement_stdout.read_text(encoding="utf-8") + "\n" +
         replacement_stderr.read_text(encoding="utf-8")
@@ -2668,3 +2717,422 @@ def test_intent_epoch_rebind_requires_quiescent_matching_grants_and_reuses_reser
             intent["intent_id"], **{**rebind, "previous_coordinator_epoch": "epoch-1",
                                       "coordinator_epoch": "epoch-2", "pulse": 1}
         )
+
+
+def _canonical_source_test_inputs(tmp_path):
+    from KHz_filament.hr4e5_canonical_source import prepare_canonical_source_inputs
+
+    inputs = tmp_path / "canonical_source_inputs"
+    inputs.mkdir()
+    config = inputs / "config.json"
+    config.write_text(json.dumps({
+        "grid": {"Nx": 8, "Ny": 8, "Nt": 8, "Lx": 8e-4,
+                 "Ly": 8e-4, "Twin": 80e-15},
+        "beam": {"w0": 1.5e-4, "tau_fwhm": 40e-15, "energy_J": 1e-10,
+                 "focal_length": None},
+        "propagation": {"z_max": 64e-4, "dz": 1e-4, "linear_model": "paraxial",
+            "auto_substep": False, "focus_window_step": False,
+            "limit_focus_window": False, "progress_every_z": 0,
+            "energy_probe_every": 0, "diag_extra": False,
+            "use_electronic_kerr": False, "use_raman_phase": False,
+            "use_raman_absorption": False, "use_plasma_phase": False,
+            "use_ionization_loss": False, "use_ionization_solver": False},
+        "ionization": {"species": []},
+        "heat": {"hr3b_enabled": True, "f_rep": 5e6, "dt_hydro": 1e-7,
+                 "chi": 2.17e-5, "D_th": 2.17e-5, "nu": 1.5e-5,
+                 "gravity_x": 0.0, "gravity_y": -9.81},
+        "run": {"Npulses": 2}, "raman": {"enabled": False, "absorption": False},
+    }, sort_keys=True), encoding="utf-8")
+    manifest = inputs / "source.json"
+    return config, manifest, prepare_canonical_source_inputs(config, manifest)
+
+
+def test_canonical_source_materialization_reuse_and_tamper_rejection(tmp_path, monkeypatch):
+    import hashlib
+    from KHz_filament import hr4e5_canonical_source as canonical
+    from KHz_filament.hr4e5_evidence import sha256_array, sha256_file
+
+    config, manifest, source = _canonical_source_test_inputs(tmp_path)
+    record = source["canonical_source"]
+    artifact = Path(record["artifact_path"])
+    array = np.load(artifact, allow_pickle=False)
+    assert source["hash_scope"] == canonical.CANONICAL_SOURCE_HASH_SCOPE
+    assert record["hash_scopes"] == canonical.CANONICAL_SOURCE_HASH_SCOPES
+    assert record["config_sha256"] == canonical.FROZEN_N2_K64_CONFIG_SHA256
+    assert record["canonical_array_hash"] == canonical._ARRAY_IDENTITY_N2_K64
+    assert record["payload_bytes_sha256"] == canonical._ARRAY_PAYLOAD_N2_K64
+    assert array.shape == (8, 8, 8) and array.dtype.str == "<c16"
+    assert array.flags.c_contiguous
+    assert record["canonical_array_hash"] == sha256_array(array)
+    assert record["payload_bytes_sha256"] == hashlib.sha256(
+        memoryview(array).cast("B")).hexdigest()
+    assert record["file_sha256"] == sha256_file(artifact)
+    assert record["file_size_bytes"] == artifact.stat().st_size
+
+    wrong_scopes = {**record, "hash_scopes": {**record["hash_scopes"],
+                                                "file_sha256": "canonical_lf_text"}}
+    with pytest.raises(ValueError, match="hash_scopes differs from its manifest"):
+        canonical.validate_canonical_source(wrong_scopes, config_path=config,
+                                            source_manifest_path=manifest)
+
+    monkeypatch.setattr(canonical, "construct_canonical_source",
+                        lambda *_: (_ for _ in ()).throw(AssertionError("must reuse artifact")))
+    source_manifest_bytes = manifest.read_bytes()
+    source_manifest = json.loads(source_manifest_bytes.decode("utf-8"))
+    source_manifest["hash_scope"] = "raw_bytes"
+    manifest.write_text(json.dumps(source_manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match="classified hash_scope"):
+        canonical.prepare_canonical_source_inputs(config, manifest)
+    manifest.write_bytes(source_manifest_bytes)
+    reused = canonical.prepare_canonical_source_inputs(config, manifest)
+    assert reused["canonical_source"] == record
+
+    with artifact.open("ab") as handle:
+        handle.write(b"tamper")
+    with pytest.raises(ValueError, match="file_sha256"):
+        canonical.validate_canonical_source(record, config_path=config,
+                                            source_manifest_path=manifest)
+
+
+def test_frozen_canonical_source_rejects_self_consistent_alternate_hashes(tmp_path):
+    import hashlib
+    from KHz_filament import hr4e5_canonical_source as canonical
+    from KHz_filament.hr4e5_evidence import sha256_array, sha256_file
+
+    config, manifest, source = _canonical_source_test_inputs(tmp_path)
+    record = dict(source["canonical_source"])
+    altered = np.load(record["artifact_path"], allow_pickle=False).copy()
+    altered[0, 0, 0] += 1.0
+    artifact = Path(record["artifact_path"]).with_name("alternate.npy")
+    np.save(artifact, altered, allow_pickle=False)
+    array_sha = sha256_array(altered)
+    forged = {
+        **record,
+        "artifact_path": str(artifact),
+        "file_sha256": sha256_file(artifact),
+        "file_size_bytes": artifact.stat().st_size,
+        "payload_bytes_sha256": hashlib.sha256(memoryview(altered).cast("B")).hexdigest(),
+        "canonical_array_hash": array_sha,
+        "logical_id": canonical._logical_id(record["config_sha256"], array_sha),
+    }
+    with pytest.raises(ValueError, match="frozen N2/K64 source"):
+        canonical.validate_canonical_source(forged, config_path=config,
+                                            source_manifest_path=manifest)
+
+    wrong_config = config.with_name("wrong_config.json")
+    wrong_config.write_bytes(config.read_bytes() + b"\n")
+    with pytest.raises(ValueError, match="logical_id differs from its manifest"):
+        canonical.validate_canonical_source(record, config_path=wrong_config,
+                                            source_manifest_path=manifest)
+
+
+def test_canonical_source_accepts_new_config_identity_without_reusing_frozen_artifact(tmp_path):
+    from KHz_filament import hr4e5_canonical_source as canonical
+    from KHz_filament.hr4e5_evidence import sha256_file
+
+    frozen_config, _, frozen = _canonical_source_test_inputs(tmp_path)
+    new_inputs = tmp_path / "new-inputs"
+    new_inputs.mkdir()
+    new_config = new_inputs / "config.json"
+    new_config.write_bytes(frozen_config.read_bytes() + b"\n")
+    new_manifest = new_inputs / "source.json"
+    new = canonical.prepare_canonical_source_inputs(new_config, new_manifest)
+    record = new["canonical_source"]
+    assert record["config_sha256"] == sha256_file(new_config)
+    assert record["config_sha256"] != frozen["canonical_source"]["config_sha256"]
+    assert record["artifact_path"] != frozen["canonical_source"]["artifact_path"]
+    assert record["logical_id"] != frozen["canonical_source"]["logical_id"]
+    assert canonical.prepare_canonical_source_inputs(new_config, new_manifest) == new
+
+
+def test_canonical_source_seal_and_loader_make_fresh_private_buffers(tmp_path):
+    from KHz_filament import hr4e5_canonical_source as canonical
+    from KHz_filament.hr4e_timestep import sha256_array
+
+    config, manifest, source = _canonical_source_test_inputs(tmp_path)
+    record = source["canonical_source"]
+    admission = {"identity_sha256": "a" * 64,
+                 "implementation_identity_sha256": "b" * 64}
+    implementation = {"identity_sha256": "b" * 64}
+    seal = canonical.seal_or_validate_canonical_source(
+        record, admission_identity=admission,
+        implementation_identity=implementation, config_path=config,
+        source_manifest_path=manifest, create_if_missing=True,
+    )
+    assert seal["status"] == "PASS"
+    sealed_manifest = json.loads(Path(seal["sealed_manifest_path"]).read_text(encoding="utf-8"))
+    assert sealed_manifest["hash_scope"] == canonical.CANONICAL_SOURCE_HASH_SCOPE
+    assert sealed_manifest["hash_scopes"] == canonical.CANONICAL_SOURCE_SEAL_HASH_SCOPES
+    assert seal["sealed_manifest_file_bytes"] <= seal["sealed_manifest_allowance_bytes"]
+    assert seal["atomic_write_temporary_peak_bytes"] == max(
+        record["file_size_bytes"], seal["sealed_manifest_allowance_bytes"])
+
+    r_source, r_receipt = canonical.load_canonical_source_for_pulse(
+        record, admission_identity=admission, config_path=config,
+        source_manifest_path=manifest, trajectory="R", role="OPTICAL",
+        pulse=0, attempt=0,
+    )
+    c_source, c_receipt = canonical.load_canonical_source_for_pulse(
+        record, admission_identity=admission, config_path=config,
+        source_manifest_path=manifest, trajectory="C", role="OPTICAL",
+        pulse=0, attempt=0,
+    )
+    assert r_source is not c_source
+    assert not np.shares_memory(r_source, c_source)
+    assert r_receipt["source_alias_checked"] is c_receipt["source_alias_checked"] is True
+    assert r_receipt["trajectory"] == "R" and c_receipt["trajectory"] == "C"
+    assert r_receipt["role"] == c_receipt["role"] == "OPTICAL"
+    assert r_receipt["runtime_roundtrip_array_hash"] == record["canonical_array_hash"]
+    assert c_receipt["runtime_roundtrip_array_hash"] == record["canonical_array_hash"]
+    assert (r_receipt["private_backend_buffer"]["buffer_pointer_hex"]
+            != c_receipt["private_backend_buffer"]["buffer_pointer_hex"])
+
+    r_source[...] = 0
+    next_source, next_receipt = canonical.load_canonical_source_for_pulse(
+        record, admission_identity=admission, config_path=config,
+        source_manifest_path=manifest, trajectory="R", role="OPTICAL",
+        pulse=1, attempt=0,
+    )
+    assert next_receipt["runtime_roundtrip_array_hash"] == record["canonical_array_hash"]
+    assert not np.shares_memory(r_source, next_source)
+    assert np.array_equal(next_source, c_source)
+    assert sha256_array(np.load(record["artifact_path"], allow_pickle=False)) == record["canonical_array_hash"]
+
+    sealed_manifest["hash_scopes"]["payload_bytes_sha256"] = "raw_bytes"
+    Path(seal["sealed_manifest_path"]).write_text(
+        json.dumps(sealed_manifest, sort_keys=True), encoding="utf-8")
+    with pytest.raises(ValueError, match="seal does not match optical admission"):
+        canonical.load_canonical_source_for_pulse(
+            record, admission_identity=admission, config_path=config,
+            source_manifest_path=manifest, trajectory="R", role="OPTICAL",
+            pulse=1, attempt=0,
+        )
+
+
+def test_canonical_source_storage_is_counted_without_disk_source_copy():
+    from KHz_filament.hr4e5_storage import budget_object_table, plan_campaign_budget
+    from KHz_filament.hr4e5_storage import StorageBudgetError
+
+    dimensions = {"n_pulses": 2, "k": 64, "ny": 8, "nx": 8, "nt": 8}
+    artifact_bytes, manifest_bytes = 4096, 65536
+    base = budget_object_table(**dimensions, external_prefix_already_present=True)
+    charged = budget_object_table(
+        **dimensions, external_prefix_already_present=True,
+        canonical_source_artifact_bytes=artifact_bytes,
+        canonical_source_manifest_allowance_bytes=manifest_bytes,
+        canonical_source_write_temporary_bytes=max(artifact_bytes, manifest_bytes),
+    )
+    assert charged["stage_bytes"]["canonical_source_materialization"] == (
+        artifact_bytes + manifest_bytes + max(artifact_bytes, manifest_bytes))
+    assert charged["stage_bytes"]["final_retention"] == (
+        base["stage_bytes"]["final_retention"] + artifact_bytes + manifest_bytes)
+    assert charged["incremental_requirement_bytes"] == (
+        charged["stage_bytes"][charged["peak_stage"]]
+        - charged["external_prefix_bytes"] - artifact_bytes)
+
+    plan = plan_campaign_budget(
+        **dimensions, external_prefix_already_present=True,
+        canonical_source_artifact_bytes=artifact_bytes,
+        canonical_source_manifest_allowance_bytes=manifest_bytes,
+        canonical_source_write_temporary_bytes=max(artifact_bytes, manifest_bytes),
+    )
+    assert plan["canonical_source_retained_bytes"] == artifact_bytes + manifest_bytes
+    assert plan["source_copy_bytes"] == 0
+    with pytest.raises(StorageBudgetError, match="canonical source storage ledger is incomplete"):
+        budget_object_table(
+            **dimensions, external_prefix_already_present=True,
+            canonical_source_artifact_bytes=artifact_bytes,
+            canonical_source_manifest_allowance_bytes=manifest_bytes,
+            canonical_source_write_temporary_bytes=artifact_bytes,
+        )
+
+
+def _canonical_admission_fixture(tmp_path, *, campaign_id, manifest_padding=0):
+    from KHz_filament.hr4e5_canonical_source import seal_or_validate_canonical_source
+    from KHz_filament.hr4e5_production import _build_admission
+    from KHz_filament.hr4e5_recovery_identity import capture_implementation_identity
+
+    spec = _local_production_spec(
+        tmp_path, campaign_id=campaign_id, n_pulses=2, k=64,
+        candidate_hydro_workers=2, canonical_source=True,
+    )
+    if manifest_padding:
+        source_path = Path(spec.source_manifest_path)
+        source = json.loads(source_path.read_text(encoding="utf-8"))
+        source["padding"] = "x" * manifest_padding
+        source_path.write_text(json.dumps(source, sort_keys=True), encoding="utf-8")
+    implementation = capture_implementation_identity()
+    identity, _schedule, _components = _build_admission(
+        spec, implementation_identity=implementation,
+    )
+    canonical = identity["source_identity"]["canonical_source"]
+    seal = seal_or_validate_canonical_source(
+        canonical, admission_identity=identity,
+        implementation_identity=implementation,
+        config_path=spec.config_path, source_manifest_path=spec.source_manifest_path,
+        create_if_missing=True,
+    )
+    return spec, identity, seal
+
+
+def _storage_for_canonical_admission(spec, identity, *, require_quota=False):
+    from KHz_filament.hr4e5_storage import StorageBudget
+
+    budget_identity = identity["budget_identity"]
+    return StorageBudget(
+        spec.root, cap_bytes=spec.max_campaign_live_bytes,
+        final_output_budget_bytes=spec.final_output_budget_bytes,
+        safety_margin_bytes=spec.safety_margin_bytes,
+        require_quota=require_quota, campaign_id=spec.campaign_id, require_intents=True,
+        admission_identity=identity,
+        external_prefix_bytes=int(budget_identity["external_prefix_bytes"]),
+        external_full_source_bytes=int(budget_identity["existing_full_source_bytes"]),
+        planned_final_output_bytes=int(budget_identity["final_output_bytes"]),
+    )
+
+
+def test_canonical_admission_accepts_sibling_inputs_and_rejects_campaign_root(tmp_path):
+    from dataclasses import replace
+    from KHz_filament.hr4e5_production import _build_admission
+
+    spec = _local_production_spec(
+        tmp_path, campaign_id="canonical-path-boundary", n_pulses=2, k=64,
+        candidate_hydro_workers=2, canonical_source=True,
+    )
+    identity, _schedule, _components = _build_admission(spec)
+    assert identity["source_identity"]["path"] == str(Path(spec.source_manifest_path).resolve())
+    assert not Path(identity["source_identity"]["path"]).is_relative_to(Path(spec.root).resolve())
+
+    with pytest.raises(ValueError, match="must be outside the campaign root"):
+        _build_admission(replace(spec, root=Path(spec.source_manifest_path).parent))
+
+
+@pytest.mark.parametrize("field,value", [("schema", "wrong-source.v1"),
+                                          ("hash_scope", "raw_bytes")])
+def test_canonical_admission_rejects_wrong_source_manifest_classification(tmp_path, field, value):
+    from KHz_filament.hr4e5_production import _build_admission
+
+    spec = _local_production_spec(
+        tmp_path, campaign_id=f"canonical-wrong-{field}", n_pulses=2, k=64,
+        candidate_hydro_workers=2, canonical_source=True,
+    )
+    manifest_path = Path(spec.source_manifest_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest[field] = value
+    manifest_path.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+    expected = "schema" if field == "schema" else "hash_scope"
+    with pytest.raises(ValueError, match=expected):
+        _build_admission(spec)
+
+
+def test_runtime_storage_ledger_binds_and_charges_canonical_source_once(tmp_path):
+    from KHz_filament.hr4e5_storage import StorageBudget
+
+    spec, identity, seal = _canonical_admission_fixture(
+        tmp_path, campaign_id="canonical-storage-ledger",
+    )
+    budget = _storage_for_canonical_admission(spec, identity)
+    canonical = identity["source_identity"]["canonical_source"]
+    expected_external_bytes = (
+        Path(spec.source_manifest_path).stat().st_size
+        + int(canonical["file_size_bytes"])
+        + int(seal["sealed_manifest_file_bytes"])
+    )
+    assert budget.external_canonical_source_identity["source_manifest_bytes"] == (
+        Path(spec.source_manifest_path).stat().st_size
+    )
+    ledger = json.loads(budget.ledger_path.read_text(encoding="utf-8"))
+    assert ledger["external_canonical_source_identity"] == budget.external_canonical_source_identity
+    assert budget.external_canonical_source_bytes == expected_external_bytes
+
+    check = budget.check_capacity()
+    assert check["projected_bytes"] == (
+        check["actual_bytes"] + check["external_prefix_bytes"]
+        + expected_external_bytes + check["reserved_bytes"] + check["safety_margin_bytes"]
+    )
+    reservation = budget.reserve(4096, purpose="canonical-source-accounting")
+    report = budget.budget_report()
+    assert report["external_canonical_source_bytes"] == expected_external_bytes
+    assert report["projected_bytes"] == (
+        report["actual_bytes"] + report["external_prefix_bytes"]
+        + expected_external_bytes + report["reserved_bytes"] + report["safety_margin_bytes"]
+    )
+    budget.release(reservation.reservation_id)
+
+    reopened = _storage_for_canonical_admission(spec, identity)
+    assert reopened.external_canonical_source_identity == budget.external_canonical_source_identity
+    worker_view = StorageBudget.open_for_worker(
+        spec.root, campaign_id=spec.campaign_id, admission_identity=identity,
+    )
+    assert worker_view.external_canonical_source_identity == budget.external_canonical_source_identity
+    assert reopened.final_output_bytes() == (
+        reopened.external_prefix_bytes + expected_external_bytes
+    )
+    assert reopened.budget_report()["final_output_bytes"] == reopened.final_output_bytes()
+    inventory = reopened.validate_terminal_inventory({}, final=True)
+    assert inventory["status"] == "PASS"
+    assert inventory["external_canonical_source_bytes"] == expected_external_bytes
+    assert inventory["final_output_bytes"] == (
+        reopened.actual_bytes() + reopened.external_prefix_bytes + expected_external_bytes
+    )
+
+
+def test_runtime_storage_rejects_oversized_canonical_source_manifest(tmp_path):
+    from KHz_filament.hr4e5_storage import StorageIntegrityError
+
+    spec, identity, _seal = _canonical_admission_fixture(
+        tmp_path, campaign_id="canonical-oversized-manifest", manifest_padding=65536,
+    )
+    with pytest.raises(StorageIntegrityError, match="external canonical source seal differs"):
+        _storage_for_canonical_admission(spec, identity)
+
+
+@pytest.mark.parametrize("target", ["artifact", "seal"])
+def test_runtime_storage_reopen_rejects_changed_canonical_source_files(tmp_path, target):
+    from KHz_filament.hr4e5_storage import StorageBudget, StorageIntegrityError
+
+    spec, identity, seal = _canonical_admission_fixture(
+        tmp_path, campaign_id=f"canonical-storage-tamper-{target}",
+    )
+    budget = _storage_for_canonical_admission(spec, identity)
+    path = Path(identity["source_identity"]["canonical_source"]["artifact_path"]
+                if target == "artifact" else seal["sealed_manifest_path"])
+    if target == "artifact":
+        with path.open("ab") as handle:
+            handle.write(b"tamper")
+    else:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["canonical_array_hash"] = "0" * 64
+        path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    with pytest.raises(StorageIntegrityError, match="artifact differs|seal differs"):
+        StorageBudget.open_for_worker(
+            spec.root, campaign_id=spec.campaign_id, admission_identity=identity,
+        )
+
+
+def test_gpu_admission_refuses_legacy_source_manifest_without_artifact(tmp_path):
+    from KHz_filament.hr4e5_production import _build_admission
+
+    spec = replace(_local_production_spec(tmp_path), require_gpu_backend=True)
+    with pytest.raises(ValueError, match="requires the sealed canonical E_source artifact"):
+        _build_admission(spec)
+
+
+def test_canonical_source_probe_admission_only_never_propagates(tmp_path, monkeypatch):
+    from argparse import Namespace
+    from tools.run_e5_1b_wp2_canonical_source_probe import _parent
+
+    monkeypatch.setenv("UPPE_USE_GPU", "0")
+    root = tmp_path / "source_probe"
+    root.mkdir()
+    assert _parent(Namespace(run_root=root, campaign_id="source-only-local-smoke",
+                             admission_only=True)) == 0
+    summary = json.loads((root / "probe_summary.json").read_text(encoding="utf-8"))
+    identity = json.loads((root / "admission_identity.json").read_text(encoding="utf-8"))
+    source = identity["source_identity"]["canonical_source"]
+    assert summary["status"] == "LOCAL_ADMISSION_ONLY"
+    assert summary["propagation"] is False
+    assert summary["canonical_array_hash"] == source["canonical_array_hash"]
+    assert Path(source["artifact_path"]).is_file()
+    assert Path(source["sealed_manifest_path"]).is_file()
+    assert not (root / "campaign").exists()

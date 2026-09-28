@@ -39,10 +39,14 @@ from .hr4e5_storage import (DEFAULT_FINAL_OUTPUT_BUDGET_BYTES, DEFAULT_SAFETY_MA
                               Reservation, StorageBudgetError, StorageIntegrityError,
                               _is_reparse, plan_campaign_budget, process_identity)
 from .longitudinal import build_longitudinal_schedule
-from .runner import apply_thin_lens_achromatic, build_transverse_input_field
-from .constants import c0
-from .device import to_cpu, xp
 from . import device
+from .hr4e5_canonical_source import (
+    CANONICAL_SOURCE_MANIFEST_ALLOWANCE_BYTES,
+    CANONICAL_SOURCE_MANIFEST_SCHEMA,
+    CANONICAL_SOURCE_HASH_SCOPE,
+    seal_or_validate_canonical_source,
+    validate_canonical_source,
+)
 from .hr4e5_gpu_binding import (build_assignment_record, validate_assignment_record,
                                 validate_startup_final_identities)
 from .hr4e5s_streaming import FIELDS, StreamingLifecycle
@@ -159,20 +163,10 @@ def _checked_owned_file(root: Path, path: Path, owned: Mapping[str, Any], *, lab
 
 
 def _source_hash(config_path: Path) -> str:
-    grid, beam, prop, *_ = load_all(str(config_path))
-    axes = make_axes(grid.Nx, grid.Ny, grid.Nt, grid.Lx, grid.Ly, grid.Twin)
-    field, _ = build_transverse_input_field(axes, beam, xp.complex128)
-    if getattr(beam, "focal_length", None):
-        omega0 = 2.0 * np.pi * c0 / beam.lam0
-        k0 = beam.n0 * omega0 / c0
-        if str(getattr(prop, "linear_model", "uppe")).lower() == "uppe":
-            field = apply_thin_lens_achromatic(field, axes, beam, prop,
-                                                chunk_t=getattr(prop, "lens_chunk_t", 0))
-        else:
-            X, Y = xp.meshgrid(axes.x, axes.y, indexing="xy")
-            field *= xp.exp(xp.asarray(-1j * k0 * (X ** 2 + Y ** 2) /
-                                       (2.0 * float(beam.focal_length)), dtype=xp.complex128))
-    return sha256_array(np.asarray(to_cpu(field)))
+    # Compatibility helper for legacy CPU-only fixtures.  GPU/formal paths
+    # bind a pre-materialized canonical artifact instead of rebuilding here.
+    from .hr4e5_canonical_source import construct_canonical_source
+    return sha256_array(construct_canonical_source(config_path))
 
 
 def _schedule_from_config(prop: Any) -> Any:
@@ -313,7 +307,9 @@ def _slow_prefix_identity(manifest_path: Path, pre0_path: Path, full_config: Pat
     }
 
 
-def _build_admission(spec: E5AProductionSpec) -> tuple[dict[str, Any], Any, tuple[Any, ...]]:
+def _build_admission(spec: E5AProductionSpec, *,
+                     implementation_identity: Mapping[str, Any] | None = None
+                     ) -> tuple[dict[str, Any], Any, tuple[Any, ...]]:
     level = str(spec.admission_level)
     if level not in _ADMISSION_LEVELS:
         raise ValueError("unsupported production admission level")
@@ -341,9 +337,38 @@ def _build_admission(spec: E5AProductionSpec) -> tuple[dict[str, Any], Any, tupl
     pre0 = np.load(pre0_path, mmap_mode="r", allow_pickle=False)
     if pre0.shape != (schedule.n_intervals, grid.Ny, grid.Nx) or pre0.dtype != np.float64:
         raise ValueError("PRE0 delta_n shape or dtype differs from production config")
-    source_hash = _source_hash(config)
-    if str(source.get("canonical_array_hash", "")) != source_hash:
-        raise ValueError("analytic source manifest differs from reconstructed input field")
+    canonical_source = source.get("canonical_source")
+    requires_canonical_artifact = bool(
+        spec.require_gpu_backend or level == FORMAL_SITE_ADMISSION)
+    if isinstance(canonical_source, Mapping):
+        if source.get("schema") != CANONICAL_SOURCE_MANIFEST_SCHEMA:
+            raise ValueError("canonical source manifest schema is invalid")
+        if source.get("hash_scope") != CANONICAL_SOURCE_HASH_SCOPE:
+            raise ValueError("canonical source manifest hash_scope is invalid")
+        if (source.get("canonical_source_artifact_path") != canonical_source.get("artifact_path")
+                or source.get("canonical_source_sealed_manifest_path")
+                != canonical_source.get("sealed_manifest_path")):
+            raise ValueError("source.json canonical artifact path bindings differ")
+        canonical_source = validate_canonical_source(
+            canonical_source, config_path=config, source_manifest_path=source_path,
+        )
+        source_hash = str(canonical_source["canonical_array_hash"])
+        if str(source.get("canonical_array_hash", "")) != source_hash:
+            raise ValueError("source manifest array identity differs from canonical E_source")
+        campaign_root = _checked_campaign_root(spec.root)
+        canonical_input_paths = (
+            source_path,
+            Path(str(canonical_source["artifact_path"])).resolve(strict=False),
+            Path(str(canonical_source["sealed_manifest_path"])).resolve(strict=False),
+        )
+        if any(path.is_relative_to(campaign_root) for path in canonical_input_paths):
+            raise ValueError("canonical source manifest, artifact, and seal must be outside the campaign root")
+    else:
+        if requires_canonical_artifact:
+            raise ValueError("GPU/formal admission requires the sealed canonical E_source artifact")
+        source_hash = _source_hash(config)
+        if str(source.get("canonical_array_hash", "")) != source_hash:
+            raise ValueError("legacy CPU source manifest differs from reconstructed input field")
     if lut.get("mode") == "DISABLED_BY_CONFIG":
         if getattr(ion, "species", None) not in ([], ()) or bool(getattr(prop, "use_ionization_solver", False)):
             raise ValueError("LUT cannot be disabled while ionization is enabled")
@@ -371,6 +396,15 @@ def _build_admission(spec: E5AProductionSpec) -> tuple[dict[str, Any], Any, tupl
         safety_margin_bytes=int(spec.safety_margin_bytes),
         external_prefix_already_present=True,
         existing_full_source_bytes=int((slow_source_identity or {}).get("full_source_raw_bytes", 0)),
+        canonical_source_artifact_bytes=(
+            int(canonical_source["file_size_bytes"]) if isinstance(canonical_source, Mapping) else 0),
+        canonical_source_manifest_allowance_bytes=(
+            CANONICAL_SOURCE_MANIFEST_ALLOWANCE_BYTES
+            if isinstance(canonical_source, Mapping) else 0),
+        canonical_source_write_temporary_bytes=(
+            max(int(canonical_source["file_size_bytes"]),
+                CANONICAL_SOURCE_MANIFEST_ALLOWANCE_BYTES)
+            if isinstance(canonical_source, Mapping) else 0),
     )
     if level == FORMAL_SITE_ADMISSION:
         if spec.site_resource_manifest_path is None:
@@ -394,16 +428,23 @@ def _build_admission(spec: E5AProductionSpec) -> tuple[dict[str, Any], Any, tupl
         campaign_root = _checked_campaign_root(spec.root)
         if Path(str(slow_source_identity["full_source_path"])).is_relative_to(campaign_root):
             raise ValueError("pre-existing full slow source must be outside the campaign root")
-        bound_paths = (campaign_root, pre0_path,
-                       Path(str(slow_source_identity["full_source_path"])))
+        bound_paths = [campaign_root, pre0_path,
+                       Path(str(slow_source_identity["full_source_path"]))]
+        if isinstance(canonical_source, Mapping):
+            bound_paths.extend((source_path, Path(str(canonical_source["artifact_path"])),
+                                Path(str(canonical_source["sealed_manifest_path"]))))
         if any(not path.is_relative_to(capacity_root) for path in bound_paths):
             raise ValueError("formal inputs and campaign do not share the qualified capacity root")
         existing_parent = campaign_root
         while not existing_parent.exists():
             existing_parent = existing_parent.parent
         volume = capacity_root.stat().st_dev
-        if any(path.stat().st_dev != volume for path in (pre0_path, bound_paths[2], existing_parent)):
-            raise ValueError("formal inputs and campaign occupy different filesystems")
+        for path in (*bound_paths[1:], existing_parent):
+            existing_path = path
+            while not existing_path.exists():
+                existing_path = existing_path.parent
+            if existing_path.stat().st_dev != volume:
+                raise ValueError("formal inputs and campaign occupy different filesystems")
         resource_evidence = {**site, "path": str(site_path), "sha256": sha256_file(site_path)}
     else:
         if spec.site_resource_manifest_path is not None:
@@ -417,7 +458,9 @@ def _build_admission(spec: E5AProductionSpec) -> tuple[dict[str, Any], Any, tupl
                          "derivation": "run.Npulses=2_only" if full_config != config else "same_config"},
         effective_params={"f_rep": float(heat.f_rep), "dt_hydro": float(getattr(heat, "dt_hydro", 1e-7))},
         source_identity={"path": str(source_path), "sha256": sha256_file(source_path),
-                         "canonical_array_hash": source_hash},
+                         "canonical_array_hash": source_hash,
+                         **({"canonical_source": dict(canonical_source)}
+                            if isinstance(canonical_source, Mapping) else {})},
         lut_identity={"path": str(lut_path), "sha256": sha256_file(lut_path), **lut},
         schedule_identity={"k": schedule.n_intervals, "metadata": schedule.as_metadata(),
                            "full_metadata": full_schedule.as_metadata(),
@@ -450,16 +493,26 @@ def _build_admission(spec: E5AProductionSpec) -> tuple[dict[str, Any], Any, tupl
                           "safety_margin_bytes": int(spec.safety_margin_bytes),
                           "object_schema": budget_plan["object_schema"],
                           "peak_bytes": budget_plan["peak_bytes"],
+                          "peak_stage": budget_plan["peak_stage"],
                           "final_output_bytes": budget_plan["final_output_bytes"],
+                          "headroom_bytes": budget_plan["headroom_bytes"],
+                          "final_headroom_bytes": budget_plan["final_headroom_bytes"],
                            "external_prefix_bytes": (0 if pre0_path.is_relative_to(_checked_campaign_root(spec.root))
                                                      else int(pre0_path.stat().st_size)),
                            "prefix_owned_bytes": int(pre0_path.stat().st_size),
                            "prefix_payload_bytes": budget_plan["external_prefix_bytes"],
                            "prefix_inside_campaign_root": pre0_path.is_relative_to(_checked_campaign_root(spec.root)),
                           "existing_full_source_bytes": budget_plan["existing_full_source_bytes"],
+                          "canonical_source_artifact_bytes": budget_plan["canonical_source_artifact_bytes"],
+                          "canonical_source_manifest_allowance_bytes": budget_plan[
+                              "canonical_source_manifest_allowance_bytes"],
+                          "canonical_source_write_temporary_bytes": budget_plan[
+                              "canonical_source_write_temporary_bytes"],
                           "incremental_requirement_bytes": budget_plan["incremental_requirement_bytes"]},
         retention_identity={"policy": "E5_1A_MINIMUM_ENGINEERING_RETENTION_V1"},
         resource_evidence=resource_evidence,
+        **({"implementation_identity_sha256": str(implementation_identity["identity_sha256"])}
+           if implementation_identity is not None else {}),
     )
     return identity, schedule, components
 
@@ -2222,12 +2275,43 @@ def open_e5_1a_production_campaign(spec: E5AProductionSpec) -> E5AProductionCamp
             os.environ.get("CUDA_VISIBLE_DEVICES"),
             2 + int(spec.candidate_hydro_workers),
         )
-    identity, schedule, components = _build_admission(spec)
+    current_implementation = capture_implementation_identity()
+    identity, schedule, components = _build_admission(
+        spec, implementation_identity=current_implementation,
+    )
     root = _checked_campaign_root(spec.root); root.mkdir(parents=True, exist_ok=True)
     reopening = (root / CAMPAIGN_STATE_FILENAME).is_file()
-    persist_admission_identity(root / "E5_1A_ADMISSION_IDENTITY.json", identity)
-    current_implementation = capture_implementation_identity()
+    admission_path = root / "E5_1A_ADMISSION_IDENTITY.json"
     implementation_path = root / "E5_1B_IMPLEMENTATION_IDENTITY.json"
+    seal_path = root / "E5_1B_CANONICAL_SOURCE_SEAL_RECEIPT.json"
+    if admission_path.is_file():
+        persist_admission_identity(admission_path, identity)
+    if implementation_path.is_file():
+        require_same_implementation(
+            json.loads(implementation_path.read_text(encoding="utf-8")),
+            current_implementation,
+        )
+    elif reopening:
+        raise StorageIntegrityError("reopened WP2 campaign lacks implementation identity")
+    if reopening and isinstance(identity.get("source_identity", {}).get("canonical_source"), Mapping):
+        if not seal_path.is_file():
+            raise StorageIntegrityError("reopened WP2 campaign lacks canonical source seal receipt")
+        prior_seal = json.loads(seal_path.read_text(encoding="utf-8"))
+        if (prior_seal.get("admission_identity_sha256") != identity["identity_sha256"]
+                or prior_seal.get("implementation_identity_sha256")
+                != current_implementation["identity_sha256"]):
+            raise StorageIntegrityError("reopened canonical source seal receipt binding differs")
+    source_identity = identity.get("source_identity", {})
+    canonical_source = source_identity.get("canonical_source") if isinstance(source_identity, Mapping) else None
+    seal_receipt = None
+    if isinstance(canonical_source, Mapping):
+        seal_receipt = seal_or_validate_canonical_source(
+            canonical_source, admission_identity=identity,
+            implementation_identity=current_implementation,
+            config_path=spec.config_path, source_manifest_path=spec.source_manifest_path,
+            create_if_missing=not reopening,
+        )
+    persist_admission_identity(admission_path, identity)
     if implementation_path.is_file():
         persisted_implementation = json.loads(implementation_path.read_text(encoding="utf-8"))
         require_same_implementation(persisted_implementation, current_implementation)
@@ -2235,6 +2319,15 @@ def open_e5_1a_production_campaign(spec: E5AProductionSpec) -> E5AProductionCamp
         raise StorageIntegrityError("reopened WP2 campaign lacks implementation identity")
     else:
         atomic_json(implementation_path, current_implementation, overwrite=False)
+    if seal_receipt is not None:
+        if seal_path.is_file():
+            prior_seal_receipt = json.loads(seal_path.read_text(encoding="utf-8"))
+            if prior_seal_receipt != seal_receipt:
+                raise StorageIntegrityError("reopened canonical source seal receipt differs")
+        else:
+            if reopening:
+                raise StorageIntegrityError("reopened WP2 campaign lacks canonical source seal receipt")
+            atomic_json(seal_path, seal_receipt, overwrite=False)
     runner = _E5AProductionRunner(spec, identity, schedule, components, current_implementation)
     driver = _open_production_driver(
         root, admission_identity=identity, runner=runner, n_pulses=int(spec.n_pulses),

@@ -24,10 +24,12 @@ import numpy as np
 
 from .confio import load_all
 from .constants import N0_air, Ui_N2, c0, n2_air
+from . import device
 from .device import to_cpu, xp
 from .hr4e5_evidence import (atomic_json, compare_arrays_exact, compare_object_sets,
     lineage_binding, sha256_array, sha256_file, validate_paired_exact_report,
     validate_ready_receipt, write_exact_report, _safe_child_path)
+from .hr4e5_canonical_source import load_canonical_source_for_pulse
 from .hr4e_timestep import sha256_array_streaming
 from .hr4e5s_streaming import FIELDS, StreamingLifecycle, StreamingLifecycleError, _content_hash, make_post_commit_hook
 from .longitudinal import DepositionContract, LongitudinalSchedule, build_deposition_contract
@@ -964,25 +966,67 @@ def run_streaming_optical_pulse(
         if int((intent or {}).get("expected_bytes", 0)) < int(peak):
             raise ValueError("formal optical creation intent is smaller than write forecast")
         reservation = SimpleNamespace(reservation_id=str((intent or {}).get("reservation_id")))
-    destination.mkdir(parents=True)
     axes = __import__("KHz_filament.grids", fromlist=["make_axes"]).make_axes(grid.Nx, grid.Ny, grid.Nt, grid.Lx, grid.Ly, grid.Twin)
     if tuple(lifecycle.manifest["shape"]) != (grid.Ny, grid.Nx):
         raise ValueError("Streaming CURRENT shape differs from optical grid")
-    source, _ = build_transverse_input_field(axes, beam, xp.complex128)
-    source = source.copy()
     omega0 = 2.0 * np.pi * c0 / beam.lam0
     k0 = beam.n0 * omega0 / c0
-    if getattr(beam, "focal_length", None):
-        if str(getattr(prop, "linear_model", "uppe")).lower() == "uppe":
-            source = apply_thin_lens_achromatic(source, axes, beam, prop, chunk_t=getattr(prop, "lens_chunk_t", 0))
+    source_identity = identity.get("source_identity", {})
+    canonical_source = (source_identity.get("canonical_source")
+                        if isinstance(source_identity, Mapping) else None)
+    if isinstance(canonical_source, Mapping):
+        source_for_pulse, source_receipt = load_canonical_source_for_pulse(
+            canonical_source, admission_identity=identity,
+            config_path=(config_path if config_path is not None
+                         else identity.get("config_identity", {}).get("path")),
+            source_manifest_path=source_identity.get("path", ""),
+            trajectory=trajectory, role=role, pulse=pulse, attempt=attempt,
+        )
+    else:
+        if device.USE_GPU:
+            raise ValueError("GPU optical entry requires the canonical E_source artifact")
+        if not fixture_only and identity.get("execution_mode") == "FORMAL_SITE_ADMISSION":
+            raise ValueError("GPU/formal optical entry requires the canonical E_source artifact")
+        source, _ = build_transverse_input_field(axes, beam, xp.complex128)
+        source = source.copy()
+        if getattr(beam, "focal_length", None):
+            if str(getattr(prop, "linear_model", "uppe")).lower() == "uppe":
+                source = apply_thin_lens_achromatic(
+                    source, axes, beam, prop, chunk_t=getattr(prop, "lens_chunk_t", 0),
+                )
+            else:
+                X, Y = xp.meshgrid(axes.x, axes.y, indexing="xy")
+                source *= xp.exp(xp.asarray(
+                    -1j * k0 * (X ** 2 + Y ** 2) / (2.0 * float(beam.focal_length)),
+                    dtype=xp.complex128,
+                ))
+        source_for_pulse = xp.array(source, dtype=xp.complex128, order="C", copy=True)
+        source_sha = sha256_array(np.asarray(to_cpu(source_for_pulse)))
+        if not fixture_only and source_sha != str(source_identity.get("canonical_array_hash", "")):
+            raise ValueError("fresh optical source differs from admission identity")
+        if device.USE_GPU:
+            private_pointer = int(source_for_pulse.data.ptr)
+            base_pointer = int(source.data.ptr)
+            alias_checked = private_pointer != base_pointer
+            backend_buffer = {"backend": "cupy", "device_id": int(source_for_pulse.device.id),
+                              "buffer_pointer_hex": hex(private_pointer)}
         else:
-            X, Y = xp.meshgrid(axes.x, axes.y, indexing="xy")
-            source *= xp.exp(xp.asarray(-1j * k0 * (X ** 2 + Y ** 2) / (2.0 * float(beam.focal_length)), dtype=xp.complex128))
-    source_for_pulse = source.copy()
-    source_sha = sha256_array(np.asarray(to_cpu(source_for_pulse)))
-    if not fixture_only and source_sha != str(identity.get("source_identity", {}).get("canonical_array_hash", "")):
-        raise ValueError("fresh optical source differs from admission identity")
-    atomic_json(destination / "source_identity.json", {"schema": FORMAL_ENTRY_SCHEMA, "source_sha256_array": source_sha, "source_alias_checked": not np.shares_memory(np.asarray(to_cpu(source_for_pulse)), np.asarray(to_cpu(source))), "created_utc": _utc()}, overwrite=False)
+            alias_checked = not np.shares_memory(source_for_pulse, source)
+            backend_buffer = {"backend": "numpy",
+                              "buffer_pointer_hex": hex(int(source_for_pulse.ctypes.data))}
+        if not alias_checked:
+            raise ValueError("legacy optical pulse source is not a private backend buffer")
+        source_receipt = {
+            "schema": FORMAL_ENTRY_SCHEMA, "source_sha256_array": source_sha,
+            "source_alias_checked": alias_checked, "trajectory": str(trajectory),
+            "role": str(role), "pulse": int(pulse), "attempt": int(attempt),
+            "source_mode": "LEGACY_CPU_COMPATIBILITY",
+            "private_backend_buffer": backend_buffer, "created_utc": _utc(),
+        }
+    source_sha = str(source_receipt.get(
+        "runtime_roundtrip_array_hash", source_receipt.get("source_sha256_array", "")))
+    destination.mkdir(parents=True)
+    atomic_json(destination / "source_identity.json", source_receipt, overwrite=False)
     plan = _all_interval_sample_plan(schedule)
     thermal_sink = ThermalDiagnosticSink(plan=plan, output_path=str(destination / "sinks"), shape=(grid.Ny, grid.Nx), dtype=np.float64, enabled=True, mode="validation")
     hr3b_sink = HR3BDiagnosticSink(plan=plan, output_path=str(destination / "sinks"), shape=(grid.Ny, grid.Nx), dtype=np.float64, enabled=True)

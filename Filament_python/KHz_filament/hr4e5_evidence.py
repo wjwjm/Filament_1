@@ -510,7 +510,7 @@ def _paired_descriptor_path(
 def _validate_paired_descriptor(
     descriptor: Mapping[str, Any], *, root: Path, side: str, campaign_id: str,
     pulse: int, attempt: int, storage_budget: Any | None,
-    metadata_only: bool = False,
+    metadata_only: bool = False, ownership_bindings: list[dict[str, Any]] | None = None,
 ) -> tuple[np.ndarray | None, Path, dict[str, Any]]:
     if str(descriptor.get("trajectory", "")) != side:
         raise ValueError(f"formal exact {side} trajectory binding is invalid")
@@ -578,53 +578,16 @@ def _validate_paired_descriptor(
             raise ValueError(f"formal exact {side} metadata dtype is invalid")
     if storage_budget is not None:
         try:
-            relative = path.relative_to(Path(storage_budget.root).resolve()).as_posix()
+            path.relative_to(Path(storage_budget.root).resolve())
         except ValueError:
             raise ValueError(f"formal exact {side} path escapes storage root")
-        artifact = storage_budget.artifacts().get(relative)
-        if not isinstance(artifact, Mapping):
-            raise ValueError(f"formal exact {side} object has no storage ownership record")
-        if str(artifact.get("campaign_id", "")) != str(campaign_id):
-            raise ValueError(f"formal exact {side} storage ownership campaign changed")
-        intent_id = str(creation.get("intent_id"))
-        if str(artifact.get("intent_id", "")) != intent_id:
-            raise ValueError(f"formal exact {side} storage ownership intent changed")
-        if str(artifact.get("sha256", artifact.get("expected_sha256", ""))) != file_digest:
-            raise ValueError(f"formal exact {side} storage ownership file hash changed")
-        if dict(artifact.get("identity", {})) != dict(descriptor.get("file_identity", {})):
-            raise ValueError(f"formal exact {side} storage ownership file identity changed")
-        try:
-            completed_intent = storage_budget.validate_intent(
-                intent_id, path=path, require_completed=True,
-            )
-        except Exception as error:
-            raise ValueError(f"formal exact {side} creation intent is not durably complete") from error
-        artifact_creation = artifact.get("creation_record")
-        if not isinstance(artifact_creation, Mapping):
-            raise ValueError(f"formal exact {side} artifact creation record is incomplete")
-        if str(artifact_creation.get("generation", "")) != str(creation.get("generation")):
-            raise ValueError(f"formal exact {side} storage ownership generation changed")
-        if str(completed_intent.get("generation", "")) != str(creation.get("generation")):
-            raise ValueError(f"formal exact {side} completed intent generation changed")
-        if str(completed_intent.get("admission_hash", "")) != str(storage_budget.admission_hash or ""):
-            raise ValueError(f"formal exact {side} completed intent admission changed")
-        for field in ("trajectory", "pulse", "attempt"):
-            if str(artifact.get(field)) != str(descriptor.get(field)):
-                raise ValueError(f"formal exact {side} storage ownership {field} changed")
-            if str(completed_intent.get(field)) != str(descriptor.get(field)):
-                raise ValueError(f"formal exact {side} completed intent {field} changed")
-        if not present:
-            try:
-                reclaimed = storage_budget.reclaimed_target(
-                    relative, campaign_id=campaign_id, trajectory=side,
-                    pulse=int(pulse), attempt=int(attempt),
-                    identity=dict(descriptor.get("file_identity", {})),
-                    sha256=file_digest,
-                )
-            except Exception as error:
-                raise ValueError(f"formal exact {side} missing object lacks durable GC evidence") from error
-            if reclaimed is not True:
-                raise ValueError(f"formal exact {side} missing object lacks durable GC evidence")
+        if ownership_bindings is None:
+            raise ValueError("formal exact ownership batch is missing")
+        ownership_bindings.append({
+            "side": side, "path": path, "descriptor": descriptor,
+            "campaign_id": campaign_id, "file_sha256": file_digest,
+            "present": present,
+        })
     return array, path, {"array_sha256": array_digest, "file_sha256": file_digest,
                           "objects_present": bool(present)}
 
@@ -666,6 +629,7 @@ def validate_paired_exact_report(
         raise ValueError("formal exact object row count is incomplete")
     seen: set[str] = set()
     compared: list[dict[str, Any]] = []
+    ownership_bindings: list[dict[str, Any]] = []
     base = Path(root).resolve()
     for raw in rows:
         if not isinstance(raw, Mapping) or raw.get("status") != "PASS":
@@ -697,10 +661,12 @@ def validate_paired_exact_report(
         left, left_path, left_info = _validate_paired_descriptor(
             reference, root=base, side="R", campaign_id=campaign_id, pulse=int(pulse),
             attempt=int(attempt), storage_budget=storage_budget, metadata_only=metadata_only,
+            ownership_bindings=ownership_bindings,
         )
         right, right_path, right_info = _validate_paired_descriptor(
             candidate, root=base, side="C", campaign_id=campaign_id, pulse=int(pulse),
             attempt=int(attempt), storage_budget=storage_budget, metadata_only=metadata_only,
+            ownership_bindings=ownership_bindings,
         )
         if left_info["array_sha256"] != right_info["array_sha256"]:
             raise ValueError(f"formal exact paired array hash mismatch: {key}")
@@ -723,6 +689,7 @@ def validate_paired_exact_report(
         compared.append({**dict(raw), **result})
     if seen != expected_keys:
         raise ValueError("formal exact object keys are missing or unexpected")
+    storage_budget.validate_paired_exact_ownership(ownership_bindings)
     expected_screen_count = (12 if int(pulse) == n_pulses - 1 else 15) * k
     if int(payload.get("screen_count", -1)) != expected_screen_count:
         raise ValueError("formal exact screen count does not match pulse contract")
