@@ -17,9 +17,8 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from . import device
 from .confio import load_all
-from .device import to_cpu, xp
+from .device import USE_GPU, to_cpu, xp
 from .grids import make_axes
 from .hr4e5_evidence import sha256_array, sha256_file
 from .runner import apply_thin_lens_achromatic, build_transverse_input_field
@@ -142,7 +141,7 @@ def _checked_bound_file(raw_path: str | Path, *, input_root: Path, label: str) -
 
 def construct_canonical_source(config_path: str | Path) -> np.ndarray:
     """Use the existing frozen source constructor on the CPU coordinator."""
-    if device.USE_GPU:
+    if USE_GPU:
         raise RuntimeError("canonical E_source generation is restricted to the CPU coordinator")
     grid, beam, prop, *_ = load_all(str(config_path))
     axes = make_axes(grid.Nx, grid.Ny, grid.Nt, grid.Lx, grid.Ly, grid.Twin)
@@ -264,7 +263,7 @@ def validate_canonical_source(record: Mapping[str, Any], *, config_path: str | P
 def prepare_canonical_source_inputs(config_path: str | Path,
                                     source_manifest_path: str | Path) -> dict[str, Any]:
     """Create or validate pre-campaign source inputs on the CPU coordinator."""
-    if device.USE_GPU:
+    if USE_GPU:
         raise RuntimeError("only the CPU coordinator may prepare canonical E_source inputs")
     config = Path(config_path).resolve(strict=True)
     manifest_path = Path(source_manifest_path).resolve(strict=False)
@@ -422,7 +421,7 @@ def load_canonical_source_for_pulse(record: Mapping[str, Any], *,
     if (roundtrip_hash != checked["canonical_array_hash"]
             or not np.array_equal(roundtrip, host)):
         raise ValueError("canonical E_source host-device-host exact roundtrip failed")
-    if device.USE_GPU:
+    if USE_GPU:
         pointer = int(private_backend.data.ptr)
         if pointer <= 0:
             raise ValueError("canonical E_source GPU buffer identity is unavailable")

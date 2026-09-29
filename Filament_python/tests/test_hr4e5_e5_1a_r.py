@@ -3136,3 +3136,36 @@ def test_canonical_source_probe_admission_only_never_propagates(tmp_path, monkey
     assert Path(source["artifact_path"]).is_file()
     assert Path(source["sealed_manifest_path"]).is_file()
     assert not (root / "campaign").exists()
+
+
+def test_canonical_source_fresh_process_import_and_preparation(tmp_path):
+    """The canonical source must work before any other code imports device."""
+    child = textwrap.dedent(
+        """
+        import json
+        import os
+        import sys
+        from pathlib import Path
+
+        assert os.environ["UPPE_USE_GPU"] == "0"
+        assert "KHz_filament.device" not in sys.modules
+        import KHz_filament.hr4e5_canonical_source as canonical
+        from tools.run_e5_1b_wp2_gpu_preflight import _prepare_inputs
+
+        _config, source, _lut, _pre0 = _prepare_inputs(Path(sys.argv[1]))
+        assert canonical.USE_GPU is False
+        payload = json.loads(source.read_text(encoding="utf-8"))
+        assert payload["canonical_source"]["canonical_array_hash"] == (
+            "595ed4eedac5438e0fe71af7897235c69f52158bc54e95c110192c624058a4a5"
+        )
+        print("fresh_process_canonical_source_pass")
+        """
+    )
+    environment = os.environ.copy()
+    environment["UPPE_USE_GPU"] = "0"
+    result = subprocess.run(
+        [sys.executable, "-s", "-B", "-c", child, str(tmp_path)],
+        env=environment, capture_output=True, text=True, timeout=60,
+    )
+    assert result.returncode == 0, result.stdout + "\n" + result.stderr
+    assert "fresh_process_canonical_source_pass" in result.stdout
