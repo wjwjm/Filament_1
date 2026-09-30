@@ -2794,6 +2794,71 @@ def test_canonical_source_materialization_reuse_and_tamper_rejection(tmp_path, m
                                             source_manifest_path=manifest)
 
 
+def test_canonical_source_publication_survives_trash_retained_unlink(tmp_path, monkeypatch):
+    """Trash retains the removed name and therefore any hardlink to its inode."""
+    from KHz_filament import hr4e5_canonical_source as canonical
+
+    trash = tmp_path / "trash"
+    trash.mkdir()
+    real_unlink = Path.unlink
+
+    def trash_unlink(path, *args, **kwargs):
+        if path.name.startswith(".E_source_canonical.npy.") and path.suffix == ".tmp" and path.exists():
+            path.rename(trash / path.name)
+        else:
+            real_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", trash_unlink)
+    config, manifest, source = _canonical_source_test_inputs(tmp_path)
+    artifact = Path(source["canonical_source"]["artifact_path"])
+    assert artifact.stat().st_nlink == 1
+    assert source["canonical_source"]["canonical_array_hash"] == canonical._ARRAY_IDENTITY_N2_K64
+    assert canonical.validate_canonical_source(source["canonical_source"],
+        config_path=config, source_manifest_path=manifest) == source["canonical_source"]
+    assert not list(trash.iterdir())
+
+
+def test_canonical_source_atomic_publication_preserves_racing_destination(tmp_path):
+    from KHz_filament import hr4e5_canonical_source as canonical
+
+    destination = tmp_path / "source.bin"
+
+    def writer(handle):
+        handle.write(b"candidate")
+        destination.write_bytes(b"already-published")
+
+    with pytest.raises(FileExistsError):
+        canonical._atomic_create(destination, writer)
+    assert destination.read_bytes() == b"already-published"
+    assert not list(tmp_path.glob(".source.bin.*.tmp"))
+
+
+def test_canonical_source_atomic_publication_discards_failed_writer(tmp_path):
+    from KHz_filament import hr4e5_canonical_source as canonical
+
+    destination = tmp_path / "source.bin"
+
+    def writer(handle):
+        handle.write(b"incomplete")
+        raise RuntimeError("writer failed")
+
+    with pytest.raises(RuntimeError, match="writer failed"):
+        canonical._atomic_create(destination, writer)
+    assert not destination.exists()
+    assert not list(tmp_path.glob(".source.bin.*.tmp"))
+
+
+def test_canonical_source_unknown_hardlink_remains_rejected(tmp_path):
+    from KHz_filament import hr4e5_canonical_source as canonical
+
+    config, manifest, source = _canonical_source_test_inputs(tmp_path)
+    artifact = Path(source["canonical_source"]["artifact_path"])
+    os.link(artifact, artifact.with_name("unknown-alias.npy"))
+    with pytest.raises(ValueError, match="unknown hardlink"):
+        canonical.validate_canonical_source(source["canonical_source"],
+            config_path=config, source_manifest_path=manifest)
+
+
 def test_frozen_canonical_source_rejects_self_consistent_alternate_hashes(tmp_path):
     import hashlib
     from KHz_filament import hr4e5_canonical_source as canonical

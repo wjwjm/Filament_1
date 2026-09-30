@@ -7,6 +7,8 @@ field definition or its exact identity convention.
 
 from __future__ import annotations
 
+import ctypes
+import errno
 import hashlib
 import json
 import os
@@ -89,6 +91,24 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
+def _rename_noreplace(source: Path, destination: Path) -> None:
+    """Move the completed inode atomically, without a temporary hardlink."""
+    if os.name == "nt":
+        # Windows rename already rejects an existing destination atomically.
+        os.rename(source, destination)
+        return
+    rename = getattr(ctypes.CDLL(None, use_errno=True), "renameat2", None)
+    if rename is None:
+        raise OSError(errno.ENOTSUP, "atomic no-replace rename is unavailable", str(destination))
+    rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                       ctypes.c_char_p, ctypes.c_uint]
+    rename.restype = ctypes.c_int
+    # AT_FDCWD=-100; RENAME_NOREPLACE=1. Fail closed if the filesystem rejects it.
+    if rename(-100, os.fsencode(source), -100, os.fsencode(destination), 1) != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error), str(destination))
+
+
 def _atomic_create(path: Path, writer) -> None:
     """Publish one file atomically without replacing an existing path."""
     if path.exists() or path.is_symlink():
@@ -100,9 +120,9 @@ def _atomic_create(path: Path, writer) -> None:
             writer(handle)
             handle.flush()
             os.fsync(handle.fileno())
-        # Hard-link publication is atomic and fails if the destination appeared.
-        os.link(temporary, path)
-        temporary.unlink()
+        # Unlink may retain the old name in filesystem Trash. Rename avoids
+        # that extra link while still rejecting a racing destination.
+        _rename_noreplace(temporary, path)
         _fsync_directory(path.parent)
     except Exception:
         try:
