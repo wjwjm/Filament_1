@@ -254,6 +254,49 @@ def _file_identity(path: Path) -> dict[str, Any]:
     }
 
 
+_FILE_IDENTITY_FIELDS = ("st_dev", "st_ino", "st_nlink", "size", "mtime_ns")
+_RUNTIME_FS_PROVENANCE_FIELDS = ("st_dev", "st_ino", "mtime_ns")
+
+
+def _validate_file_identity(
+    recorded: Any, observed: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Validate stable file identity fields and report host-local provenance drift."""
+    if not isinstance(recorded, Mapping) or set(recorded) != set(_FILE_IDENTITY_FIELDS):
+        raise ValueError("file identity schema is invalid")
+
+    def integer_fields(identity: Mapping[str, Any], label: str) -> dict[str, int]:
+        values: dict[str, int] = {}
+        for field in _FILE_IDENTITY_FIELDS:
+            value = identity[field]
+            if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
+                raise ValueError(f"{label} file identity {field} is not an integer")
+            values[field] = int(value)
+        if values["size"] < 0:
+            raise ValueError(f"{label} file identity size is invalid")
+        if values["st_nlink"] != 1:
+            raise ValueError(f"{label} file identity st_nlink must equal 1")
+        return values
+
+    saved = integer_fields(recorded, "recorded")
+    if observed is None:
+        return {
+            "changed_fields": [], "recorded_identity": saved,
+            "observed_identity": None,
+        }
+    current = integer_fields(observed, "observed")
+    if current["size"] != saved["size"]:
+        raise ValueError("file identity size changed")
+    changed_fields = [
+        field for field in _RUNTIME_FS_PROVENANCE_FIELDS
+        if saved[field] != current[field]
+    ]
+    return {
+        "changed_fields": changed_fields, "recorded_identity": saved,
+        "observed_identity": current,
+    }
+
+
 def _load_locator(value: Any) -> tuple[np.ndarray, Path | None, dict[str, Any]]:
     """Load an object plus a precise NPZ member/slice locator."""
     locator: dict[str, Any] = {}
@@ -361,6 +404,7 @@ def validate_object_set(
     base = None if root is None else Path(root).resolve()
     seen: set[tuple[Any, ...]] = set()
     normalized: list[dict[str, Any]] = []
+    runtime_fs_provenance_changes: list[dict[str, Any]] = []
     for raw in rows:
         if not isinstance(raw, Mapping):
             raise ValueError("object row is invalid")
@@ -389,13 +433,17 @@ def validate_object_set(
         path_value = Path(str(row["relative_path"]))
         if path_value.is_absolute() or ".." in path_value.parts:
             raise ValueError("object row locator escapes root")
-        path = path_value if base is None else base / path_value
-        if not path.is_file() or path.is_symlink():
-            raise ValueError("object file is missing or linked")
+        path_root = base or Path.cwd().resolve()
+        path = _paired_descriptor_path(
+            path_root, {"path": path_value}, label="object file", require_file=True,
+        )
         expected_identity = row.get("file_identity")
         actual_identity = _file_identity(path)
-        if dict(expected_identity) != actual_identity:
-            raise ValueError("object file identity changed")
+        identity_detail = _validate_file_identity(expected_identity, actual_identity)
+        if identity_detail["changed_fields"]:
+            runtime_fs_provenance_changes.append({
+                **identity_detail, "path": str(path),
+            })
         digest = sha256_file(path)
         if digest != str(row.get("file_hash", row.get("file_sha256", ""))):
             raise ValueError("object file hash changed")
@@ -418,7 +466,9 @@ def validate_object_set(
     binding_hash = hashlib.sha256(binding_source).hexdigest()
     return {"schema": "khz_filament.hr4e5.e5_1a.object_set_binding.v1", "status": "PASS",
             "campaign_id": None if campaign_id is None else str(campaign_id),
-            "object_count": len(normalized), "binding_sha256": binding_hash, "rows": normalized}
+            "object_count": len(normalized), "binding_sha256": binding_hash, "rows": normalized,
+            "runtime_fs_provenance_changed": bool(runtime_fs_provenance_changes),
+            "runtime_fs_provenance_changes": runtime_fs_provenance_changes}
 
 
 def bind_exact_report(
@@ -548,8 +598,9 @@ def _validate_paired_descriptor(
         file_digest = sha256_file(path)
         if str(descriptor.get("file_sha256", descriptor.get("file_hash", ""))) != file_digest:
             raise ValueError(f"formal exact {side} file hash changed")
-        if dict(descriptor.get("file_identity", {})) != _file_identity(path):
-            raise ValueError(f"formal exact {side} file identity changed")
+        identity_detail = _validate_file_identity(
+            descriptor.get("file_identity"), _file_identity(path),
+        )
         array_digest = sha256_array(array)
         if str(descriptor.get("canonical_array_hash", descriptor.get("sha256_array", ""))) != array_digest:
             raise ValueError(f"formal exact {side} canonical array hash changed")
@@ -574,6 +625,7 @@ def _validate_paired_descriptor(
         identity = descriptor.get("file_identity")
         if not file_digest or not array_digest or not isinstance(identity, Mapping):
             raise ValueError(f"formal exact {side} metadata hashes or identity are missing")
+        identity_detail = _validate_file_identity(identity)
         if str(dtype.name) != str(descriptor.get("dtype")):
             raise ValueError(f"formal exact {side} metadata dtype is invalid")
     if storage_budget is not None:
@@ -589,7 +641,8 @@ def _validate_paired_descriptor(
             "present": present,
         })
     return array, path, {"array_sha256": array_digest, "file_sha256": file_digest,
-                          "objects_present": bool(present)}
+                          "objects_present": bool(present),
+                          "runtime_fs_provenance": identity_detail}
 
 
 def validate_paired_exact_report(
@@ -629,6 +682,7 @@ def validate_paired_exact_report(
         raise ValueError("formal exact object row count is incomplete")
     seen: set[str] = set()
     compared: list[dict[str, Any]] = []
+    runtime_fs_provenance_changes: list[dict[str, Any]] = []
     ownership_bindings: list[dict[str, Any]] = []
     base = Path(root).resolve()
     for raw in rows:
@@ -668,6 +722,15 @@ def validate_paired_exact_report(
             attempt=int(attempt), storage_budget=storage_budget, metadata_only=metadata_only,
             ownership_bindings=ownership_bindings,
         )
+        for side, side_path, info in (
+            ("R", left_path, left_info), ("C", right_path, right_info),
+        ):
+            detail = info["runtime_fs_provenance"]
+            if detail["changed_fields"]:
+                runtime_fs_provenance_changes.append({
+                    **detail, "comparison_key": key, "side": side,
+                    "path": str(side_path),
+                })
         if left_info["array_sha256"] != right_info["array_sha256"]:
             raise ValueError(f"formal exact paired array hash mismatch: {key}")
         if left is None or right is None:
@@ -700,6 +763,8 @@ def validate_paired_exact_report(
     return {**payload, "rows": compared, "report_path": str(path), "report_sha256": sha256_file(path),
             "validated_object_count": len(compared), "expected_object_count": len(expected_keys),
             "metadata_only": bool(metadata_only),
+            "runtime_fs_provenance_changed": bool(runtime_fs_provenance_changes),
+            "runtime_fs_provenance_changes": runtime_fs_provenance_changes,
             "objects_validated": not bool(metadata_only) or all(not row.get("metadata_only", False) for row in compared)}
 
 

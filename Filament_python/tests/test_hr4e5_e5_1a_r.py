@@ -3234,3 +3234,323 @@ def test_canonical_source_fresh_process_import_and_preparation(tmp_path):
     )
     assert result.returncode == 0, result.stdout + "\n" + result.stderr
     assert "fresh_process_canonical_source_pass" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("runtime_deltas", "expected_changed_fields"),
+    [
+        ({"st_dev": 101}, ["st_dev"]),
+        ({"st_ino": 202, "mtime_ns": 303}, ["st_ino", "mtime_ns"]),
+    ],
+    ids=("device-only", "inode-and-mtime"),
+)
+def test_portable_file_identity_objectset_provenance_keeps_durable_binding(
+    tmp_path, monkeypatch, runtime_deltas, expected_changed_fields,
+):
+    from KHz_filament.hr4e5_evidence import (
+        _file_identity, bind_exact_report, build_expected_object_set,
+        sha256_file, validate_durable_report,
+    )
+
+    root = tmp_path / "portable-objectset"
+    root.mkdir()
+    array_path = root / "array.npy"
+    np.save(array_path, np.arange(4, dtype=np.float64))
+    rows = build_expected_object_set(
+        {"array": array_path}, campaign_id="portable-campaign", trajectory="R",
+        pulse=0, attempt=0, namespace="POST", root=root, source_indices={"array": 0},
+    )
+    report_path = root / "exact.json"
+    bound = bind_exact_report(
+        report_path, {"status": "PASS", "mismatch_count": 0}, rows,
+        campaign_id="portable-campaign", root=root,
+    )
+    saved_identity = dict(rows[0]["file_identity"])
+    actual_file_identity = _file_identity
+
+    def relocated_file_identity(path):
+        observed = actual_file_identity(path)
+        for field, delta in runtime_deltas.items():
+            observed[field] += delta
+        return observed
+
+    monkeypatch.setattr("KHz_filament.hr4e5_evidence._file_identity", relocated_file_identity)
+    result = validate_durable_report(
+        report_path, campaign_id="portable-campaign", root=root,
+    )
+    binding = result["validated_object_set"]
+    assert result["status"] == "PASS"
+    assert binding["binding_sha256"] == bound["object_set_binding"]["binding_sha256"]
+    assert binding["runtime_fs_provenance_changed"] is True
+    assert binding["runtime_fs_provenance_changes"] == [{
+        "changed_fields": expected_changed_fields,
+        "recorded_identity": saved_identity,
+        "observed_identity": relocated_file_identity(array_path),
+        "path": str(array_path),
+    }]
+    assert binding["rows"][0]["file_identity"] == saved_identity
+    assert sha256_file(array_path) == rows[0]["file_hash"]
+
+
+def test_portable_file_identity_objectset_keeps_hash_and_link_checks_strict(tmp_path, monkeypatch):
+    from KHz_filament.hr4e5_evidence import (
+        _file_identity, build_expected_object_set, sha256_file, validate_object_set,
+    )
+
+    root = tmp_path / "portable-objectset-strict"
+    root.mkdir()
+    path = root / "array.npy"
+    np.save(path, np.arange(4, dtype=np.float64))
+    rows = build_expected_object_set(
+        {"array": path}, campaign_id="portable-campaign", trajectory="R",
+        pulse=0, attempt=0, namespace="POST", root=root, source_indices={"array": 0},
+    )
+    original_bytes = path.read_bytes()
+    path.write_bytes(original_bytes[:-1] + bytes([original_bytes[-1] ^ 1]))
+    with pytest.raises(ValueError, match="file hash changed"):
+        validate_object_set(rows, campaign_id="portable-campaign", root=root)
+    path.write_bytes(original_bytes)
+
+    path.write_bytes(original_bytes + b"x")
+    with pytest.raises(ValueError, match="size changed"):
+        validate_object_set(rows, campaign_id="portable-campaign", root=root)
+    path.write_bytes(original_bytes)
+
+    np.save(path, np.arange(4, dtype=np.float64) + 1)
+    changed_row = dict(rows[0])
+    changed_row["file_hash"] = sha256_file(path)
+    changed_row["file_identity"] = _file_identity(path)
+    with pytest.raises(ValueError, match="canonical array hash changed"):
+        validate_object_set([changed_row], campaign_id="portable-campaign", root=root)
+    path.write_bytes(original_bytes)
+
+    claimed_link = dict(rows[0])
+    claimed_link["file_identity"] = dict(rows[0]["file_identity"], st_nlink=2)
+    with pytest.raises(ValueError, match="st_nlink"):
+        validate_object_set([claimed_link], campaign_id="portable-campaign", root=root)
+
+    actual_file_identity = _file_identity
+
+    def multiply_linked_identity(target):
+        observed = actual_file_identity(target)
+        observed["st_nlink"] = 2
+        return observed
+
+    monkeypatch.setattr("KHz_filament.hr4e5_evidence._file_identity", multiply_linked_identity)
+    with pytest.raises(ValueError, match="st_nlink"):
+        validate_object_set(rows, campaign_id="portable-campaign", root=root)
+
+
+def test_portable_file_identity_objectset_rejects_file_symlink(tmp_path):
+    from KHz_filament.hr4e5_evidence import build_expected_object_set, validate_object_set
+
+    root = tmp_path / "portable-objectset-file-link"
+    root.mkdir()
+    path = root / "array.npy"
+    np.save(path, np.arange(4, dtype=np.float64))
+    rows = build_expected_object_set(
+        {"array": path}, campaign_id="portable-campaign", trajectory="R",
+        pulse=0, attempt=0, namespace="POST", root=root, source_indices={"array": 0},
+    )
+    linked = root / "linked.npy"
+    try:
+        linked.symlink_to(path)
+    except OSError as error:
+        pytest.skip(f"symlink creation is unavailable: {error}")
+    row = dict(rows[0], relative_path="linked.npy")
+    with pytest.raises(ValueError, match="symlink or reparse"):
+        validate_object_set([row], campaign_id="portable-campaign", root=root)
+
+
+def test_portable_file_identity_objectset_rejects_parent_symlink_and_escape(tmp_path):
+    from KHz_filament.hr4e5_evidence import build_expected_object_set, validate_object_set
+
+    root = tmp_path / "portable-objectset-parent-link"
+    root.mkdir()
+    parent = root / "parent"
+    parent.mkdir()
+    path = parent / "array.npy"
+    np.save(path, np.arange(4, dtype=np.float64))
+    rows = build_expected_object_set(
+        {"array": path}, campaign_id="portable-campaign", trajectory="R",
+        pulse=0, attempt=0, namespace="POST", root=root, source_indices={"array": 0},
+    )
+    parent_link = root / "parent-link"
+    try:
+        parent_link.symlink_to(parent, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"symlink creation is unavailable: {error}")
+    linked_parent_row = dict(rows[0], relative_path="parent-link/array.npy")
+    with pytest.raises(ValueError, match="symlink or reparse"):
+        validate_object_set([linked_parent_row], campaign_id="portable-campaign", root=root)
+
+    escaped_row = dict(rows[0], relative_path="../array.npy")
+    with pytest.raises(ValueError, match="escapes root"):
+        validate_object_set([escaped_row], campaign_id="portable-campaign", root=root)
+
+
+def _portable_formal_pair_case(tmp_path, *, campaign_id="portable-pair"):
+    from KHz_filament.hr4e5_paired_campaign import _open_production_driver
+    from KHz_filament.hr4e5_storage import MockQuotaProvider
+
+    identity = _formal_identity(campaign_id=campaign_id)
+    root = tmp_path / campaign_id
+    driver = _open_production_driver(
+        root, admission_identity=identity, runner=_production_runner_shell(),
+        n_pulses=1, campaign_id=campaign_id, safety_margin_bytes=1024**2,
+    )
+    driver.campaign.storage.provider = MockQuotaProvider(free_bytes=2**40, quota_bytes=2**40)
+    report = _formal_pair_report(root, root / "paired_exact.json", identity, driver.campaign.storage)
+    return identity, root, driver, Path(report["report_path"])
+
+
+def _validate_portable_formal_pair(report_path, root, identity, budget, *, metadata_only=False):
+    from KHz_filament.hr4e5_evidence import validate_paired_exact_report
+
+    return validate_paired_exact_report(
+        report_path, admission_identity=identity, campaign_id=identity["campaign_id"],
+        pulse=0, root=root, storage_budget=budget, metadata_only=metadata_only,
+    )
+
+
+def test_portable_file_identity_paired_provenance_and_strict_bindings(tmp_path, monkeypatch):
+    from KHz_filament.hr4e5_evidence import _file_identity, atomic_json, sha256_file
+
+    identity, root, driver, report_path = _portable_formal_pair_case(tmp_path)
+    try:
+        original_payload = json.loads(report_path.read_text(encoding="utf-8"))
+        initial = _validate_portable_formal_pair(
+            report_path, root, identity, driver.campaign.storage,
+        )
+        assert initial["runtime_fs_provenance_changed"] is False
+        assert initial["runtime_fs_provenance_changes"] == []
+
+        actual_file_identity = _file_identity
+
+        def relocated_file_identity(path):
+            observed = actual_file_identity(path)
+            observed["st_dev"] += 101
+            observed["st_ino"] += 202
+            observed["mtime_ns"] += 303
+            return observed
+
+        with monkeypatch.context() as patch:
+            patch.setattr("KHz_filament.hr4e5_evidence._file_identity", relocated_file_identity)
+            relocated = _validate_portable_formal_pair(
+                report_path, root, identity, driver.campaign.storage,
+            )
+        assert relocated["status"] == "PASS"
+        assert relocated["runtime_fs_provenance_changed"] is True
+        assert len(relocated["runtime_fs_provenance_changes"]) == 2 * len(original_payload["rows"])
+        provenance = relocated["runtime_fs_provenance_changes"][0]
+        assert provenance["changed_fields"] == ["st_dev", "st_ino", "mtime_ns"]
+        assert provenance["comparison_key"] == original_payload["rows"][0]["comparison_key"]
+        assert provenance["side"] == "R"
+        assert Path(provenance["path"]).resolve() == (
+            root / original_payload["rows"][0]["reference"]["path"]
+        ).resolve()
+        assert relocated["rows"][0]["reference"]["file_identity"] == original_payload["rows"][0]["reference"]["file_identity"]
+
+        first = original_payload["rows"][0]
+        target = root / first["reference"]["path"]
+        original_bytes = target.read_bytes()
+        target.write_bytes(original_bytes + b"changed")
+        with pytest.raises(ValueError, match="file hash changed"):
+            _validate_portable_formal_pair(report_path, root, identity, driver.campaign.storage)
+        target.write_bytes(original_bytes)
+
+        np.save(target, np.asarray([2.0], dtype=np.float64))
+        array_changed = json.loads(json.dumps(original_payload))
+        array_changed_descriptor = array_changed["rows"][0]["reference"]
+        array_changed_descriptor["file_sha256"] = sha256_file(target)
+        atomic_json(report_path, array_changed)
+        with pytest.raises(ValueError, match="canonical array hash changed"):
+            _validate_portable_formal_pair(report_path, root, identity, driver.campaign.storage)
+        target.write_bytes(original_bytes)
+
+        bad_admission = json.loads(json.dumps(original_payload))
+        bad_admission["admission_identity_sha256"] = "changed"
+        atomic_json(report_path, bad_admission)
+        with pytest.raises(ValueError, match="admission identity"):
+            _validate_portable_formal_pair(report_path, root, identity, driver.campaign.storage)
+
+        bad_ownership = json.loads(json.dumps(original_payload))
+        bad_ownership["rows"][0]["reference"]["file_identity"]["st_dev"] += 1
+        atomic_json(report_path, bad_ownership)
+        with pytest.raises(ValueError, match="storage ownership file identity changed"):
+            _validate_portable_formal_pair(report_path, root, identity, driver.campaign.storage)
+
+        bad_link_claim = json.loads(json.dumps(original_payload))
+        bad_link_claim["rows"][0]["reference"]["file_identity"]["st_nlink"] = 2
+        atomic_json(report_path, bad_link_claim)
+        with pytest.raises(ValueError, match="st_nlink"):
+            _validate_portable_formal_pair(report_path, root, identity, driver.campaign.storage)
+
+        atomic_json(report_path, original_payload)
+
+        def multiply_linked_identity(path):
+            observed = actual_file_identity(path)
+            observed["st_nlink"] = 2
+            return observed
+
+        with monkeypatch.context() as patch:
+            patch.setattr("KHz_filament.hr4e5_evidence._file_identity", multiply_linked_identity)
+            with pytest.raises(ValueError, match="st_nlink"):
+                _validate_portable_formal_pair(report_path, root, identity, driver.campaign.storage)
+
+        escaped = json.loads(json.dumps(original_payload))
+        escaped_descriptor = escaped["rows"][0]["reference"]
+        escaped_descriptor["path"] = "../outside.npy"
+        escaped_descriptor["relative_path"] = "../outside.npy"
+        atomic_json(report_path, escaped)
+        with pytest.raises(ValueError, match="parent traversal"):
+            _validate_portable_formal_pair(report_path, root, identity, driver.campaign.storage)
+    finally:
+        driver.close()
+
+
+def test_portable_file_identity_metadata_gc_revalidates_saved_identity(tmp_path):
+    from KHz_filament.hr4e5_evidence import atomic_json, validate_paired_exact_report_metadata
+    from KHz_filament.hr4e5_paired_campaign import _open_production_driver
+    from KHz_filament.hr4e5_storage import MockQuotaProvider
+
+    identity = _formal_identity(campaign_id="portable-gc", n_pulses=2)
+    root = tmp_path / "portable-gc"
+    driver = _open_production_driver(
+        root, admission_identity=identity, runner=_production_runner_shell(),
+        n_pulses=2, campaign_id=identity["campaign_id"], safety_margin_bytes=1024**2,
+    )
+    driver.campaign.storage.provider = MockQuotaProvider(free_bytes=2**40, quota_bytes=2**40)
+    report = _formal_pair_report(root, root / "paired_exact.json", identity, driver.campaign.storage)
+    report_path = Path(report["report_path"])
+    try:
+        epoch = driver.campaign.active_coordinator_epoch()
+        artifacts = driver.campaign.storage.artifacts()
+        targets = {
+            side: [root / relative for relative in artifacts if relative.startswith(f"objects/{side}/")]
+            for side in ("R", "C")
+        }
+        for side in ("R", "C"):
+            _complete_formal_gc(
+                root, driver.campaign.storage, identity, side=side, pulse=0,
+                targets=targets[side], writer_epoch=epoch,
+            )
+
+        result = validate_paired_exact_report_metadata(
+            report_path, admission_identity=identity, campaign_id=identity["campaign_id"],
+            pulse=0, root=root, storage_budget=driver.campaign.storage,
+        )
+        assert result["metadata_only"] is True
+        assert result["runtime_fs_provenance_changed"] is False
+        assert result["runtime_fs_provenance_changes"] == []
+
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+        payload["rows"][0]["reference"]["file_identity"]["st_nlink"] = 2
+        atomic_json(report_path, payload)
+        with pytest.raises(ValueError, match="st_nlink"):
+            validate_paired_exact_report_metadata(
+                report_path, admission_identity=identity, campaign_id=identity["campaign_id"],
+                pulse=0, root=root, storage_budget=driver.campaign.storage,
+            )
+    finally:
+        driver.close()
