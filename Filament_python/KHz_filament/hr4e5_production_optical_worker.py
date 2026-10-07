@@ -118,6 +118,23 @@ def main() -> int:
 
     root = Path(args.storage_root).resolve()
     admission = json.loads((root / "E5_1A_ADMISSION_IDENTITY.json").read_text(encoding="utf-8"))
+    if str(admission.get("identity_sha256", "")) != str(args.admission_identity_sha256):
+        raise RuntimeError("optical worker admission identity differs")
+    config_path = Path(args.config_path).resolve()
+    lut_identity = admission.get("lut_identity", {})
+    lut_staging = lut_identity.get("staging") if isinstance(lut_identity, Mapping) else None
+    if isinstance(lut_staging, Mapping):
+        from .hr4e5_production import validate_staged_frozen_lut_cache_hit
+
+        validate_staged_frozen_lut_cache_hit(
+            config_path, root, lut_identity=lut_identity,
+            staging_receipt_path=str(lut_staging.get("receipt_path", "")),
+            admission_identity_sha256=str(args.admission_identity_sha256),
+            require_campaign_cwd=True,
+        )
+    elif (admission.get("execution_mode") == "FORMAL_SITE_ADMISSION"
+          and lut_identity.get("mode") == "RATE_TABLE"):
+        raise RuntimeError("formal optical worker lacks admitted frozen LUT inputs")
     budget = StorageBudget.open_for_worker(
         root, campaign_id=str(admission["campaign_id"]), admission_identity=admission,
     )
@@ -151,7 +168,6 @@ def main() -> int:
     )
     if str(admission.get("identity_sha256", "")) != str(args.admission_identity_sha256):
         raise RuntimeError("optical worker admission identity differs")
-    config_path = Path(args.config_path).resolve()
     schedule = _schedule(config_path, args.prefix_intervals)
     started = time.monotonic()
     error: BaseException | None = None

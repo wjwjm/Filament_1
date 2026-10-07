@@ -129,7 +129,8 @@ def budget_object_table(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
                         existing_full_source_bytes: int = 0,
                         canonical_source_artifact_bytes: int = 0,
                         canonical_source_manifest_allowance_bytes: int = 0,
-                        canonical_source_write_temporary_bytes: int = 0) -> dict[str, Any]:
+                        canonical_source_write_temporary_bytes: int = 0,
+                        frozen_lut_input_bytes: int = 0) -> dict[str, Any]:
     """Scalar, versioned objects used by every E5 campaign budget projection."""
     values = (n_pulses, k, ny, nx, nt)
     if any(isinstance(v, bool) or not isinstance(v, int) or v <= 0 for v in values):
@@ -141,6 +142,7 @@ def budget_object_table(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
         canonical_source_manifest_allowance_bytes, "canonical_source_manifest_allowance_bytes")
     canonical_temporary = _nonnegative_int(
         canonical_source_write_temporary_bytes, "canonical_source_write_temporary_bytes")
+    frozen_lut_inputs = _nonnegative_int(frozen_lut_input_bytes, "frozen_lut_input_bytes")
     if margin <= 0:
         raise StorageBudgetError("budget margin must be positive")
     if bool(canonical_artifact) != bool(canonical_manifest) or (
@@ -248,6 +250,11 @@ def budget_object_table(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
         add("canonical_source_materialization", "canonical_source_atomic_write_temporary", 1,
             canonical_temporary, owner="input_materialization",
             lifetime="single_atomic_publish_peak", kind="external_temporary")
+    if frozen_lut_inputs:
+        for stage in stages:
+            add(stage, "frozen_lut_inputs_and_staging_receipt", 1, frozen_lut_inputs,
+                owner="input_materialization", lifetime="retained_through_review",
+                kind="preexisting_immutable_campaign_input")
     totals = {stage: sum(row["bytes"] for row in rows) for stage, rows in stages.items()}
     peak_stage = max((stage for stage in stages if stage != "final_retention"), key=totals.__getitem__)
     return {
@@ -282,7 +289,12 @@ def budget_object_table(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
              "container": "npy", "shape": [k, ny, nx], "dtype": "float64",
              "payload_bytes_each": field, "count": 1,
              "capacity_domain": "campaign_filesystem", "retained_final": True,
-             "root_inside_charge": "actual root bytes", "root_outside_charge": "external_prefix_bytes"},
+            "root_inside_charge": "actual root bytes", "root_outside_charge": "external_prefix_bytes"},
+            *([{"object_id": "frozen_lut_inputs_and_staging_receipt",
+                "path_template": "cache/rate_tables/*.npz and N5_LUT_STAGING_RECEIPT.json",
+                "container": "npz/json", "file_bytes": frozen_lut_inputs,
+                "capacity_domain": "campaign_filesystem", "retained_final": True}]
+              if frozen_lut_inputs else []),
             {"object_id": "canonical_e_source", "path_template": "bound canonical E_source input path",
              "container": "npy", "shape": [nt, ny, nx], "dtype": "<c16",
              "payload_bytes_each": optical, "count": 1,
@@ -314,7 +326,7 @@ def budget_object_table(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
              "count_peak": 1, "retained_final": False},
         ],
         "incremental_requirement_bytes": totals[peak_stage] - (
-            (field if external_prefix_already_present else 0) + canonical_artifact),
+            (field if external_prefix_already_present else 0) + canonical_artifact + frozen_lut_inputs),
         "existing_full_source_bytes": _nonnegative_int(existing_full_source_bytes, "existing_full_source_bytes"),
         "existing_full_source_campaign_charge_bytes": 0,
         "optical_e_source_ram_bytes": optical,
@@ -322,6 +334,7 @@ def budget_object_table(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
         "canonical_source_artifact_bytes": canonical_artifact,
         "canonical_source_manifest_allowance_bytes": canonical_manifest,
         "canonical_source_write_temporary_bytes": canonical_temporary,
+        **({"frozen_lut_input_bytes": frozen_lut_inputs} if frozen_lut_inputs else {}),
         "capacity_domain": "campaign_filesystem",
     }
 
@@ -334,7 +347,8 @@ def plan_campaign_budget(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
                          existing_full_source_bytes: int = 0,
                          canonical_source_artifact_bytes: int = 0,
                          canonical_source_manifest_allowance_bytes: int = 0,
-                         canonical_source_write_temporary_bytes: int = 0) -> dict[str, Any]:
+                         canonical_source_write_temporary_bytes: int = 0,
+                         frozen_lut_input_bytes: int = 0) -> dict[str, Any]:
     """Apply the unchanged policy caps to the shared object table."""
     cap = _nonnegative_int(max_campaign_live_bytes, "max_campaign_live_bytes")
     final_cap = _nonnegative_int(final_output_budget_bytes, "final_output_budget_bytes")
@@ -349,6 +363,7 @@ def plan_campaign_budget(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
         canonical_source_artifact_bytes=canonical_source_artifact_bytes,
         canonical_source_manifest_allowance_bytes=canonical_source_manifest_allowance_bytes,
         canonical_source_write_temporary_bytes=canonical_source_write_temporary_bytes,
+        frozen_lut_input_bytes=frozen_lut_input_bytes,
     )
     peak, final_bytes = objects["peak_bytes"], objects["final_output_bytes"]
     if peak > cap:
@@ -372,6 +387,8 @@ def plan_campaign_budget(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
         "peak_bytes": peak, "final_output_bytes": final_bytes,
         "max_campaign_live_bytes": cap, "final_output_budget_bytes": final_cap,
         "headroom_bytes": cap - peak, "final_headroom_bytes": final_cap - final_bytes,
+        **({"frozen_lut_input_bytes": objects["frozen_lut_input_bytes"]}
+           if objects.get("frozen_lut_input_bytes", 0) else {}),
         "k8048_arrays_created": False,
     }
 
@@ -801,6 +818,7 @@ class StorageBudget:
         admission_identity: Mapping[str, Any] | None = None,
         external_prefix_bytes: int = 0,
         external_full_source_bytes: int = 0,
+        frozen_lut_input_bytes: int | None = None,
         planned_final_output_bytes: int | None = None,
     ):
         self.root = Path(root).resolve()
@@ -822,6 +840,18 @@ class StorageBudget:
         self.campaign_id = str(campaign_id)
         self.require_intents = bool(require_intents)
         self.external_prefix_bytes = _nonnegative_int(external_prefix_bytes, "external_prefix_bytes")
+        bound_lut_input_bytes = _nonnegative_int(
+            (admission_identity or {}).get("budget_identity", {}).get("frozen_lut_input_bytes", 0),
+            "admitted frozen LUT input bytes",
+        )
+        if frozen_lut_input_bytes is None:
+            frozen_lut_input_bytes = bound_lut_input_bytes
+        else:
+            frozen_lut_input_bytes = _nonnegative_int(frozen_lut_input_bytes, "frozen_lut_input_bytes")
+            if admission_identity is not None and frozen_lut_input_bytes != bound_lut_input_bytes:
+                raise StorageBudgetError("frozen LUT input bytes conflict with admission identity")
+        self.frozen_lut_input_bytes = _nonnegative_int(
+            frozen_lut_input_bytes, "frozen_lut_input_bytes")
         bound_final = (admission_identity or {}).get("budget_identity", {}).get("final_output_bytes", 0)
         if planned_final_output_bytes is None:
             planned_final_output_bytes = bound_final
@@ -855,6 +885,8 @@ class StorageBudget:
             "final_output_budget_bytes": self.final_output_budget_bytes,
             "safety_margin_bytes": self.safety_margin_bytes,
             "external_prefix_bytes": self.external_prefix_bytes,
+            **({"frozen_lut_input_bytes": self.frozen_lut_input_bytes}
+               if self.frozen_lut_input_bytes else {}),
             "external_canonical_source_identity": self.external_canonical_source_identity,
             "planned_final_output_bytes": self.planned_final_output_bytes,
             "external_full_source_bytes": self.external_full_source_bytes,
@@ -891,6 +923,8 @@ class StorageBudget:
             raise StorageBudgetError("storage safety margin conflicts with durable ledger")
         if int(data.get("external_prefix_bytes", 0)) != self.external_prefix_bytes:
             raise StorageBudgetError("external prefix charge conflicts with durable ledger")
+        if int(data.get("frozen_lut_input_bytes", 0)) != self.frozen_lut_input_bytes:
+            raise StorageBudgetError("frozen LUT input charge conflicts with durable ledger")
         if int(data.get("planned_final_output_bytes", 0)) != self.planned_final_output_bytes:
             raise StorageBudgetError("planned final output conflicts with durable ledger")
         if int(data.get("external_full_source_bytes", 0)) != self.external_full_source_bytes:
@@ -1163,6 +1197,8 @@ class StorageBudget:
                 "purpose": purpose,
                 "actual_bytes": used,
                 "external_prefix_bytes": self.external_prefix_bytes,
+                **({"frozen_lut_input_bytes": self.frozen_lut_input_bytes}
+                   if self.frozen_lut_input_bytes else {}),
                 "external_canonical_source_bytes": self.external_canonical_source_bytes,
                 "external_canonical_source_identity": self.external_canonical_source_identity,
                 "external_full_source_bytes": self.external_full_source_bytes,
@@ -2271,6 +2307,7 @@ class StorageBudget:
         instance.final_output_budget_bytes = int(budget_identity.get("final_output_budget_bytes", DEFAULT_FINAL_OUTPUT_BUDGET_BYTES))
         instance.safety_margin_bytes = int(budget_identity.get("safety_margin_bytes", DEFAULT_SAFETY_MARGIN_BYTES))
         instance.external_prefix_bytes = int(budget_identity.get("external_prefix_bytes", 0))
+        instance.frozen_lut_input_bytes = int(budget_identity.get("frozen_lut_input_bytes", 0))
         instance.planned_final_output_bytes = int(budget_identity.get("final_output_bytes", 0))
         instance.external_full_source_bytes = int(budget_identity.get("existing_full_source_bytes", 0))
         instance.external_canonical_source_identity = _validated_external_canonical_source_identity(
@@ -2508,6 +2545,81 @@ class StorageBudget:
                                    "sha256": digest, "timestamp_utc": _utc()})
             return dict(item)
 
+    def register_preexisting_frozen_lut(
+        self, path: str | Path, *, expected_sha256: str, expected_size_bytes: int,
+        admission_identity_sha256: str,
+    ) -> dict[str, Any]:
+        """Bind one pre-staged immutable rate table or its staging receipt."""
+        checked, relative = _relative(self.root, path)
+        provenance = _identity(checked)
+        stat_result = checked.stat()
+        expected_size = _nonnegative_int(expected_size_bytes, "expected_size_bytes")
+        uid = getattr(stat_result, "st_uid", None)
+        effective_uid = getattr(os, "geteuid", None)
+        if (callable(effective_uid) and uid is not None
+                and int(uid) != int(effective_uid())):
+            raise StorageIntegrityError("frozen LUT input is not owned by the current user")
+        current = {"size": int(stat_result.st_size), "st_nlink": int(provenance["st_nlink"])}
+        if uid is not None:
+            current["st_uid"] = int(uid)
+        gid = getattr(stat_result, "st_gid", None)
+        if gid is not None:
+            current["st_gid"] = int(gid)
+        if expected_size <= 0 or current["st_nlink"] != 1:
+            raise StorageIntegrityError("frozen LUT input is empty or hard-linked")
+        if int(current["size"]) != expected_size:
+            raise StorageIntegrityError("frozen LUT input size differs from admission")
+        digest = _sha256_file(checked)
+        if digest != str(expected_sha256):
+            raise StorageIntegrityError("frozen LUT input hash differs from admission")
+        admission_hash = str(admission_identity_sha256)
+        if not admission_hash or admission_hash != str(self.admission_hash or ""):
+            raise StorageIntegrityError("frozen LUT input admission binding differs")
+        staging = (self.admission_identity or {}).get("lut_identity", {}).get("staging", {})
+        registered_inputs = staging.get("registered_inputs", []) if isinstance(staging, Mapping) else []
+        binding = next((item for item in registered_inputs
+                        if isinstance(item, Mapping) and str(item.get("path", "")) == relative), None)
+        if (not isinstance(binding, Mapping)
+                or str(binding.get("sha256", "")) != digest
+                or int(binding.get("size_bytes", -1)) != expected_size
+                or str(binding.get("role", "")) != "INPUT_LUT"):
+            raise StorageIntegrityError("frozen LUT input is not listed in admitted staging identity")
+        input_kind = str(binding.get("input_kind", "frozen_lut"))
+        with self._locked() as data:
+            existing = data["artifacts"].get(relative)
+            if existing is not None:
+                if (existing.get("role") != "INPUT_LUT"
+                        or existing.get("campaign_id") != self.campaign_id
+                        or existing.get("relative_path") != relative
+                        or existing.get("trajectory") is not None
+                        or existing.get("pulse") is not None
+                        or existing.get("attempt") != 0
+                        or existing.get("sha256") != digest
+                        or existing.get("identity") != current
+                        or existing.get("external_preexisting") is not True
+                        or existing.get("reclaimable") is not False
+                        or existing.get("admission_hash") != admission_hash
+                        or existing.get("metadata") != {"input_kind": input_kind}):
+                    raise StorageIntegrityError("frozen LUT input ownership changed")
+                return dict(existing)
+            item = {
+                "campaign_id": self.campaign_id, "trajectory": None, "pulse": None,
+                "attempt": 0, "role": "INPUT_LUT", "relative_path": relative,
+                "identity": current, "sha256": digest, "expected_sha256": digest,
+                "external_preexisting": True, "reclaimable": False,
+                "admission_hash": admission_hash,
+                "metadata": {"input_kind": input_kind},
+                "provenance": {
+                    "st_dev": int(provenance["st_dev"]), "st_ino": int(provenance["st_ino"]),
+                    "mtime_ns": int(provenance["mtime_ns"]),
+                },
+                "registered_utc": _utc(),
+            }
+            data["artifacts"][relative] = item
+            data["events"].append({"event": "PREEXISTING_LUT_INPUT_BIND", "path": relative,
+                                   "sha256": digest, "timestamp_utc": _utc()})
+            return dict(item)
+
     def set_reclaimable(self, paths: Sequence[str | Path], *, value: bool = True) -> list[str]:
         """Set retention only for artifacts already owned by completed formal intents."""
         changed: list[str] = []
@@ -2533,6 +2645,7 @@ class StorageBudget:
             return (self.actual_bytes() + self.external_prefix_bytes
                     + self.external_canonical_source_bytes)
         total = self.external_prefix_bytes + self.external_canonical_source_bytes
+        total += self.frozen_lut_input_bytes
         for relative, item in self.artifacts().items():
             if (str(item.get("role", "")).startswith("final")
                     or str(relative).endswith("/final_optical_field.npy")):
@@ -3401,18 +3514,20 @@ class StorageBudget:
                 final_bytes = (used + self.external_prefix_bytes
                                + self.external_canonical_source_bytes)
             else:
-                final_bytes = self.external_prefix_bytes + self.external_canonical_source_bytes + sum(
+                final_bytes = (self.external_prefix_bytes + self.external_canonical_source_bytes
+                               + self.frozen_lut_input_bytes + sum(
                     int((self.root / relative).stat().st_size)
                     for relative, item in data.get("artifacts", {}).items()
                     if ((str(item.get("role", "")).startswith("final")
                          or str(relative).endswith("/final_optical_field.npy"))
-                        and (self.root / relative).is_file())
-                )
+                        and (self.root / relative).is_file())))
             return {
                 "schema": STORAGE_SCHEMA,
                 "campaign_id": self.campaign_id,
                 "actual_bytes": used,
                 "external_prefix_bytes": self.external_prefix_bytes,
+                **({"frozen_lut_input_bytes": self.frozen_lut_input_bytes}
+                   if self.frozen_lut_input_bytes else {}),
                 "external_canonical_source_bytes": self.external_canonical_source_bytes,
                 "external_canonical_source_identity": self.external_canonical_source_identity,
                 "external_full_source_bytes": self.external_full_source_bytes,

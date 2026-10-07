@@ -832,7 +832,8 @@ def test_r09_formal_terminal_requires_inventory_contract(tmp_path):
 def _local_production_spec(tmp_path, *, campaign_id="local-production", n_pulses=1, k=8,
                              candidate_hydro_workers=1, max_campaign_live_bytes=300*1024**3,
                              final_output_budget_bytes=64*1024**3,
-                             safety_margin_bytes=1024**2, canonical_source=False):
+                             safety_margin_bytes=1024**2, canonical_source=False,
+                             science_child_timeout_s=900):
     from KHz_filament.hr4e5_evidence import sha256_file
     from KHz_filament.hr4e5_production import E5AProductionSpec, _source_hash
 
@@ -875,7 +876,768 @@ def _local_production_spec(tmp_path, *, campaign_id="local-production", n_pulses
         candidate_hydro_workers=candidate_hydro_workers,
         max_campaign_live_bytes=max_campaign_live_bytes,
         final_output_budget_bytes=final_output_budget_bytes,
-        safety_margin_bytes=safety_margin_bytes)
+        safety_margin_bytes=safety_margin_bytes,
+        science_child_timeout_s=science_child_timeout_s)
+
+
+def _bare_e5a_spec(**overrides):
+    from KHz_filament.hr4e5_production import E5AProductionSpec
+
+    values = {
+        "root": "unused-campaign", "campaign_id": "timeout-test", "config_path": "config.json",
+        "source_manifest_path": "source.json", "lut_manifest_path": "lut.json",
+        "pre0_delta_n_path": "pre0.npy",
+    }
+    values.update(overrides)
+    return E5AProductionSpec(**values)
+
+
+def test_e5a_science_child_timeout_default_is_admitted(tmp_path):
+    from KHz_filament.hr4e5_production import _build_admission
+
+    spec = _local_production_spec(tmp_path)
+    assert spec.science_child_timeout_s == 900
+    identity, _schedule, _components = _build_admission(spec)
+    assert identity["runtime_or_compatibility"]["science_child_timeout_s"] == 900
+
+
+@pytest.mark.parametrize("timeout_s", [0, -1, True, None, 1.5, float("nan"), float("inf"), "7200"])
+def test_e5a_science_child_timeout_requires_positive_integral(timeout_s):
+    with pytest.raises(ValueError, match="science_child_timeout_s must be a positive integer"):
+        _bare_e5a_spec(science_child_timeout_s=timeout_s)
+
+
+def test_e5a_science_child_timeout_override_reaches_reference_candidate_and_hydro(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    import KHz_filament.hr4e5_production as production
+
+    spec = _bare_e5a_spec(
+        root=tmp_path / "campaign", n_pulses=5, reference_subprocess=True,
+        science_child_timeout_s=7200,
+    )
+    runner = production._E5AProductionRunner.__new__(production._E5AProductionRunner)
+    runner.spec = spec
+    runner.root = Path(spec.root)
+    runner.identity = {"campaign_id": spec.campaign_id}
+    runner.driver = SimpleNamespace(campaign=SimpleNamespace(active_coordinator_epoch=lambda: "0"))
+    runner.require_gpu_backend = False
+    launched = []
+
+    class SuccessfulChild:
+        def __init__(self, command, **kwargs):
+            self.command = list(command)
+            self.pid = 5100 + len(launched)
+            self.returncode = None
+            self.wait_timeouts = []
+            launched.append(self)
+
+        def wait(self, timeout=None):
+            self.wait_timeouts.append(timeout)
+            spec_json = json.loads(self.command[self.command.index("--spec-json") + 1])
+            pulse = int(self.command[self.command.index("--pulse") + 1])
+            trajectory = self.command[self.command.index("--trajectory") + 1]
+            result_path = Path(self.command[self.command.index("--result-path") + 1])
+            assert spec_json["science_child_timeout_s"] == 7200
+            result_path.write_text(json.dumps({
+                "schema": "khz_filament.hr4e5.reference_process_result.v1",
+                "campaign_id": spec.campaign_id, "trajectory": trajectory, "pulse": pulse,
+                "coordinator_epoch": "0", "process_identity": {"pid": self.pid},
+                "parent_pid": os.getpid(), "result": {"trajectory": trajectory, "pulse": pulse},
+            }), encoding="utf-8")
+            self.returncode = 0
+            return 0
+
+        def poll(self):
+            return self.returncode
+
+    monkeypatch.setattr(production.subprocess, "Popen", SuccessfulChild)
+    assert runner.run_reference(0) == {"trajectory": "R", "pulse": 0}
+    assert runner.run_candidate(4) == {"trajectory": "C", "pulse": 4}
+    assert [child.wait_timeouts for child in launched] == [[7200], [7200]]
+
+    class ImmediateWaiter:
+        def __init__(self):
+            self.returncode = 0
+            self.wait_timeouts = []
+
+        def wait(self, timeout=None):
+            self.wait_timeouts.append(timeout)
+            return self.returncode
+
+    hydro = ImmediateWaiter()
+    runner._join_hydro_workers([hydro])
+    assert hydro.wait_timeouts == [7200]
+
+    optical = ImmediateWaiter()
+    runner._wait_science_child(optical, role="Candidate optical worker")
+    assert optical.wait_timeouts == [7200]
+
+    class RunningHydro:
+        pid = 7207
+
+        def poll(self): return None
+
+    clock_values = iter([20.0, 7220.0])
+    monkeypatch.setattr(production.time, "monotonic", lambda: next(clock_values))
+    monkeypatch.setattr(production.time, "sleep", lambda _seconds: None)
+    with pytest.raises(TimeoutError, match="Candidate hydro workers exceeded 7200 seconds"):
+        runner._wait_for_candidate_hydro_workers(
+            [RunningHydro()], optical_process=None, optical_stderr_path=None,
+        )
+
+
+def test_e5a_science_child_timeout_kills_reaps_and_keeps_logs(tmp_path, monkeypatch):
+    import KHz_filament.hr4e5_production as production
+
+    spec = _bare_e5a_spec(
+        root=tmp_path / "campaign", reference_subprocess=True,
+        science_child_timeout_s=7200,
+    )
+    runner = production._E5AProductionRunner.__new__(production._E5AProductionRunner)
+    runner.spec = spec
+    runner.root = Path(spec.root)
+    runner.identity = {"campaign_id": spec.campaign_id}
+    runner.driver = type("Driver", (), {"campaign": type("Campaign", (), {
+        "active_coordinator_epoch": lambda _self: "0",
+    })()})()
+    runner.require_gpu_backend = False
+    launched = []
+
+    class TimedOutChild:
+        def __init__(self, command, **kwargs):
+            self.command = list(command)
+            self.pid = 6200
+            self.returncode = None
+            self.wait_timeouts = []
+            self.killed = False
+            self.reaped = False
+            kwargs["stdout"].write("stdout remains durable\n")
+            kwargs["stderr"].write("stderr remains durable\n")
+            launched.append(self)
+
+        def wait(self, timeout=None):
+            self.wait_timeouts.append(timeout)
+            if timeout is not None:
+                raise subprocess.TimeoutExpired(self.command, timeout)
+            self.reaped = True
+            self.returncode = -9
+            return self.returncode
+
+        def kill(self): self.killed = True
+
+    monkeypatch.setattr(production.subprocess, "Popen", TimedOutChild)
+    with pytest.raises(TimeoutError, match="R subprocess exceeded 7200 seconds"):
+        runner.run_reference(0)
+    child = launched[0]
+    assert child.wait_timeouts == [7200, None] and child.killed and child.reaped
+    audit = tmp_path / "campaign_reference_process_audit" / "p0" / "epoch_0"
+    assert (audit / "R.stdout.txt").read_text(encoding="utf-8") == "stdout remains durable\n"
+    assert (audit / "R.stderr.txt").read_text(encoding="utf-8") == "stderr remains durable\n"
+
+
+def test_e5a_hydro_join_timeout_kills_and_reaps_child():
+    spec = _bare_e5a_spec(science_child_timeout_s=7200)
+    from KHz_filament.hr4e5_production import _E5AProductionRunner
+
+    runner = _E5AProductionRunner.__new__(_E5AProductionRunner)
+    runner.spec = spec
+
+    class TimedOutHydro:
+        pid = 42
+        returncode = None
+
+        def __init__(self):
+            self.wait_timeouts = []
+            self.killed = False
+            self.reaped = False
+
+        def wait(self, timeout=None):
+            self.wait_timeouts.append(timeout)
+            if timeout is not None:
+                raise subprocess.TimeoutExpired("hydro", timeout)
+            self.returncode = -9
+            self.reaped = True
+            return self.returncode
+
+        def kill(self): self.killed = True
+
+    hydro = TimedOutHydro()
+    with pytest.raises(RuntimeError, match="hydro worker timeout after 7200 seconds"):
+        runner._join_hydro_workers([hydro])
+    assert hydro.wait_timeouts == [7200, None] and hydro.killed and hydro.reaped
+
+
+def test_e5a_candidate_hydro_poll_timeout_runs_bounded_kill_reap(monkeypatch):
+    import KHz_filament.hr4e5_production as production
+
+    runner = production._E5AProductionRunner.__new__(production._E5AProductionRunner)
+    runner.spec = _bare_e5a_spec(science_child_timeout_s=1)
+
+    class PendingHydro:
+        pid = 771
+        returncode = None
+
+        def __init__(self):
+            self.terminated = False
+            self.killed = False
+            self.reaped = False
+            self.wait_timeouts = []
+
+        def poll(self):
+            return self.returncode
+
+        def terminate(self):
+            self.terminated = True
+
+        def kill(self):
+            self.killed = True
+
+        def wait(self, timeout=None):
+            self.wait_timeouts.append(timeout)
+            if not self.killed:
+                raise subprocess.TimeoutExpired("hydro", timeout)
+            assert timeout == 5
+            self.reaped = True
+            self.returncode = -9
+            return self.returncode
+
+    worker = PendingHydro()
+    clock_values = iter([0.0, 1.0, 20.0, 21.0, 22.0])
+    monkeypatch.setattr(production.time, "monotonic", lambda: next(clock_values))
+    monkeypatch.setattr(production.time, "sleep", lambda _seconds: None)
+    with pytest.raises(TimeoutError, match=r"pending_pids=\[771\]"):
+        try:
+            runner._wait_for_candidate_hydro_workers(
+                [worker], optical_process=None, optical_stderr_path=None,
+            )
+        finally:
+            # Mirrors the candidate runner's cleanup finally after poll timeout.
+            runner._stop_hydro_workers([worker])
+    assert worker.terminated and worker.killed and worker.reaped
+    assert worker.wait_timeouts[-1] == 5
+
+
+def test_e5a_hydro_stop_reports_unreaped_pids_after_all_attempts(monkeypatch):
+    import KHz_filament.hr4e5_production as production
+
+    runner = production._E5AProductionRunner.__new__(production._E5AProductionRunner)
+
+    class HydroWorker:
+        def __init__(self, pid, *, fail_reap=False):
+            self.pid = pid
+            self.fail_reap = fail_reap
+            self.returncode = None
+            self.terminated = False
+            self.killed = False
+            self.reaped = False
+            self.wait_timeouts = []
+
+        def poll(self):
+            return self.returncode
+
+        def terminate(self):
+            self.terminated = True
+
+        def kill(self):
+            self.killed = True
+
+        def wait(self, timeout=None):
+            self.wait_timeouts.append(timeout)
+            if timeout == 5 and not self.fail_reap:
+                self.returncode = -9
+                self.reaped = True
+                return self.returncode
+            raise subprocess.TimeoutExpired("hydro", timeout)
+
+    stuck, reaped = HydroWorker(772, fail_reap=True), HydroWorker(773)
+    clock_values = iter([100.0, 101.0, 102.0, 103.0, 104.0])
+    monkeypatch.setattr(production.time, "monotonic", lambda: next(clock_values))
+    with pytest.raises(RuntimeError, match=r"pending pids=\[772\].*5 seconds"):
+        runner._stop_hydro_workers([stuck, reaped])
+    assert stuck.terminated and stuck.killed and stuck.wait_timeouts[-1] == 5
+    assert reaped.terminated and reaped.killed and reaped.reaped
+    assert reaped.wait_timeouts[-1] == 5
+
+
+def test_candidate_cleanup_continues_after_hydro_reap_failure(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    import KHz_filament.hr4e5_production as production
+
+    runner = production._E5AProductionRunner.__new__(production._E5AProductionRunner)
+    state, output = tmp_path / "state", tmp_path / "output"
+    lifecycle = SimpleNamespace(manifest={"current_generation": "generation-0"})
+    monkeypatch.setattr(production.StreamingLifecycle, "open", lambda _state: lifecycle)
+    grant_ids = iter(["optical-grant", "hydro-grant"])
+    grants = {}
+    interrupt_calls = []
+    close_calls = []
+    children = []
+
+    def create_grant(**_kwargs):
+        grant_id = next(grant_ids)
+        grants[grant_id] = {"state": "BOUND_ACTIVE"}
+        return {"grant_id": grant_id, "nonce": "grant-nonce"}
+
+    class MockChild:
+        def __init__(self, pid, *, optical=False):
+            self.pid = pid
+            self.optical = optical
+            self.returncode = None
+            self.terminated = False
+            self.killed = False
+            self.reaped = False
+            self.wait_timeouts = []
+
+        def poll(self):
+            return self.returncode
+
+        def terminate(self):
+            self.terminated = True
+
+        def kill(self):
+            self.killed = True
+
+        def wait(self, timeout=None):
+            self.wait_timeouts.append(timeout)
+            if self.optical and timeout == 10:
+                raise subprocess.TimeoutExpired("optical", timeout)
+            assert self.optical and self.killed and timeout is None
+            self.reaped = True
+            self.returncode = -9
+            return self.returncode
+
+    def start_child(_command, *, grant_id, **_kwargs):
+        child = MockChild(880 if grant_id == "hydro-grant" else 881,
+                          optical=grant_id == "optical-grant")
+        children.append(child)
+        return child, tmp_path / f"{grant_id}.stderr"
+
+    def poll_timeout(*_args, **_kwargs):
+        raise TimeoutError("candidate science poll timeout pending_pids=[880]")
+
+    def hydro_cleanup_failure(_processes):
+        raise RuntimeError("hydro reap failure")
+
+    runner.spec = SimpleNamespace(
+        candidate_hydro_workers=1, config_path=tmp_path / "config.json",
+    )
+    runner.components = (object(),)
+    runner.root = tmp_path
+    runner.schedule = SimpleNamespace(n_intervals=8)
+    budget = SimpleNamespace(
+        create_child_writer_grant=create_grant,
+        writer_grants=lambda: grants,
+        interrupt_intent=lambda intent_id, *, reason: interrupt_calls.append((intent_id, reason)),
+    )
+    runner.driver = SimpleNamespace(campaign=SimpleNamespace(
+        active_coordinator_epoch=lambda: "0",
+        _pair=lambda _pulse: {"scientific_pair_identity": {"scientific_pair_id": "pair-0"}},
+        storage=budget,
+    ))
+    runner.identity = {"identity_sha256": "a" * 64}
+    runner.implementation_identity = {"identity_sha256": "b" * 64}
+    runner.require_gpu_backend = False
+    runner._hydro_worker_command = lambda *_args, **_kwargs: ["hydro-child"]
+    runner._start_logged_child = start_child
+    runner._wait_for_candidate_hydro_workers = poll_timeout
+    runner._stop_hydro_workers = hydro_cleanup_failure
+    runner._close_writer = lambda writer, *, failed: close_calls.append((writer, failed))
+    original_reason = "candidate science poll timeout pending_pids=[880]"
+
+    with pytest.raises(RuntimeError, match="hydro reap failure") as error_info:
+        runner._run_candidate_multipulse(
+            state=state, output=output, pulse=0,
+            reservation=SimpleNamespace(reservation_id="reservation-0"),
+            intent={"intent_id": "intent-0", "expected_bytes": 1, "initial_files": {}},
+            writer={"writer_id": "writer-0"},
+        )
+
+    assert isinstance(error_info.value.__context__, TimeoutError)
+    assert str(error_info.value.__context__) == original_reason
+    optical = next(child for child in children if child.optical)
+    assert optical.terminated and optical.killed and optical.reaped
+    assert optical.wait_timeouts == [10, None]
+    assert interrupt_calls == [("intent-0", original_reason)]
+    assert close_calls == [({"writer_id": "writer-0"}, error_info.value.__context__)]
+
+
+def _frozen_lut_test_config(*, n_pulses=1):
+    return {
+        "grid": {"Nx": 2, "Ny": 2, "Nt": 8, "Lx": 8e-4, "Ly": 8e-4, "Twin": 80e-15},
+        "beam": {"lam0": 800e-9, "n0": 1.00027, "w0": 1.5e-4,
+                 "tau_fwhm": 40e-15, "energy_J": 1e-10, "focal_length": None},
+        "propagation": {"z_max": 1.3, "dz": 1e-4, "dz_focus": 5e-5,
+            "focus_window_step": True, "focus_center_m": 0.95, "focus_halfwidth_m": 0.1,
+            "limit_focus_window": False, "window_halfwidth_m": 0.35,
+            "linear_model": "paraxial", "auto_substep": False,
+            "progress_every_z": 0, "energy_probe_every": 0, "diag_extra": False,
+            "use_electronic_kerr": False, "use_raman_phase": False,
+            "use_raman_absorption": False, "use_plasma_phase": False,
+            "use_ionization_loss": True, "use_ionization_solver": True},
+        "ionization": {
+            "species": [
+                {"name": "N2", "rate": "ppt_talebpour_i_lut", "fraction": 0.78,
+                 "Ip_eV": 15.576, "Zeff": 0.9, "l": 1, "m": 0},
+                {"name": "O2", "rate": "ppt_talebpour_i_lut", "fraction": 0.22,
+                 "Ip_eV_eff": 12.55, "Zeff": 0.53, "l": 1, "m": 1},
+            ],
+            "rate_table": {"enabled": True, "reuse_cache": True, "force_rebuild": False,
+                "cache_dir": "cache/rate_tables", "I_min_SI": 1e8, "I_max_SI": 1e12,
+                "n_samples": 3, "spacing": "log", "interp_mode": "loglog",
+                "popruzhenko_max_terms": 256, "popruzhenko_sum_tol": 1e-6,
+                "ref_cycle_avg_samples": 64},
+        },
+        "heat": {"hr3b_enabled": True, "f_rep": 5e6, "dt_hydro": 1e-7,
+                 "chi": 2.17e-5, "D_th": 2.17e-5, "nu": 1.5e-5,
+                 "gravity_x": 0.0, "gravity_y": -9.81},
+        "run": {"Npulses": int(n_pulses)},
+        "raman": {"enabled": False, "absorption": False},
+    }
+
+
+def _write_frozen_lut_test_inputs(tmp_path, *, config_path=None, n_pulses=1):
+    from KHz_filament.constants import c0
+    from KHz_filament.confio import load_all
+    from KHz_filament.hr4e5_evidence import sha256_file
+    from KHz_filament.ionization.lut import (
+        _canonical_table_metadata, _ion_rate_table_defaults, _table_path, _table_signature,
+    )
+
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    config = Path(config_path) if config_path is not None else tmp_path / "execution.json"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    if not config.exists():
+        config.write_text(json.dumps(_frozen_lut_test_config(n_pulses=n_pulses)), encoding="utf-8")
+    _grid, beam, _prop, ion, _heat, _run, _raman = load_all(str(config))
+    table_cfg = _ion_rate_table_defaults(ion)
+    authority = tmp_path / "frozen_authority"
+    authority.mkdir(parents=True, exist_ok=True)
+    files = []
+    signatures = {}
+    for raw_species in ion.species:
+        species = dict(raw_species)
+        species_name = str(species["name"])
+        model = str(species.get("reference_model") or "ppt_talebpour_i_full_reference").lower()
+        metadata = _canonical_table_metadata(
+            model, species_name, species, 2.0 * np.pi * c0 / float(beam.lam0), float(beam.n0), table_cfg,
+        )
+        signature = _table_signature(metadata)
+        relative = _table_path("cache/rate_tables", species_name, signature).replace("\\", "/")
+        path = authority / Path(relative).name
+        I_grid = np.logspace(np.log10(table_cfg["I_min_SI"]),
+                             np.log10(table_cfg["I_max_SI"]), table_cfg["n_samples"]).astype(np.float64)
+        W_grid = np.arange(1, table_cfg["n_samples"] + 1, dtype=np.float64)
+        np.savez_compressed(
+            path, I_grid=I_grid, W_grid=W_grid,
+            metadata_json=json.dumps(metadata, sort_keys=True, ensure_ascii=False),
+            model_name=model, species_name=species_name, build_timestamp="frozen-test",
+            schema_version=metadata["schema_version"], validation_json="{}",
+        )
+        signatures[species_name] = signature
+        files.append({"path": str(path), "size_bytes": path.stat().st_size,
+                      "raw_sha256": sha256_file(path),
+                      "array_names": ["I_grid", "W_grid", "metadata_json", "model_name",
+                                      "species_name", "build_timestamp", "schema_version",
+                                      "validation_json"]})
+    rate_fields = (
+        "enabled", "reuse_cache", "force_rebuild", "I_min_SI", "I_max_SI", "n_samples",
+        "spacing", "interp_mode", "popruzhenko_max_terms", "popruzhenko_sum_tol",
+        "ref_cycle_avg_samples",
+    )
+    manifest = {
+        "schema": "khz_filament.hr4e5.e5_1b.formal_lut.v1", "mode": "RATE_TABLE",
+        "config_path": str(config.resolve()), "config_sha256": sha256_file(config),
+        "signature": signatures,
+        "rate_table": {name: table_cfg[name] for name in rate_fields},
+        "files": files,
+    }
+    manifest_path = tmp_path / "frozen_lut_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+    return config, manifest_path
+
+
+def _frozen_lut_base_identity(manifest_path):
+    from KHz_filament.hr4e5_evidence import sha256_file
+
+    manifest_path = Path(manifest_path)
+    return {"path": str(manifest_path.resolve()), "sha256": sha256_file(manifest_path),
+            **json.loads(manifest_path.read_text(encoding="utf-8"))}
+
+
+def test_frozen_lut_staging_primes_only_validated_cache_hit_and_budgets_receipt(tmp_path, monkeypatch):
+    from KHz_filament.hr4e5_evidence import sha256_file
+    from KHz_filament.hr4e5_production import (
+        stage_frozen_lut_inputs, validate_staged_frozen_lut_cache_hit,
+    )
+    from KHz_filament.ionization import lut
+    from KHz_filament.ionization.common import _ION_LUT_MEMORY_CACHE
+    from KHz_filament.confio import load_all
+    from KHz_filament.ionization.lut import _ion_rate_table_defaults, prepare_ionization_lut_for_species
+
+    config, manifest = _write_frozen_lut_test_inputs(tmp_path / "inputs", n_pulses=5)
+    root = tmp_path / "campaign"
+    result = stage_frozen_lut_inputs(config, manifest, root)
+    receipt = root / "cache" / "N5_LUT_STAGING_RECEIPT.json"
+    assert Path(result["receipt_path"]) == receipt
+    assert result["staged_file_bytes"] == sum(
+        row["size_bytes"] for row in json.loads(manifest.read_text(encoding="utf-8"))["files"]
+    )
+    assert result["frozen_lut_input_bytes"] == result["staged_file_bytes"] + receipt.stat().st_size
+    assert result["receipt_sha256"] == sha256_file(receipt)
+    assert len(list((root / "cache" / "rate_tables").glob("*.npz"))) == 2
+
+    table_dir = root / "cache" / "rate_tables"
+
+    def npz_inventory():
+        return {
+            path.relative_to(root).as_posix(): (path.stat().st_size, sha256_file(path))
+            for path in sorted(table_dir.glob("*.npz"))
+        }
+
+    inventory_before = npz_inventory()
+    _ION_LUT_MEMORY_CACHE.clear()
+    monkeypatch.chdir(root)
+    monkeypatch.setattr(lut, "build_rate_table", lambda *args, **kwargs: pytest.fail("LUT rebuild attempted"))
+    verified = validate_staged_frozen_lut_cache_hit(
+        config, root, lut_identity={**_frozen_lut_base_identity(manifest),
+                                    "staging": result["portable_identity"]},
+        require_campaign_cwd=True,
+    )
+    assert verified["portable_identity"] == result["portable_identity"]
+    assert all(record["role"] == "INPUT_LUT" for record in verified["registered_inputs"])
+    _grid, _beam, _prop, ion, _heat, _run, _raman = load_all(str(config))
+    cfg = _ion_rate_table_defaults(ion)
+    for species in ion.species:
+        table = prepare_ionization_lut_for_species(dict(species), 2.0 * np.pi * 2.99792458e8 / 800e-9,
+                                                   1.00027, cfg)
+        assert table["species_name"] == species["name"]
+    assert len(_ION_LUT_MEMORY_CACHE) >= 2
+    assert npz_inventory() == inventory_before
+
+
+def test_frozen_lut_stage_rejects_cache_alias_before_external_mkdir(tmp_path, monkeypatch):
+    import KHz_filament.hr4e5_production as production
+
+    config, manifest = _write_frozen_lut_test_inputs(tmp_path / "inputs", n_pulses=5)
+    root = tmp_path / "campaign"
+    cache_alias = root / "cache"
+    table_dir = cache_alias / "rate_tables"
+    external_table_dir = tmp_path / "aliased_external_cache" / "rate_tables"
+    original_is_reparse = production._is_reparse
+    real_mkdir = Path.mkdir
+    attempted_alias_mkdir = []
+
+    def synthetic_reparse(path):
+        if Path(path) == cache_alias:
+            return True
+        return original_is_reparse(path)
+
+    def alias_aware_mkdir(path, mode=0o777, parents=False, exist_ok=False):
+        if Path(path) == table_dir:
+            attempted_alias_mkdir.append(Path(path))
+            external_table_dir.mkdir(mode=mode, parents=parents, exist_ok=exist_ok)
+            return None
+        return real_mkdir(path, mode=mode, parents=parents, exist_ok=exist_ok)
+
+    monkeypatch.setattr(production, "_is_reparse", synthetic_reparse)
+    monkeypatch.setattr(Path, "mkdir", alias_aware_mkdir)
+    with pytest.raises(RuntimeError, match="symlink or reparse point"):
+        production.stage_frozen_lut_inputs(config, manifest, root)
+    assert attempted_alias_mkdir == []
+    assert not external_table_dir.exists()
+    assert not table_dir.exists()
+
+
+@pytest.mark.parametrize("mutation", [
+    "missing_receipt", "missing_table", "extra_npz", "changed_table", "bad_metadata",
+    "bad_signature", "wrong_cache_dir",
+])
+def test_frozen_lut_guard_fails_closed_on_staging_mutations(tmp_path, mutation):
+    from KHz_filament.hr4e5_evidence import sha256_file
+    from KHz_filament.hr4e5_production import (
+        stage_frozen_lut_inputs, validate_staged_frozen_lut_cache_hit,
+    )
+
+    config, manifest = _write_frozen_lut_test_inputs(tmp_path / "inputs", n_pulses=5)
+    root = tmp_path / "campaign"
+    result = stage_frozen_lut_inputs(config, manifest, root)
+    identity = {**_frozen_lut_base_identity(manifest), "staging": result["portable_identity"]}
+    receipt = root / "cache" / "N5_LUT_STAGING_RECEIPT.json"
+    if mutation == "missing_receipt":
+        receipt.unlink()
+    elif mutation == "missing_table":
+        next((root / "cache" / "rate_tables").glob("*.npz")).unlink()
+    elif mutation == "extra_npz":
+        (root / "cache" / "rate_tables" / "extra.npz").write_bytes(b"extra")
+    elif mutation == "changed_table":
+        target = next((root / "cache" / "rate_tables").glob("*.npz"))
+        with target.open("ab") as handle:
+            handle.write(b"changed")
+    elif mutation == "bad_metadata":
+        manifest_value = json.loads(manifest.read_text(encoding="utf-8"))
+        authority_row = manifest_value["files"][0]
+        authority_path = Path(authority_row["path"])
+        with np.load(authority_path, allow_pickle=False) as archive:
+            arrays = {name: np.array(archive[name], copy=True) for name in archive.files}
+        metadata = json.loads(str(arrays["metadata_json"].item()))
+        metadata["n_samples"] += 1
+        arrays["metadata_json"] = np.asarray(json.dumps(metadata, sort_keys=True, ensure_ascii=False))
+        np.savez_compressed(authority_path, **arrays)
+        authority_row["size_bytes"] = authority_path.stat().st_size
+        authority_row["raw_sha256"] = sha256_file(authority_path)
+        manifest.write_text(json.dumps(manifest_value, sort_keys=True), encoding="utf-8")
+        identity = _frozen_lut_base_identity(manifest)
+        with pytest.raises(RuntimeError, match="frozen LUT metadata differs"):
+            validate_staged_frozen_lut_cache_hit(config, root, lut_identity=identity)
+        return
+    else:
+        manifest_value = json.loads(manifest.read_text(encoding="utf-8"))
+        if mutation == "bad_signature":
+            manifest_value["signature"]["N2"] = "0" * 64
+        else:
+            config_value = json.loads(config.read_text(encoding="utf-8"))
+            config_value["ionization"]["rate_table"]["cache_dir"] = "cache/other"
+            config.write_text(json.dumps(config_value), encoding="utf-8")
+            manifest_value["config_sha256"] = sha256_file(config)
+        manifest.write_text(json.dumps(manifest_value), encoding="utf-8")
+        identity = _frozen_lut_base_identity(manifest)
+    with pytest.raises((RuntimeError, OSError)):
+        validate_staged_frozen_lut_cache_hit(config, root, lut_identity=identity)
+
+
+def test_frozen_lut_storage_registration_is_immutable_idempotent_and_admission_bound(tmp_path):
+    from KHz_filament.hr4e5_production import stage_frozen_lut_inputs
+    from KHz_filament.hr4e5_storage import StorageBudget
+
+    config, manifest = _write_frozen_lut_test_inputs(tmp_path / "inputs", n_pulses=5)
+    root = tmp_path / "campaign"
+    staged = stage_frozen_lut_inputs(config, manifest, root)
+    identity = {
+        "identity_sha256": "a" * 64, "campaign_id": "frozen-lut-registration-test",
+        "lut_identity": {**_frozen_lut_base_identity(manifest),
+                         "staging": staged["portable_identity"]},
+        "budget_identity": {"frozen_lut_input_bytes": staged["frozen_lut_input_bytes"],
+                            "final_output_bytes": 0},
+    }
+    ledger = StorageBudget(root, cap_bytes=1024**3, final_output_budget_bytes=1024**2,
+        safety_margin_bytes=1024, provider=None, require_quota=False,
+        campaign_id=identity["campaign_id"], admission_identity=identity)
+    for item in staged["registered_inputs"]:
+        path = root / item["path"]
+        first = ledger.register_preexisting_frozen_lut(
+            path, expected_sha256=item["sha256"], expected_size_bytes=item["size_bytes"],
+            admission_identity_sha256=identity["identity_sha256"],
+        )
+        stat_result = path.stat()
+        os.utime(path, ns=(stat_result.st_atime_ns, stat_result.st_mtime_ns + 1_000_000_000))
+        again = ledger.register_preexisting_frozen_lut(
+            path, expected_sha256=item["sha256"], expected_size_bytes=item["size_bytes"],
+            admission_identity_sha256=identity["identity_sha256"],
+        )
+        assert first == again
+        assert again["role"] == "INPUT_LUT" and again["reclaimable"] is False
+        assert again["admission_hash"] == identity["identity_sha256"]
+    with pytest.raises(RuntimeError, match="admission binding"):
+        ledger.register_preexisting_frozen_lut(
+            root / staged["registered_inputs"][0]["path"],
+            expected_sha256=staged["registered_inputs"][0]["sha256"],
+            expected_size_bytes=staged["registered_inputs"][0]["size_bytes"],
+            admission_identity_sha256="b" * 64,
+        )
+
+
+def test_formal_n5_admission_accepts_frozen_lut_without_propagation(tmp_path, monkeypatch):
+    import KHz_filament.hr4e5_production as production
+    from KHz_filament.hr4e5_canonical_source import (
+        CANONICAL_SOURCE_HASH_SCOPE, CANONICAL_SOURCE_MANIFEST_SCHEMA,
+    )
+    from KHz_filament.hr4e5_evidence import sha256_file
+    from KHz_filament.hr4e5_production import (
+        E5AProductionSpec, FORMAL_SITE_ADMISSION,
+        derive_e5_1b_execution_config, stage_frozen_lut_inputs,
+    )
+
+    capacity_root = tmp_path / "qualified-capacity"
+    input_dir = capacity_root / "inputs"
+    input_dir.mkdir(parents=True)
+    full_config = input_dir / "full_n1.json"
+    full_config.write_text(json.dumps(_frozen_lut_test_config(n_pulses=1)), encoding="utf-8")
+    config = input_dir / "execution_n5.json"
+    derive_e5_1b_execution_config(full_config, config, n_pulses=5)
+    _config, lut_manifest = _write_frozen_lut_test_inputs(input_dir, config_path=config)
+    campaign_root = capacity_root / "campaign"
+    campaign_root.mkdir()
+    pre0 = campaign_root / "pre0.npy"
+    pre0.write_bytes(b"test-only mocked PRE0")
+    staged = stage_frozen_lut_inputs(config, lut_manifest, campaign_root)
+
+    slow_manifest = input_dir / "slow_source.json"
+    slow_manifest.write_text("{}", encoding="utf-8")
+    full_slow = input_dir / "full_delta_n.npy"
+    full_slow.write_bytes(b"test-only mocked full slow source")
+    source_manifest = input_dir / "source.json"
+    canonical_artifact = input_dir / "canonical_source.npy"
+    canonical_artifact.write_bytes(b"test-only canonical artifact")
+    canonical_seal = input_dir / "canonical_source.seal.json"
+    canonical_seal.write_text("{}", encoding="utf-8")
+    canonical_hash = "c" * 64
+    source_manifest.write_text(json.dumps({
+        "schema": CANONICAL_SOURCE_MANIFEST_SCHEMA,
+        "hash_scope": CANONICAL_SOURCE_HASH_SCOPE,
+        "canonical_source_artifact_path": str(canonical_artifact),
+        "canonical_source_sealed_manifest_path": str(canonical_seal),
+        "canonical_array_hash": canonical_hash,
+        "canonical_source": {"artifact_path": str(canonical_artifact),
+                             "sealed_manifest_path": str(canonical_seal)},
+    }), encoding="utf-8")
+    site_manifest = input_dir / "site.json"
+    site_manifest.write_text(json.dumps({
+        "scope": "SITE_QUALIFIED_RESOURCE_EVIDENCE", "formal_input_authorized": True,
+        "site_resource_qualified": True, "provenance_qualified": True,
+        "free_bytes": 100 * 1024**3, "quota_bytes": 300 * 1024**3,
+        "capacity_domain": "campaign_filesystem", "capacity_root": str(capacity_root),
+    }), encoding="utf-8")
+
+    monkeypatch.setattr(production, "validate_canonical_source", lambda record, **_kwargs: {
+        **dict(record), "canonical_array_hash": canonical_hash,
+        "file_size_bytes": canonical_artifact.stat().st_size,
+    })
+    monkeypatch.setattr(production, "_slow_prefix_identity", lambda *_args, **_kwargs: {
+        "manifest_path": str(slow_manifest), "manifest_sha256": sha256_file(slow_manifest),
+        "full_source_path": str(full_slow), "full_source_raw_bytes": full_slow.stat().st_size,
+        "full_source_raw_sha256": sha256_file(full_slow), "full_source_array_sha256": "d" * 64,
+        "source_shape": [15000, 2, 2], "source_indices": [0, 14999],
+        "axis_order": ["interval", "y", "x"], "full_edges_array_sha256": "e" * 64,
+        "full_midpoints_array_sha256": "f" * 64, "prefix_path": str(pre0),
+        "prefix_raw_sha256": sha256_file(pre0), "prefix_array_sha256": "1" * 64,
+        "zero_velocity_recipe": "positive_float64_zero", "capacity_domain": "campaign_filesystem",
+    })
+    real_np_load = np.load
+
+    def mock_np_load(path, *args, **kwargs):
+        if Path(path).resolve() == pre0.resolve():
+            return np.zeros((8048, 2, 2), dtype=np.float64)
+        return real_np_load(path, *args, **kwargs)
+
+    monkeypatch.setattr(production.np, "load", mock_np_load)
+    spec = E5AProductionSpec(
+        root=campaign_root, campaign_id="formal-n5-lut-fixture", config_path=config,
+        full_config_path=full_config, source_manifest_path=source_manifest,
+        lut_manifest_path=lut_manifest, pre0_delta_n_path=pre0,
+        slow_source_manifest_path=slow_manifest, site_resource_manifest_path=site_manifest,
+        lut_staging_receipt_path=staged["receipt_path"], prefix_intervals=8048,
+        n_pulses=5, candidate_hydro_workers=1, admission_level=FORMAL_SITE_ADMISSION,
+        max_campaign_live_bytes=300 * 1024**3, final_output_budget_bytes=64 * 1024**3,
+        safety_margin_bytes=1024**2,
+    )
+    identity, schedule, _components = production._build_admission(spec)
+    assert identity["n_pulses"] == 5
+    assert schedule.n_intervals == 8048
+    assert identity["schedule_identity"]["full_metadata"]["n_intervals"] == 15000
+    assert identity["lut_identity"]["staging"]["receipt_sha256"] == staged["receipt_sha256"]
+    assert identity["budget_identity"]["frozen_lut_input_bytes"] == staged["frozen_lut_input_bytes"]
 
 
 def test_production_factory_is_unique_and_n1_real_cpu_path(tmp_path):

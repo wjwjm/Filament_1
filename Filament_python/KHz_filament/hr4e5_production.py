@@ -38,7 +38,7 @@ from .hr4e5_paired_campaign import CAMPAIGN_STATE_FILENAME, _open_production_dri
 from .hr4e5_storage import (DEFAULT_FINAL_OUTPUT_BUDGET_BYTES, DEFAULT_SAFETY_MARGIN_BYTES,
                               HARD_CAP_BYTES, INTENT_SCHEMA, PROCESS_RECEIPT_SCHEMA, RECLAIM_PREREQUISITE_SCHEMA,
                               Reservation, StorageBudgetError, StorageIntegrityError,
-                              _is_reparse, plan_campaign_budget, process_identity)
+    _is_reparse, plan_campaign_budget, process_identity)
 from .longitudinal import build_longitudinal_schedule
 from . import device
 from .hr4e5_canonical_source import (
@@ -70,6 +70,23 @@ _SINK_FILES = {
     "increment": "sinks.hr3b_delta_n_increment_samples.npy",
     "state_after": "sinks.hr3b_delta_n_state_after_update_samples.npy",
 }
+_FROZEN_LUT_MANIFEST_SCHEMA = "khz_filament.hr4e5.e5_1b.formal_lut.v1"
+_FROZEN_LUT_STAGING_RECEIPT_SCHEMA = "khz_filament.hr4e5.e5_1b.lut_staging.v1"
+_FROZEN_LUT_ARRAY_NAMES = [
+    "I_grid", "W_grid", "metadata_json", "model_name", "species_name",
+    "build_timestamp", "schema_version", "validation_json",
+]
+_FROZEN_LUT_RATE_FIELDS = (
+    "enabled", "reuse_cache", "force_rebuild", "I_min_SI", "I_max_SI", "n_samples",
+    "spacing", "interp_mode", "popruzhenko_max_terms", "popruzhenko_sum_tol",
+    "ref_cycle_avg_samples",
+)
+
+
+def _positive_science_child_timeout(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, Integral) or value <= 0:
+        raise ValueError("science_child_timeout_s must be a positive integer")
+    return int(value)
 
 
 @dataclass(frozen=True)
@@ -92,6 +109,12 @@ class E5AProductionSpec:
     max_campaign_live_bytes: int = HARD_CAP_BYTES
     final_output_budget_bytes: int = DEFAULT_FINAL_OUTPUT_BUDGET_BYTES
     safety_margin_bytes: int = DEFAULT_SAFETY_MARGIN_BYTES
+    science_child_timeout_s: int = 900
+    lut_staging_receipt_path: str | Path | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "science_child_timeout_s",
+                           _positive_science_child_timeout(self.science_child_timeout_s))
 
 
 class _LocalPolicyCapacityProvider:
@@ -161,6 +184,491 @@ def _checked_owned_file(root: Path, path: Path, owned: Mapping[str, Any], *, lab
             or _file_identity(path) != owned.get("identity")
             or sha256_file(path) != owned.get("sha256")):
         raise StorageIntegrityError(f"{label} changed or is linked")
+
+
+def _lut_file_provenance(path: Path) -> dict[str, int]:
+    if any(_is_reparse(part) for part in (path, *path.parents)) or not path.is_file():
+        raise StorageIntegrityError(f"frozen LUT file is missing or linked: {path}")
+    stat_result = path.stat()
+    result = {
+        "st_dev": int(getattr(stat_result, "st_dev", -1)),
+        "st_ino": int(getattr(stat_result, "st_ino", -1)),
+        "st_nlink": int(getattr(stat_result, "st_nlink", 1)),
+        "size": int(stat_result.st_size),
+        "mtime_ns": int(getattr(stat_result, "st_mtime_ns", 0)),
+    }
+    for name in ("st_uid", "st_gid"):
+        value = getattr(stat_result, name, None)
+        if value is not None:
+            result[name] = int(value)
+    if result["st_nlink"] != 1:
+        raise StorageIntegrityError(f"frozen LUT file has a hardlink: {path}")
+    effective_uid = getattr(os, "geteuid", None)
+    if (callable(effective_uid) and "st_uid" in result
+            and result["st_uid"] != int(effective_uid())):
+        raise StorageIntegrityError(f"frozen LUT file is not owned by the current user: {path}")
+    return result
+
+
+def _lut_scalar_text(archive: Any, name: str) -> str:
+    value = np.asarray(archive[name])
+    if value.shape != () or value.dtype.kind not in {"U", "S"}:
+        raise StorageIntegrityError(f"frozen LUT NPZ field {name} is not a string scalar")
+    scalar = value.item()
+    return scalar.decode("utf-8") if isinstance(scalar, bytes) else str(scalar)
+
+
+def _inspect_frozen_lut_npz(path: Path, *, expected_metadata: Mapping[str, Any],
+                            expected_species: str, expected_model: str) -> dict[str, Any]:
+    try:
+        with np.load(path, allow_pickle=False) as archive:
+            if set(archive.files) != set(_FROZEN_LUT_ARRAY_NAMES):
+                raise StorageIntegrityError("frozen LUT NPZ fields differ from the authority manifest")
+            metadata = json.loads(_lut_scalar_text(archive, "metadata_json"))
+            validation = json.loads(_lut_scalar_text(archive, "validation_json"))
+            model_name = _lut_scalar_text(archive, "model_name")
+            species_name = _lut_scalar_text(archive, "species_name")
+            build_timestamp = _lut_scalar_text(archive, "build_timestamp")
+            schema_version = _lut_scalar_text(archive, "schema_version")
+            I_grid = np.asarray(archive["I_grid"])
+            W_grid = np.asarray(archive["W_grid"])
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+        if isinstance(error, StorageIntegrityError):
+            raise
+        raise StorageIntegrityError(f"frozen LUT NPZ is unreadable: {path}") from error
+    if (not isinstance(metadata, dict)
+            or not _json_values_equal_with_types(metadata, dict(expected_metadata))
+            or model_name != expected_model or species_name != expected_species
+            or schema_version != str(expected_metadata.get("schema_version", ""))
+            or not isinstance(validation, dict) or not build_timestamp):
+        raise StorageIntegrityError(f"frozen LUT metadata differs for {expected_species}")
+    if (I_grid.dtype != np.dtype(np.float64) or W_grid.dtype != np.dtype(np.float64)
+            or I_grid.ndim != 1 or W_grid.shape != I_grid.shape
+            or I_grid.size != int(expected_metadata["n_samples"])
+            or not np.all(np.isfinite(I_grid)) or not np.all(np.isfinite(W_grid))
+            or np.any(I_grid <= 0.0) or np.any(np.diff(I_grid) <= 0.0)
+            or np.any(W_grid < 0.0)):
+        raise StorageIntegrityError(f"frozen LUT grid or rate array is invalid for {expected_species}")
+    return {
+        "I_grid": I_grid, "W_grid": W_grid, "metadata": metadata,
+        "model_name": model_name, "species_name": species_name,
+        "build_timestamp": build_timestamp, "schema_version": schema_version,
+        "validation": validation,
+    }
+
+
+def _manifest_path_value(raw: Any, *, manifest_path: Path, label: str) -> Path:
+    if not isinstance(raw, str) or not raw:
+        raise StorageIntegrityError(f"frozen LUT manifest lacks {label}")
+    path = Path(raw)
+    if not path.is_absolute():
+        path = manifest_path.parent / path
+    return _checked_input_path(path, label=label)
+
+
+def _frozen_lut_contract(config_path: str | Path, lut_manifest_path: str | Path,
+                         campaign_root: str | Path) -> dict[str, Any]:
+    """Validate the immutable LUT manifest against current config and source files."""
+    from .constants import c0
+    from .ionization.lut import (_canonical_table_metadata, _ion_rate_table_defaults,
+                                 _table_path, _table_signature)
+
+    config = _checked_input_path(config_path, label="execution config")
+    manifest_path = _checked_input_path(lut_manifest_path, label="LUT manifest")
+    root = _checked_campaign_root(campaign_root)
+    manifest = _read_manifest(manifest_path, label="LUT")
+    if (manifest.get("schema") != _FROZEN_LUT_MANIFEST_SCHEMA
+            or manifest.get("mode") != "RATE_TABLE"):
+        raise StorageIntegrityError("formal frozen LUT manifest schema or mode is invalid")
+    manifest_config = _manifest_path_value(
+        manifest.get("config_path"), manifest_path=manifest_path, label="manifest config")
+    if (manifest_config != config
+            or str(manifest.get("config_sha256", "")) != sha256_file(config)):
+        raise StorageIntegrityError("frozen LUT manifest is not bound to the execution config")
+
+    grid, beam, _prop, ion, _heat, _run, _raman = load_all(str(config))
+    table_cfg = _ion_rate_table_defaults(ion)
+    if (table_cfg.get("enabled") is not True or table_cfg.get("reuse_cache") is not True
+            or table_cfg.get("force_rebuild") is not False
+            or str(table_cfg.get("cache_dir", "")) != "cache/rate_tables"):
+        raise StorageIntegrityError("formal frozen LUT config must enable relative cache reuse without rebuild")
+    rate_table = manifest.get("rate_table")
+    expected_rate_table = {name: table_cfg[name] for name in _FROZEN_LUT_RATE_FIELDS}
+    if (not isinstance(rate_table, Mapping)
+            or not _json_values_equal_with_types(dict(rate_table), expected_rate_table)):
+        raise StorageIntegrityError("frozen LUT manifest rate-table configuration differs")
+
+    species_rows = getattr(ion, "species", None)
+    if not isinstance(species_rows, (list, tuple)):
+        raise StorageIntegrityError("formal frozen LUT config lacks a species list")
+    omega0 = 2.0 * np.pi * float(c0) / float(beam.lam0)
+    n0 = float(beam.n0)
+    expected_tables: list[dict[str, Any]] = []
+    for raw_species in species_rows:
+        if not isinstance(raw_species, Mapping):
+            raise StorageIntegrityError("formal LUT species entry is invalid")
+        species = dict(raw_species)
+        rate = str(species.get("rate", "")).lower()
+        if rate not in {"ppt_talebpour_i_lut", "popruzhenko_atom_i_lut"}:
+            continue
+        defaults = {
+            "ppt_talebpour_i_lut": "ppt_talebpour_i_full_reference",
+            "popruzhenko_atom_i_lut": "popruzhenko_atom_i_full_reference",
+        }
+        model = str(species.get("reference_model", "") or defaults[rate]).lower()
+        species_name = str(species.get("name", "species"))
+        metadata = _canonical_table_metadata(model, species_name, species, omega0, n0, table_cfg)
+        signature = _table_signature(metadata)
+        relative_path = _table_path("cache/rate_tables", species_name, signature).replace("\\", "/")
+        expected_tables.append({
+            "species_name": species_name, "model_name": model,
+            "metadata": metadata, "signature": signature,
+            "relative_path": relative_path, "array_names": list(_FROZEN_LUT_ARRAY_NAMES),
+        })
+    if not expected_tables:
+        raise StorageIntegrityError("formal RATE_TABLE config has no LUT species")
+    names = [str(item["species_name"]) for item in expected_tables]
+    if len(set(names)) != len(names):
+        raise StorageIntegrityError("formal LUT species names are not unique")
+    expected_signatures = {item["species_name"]: item["signature"] for item in expected_tables}
+    if not _json_values_equal_with_types(manifest.get("signature"), expected_signatures):
+        raise StorageIntegrityError("frozen LUT signatures differ from the execution config")
+
+    files = manifest.get("files")
+    if not isinstance(files, list) or len(files) != len(expected_tables):
+        raise StorageIntegrityError("frozen LUT manifest file inventory is incomplete")
+    rows_by_name: dict[str, Mapping[str, Any]] = {}
+    for row in files:
+        if not isinstance(row, Mapping) or not isinstance(row.get("path"), str):
+            raise StorageIntegrityError("frozen LUT file inventory row is invalid")
+        filename = Path(str(row["path"])).name
+        if filename in rows_by_name:
+            raise StorageIntegrityError("frozen LUT manifest contains duplicate file names")
+        rows_by_name[filename] = row
+
+    validated: list[dict[str, Any]] = []
+    for expected in expected_tables:
+        filename = Path(expected["relative_path"]).name
+        row = rows_by_name.get(filename)
+        if (not isinstance(row, Mapping)
+                or row.get("array_names") != _FROZEN_LUT_ARRAY_NAMES):
+            raise StorageIntegrityError(f"frozen LUT inventory differs for {expected['species_name']}")
+        source_path = _manifest_path_value(row.get("path"), manifest_path=manifest_path,
+                                           label=f"frozen LUT source {filename}")
+        if source_path.is_relative_to(root):
+            raise StorageIntegrityError("frozen LUT authority source must be outside the campaign root")
+        raw_size = row.get("size_bytes")
+        if isinstance(raw_size, bool) or not isinstance(raw_size, Integral):
+            raise StorageIntegrityError(f"frozen LUT size is invalid for {filename}")
+        expected_size = int(raw_size)
+        expected_sha = str(row.get("raw_sha256", ""))
+        if (expected_size <= 0
+                or len(expected_sha) != 64
+                or any(character not in "0123456789abcdef" for character in expected_sha)):
+            raise StorageIntegrityError(f"frozen LUT raw identity is invalid for {filename}")
+        source_identity = _lut_file_provenance(source_path)
+        if (source_identity["size"] != expected_size or sha256_file(source_path) != expected_sha):
+            raise StorageIntegrityError(f"frozen LUT authority source differs for {filename}")
+        _inspect_frozen_lut_npz(
+            source_path, expected_metadata=expected["metadata"],
+            expected_species=expected["species_name"], expected_model=expected["model_name"],
+        )
+        validated.append({**expected, "source_path": source_path,
+                          "source_identity": source_identity,
+                          "size_bytes": expected_size, "raw_sha256": expected_sha})
+    cache_dir = root / "cache" / "rate_tables"
+    return {
+        "config_path": config, "config_sha256": sha256_file(config),
+        "manifest_path": manifest_path, "manifest_sha256": sha256_file(manifest_path),
+        "manifest": manifest, "root": root, "cache_dir": cache_dir,
+        "files": validated,
+    }
+
+
+def _lut_receipt_path(root: Path, requested: str | Path | None = None) -> Path:
+    expected = (root / "cache" / "N5_LUT_STAGING_RECEIPT.json").resolve(strict=False)
+    if requested is None:
+        return expected
+    value = Path(requested)
+    if not value.is_absolute():
+        value = root / value
+    resolved = value.resolve(strict=False)
+    if resolved != expected:
+        raise StorageIntegrityError("frozen LUT receipt must be cache/N5_LUT_STAGING_RECEIPT.json")
+    return expected
+
+
+def _preflight_lut_destination(root: Path, candidate: str | Path, *, label: str) -> Path:
+    path = Path(candidate)
+    if ".." in path.parts:
+        raise StorageIntegrityError(f"{label} traverses a parent")
+    if not path.is_absolute():
+        path = root / path
+    lexical = Path(os.path.abspath(path))
+    root_lexical = Path(os.path.abspath(root))
+    try:
+        relative = lexical.relative_to(root_lexical)
+    except ValueError as error:
+        raise StorageIntegrityError(f"{label} escapes the campaign root") from error
+    if not relative.parts:
+        raise StorageIntegrityError(f"{label} cannot be the campaign root")
+    if any(_is_reparse(part) for part in (lexical, *lexical.parents)):
+        raise StorageIntegrityError(f"{label} contains a symlink or reparse point")
+    try:
+        resolved = lexical.resolve(strict=False)
+        resolved_root = root_lexical.resolve(strict=False)
+        resolved.relative_to(resolved_root)
+    except (OSError, RuntimeError, ValueError) as error:
+        raise StorageIntegrityError(f"{label} resolves outside the campaign root") from error
+    if resolved == resolved_root:
+        raise StorageIntegrityError(f"{label} cannot resolve to the campaign root")
+    return lexical
+
+
+def _portable_lut_staging_identity(receipt: Mapping[str, Any], *, receipt_sha256: str,
+                                   receipt_size_bytes: int) -> dict[str, Any]:
+    files = []
+    registered_inputs = []
+    staged_bytes = 0
+    for row in receipt.get("files", []):
+        portable = {key: row[key] for key in (
+            "species_name", "relative_path", "size_bytes", "raw_sha256",
+            "signature", "metadata", "array_names",
+        )}
+        files.append(portable)
+        staged_bytes += int(portable["size_bytes"])
+        registered_inputs.append({
+            "path": str(portable["relative_path"]), "role": "INPUT_LUT",
+            "sha256": str(portable["raw_sha256"]), "size_bytes": int(portable["size_bytes"]),
+            "input_kind": "frozen_rate_table_npz",
+        })
+    receipt_relative = "cache/N5_LUT_STAGING_RECEIPT.json"
+    registered_inputs.append({
+        "path": receipt_relative, "role": "INPUT_LUT", "sha256": str(receipt_sha256),
+        "size_bytes": int(receipt_size_bytes), "input_kind": "frozen_lut_staging_receipt",
+    })
+    registered_inputs.sort(key=lambda item: item["path"])
+    return {
+        "schema": _FROZEN_LUT_STAGING_RECEIPT_SCHEMA,
+        "config_sha256": str(receipt["config"]["raw_sha256"]),
+        "authority_manifest_sha256": str(receipt["authority_manifest"]["raw_sha256"]),
+        "receipt_path": receipt_relative,
+        "receipt_sha256": str(receipt_sha256),
+        "receipt_size_bytes": int(receipt_size_bytes),
+        "files": files,
+        "registered_inputs": registered_inputs,
+        "staged_file_bytes": staged_bytes,
+        "frozen_lut_input_bytes": staged_bytes + int(receipt_size_bytes),
+    }
+
+
+def validate_staged_frozen_lut_cache_hit(
+    config_path: str | Path, campaign_root: str | Path, *,
+    lut_identity: Mapping[str, Any], staging_receipt_path: str | Path | None = None,
+    admission_identity_sha256: str | None = None, require_campaign_cwd: bool = False,
+) -> dict[str, Any]:
+    """Verify frozen inputs and prime only the exact validated runtime cache keys."""
+    from .ionization.common import _ION_LUT_MEMORY_CACHE
+    from .ionization.lut import _table_path
+
+    root = _checked_campaign_root(campaign_root)
+    if require_campaign_cwd and Path.cwd().resolve() != root:
+        raise StorageIntegrityError("frozen LUT science worker cwd differs from campaign root")
+    manifest_path = _checked_input_path(str(lut_identity.get("path", "")), label="LUT manifest")
+    manifest_sha = str(lut_identity.get("sha256", ""))
+    if not manifest_sha or sha256_file(manifest_path) != manifest_sha:
+        raise StorageIntegrityError("frozen LUT manifest identity differs from admission")
+    contract = _frozen_lut_contract(config_path, manifest_path, root)
+    receipt_path = _lut_receipt_path(root, staging_receipt_path)
+    receipt_path = _checked_input_path(receipt_path, label="frozen LUT staging receipt")
+    if not receipt_path.is_relative_to(root):
+        raise StorageIntegrityError("frozen LUT staging receipt escapes the campaign root")
+    receipt = _read_manifest(receipt_path, label="frozen LUT staging receipt")
+    expected_receipt_header = {
+        "schema": _FROZEN_LUT_STAGING_RECEIPT_SCHEMA,
+        "campaign_root": str(root),
+        "config": {"path": str(contract["config_path"]), "raw_sha256": contract["config_sha256"]},
+        "authority_manifest": {
+            "path": str(contract["manifest_path"]),
+            "raw_sha256": contract["manifest_sha256"],
+            "schema": _FROZEN_LUT_MANIFEST_SCHEMA,
+        },
+    }
+    for key, expected_value in expected_receipt_header.items():
+        if not _json_values_equal_with_types(receipt.get(key), expected_value):
+            raise StorageIntegrityError(f"frozen LUT receipt {key} binding differs")
+
+    table_dir = contract["cache_dir"]
+    if any(_is_reparse(part) for part in (table_dir, *table_dir.parents)) or not table_dir.is_dir():
+        raise StorageIntegrityError("frozen LUT cache directory is missing or linked")
+    expected_names = {Path(row["relative_path"]).name for row in contract["files"]}
+    if {path.name for path in table_dir.iterdir() if path.suffix.lower() == ".npz"} != expected_names:
+        raise StorageIntegrityError("frozen LUT cache contains missing or extra NPZ files")
+
+    receipt_files = receipt.get("files")
+    if not isinstance(receipt_files, list) or len(receipt_files) != len(contract["files"]):
+        raise StorageIntegrityError("frozen LUT receipt file inventory is incomplete")
+    tables_to_prime: list[tuple[str, str, dict[str, Any]]] = []
+    for expected, receipt_file in zip(contract["files"], receipt_files):
+        target = root / Path(expected["relative_path"])
+        target_identity = _lut_file_provenance(target)
+        source_identity = _lut_file_provenance(expected["source_path"])
+        if (target_identity["size"] != expected["size_bytes"]
+                or sha256_file(target) != expected["raw_sha256"]
+                or (target_identity["st_dev"], target_identity["st_ino"])
+                == (source_identity["st_dev"], source_identity["st_ino"])):
+            raise StorageIntegrityError(f"staged frozen LUT identity differs for {target.name}")
+        if not isinstance(receipt_file, Mapping):
+            raise StorageIntegrityError("frozen LUT receipt row is invalid")
+        actual = {
+            "species_name": expected["species_name"],
+            "relative_path": expected["relative_path"],
+            "filename": target.name,
+            "source_path": str(expected["source_path"]),
+            "source_identity": source_identity,
+            "target_identity": target_identity,
+            "size_bytes": int(expected["size_bytes"]),
+            "raw_sha256": expected["raw_sha256"],
+            "signature": expected["signature"],
+            "metadata": expected["metadata"],
+            "array_names": expected["array_names"],
+        }
+        portable_keys = (
+            "species_name", "relative_path", "filename", "source_path", "size_bytes",
+            "raw_sha256", "signature", "metadata", "array_names",
+        )
+        if (set(receipt_file) != {*portable_keys, "source_identity", "target_identity"}
+                or any(not isinstance(receipt_file.get(name), Mapping)
+                       for name in ("source_identity", "target_identity"))
+                or not _json_values_equal_with_types(
+                    {key: receipt_file.get(key) for key in portable_keys},
+                    {key: actual[key] for key in portable_keys},
+                )):
+            raise StorageIntegrityError(f"frozen LUT receipt provenance differs for {target.name}")
+        for field_name, expected_size in (("source_identity", expected["size_bytes"]),
+                                          ("target_identity", expected["size_bytes"])):
+            provenance = receipt_file[field_name]
+            if (provenance.get("st_nlink") != 1
+                    or provenance.get("size") != expected_size
+                    or any(isinstance(provenance.get(key), bool)
+                           or not isinstance(provenance.get(key), int)
+                           for key in ("st_dev", "st_ino", "st_nlink", "size", "mtime_ns"))):
+                raise StorageIntegrityError(f"frozen LUT receipt file provenance is invalid for {target.name}")
+        table = _inspect_frozen_lut_npz(
+            target, expected_metadata=expected["metadata"],
+            expected_species=expected["species_name"], expected_model=expected["model_name"],
+        )
+        cache_key = (_table_path("cache/rate_tables", expected["species_name"], expected["signature"]),
+                     expected["signature"])
+        tables_to_prime.append((cache_key[0], cache_key[1], table))
+
+    if (set(receipt) != {*expected_receipt_header, "files"}
+            or not isinstance(receipt.get("files"), list)):
+        raise StorageIntegrityError("frozen LUT staging receipt contains unbound fields")
+    receipt_identity = _lut_file_provenance(receipt_path)
+    receipt_sha = sha256_file(receipt_path)
+    portable = _portable_lut_staging_identity(
+        receipt, receipt_sha256=receipt_sha, receipt_size_bytes=receipt_identity["size"])
+    expected_staging = lut_identity.get("staging")
+    if (expected_staging is not None
+            and not _json_values_equal_with_types(expected_staging, portable)):
+        raise StorageIntegrityError("frozen LUT staging identity differs from admission")
+    for cache_path, signature, table in tables_to_prime:
+        _ION_LUT_MEMORY_CACHE[(cache_path, signature)] = table
+    return {
+        "portable_identity": portable,
+        "registered_inputs": list(portable["registered_inputs"]),
+        "receipt_path": str(receipt_path),
+        "receipt_sha256": receipt_sha,
+        "receipt_size_bytes": int(receipt_identity["size"]),
+        "staged_file_bytes": int(portable["staged_file_bytes"]),
+        "frozen_lut_input_bytes": int(portable["frozen_lut_input_bytes"]),
+        "admission_identity_sha256": admission_identity_sha256,
+    }
+
+
+def stage_frozen_lut_inputs(
+    config_path: str | Path, lut_manifest_path: str | Path, campaign_root: str | Path,
+    receipt_path: str | Path | None = None,
+) -> dict[str, Any]:
+    """Copy frozen source tables into the campaign cache and bind a receipt."""
+    contract = _frozen_lut_contract(config_path, lut_manifest_path, campaign_root)
+    root = contract["root"]
+    table_dir = contract["cache_dir"]
+    receipt_candidate = root / "cache" / "N5_LUT_STAGING_RECEIPT.json"
+    _preflight_lut_destination(root, table_dir, label="frozen LUT table directory")
+    _preflight_lut_destination(root, receipt_candidate, label="frozen LUT receipt")
+    if receipt_path is not None:
+        requested_receipt = Path(receipt_path)
+        if not requested_receipt.is_absolute():
+            requested_receipt = root / requested_receipt
+        _preflight_lut_destination(root, requested_receipt, label="requested frozen LUT receipt")
+    target_receipt = _lut_receipt_path(root, receipt_path)
+    _preflight_lut_destination(root, target_receipt, label="frozen LUT receipt")
+    targets = []
+    for expected in contract["files"]:
+        target = root / Path(expected["relative_path"])
+        _preflight_lut_destination(root, target, label=f"frozen LUT destination {target.name}")
+        targets.append((expected, target))
+
+    table_dir.mkdir(parents=True, exist_ok=True)
+    for expected, target in targets:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists():
+            with expected["source_path"].open("rb") as source_handle, target.open("xb") as target_handle:
+                shutil.copyfileobj(source_handle, target_handle)
+                target_handle.flush()
+                os.fsync(target_handle.fileno())
+        if (sha256_file(target) != expected["raw_sha256"]
+                or int(target.stat().st_size) != expected["size_bytes"]):
+            raise StorageIntegrityError(f"frozen LUT destination differs for {target.name}")
+        _lut_file_provenance(target)
+
+    expected_names = {Path(row["relative_path"]).name for row in contract["files"]}
+    if {path.name for path in table_dir.iterdir() if path.suffix.lower() == ".npz"} != expected_names:
+        raise StorageIntegrityError("frozen LUT cache contains missing or extra NPZ files")
+    files = []
+    for expected in contract["files"]:
+        target = root / Path(expected["relative_path"])
+        files.append({
+            "species_name": expected["species_name"],
+            "relative_path": expected["relative_path"], "filename": target.name,
+            "source_path": str(expected["source_path"]),
+            "source_identity": _lut_file_provenance(expected["source_path"]),
+            "target_identity": _lut_file_provenance(target),
+            "size_bytes": int(expected["size_bytes"]), "raw_sha256": expected["raw_sha256"],
+            "signature": expected["signature"], "metadata": expected["metadata"],
+            "array_names": expected["array_names"],
+        })
+    receipt = {
+        "schema": _FROZEN_LUT_STAGING_RECEIPT_SCHEMA,
+        "campaign_root": str(root),
+        "config": {"path": str(contract["config_path"]), "raw_sha256": contract["config_sha256"]},
+        "authority_manifest": {
+            "path": str(contract["manifest_path"]), "raw_sha256": contract["manifest_sha256"],
+            "schema": _FROZEN_LUT_MANIFEST_SCHEMA,
+        },
+        "files": files,
+    }
+    if any(_is_reparse(part) for part in (target_receipt, *target_receipt.parents)):
+        raise StorageIntegrityError("frozen LUT receipt destination contains a symlink or reparse point")
+    target_receipt.parent.mkdir(parents=True, exist_ok=True)
+    base_identity = {
+        "path": str(contract["manifest_path"]),
+        "sha256": contract["manifest_sha256"],
+        **contract["manifest"],
+    }
+    if target_receipt.exists():
+        return validate_staged_frozen_lut_cache_hit(
+            contract["config_path"], root, lut_identity=base_identity,
+            staging_receipt_path=target_receipt,
+        )
+    else:
+        atomic_json(target_receipt, receipt, overwrite=False)
+    return validate_staged_frozen_lut_cache_hit(
+        contract["config_path"], root, lut_identity=base_identity,
+        staging_receipt_path=target_receipt,
+    )
 
 
 def _source_hash(config_path: Path) -> str:
@@ -406,13 +914,26 @@ def _build_admission(spec: E5AProductionSpec, *,
         source_hash = _source_hash(config)
         if str(source.get("canonical_array_hash", "")) != source_hash:
             raise ValueError("legacy CPU source manifest differs from reconstructed input field")
+    lut_staging = None
+    base_lut_identity = {"path": str(lut_path), "sha256": sha256_file(lut_path), **lut}
+    frozen_lut_input_bytes = 0
     if lut.get("mode") == "DISABLED_BY_CONFIG":
         if getattr(ion, "species", None) not in ([], ()) or bool(getattr(prop, "use_ionization_solver", False)):
             raise ValueError("LUT cannot be disabled while ionization is enabled")
         if str(lut.get("config_sha256", "")) != sha256_file(config):
             raise ValueError("disabled LUT manifest is not bound to config")
+    elif level == FORMAL_SITE_ADMISSION and lut.get("mode") != "RATE_TABLE":
+        raise ValueError("formal admission requires a disabled or frozen RATE_TABLE LUT manifest")
     elif not lut.get("signature"):
         raise ValueError("production LUT manifest lacks a signature")
+    elif level == FORMAL_SITE_ADMISSION:
+        if spec.lut_staging_receipt_path is None:
+            raise ValueError("formal enabled LUT admission requires its staging receipt")
+        lut_staging = validate_staged_frozen_lut_cache_hit(
+            config, spec.root, lut_identity=base_lut_identity,
+            staging_receipt_path=spec.lut_staging_receipt_path,
+        )
+        frozen_lut_input_bytes = int(lut_staging["frozen_lut_input_bytes"])
     effective_n_pulses = _positive_integer_pulse_count(
         getattr(run, "Npulses", requested_n_pulses), label="execution config Npulses")
     if effective_n_pulses != requested_n_pulses:
@@ -444,6 +965,7 @@ def _build_admission(spec: E5AProductionSpec, *,
             max(int(canonical_source["file_size_bytes"]),
                 CANONICAL_SOURCE_MANIFEST_ALLOWANCE_BYTES)
             if isinstance(canonical_source, Mapping) else 0),
+        frozen_lut_input_bytes=frozen_lut_input_bytes,
     )
     if level == FORMAL_SITE_ADMISSION:
         if spec.site_resource_manifest_path is None:
@@ -491,7 +1013,9 @@ def _build_admission(spec: E5AProductionSpec, *,
         resource_evidence = {"scope": _LocalPolicyCapacityProvider.scope}
     identity = build_admission_identity(
         campaign_id=str(spec.campaign_id), execution_mode=level,
-        runtime_or_compatibility={"module": "KHz_filament.hr4e5_production", "runner": "single-production-runner"},
+        runtime_or_compatibility={"module": "KHz_filament.hr4e5_production",
+                                  "runner": "single-production-runner",
+                                  "science_child_timeout_s": int(spec.science_child_timeout_s)},
         config_identity={"path": str(config), "sha256": sha256_file(config),
                          "full_source_config": full_config_identity,
                          "derivation": f"run.Npulses={requested_n_pulses}_only"
@@ -501,7 +1025,9 @@ def _build_admission(spec: E5AProductionSpec, *,
                          "canonical_array_hash": source_hash,
                          **({"canonical_source": dict(canonical_source)}
                             if isinstance(canonical_source, Mapping) else {})},
-        lut_identity={"path": str(lut_path), "sha256": sha256_file(lut_path), **lut},
+        lut_identity={**base_lut_identity,
+                      **({"staging": dict(lut_staging["portable_identity"])}
+                         if lut_staging is not None else {})},
         schedule_identity={"k": schedule.n_intervals, "metadata": schedule.as_metadata(),
                            "full_metadata": full_schedule.as_metadata(),
                            "source_indices": [0, schedule.n_intervals - 1],
@@ -548,6 +1074,8 @@ def _build_admission(spec: E5AProductionSpec, *,
                               "canonical_source_manifest_allowance_bytes"],
                           "canonical_source_write_temporary_bytes": budget_plan[
                               "canonical_source_write_temporary_bytes"],
+                          **({"frozen_lut_input_bytes": frozen_lut_input_bytes}
+                             if frozen_lut_input_bytes else {}),
                           "incremental_requirement_bytes": budget_plan["incremental_requirement_bytes"]},
         retention_identity={"policy": "E5_1A_MINIMUM_ENGINEERING_RETENTION_V1"},
         resource_evidence=resource_evidence,
@@ -568,6 +1096,26 @@ class _E5AProductionRunner:
         self.driver = None
         self.require_gpu_backend = bool(spec.require_gpu_backend or spec.admission_level == FORMAL_SITE_ADMISSION)
         self._gpu_assignment_paths: dict[int, Path] = {}
+
+    def _validate_frozen_lut_inputs(self, *, require_campaign_cwd: bool) -> dict[str, Any] | None:
+        lut_identity = self.identity.get("lut_identity", {})
+        staging = lut_identity.get("staging") if isinstance(lut_identity, Mapping) else None
+        mode = lut_identity.get("mode") if isinstance(lut_identity, Mapping) else None
+        if not isinstance(staging, Mapping) and self.spec.lut_staging_receipt_path is None:
+            if self.spec.admission_level == FORMAL_SITE_ADMISSION and mode == "RATE_TABLE":
+                raise StorageIntegrityError("formal science worker lacks admitted frozen LUT inputs")
+            return None
+        if not isinstance(lut_identity, Mapping):
+            raise StorageIntegrityError("admission identity lacks frozen LUT bindings")
+        receipt_path = self.spec.lut_staging_receipt_path
+        if receipt_path is None and isinstance(staging, Mapping):
+            receipt_path = str(staging.get("receipt_path", ""))
+        return validate_staged_frozen_lut_cache_hit(
+            self.spec.config_path, self.root, lut_identity=lut_identity,
+            staging_receipt_path=receipt_path,
+            admission_identity_sha256=str(self.identity.get("identity_sha256", "")),
+            require_campaign_cwd=require_campaign_cwd,
+        )
 
     def _gpu_audit_root(self, pulse: int) -> Path:
         epoch = str(self.driver.campaign.active_coordinator_epoch())
@@ -1010,6 +1558,7 @@ class _E5AProductionRunner:
         return self._run_pulse("R", pulse)
 
     def _run_reference_subprocess(self, pulse: int, *, trajectory: str = "R") -> dict[str, Any]:
+        self._validate_frozen_lut_inputs(require_campaign_cwd=False)
         if trajectory not in {"R", "C"}:
             raise ValueError("independent science process trajectory must be R or C")
         if trajectory == "C" and int(pulse) != int(self.spec.n_pulses) - 1:
@@ -1045,11 +1594,7 @@ class _E5AProductionRunner:
                 command, cwd=str(self.root), env=environment,
                 stdout=stdout_file, stderr=stderr_file, text=True,
             )
-        try:
-            process.wait(timeout=900)
-        except subprocess.TimeoutExpired as exc:
-            process.kill(); process.wait()
-            raise TimeoutError(f"{role} subprocess exceeded 900 seconds") from exc
+        self._wait_science_child(process, role=role)
         stderr = stderr_path.read_text(encoding="utf-8")
         if process.returncode != 0:
             raise RuntimeError(f"{role} subprocess failed: exit={process.returncode}:stderr={stderr.strip()}")
@@ -1065,6 +1610,14 @@ class _E5AProductionRunner:
                 or int(result.get("parent_pid", -1)) != os.getpid()):
             raise StorageIntegrityError(f"{role} subprocess result identity differs")
         return result["result"]
+
+    def _wait_science_child(self, process: subprocess.Popen, *, role: str) -> None:
+        timeout_s = int(self.spec.science_child_timeout_s)
+        try:
+            process.wait(timeout=timeout_s)
+        except subprocess.TimeoutExpired as exc:
+            process.kill(); process.wait()
+            raise TimeoutError(f"{role} subprocess exceeded {timeout_s} seconds") from exc
 
     @staticmethod
     def _gpu_bootstrap_command(command: Sequence[str]) -> list[str]:
@@ -1155,18 +1708,18 @@ class _E5AProductionRunner:
             )
         return process, stderr_path
 
-    @staticmethod
-    def _join_hydro_workers(processes: Sequence[subprocess.Popen],
+    def _join_hydro_workers(self, processes: Sequence[subprocess.Popen],
                             stderr_paths: Mapping[int, Path] | None = None) -> None:
         if not processes:
             return
+        timeout_s = int(self.spec.science_child_timeout_s)
         failures: list[str] = []
         for process in processes:
             try:
-                process.wait(timeout=900)
+                process.wait(timeout=timeout_s)
             except subprocess.TimeoutExpired:
                 process.kill(); process.wait()
-                failures.append(f"pid={process.pid}:hydro worker timeout")
+                failures.append(f"pid={process.pid}:hydro worker timeout after {timeout_s} seconds")
                 continue
             if process.returncode != 0:
                 stderr_path = (stderr_paths or {}).get(process.pid)
@@ -1187,13 +1740,44 @@ class _E5AProductionRunner:
                     process.wait(timeout=max(0.1, deadline - time.monotonic()))
                 except subprocess.TimeoutExpired:
                     pass
+        kill_targets = []
         for process in processes:
             if process.poll() is None:
                 process.kill()
-                try:
-                    process.communicate(timeout=5)
-                except subprocess.TimeoutExpired:
-                    pass
+                kill_targets.append(process)
+        unreaped_pids = []
+        for process in kill_targets:
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                unreaped_pids.append(int(process.pid))
+        if unreaped_pids:
+            raise RuntimeError(
+                "production hydro worker cleanup could not reap pending pids="
+                f"{sorted(set(unreaped_pids))} within 5 seconds"
+            )
+
+    def _wait_for_candidate_hydro_workers(
+            self, hydro_processes: Sequence[subprocess.Popen], *,
+            optical_process: subprocess.Popen | None,
+            optical_stderr_path: Path | None) -> None:
+        timeout_s = int(self.spec.science_child_timeout_s)
+        deadline = time.monotonic() + timeout_s
+        while any(process.poll() is None for process in hydro_processes):
+            if optical_process is not None and optical_process.poll() is not None and optical_process.returncode != 0:
+                optical_process.wait(timeout=5)
+                stderr = optical_stderr_path.read_text(encoding="utf-8") if optical_stderr_path else ""
+                raise RuntimeError(
+                    f"Candidate optical worker failed: exit={optical_process.returncode}:stderr={stderr.strip()}"
+                )
+            if time.monotonic() >= deadline:
+                pending_pids = sorted({int(process.pid) for process in hydro_processes
+                                       if process.poll() is None})
+                raise TimeoutError(
+                    f"Candidate hydro workers exceeded {timeout_s} seconds; "
+                    f"pending_pids={pending_pids}"
+                )
+            time.sleep(0.02)
 
     def _process_receipt(self, *, trajectory: str, pulse: int, role: str,
                          worker_index: int | None, lifecycle_root: Path,
@@ -1251,6 +1835,9 @@ class _E5AProductionRunner:
             raise StorageIntegrityError(f"{role} process receipt evidence changed")
 
     def _run_pulse(self, trajectory: str, pulse: int):
+        self._validate_frozen_lut_inputs(
+            require_campaign_cwd=self.spec.admission_level == FORMAL_SITE_ADMISSION,
+        )
         state = self._track(trajectory, pulse) / "state"
         output = self._track(trajectory, pulse) / "optical"
         lifecycle = StreamingLifecycle.open(state)
@@ -1792,20 +2379,13 @@ class _E5AProductionRunner:
                     command, state=state, grant_id=producer_grant_id,
                     environment=optical_environment,
                 )
-            deadline = time.monotonic() + 900.0
-            while any(process.poll() is None for process in hydro_processes):
-                if optical_process is not None and optical_process.poll() is not None and optical_process.returncode != 0:
-                    optical_process.wait(timeout=5)
-                    stderr = optical_stderr_path.read_text(encoding="utf-8") if optical_stderr_path else ""
-                    raise RuntimeError(
-                        f"Candidate optical worker failed: exit={optical_process.returncode}:stderr={stderr.strip()}"
-                    )
-                if time.monotonic() >= deadline:
-                    raise TimeoutError("Candidate hydro workers exceeded 900 seconds")
-                time.sleep(0.02)
+            self._wait_for_candidate_hydro_workers(
+                hydro_processes, optical_process=optical_process,
+                optical_stderr_path=optical_stderr_path,
+            )
             self._join_hydro_workers(hydro_processes, hydro_stderr_paths)
             if optical_process is not None:
-                optical_process.wait(timeout=900)
+                self._wait_science_child(optical_process, role="Candidate optical worker")
                 if optical_process.returncode != 0:
                     stderr = optical_stderr_path.read_text(encoding="utf-8") if optical_stderr_path else ""
                     raise RuntimeError(
@@ -1840,15 +2420,23 @@ class _E5AProductionRunner:
             raise
         finally:
             if error is not None:
-                self._stop_hydro_workers(hydro_processes)
-                if optical_process is not None and optical_process.poll() is None:
-                    optical_process.terminate()
+                try:
+                    self._stop_hydro_workers(hydro_processes)
+                finally:
                     try:
-                        optical_process.wait(timeout=10)
-                    except subprocess.TimeoutExpired:
-                        optical_process.kill(); optical_process.wait()
-                self.budget.interrupt_intent(intent["intent_id"], reason=str(error))
-            self._close_writer(writer, failed=error)
+                        if optical_process is not None and optical_process.poll() is None:
+                            optical_process.terminate()
+                            try:
+                                optical_process.wait(timeout=10)
+                            except subprocess.TimeoutExpired:
+                                optical_process.kill(); optical_process.wait()
+                    finally:
+                        try:
+                            self.budget.interrupt_intent(intent["intent_id"], reason=str(error))
+                        finally:
+                            self._close_writer(writer, failed=error)
+            else:
+                self._close_writer(writer, failed=None)
 
     def _object_descriptor(self, side: str, pulse: int, key: str) -> dict[str, Any]:
         state = self._track(side, pulse) / "state"
@@ -2382,6 +2970,14 @@ def open_e5_1a_production_campaign(spec: E5AProductionSpec) -> E5AProductionCamp
             identity["pre0_identity"]["path"],
             expected_sha256=identity["pre0_identity"]["sha256"],
         )
+    lut_staging = identity.get("lut_identity", {}).get("staging", {})
+    for input_record in lut_staging.get("registered_inputs", []) if isinstance(lut_staging, Mapping) else []:
+        driver.campaign.storage.register_preexisting_frozen_lut(
+            root / Path(str(input_record["path"])),
+            expected_sha256=str(input_record["sha256"]),
+            expected_size_bytes=int(input_record["size_bytes"]),
+            admission_identity_sha256=str(identity["identity_sha256"]),
+        )
     if spec.admission_level == LOCAL_ORCHESTRATION_QUALIFICATION:
         driver.campaign.storage.provider = _LocalPolicyCapacityProvider(root, spec.max_campaign_live_bytes)
     else:
@@ -2394,4 +2990,5 @@ def open_e5_1a_production_campaign(spec: E5AProductionSpec) -> E5AProductionCamp
 
 
 __all__ = ["E5AProductionCampaign", "E5AProductionSpec", "FORMAL_SITE_ADMISSION",
-           "LOCAL_ORCHESTRATION_QUALIFICATION", "open_e5_1a_production_campaign"]
+           "LOCAL_ORCHESTRATION_QUALIFICATION", "open_e5_1a_production_campaign",
+           "stage_frozen_lut_inputs", "validate_staged_frozen_lut_cache_hit"]
