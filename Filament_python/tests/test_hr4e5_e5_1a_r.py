@@ -1906,28 +1906,289 @@ def test_production_rejects_unsupported_candidate_hydro_workers(tmp_path):
         open_e5_1a_production_campaign(replace(spec, candidate_hydro_workers=3))
 
 
-def test_formal_n2_derivation_changes_only_pulse_count(tmp_path):
-    import json
-    from KHz_filament.hr4e5_production import derive_e5_1b_execution_config
-
-    inputs = tmp_path / "inputs"; inputs.mkdir(parents=True)
+def _write_e5_source_config(path, *, n_pulses=1, z_max=8e-4, dz=1e-4):
     value = {
         "grid": {"Nx": 8, "Ny": 8, "Nt": 8, "Lx": 8e-4, "Ly": 8e-4, "Twin": 80e-15},
         "beam": {"w0": 1.5e-4, "tau_fwhm": 40e-15, "energy_J": 1e-10, "focal_length": None},
-        "propagation": {"z_max": 8e-4, "dz": 1e-4, "linear_model": "paraxial"},
+        "propagation": {"z_max": z_max, "dz": dz, "linear_model": "paraxial"},
         "ionization": {"species": []},
         "heat": {"hr3b_enabled": True, "f_rep": 5e6, "dt_hydro": 1e-7,
                  "chi": 2.17e-5, "D_th": 2.17e-5, "nu": 1.5e-5,
                  "gravity_x": 0.0, "gravity_y": -9.81},
-        "run": {"Npulses": 1},
+        "run": {"Npulses": n_pulses},
         "raman": {"enabled": False, "absorption": False},
     }
-    parent = inputs / "full.json"; parent.write_text(json.dumps(value), encoding="utf-8")
+    path.write_text(json.dumps(value), encoding="utf-8")
+    return value
+
+
+def _apply_frozen_formal_propagation(value):
+    value["propagation"].update({
+        "z_max": 1.3,
+        "dz": 1e-4,
+        "dz_focus": 5e-5,
+        "focus_center_m": 0.95,
+        "focus_halfwidth_m": 0.1,
+        "focus_window_step": True,
+        "limit_focus_window": False,
+        "window_halfwidth_m": 0.35,
+    })
+    return value
+
+
+def test_formal_n2_derivation_changes_only_pulse_count(tmp_path):
+    from KHz_filament.hr4e5_production import derive_e5_1b_execution_config
+
+    inputs = tmp_path / "inputs"; inputs.mkdir(parents=True)
+    parent = inputs / "full.json"
+    value = _write_e5_source_config(parent)
     derived = inputs / "execution.json"
     receipt = derive_e5_1b_execution_config(parent, derived)
     result = json.loads(derived.read_text(encoding="utf-8"))
     expected = json.loads(json.dumps(value)); expected["run"]["Npulses"] = 2
     assert result == expected and receipt["value"] == 2
+
+
+def test_formal_n5_derivation_changes_only_pulse_count(tmp_path):
+    from KHz_filament.hr4e5_production import derive_e5_1b_execution_config
+
+    inputs = tmp_path / "inputs"; inputs.mkdir(parents=True)
+    parent = inputs / "full.json"
+    value = _write_e5_source_config(parent)
+    derived = inputs / "execution_n5.json"
+    receipt = derive_e5_1b_execution_config(parent, derived, n_pulses=5)
+    expected = json.loads(json.dumps(value)); expected["run"]["Npulses"] = 5
+    assert json.loads(derived.read_text(encoding="utf-8")) == expected
+    assert receipt["changed_field"] == "run.Npulses" and receipt["value"] == 5
+
+
+@pytest.mark.parametrize("n_pulses", [0, -1, True, 1.5, "5"])
+def test_e5_1b_requested_pulse_count_requires_positive_integer(tmp_path, n_pulses):
+    from KHz_filament.hr4e5_production import derive_e5_1b_execution_config
+
+    inputs = tmp_path / "inputs"; inputs.mkdir(parents=True)
+    parent = inputs / "full.json"
+    _write_e5_source_config(parent)
+    derived = inputs / "execution.json"
+    with pytest.raises(ValueError, match="positive integer"):
+        derive_e5_1b_execution_config(parent, derived, n_pulses=n_pulses)
+    assert not derived.exists()
+
+
+@pytest.mark.parametrize(("section", "field", "changed_value"), [
+    ("beam", "w0", 1.6e-4),
+    ("grid", "Nx", 9),
+    ("heat", "f_rep", 6e6),
+    ("propagation", "dz", 2e-4),
+])
+def test_e5_1b_bound_configs_reject_nonpulse_drift(tmp_path, section, field, changed_value):
+    from KHz_filament.hr4e5_production import _bound_configs, derive_e5_1b_execution_config
+
+    inputs = tmp_path / "inputs"; inputs.mkdir(parents=True)
+    parent = inputs / "full.json"
+    _write_e5_source_config(parent)
+    derived = inputs / "execution_n5.json"
+    derive_e5_1b_execution_config(parent, derived, n_pulses=5)
+    result = json.loads(derived.read_text(encoding="utf-8"))
+    result[section][field] = changed_value
+    derived.write_text(json.dumps(result), encoding="utf-8")
+    with pytest.raises(ValueError, match="besides run.Npulses"):
+        _bound_configs(parent, derived, 5)
+
+
+@pytest.mark.parametrize(("section", "field", "changed_value"), [
+    ("grid", "Nx", 8.0),
+    ("raman", "enabled", 0),
+])
+def test_e5_1b_bound_configs_reject_equal_value_json_type_drift(
+    tmp_path, section, field, changed_value,
+):
+    from KHz_filament.hr4e5_production import _bound_configs, derive_e5_1b_execution_config
+
+    inputs = tmp_path / "inputs"; inputs.mkdir(parents=True)
+    parent = inputs / "full.json"
+    _write_e5_source_config(parent)
+    derived = inputs / "execution_n5.json"
+    derive_e5_1b_execution_config(parent, derived, n_pulses=5)
+    result = json.loads(derived.read_text(encoding="utf-8"))
+    result[section][field] = changed_value
+    derived.write_text(json.dumps(result), encoding="utf-8")
+    with pytest.raises(ValueError, match="besides run.Npulses"):
+        _bound_configs(parent, derived, 5)
+
+
+def test_e5_1b_bound_configs_reject_requested_n5_with_derived_n4(tmp_path):
+    from KHz_filament.hr4e5_production import _bound_configs, derive_e5_1b_execution_config
+
+    inputs = tmp_path / "inputs"; inputs.mkdir(parents=True)
+    parent = inputs / "full.json"
+    _write_e5_source_config(parent)
+    derived = inputs / "execution_n4.json"
+    derive_e5_1b_execution_config(parent, derived, n_pulses=4)
+    with pytest.raises(ValueError, match="pulse count differs"):
+        _bound_configs(parent, derived, 5)
+
+
+def test_e5_1b_bound_configs_require_parent_n1_for_distinct_config(tmp_path):
+    from KHz_filament.hr4e5_production import _bound_configs, derive_e5_1b_execution_config
+
+    inputs = tmp_path / "inputs"; inputs.mkdir(parents=True)
+    parent = inputs / "full_n2.json"
+    parent_value = _write_e5_source_config(parent, n_pulses=2)
+    with pytest.raises(ValueError, match="Npulses=1"):
+        derive_e5_1b_execution_config(parent, inputs / "rejected.json", n_pulses=5)
+    derived_value = json.loads(json.dumps(parent_value)); derived_value["run"]["Npulses"] = 5
+    derived = inputs / "manual_n5.json"
+    derived.write_text(json.dumps(derived_value), encoding="utf-8")
+    with pytest.raises(ValueError, match="from 1 to requested value"):
+        _bound_configs(parent, derived, 5)
+
+
+def test_formal_admission_rejects_same_config_before_materialization(tmp_path, monkeypatch):
+    import KHz_filament.hr4e5_production as production
+
+    spec = _local_production_spec(tmp_path, campaign_id="same-config-admission", n_pulses=1, k=8)
+    local_identity, _, _ = production._build_admission(spec)
+    assert local_identity["config_identity"]["derivation"] == "same_config"
+    formal_spec = replace(
+        spec, full_config_path=spec.config_path, prefix_intervals=8048,
+        admission_level=production.FORMAL_SITE_ADMISSION,
+    )
+    monkeypatch.setattr(production, "load_all", lambda _path: pytest.fail("formal same-config guard was late"))
+    with pytest.raises(ValueError, match="distinct full source and derived execution configs"):
+        production._build_admission(formal_spec)
+    assert not Path(spec.root).exists()
+
+
+def test_e5_1b_contract_n5_preserves_k15000_k8048_schedule_identity(tmp_path):
+    from KHz_filament.hr4e5_production import describe_e5_1b_input_contract
+
+    parent = tmp_path / "full_k15000.json"
+    value = _apply_frozen_formal_propagation(_write_e5_source_config(parent))
+    parent.write_text(json.dumps(value), encoding="utf-8")
+    n2 = describe_e5_1b_input_contract(parent, prefix_intervals=8048)
+    n5 = describe_e5_1b_input_contract(parent, prefix_intervals=8048, n_pulses=5)
+    assert n5["full_interval_count"] == 15000 and n5["prefix_interval_count"] == 8048
+    assert n5["source_indices"] == [0, 8047]
+    for key in ("full_edges_array_sha256", "prefix_edges_array_sha256",
+                "full_midpoints_array_sha256", "prefix_end_m"):
+        assert n5[key] == n2[key]
+    assert n2["derived_config_rule"] == "change_run.Npulses_from_1_to_2_only"
+    assert n5["derived_config_rule"] == "change_run.Npulses_from_1_to_5_only"
+    assert n5["slow_prefix_raw_sha256"] == "NOT_MATERIALIZED"
+    assert n5["slow_prefix_array_sha256"] == "NOT_MATERIALIZED"
+
+
+def test_local_n5_admission_identity_uses_requested_config_derivation(tmp_path):
+    from KHz_filament.hr4e5_production import _build_admission
+
+    spec = _local_production_spec(tmp_path, campaign_id="local-n5-admission", n_pulses=5, k=8)
+    parent = json.loads(Path(spec.config_path).read_text(encoding="utf-8"))
+    parent["run"]["Npulses"] = 1
+    full_config = Path(spec.config_path).parent / "full_config.json"
+    full_config.write_text(json.dumps(parent), encoding="utf-8")
+    spec = replace(spec, full_config_path=full_config, prefix_intervals=8)
+    identity, schedule, _ = _build_admission(spec)
+    assert identity["config_identity"]["derivation"] == "run.Npulses=5_only"
+    assert identity["n_pulses"] == 5 and schedule.n_intervals == 8
+
+
+def test_formal_n5_distinct_config_admission_accepts_frozen_k15000_k8048(tmp_path, monkeypatch):
+    import KHz_filament.hr4e5_production as production
+    from KHz_filament.hr4e5_canonical_source import prepare_canonical_source_inputs
+    from KHz_filament.hr4e5_evidence import sha256_file
+
+    spec = _local_production_spec(
+        tmp_path, campaign_id="formal-n5-admission-fixture", n_pulses=5, k=8,
+    )
+    inputs = Path(spec.config_path).parent
+    execution_config = Path(spec.config_path)
+    execution = json.loads(execution_config.read_text(encoding="utf-8"))
+    _apply_frozen_formal_propagation(execution)
+    execution_config.write_text(json.dumps(execution), encoding="utf-8")
+    full = json.loads(json.dumps(execution)); full["run"]["Npulses"] = 1
+    full_config = inputs / "full_config.json"
+    full_config.write_text(json.dumps(full), encoding="utf-8")
+    Path(spec.source_manifest_path).unlink()
+    prepare_canonical_source_inputs(execution_config, spec.source_manifest_path)
+    lut_path = Path(spec.lut_manifest_path)
+    lut = json.loads(lut_path.read_text(encoding="utf-8"))
+    lut["config_sha256"] = sha256_file(execution_config)
+    lut_path.write_text(json.dumps(lut), encoding="utf-8")
+
+    full_source = inputs / "full_slow_source.npy"
+    full_source.write_bytes(b"shape-only test seam")
+    slow_manifest_path = inputs / "slow_source.json"
+    slow_manifest_path.write_text(json.dumps({"fixture": "mocked-array-identity"}), encoding="utf-8")
+    site_path = inputs / "site_resource.json"
+    site_path.write_text(json.dumps({
+        "scope": "SITE_QUALIFIED_RESOURCE_EVIDENCE",
+        "formal_input_authorized": True,
+        "site_resource_qualified": True,
+        "provenance_qualified": True,
+        "free_bytes": 10**12,
+        "quota_bytes": 10**12,
+        "capacity_domain": "campaign_filesystem",
+        "capacity_root": str(tmp_path.resolve()),
+    }), encoding="utf-8")
+    contract = production.describe_e5_1b_input_contract(
+        full_config, prefix_intervals=8048, n_pulses=5,
+    )
+    pre0_path = Path(spec.pre0_delta_n_path)
+    mocked_slow_identity = {
+        "manifest_path": str(slow_manifest_path),
+        "manifest_sha256": sha256_file(slow_manifest_path),
+        "full_source_path": str(full_source),
+        "full_source_raw_bytes": full_source.stat().st_size,
+        "full_source_raw_sha256": sha256_file(full_source),
+        "full_source_array_sha256": "b" * 64,
+        "source_shape": [15000, 8, 8],
+        "source_indices": [0, 8047],
+        "axis_order": ["interval", "y", "x"],
+        "full_edges_array_sha256": contract["full_edges_array_sha256"],
+        "full_midpoints_array_sha256": contract["full_midpoints_array_sha256"],
+        "prefix_path": str(pre0_path),
+        "prefix_raw_sha256": sha256_file(pre0_path),
+        "prefix_array_sha256": "a" * 64,
+        "zero_velocity_recipe": "positive_float64_zero",
+        "capacity_domain": "campaign_filesystem",
+    }
+
+    class MockPrefixArray:
+        shape = (8048, 8, 8)
+        dtype = np.dtype(np.float64)
+
+    mocked_prefix = MockPrefixArray()
+    original_load = production.np.load
+
+    def load_with_mocked_prefix(path, *args, **kwargs):
+        if Path(path).resolve() == pre0_path.resolve():
+            return mocked_prefix
+        return original_load(path, *args, **kwargs)
+
+    def mock_slow_prefix_identity(manifest_path, checked_pre0, checked_full, full_schedule, schedule, grid):
+        assert full_schedule.n_intervals == 15000
+        assert schedule.n_intervals == 8048
+        assert checked_full == full_config.resolve()
+        assert checked_pre0 == pre0_path.resolve()
+        assert (grid.Ny, grid.Nx) == (8, 8)
+        return mocked_slow_identity
+
+    monkeypatch.setattr(production.np, "load", load_with_mocked_prefix)
+    monkeypatch.setattr(production, "sha256_array_streaming", lambda value: "a" * 64)
+    monkeypatch.setattr(production, "_slow_prefix_identity", mock_slow_prefix_identity)
+    formal_spec = replace(
+        spec, full_config_path=full_config, prefix_intervals=8048,
+        slow_source_manifest_path=slow_manifest_path,
+        site_resource_manifest_path=site_path,
+        admission_level=production.FORMAL_SITE_ADMISSION,
+    )
+    identity, schedule, _ = production._build_admission(formal_spec)
+    assert identity["n_pulses"] == 5 and identity["k"] == 8048
+    assert identity["config_identity"]["derivation"] == "run.Npulses=5_only"
+    assert identity["schedule_identity"]["full_metadata"]["n_intervals"] == 15000
+    assert identity["schedule_identity"]["source_indices"] == [0, 8047]
+    assert schedule.n_intervals == 8048
 
 
 def test_production_n3_k8_split_process_matches_uninterrupted(tmp_path):

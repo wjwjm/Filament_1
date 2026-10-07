@@ -16,6 +16,7 @@ import sys
 from collections.abc import Mapping as MappingABC
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
+from numbers import Integral
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -179,18 +180,43 @@ def _schedule_from_config(prop: Any) -> Any:
     )
 
 
+def _positive_integer_pulse_count(value: Any, *, label: str = "n_pulses") -> int:
+    if isinstance(value, bool) or not isinstance(value, Integral) or value <= 0:
+        raise ValueError(f"{label} must be a positive integer")
+    return int(value)
+
+
+def _json_values_equal_with_types(left: Any, right: Any) -> bool:
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(
+            _json_values_equal_with_types(left[key], right[key]) for key in left
+        )
+    if isinstance(left, list):
+        return len(left) == len(right) and all(
+            _json_values_equal_with_types(a, b) for a, b in zip(left, right)
+        )
+    return left == right
+
+
 def describe_e5_1b_input_contract(full_config_path: str | Path,
-                                  *, prefix_intervals: int = 8048) -> dict[str, Any]:
+                                  *, prefix_intervals: int = 8048,
+                                  n_pulses: int = 2) -> dict[str, Any]:
     """Describe the official input range without opening any scientific array."""
+    requested_n_pulses = _positive_integer_pulse_count(n_pulses)
     full_config = _checked_input_path(full_config_path, label="full source config")
     grid, beam, prop, ion, heat, run, raman = load_all(str(full_config))
+    if _positive_integer_pulse_count(
+            getattr(run, "Npulses", None), label="full source config Npulses") != 1:
+        raise ValueError("full source config must have Npulses=1")
     full = _schedule_from_config(prop)
     prefix = build_prefix_schedule(full, prefix_intervals)
     return {
         "schema": "khz_filament.hr4e5.e5_1b.input_contract.v1",
         "status": "INPUT_NOT_MATERIALIZED",
         "full_config_path": str(full_config), "full_config_raw_sha256": sha256_file(full_config),
-        "derived_config_rule": "change_run.Npulses_from_1_to_2_only",
+        "derived_config_rule": f"change_run.Npulses_from_1_to_{requested_n_pulses}_only",
         "full_interval_count": full.n_intervals, "prefix_interval_count": prefix.n_intervals,
         "source_indices": [0, prefix.n_intervals - 1], "block_size": BLOCK_SIZE,
         "grid_shape": [int(grid.Ny), int(grid.Nx)],
@@ -213,45 +239,54 @@ def describe_e5_1b_input_contract(full_config_path: str | Path,
 
 
 def derive_e5_1b_execution_config(full_config_path: str | Path,
-                                   output_path: str | Path) -> dict[str, Any]:
-    """Write the sole permitted N=2 config derivation without changing its parent."""
+                                   output_path: str | Path, *,
+                                   n_pulses: int = 2) -> dict[str, Any]:
+    """Write an execution config changing only Npulses from the full source."""
+    requested_n_pulses = _positive_integer_pulse_count(n_pulses)
     source = _checked_input_path(full_config_path, label="full source config")
     value = json.loads(source.read_text(encoding="utf-8"))
     if not isinstance(value, dict) or not isinstance(value.get("run"), dict):
         raise ValueError("full source config lacks run settings")
-    if int(value["run"].get("Npulses", -1)) != 1:
+    if _positive_integer_pulse_count(
+            value["run"].get("Npulses", -1), label="full source config Npulses") != 1:
         raise ValueError("full source config must have Npulses=1")
-    value["run"]["Npulses"] = 2
+    value["run"]["Npulses"] = requested_n_pulses
     destination = Path(output_path).resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("x", encoding="utf-8") as handle:
         json.dump(value, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
-    _bound_configs(source, destination, 2)
+    _bound_configs(source, destination, requested_n_pulses)
     return {"parent_path": str(source), "parent_raw_sha256": sha256_file(source),
             "derived_path": str(destination), "derived_raw_sha256": sha256_file(destination),
-            "changed_field": "run.Npulses", "value": 2}
+            "changed_field": "run.Npulses", "value": requested_n_pulses}
 
 
 def _bound_configs(full_config: Path, config: Path, n_pulses: int) -> dict[str, Any]:
-    _checked_input_path(full_config, label="full source config")
-    parent = json.loads(full_config.read_text(encoding="utf-8"))
-    derived = json.loads(config.read_text(encoding="utf-8"))
+    requested_n_pulses = _positive_integer_pulse_count(n_pulses)
+    checked_full_config = _checked_input_path(full_config, label="full source config")
+    checked_config = _checked_input_path(config, label="execution config")
+    parent = json.loads(checked_full_config.read_text(encoding="utf-8"))
+    derived = json.loads(checked_config.read_text(encoding="utf-8"))
     if not isinstance(parent, dict) or not isinstance(derived, dict):
         raise ValueError("production configs must be JSON objects")
     parent_run, derived_run = parent.get("run"), derived.get("run")
     if not isinstance(parent_run, dict) or not isinstance(derived_run, dict):
         raise ValueError("production configs lack run settings")
-    if int(derived_run.get("Npulses", -1)) != int(n_pulses):
+    parent_n_pulses = _positive_integer_pulse_count(
+        parent_run.get("Npulses", -1), label="full source config Npulses")
+    derived_n_pulses = _positive_integer_pulse_count(
+        derived_run.get("Npulses", -1), label="derived config Npulses")
+    if derived_n_pulses != requested_n_pulses:
         raise ValueError("derived config pulse count differs from production spec")
-    if full_config != config:
-        if int(parent_run.get("Npulses", -1)) != 1 or int(n_pulses) != 2:
-            raise ValueError("formal config derivation must change Npulses from 1 to 2")
+    if checked_full_config != checked_config:
+        if parent_n_pulses != 1:
+            raise ValueError("formal config derivation must change Npulses from 1 to requested value")
         expected = json.loads(json.dumps(parent))
-        expected["run"]["Npulses"] = 2
-        if expected != derived:
+        expected["run"]["Npulses"] = requested_n_pulses
+        if not _json_values_equal_with_types(expected, derived):
             raise ValueError("derived config changes fields besides run.Npulses")
-    return {"path": str(full_config), "sha256": sha256_file(full_config)}
+    return {"path": str(full_config), "sha256": sha256_file(checked_full_config)}
 
 
 def _slow_prefix_identity(manifest_path: Path, pre0_path: Path, full_config: Path,
@@ -313,13 +348,16 @@ def _build_admission(spec: E5AProductionSpec, *,
     level = str(spec.admission_level)
     if level not in _ADMISSION_LEVELS:
         raise ValueError("unsupported production admission level")
+    requested_n_pulses = _positive_integer_pulse_count(spec.n_pulses)
     config = _checked_input_path(spec.config_path, label="execution config")
+    full_config = (_checked_input_path(spec.full_config_path, label="full source config")
+                   if spec.full_config_path is not None else config)
+    if level == FORMAL_SITE_ADMISSION and full_config == config:
+        raise ValueError("formal site admission requires distinct full source and derived execution configs")
     source_path = _checked_input_path(spec.source_manifest_path, label="optical source manifest")
     lut_path = _checked_input_path(spec.lut_manifest_path, label="LUT manifest")
     pre0_path = _checked_input_path(spec.pre0_delta_n_path, label="PRE0 source")
-    full_config = (_checked_input_path(spec.full_config_path, label="full source config")
-                   if spec.full_config_path is not None else config)
-    full_config_identity = _bound_configs(full_config, config, spec.n_pulses)
+    full_config_identity = _bound_configs(full_config, config, requested_n_pulses)
     source = _read_manifest(source_path, label="source")
     lut = _read_manifest(lut_path, label="LUT")
     components = load_all(str(config))
@@ -329,8 +367,7 @@ def _build_admission(spec: E5AProductionSpec, *,
     requested_k = full_schedule.n_intervals if spec.prefix_intervals is None else int(spec.prefix_intervals)
     schedule = build_prefix_schedule(full_schedule, requested_k)
     if level == FORMAL_SITE_ADMISSION and (
-            full_config == config or full_schedule.n_intervals != 15000
-            or spec.prefix_intervals != 8048):
+            full_schedule.n_intervals != 15000 or spec.prefix_intervals != 8048):
         raise ValueError("formal source and derived config require full K15000 and prefix K8048")
     if schedule.n_intervals % BLOCK_SIZE or schedule.n_intervals <= 0:
         raise ValueError("production schedule requires complete blocks of eight")
@@ -376,7 +413,9 @@ def _build_admission(spec: E5AProductionSpec, *,
             raise ValueError("disabled LUT manifest is not bound to config")
     elif not lut.get("signature"):
         raise ValueError("production LUT manifest lacks a signature")
-    if int(getattr(run, "Npulses", spec.n_pulses)) != int(spec.n_pulses):
+    effective_n_pulses = _positive_integer_pulse_count(
+        getattr(run, "Npulses", requested_n_pulses), label="execution config Npulses")
+    if effective_n_pulses != requested_n_pulses:
         raise ValueError("production pulse count differs from effective config")
     if int(spec.candidate_hydro_workers) not in {1, 2, 4}:
         raise ValueError("Candidate hydro workers must be 1, 2, or 4")
@@ -389,7 +428,7 @@ def _build_admission(spec: E5AProductionSpec, *,
     elif level == FORMAL_SITE_ADMISSION or schedule.n_intervals != full_schedule.n_intervals:
         raise ValueError("formal or shortened prefix requires bound full slow source")
     budget_plan = plan_campaign_budget(
-        n_pulses=int(spec.n_pulses), k=schedule.n_intervals,
+        n_pulses=requested_n_pulses, k=schedule.n_intervals,
         ny=int(grid.Ny), nx=int(grid.Nx), nt=int(grid.Nt),
         max_campaign_live_bytes=int(spec.max_campaign_live_bytes),
         final_output_budget_bytes=int(spec.final_output_budget_bytes),
@@ -455,7 +494,8 @@ def _build_admission(spec: E5AProductionSpec, *,
         runtime_or_compatibility={"module": "KHz_filament.hr4e5_production", "runner": "single-production-runner"},
         config_identity={"path": str(config), "sha256": sha256_file(config),
                          "full_source_config": full_config_identity,
-                         "derivation": "run.Npulses=2_only" if full_config != config else "same_config"},
+                         "derivation": f"run.Npulses={requested_n_pulses}_only"
+                         if full_config != config else "same_config"},
         effective_params={"f_rep": float(heat.f_rep), "dt_hydro": float(getattr(heat, "dt_hydro", 1e-7))},
         source_identity={"path": str(source_path), "sha256": sha256_file(source_path),
                          "canonical_array_hash": source_hash,
@@ -471,7 +511,7 @@ def _build_admission(spec: E5AProductionSpec, *,
         pre0_identity={"path": str(pre0_path), "sha256": sha256_file(pre0_path),
                        "canonical_array_hash": sha256_array_streaming(pre0),
                        "slow_source_identity": slow_source_identity or {"scope": "LOCAL_FULL_SCHEDULE_FIXTURE"}},
-        n_pulses=int(spec.n_pulses), k=int(schedule.n_intervals), block_size=BLOCK_SIZE,
+        n_pulses=requested_n_pulses, k=int(schedule.n_intervals), block_size=BLOCK_SIZE,
         queue_depth=QUEUE_DEPTH, f_rep=float(heat.f_rep),
         hydro_topology={"candidate_optical_gpus_requested": 1,
                          "candidate_hydro_workers_requested": int(spec.candidate_hydro_workers),
