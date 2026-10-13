@@ -73,23 +73,67 @@ def validate_full_allocation(env):
     if bad:
         raise BenchmarkError("CPU allocation rejected: " + json.dumps(bad, sort_keys=True))
 
+def _parse_cpu_list(value):
+    """Parse Linux list syntax such as ``0-3,8,10-11``."""
+    result = set()
+    for part in value.strip().split(","):
+        if not part:
+            raise ValueError("empty CPU-list component")
+        bounds = part.split("-")
+        if len(bounds) == 1:
+            first = last = int(bounds[0])
+        elif len(bounds) == 2:
+            first, last = map(int, bounds)
+        else:
+            raise ValueError("invalid CPU-list component")
+        if first < 0 or last < first:
+            raise ValueError("invalid CPU-list range")
+        result.update(range(first, last + 1))
+    return result
+
+
 def cpu_topology(allowed=None, sysfs=Path("/sys/devices/system/cpu")):
     if allowed is None:
         allowed = sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") \
             else list(range(os.cpu_count() or 1))
-    groups = {}
-    for cpu in allowed:
-        topo = sysfs / f"cpu{cpu}" / "topology"
-        try:
-            key = (int((topo / "physical_package_id").read_text()),
-                   int((topo / "core_id").read_text()))
-            groups.setdefault(key, []).append(cpu)
-        except (OSError, ValueError):
-            groups = {}
-            break
-    cores = [sorted(v)[0] for _, v in sorted(groups.items())] if groups else list(allowed)
-    return {"allowed_logical_cpus": list(allowed), "physical_core_representatives": cores,
-            "topology_source": "sysfs_physical_core" if groups else "logical_cpu_fallback"}
+    allowed = sorted({int(cpu) for cpu in allowed})
+    try:
+        if not allowed:
+            raise ValueError("empty CPU affinity")
+        groups = {}
+        for cpu in allowed:
+            topo = sysfs / f"cpu{cpu}" / "topology" / "thread_siblings_list"
+            siblings = _parse_cpu_list(topo.read_text().strip())
+            if cpu not in siblings:
+                raise ValueError(f"CPU {cpu} absent from its sibling list")
+            visible = frozenset(siblings.intersection(allowed))
+            if not visible:
+                raise ValueError(f"CPU {cpu} has no allowed sibling")
+            groups[cpu] = visible
+        for cpu, siblings in groups.items():
+            for sibling in siblings:
+                if groups.get(sibling) != siblings:
+                    raise ValueError("thread_siblings_list is asymmetric or inconsistent")
+        unique = set(groups.values())
+        covered = set().union(*unique)
+        if covered != set(allowed):
+            raise ValueError("thread sibling groups do not cover affinity")
+        if sum(len(group) for group in unique) != len(allowed):
+            raise ValueError("thread sibling groups overlap")
+        cores = sorted(min(group) for group in unique)
+        return {"allowed_logical_cpus": allowed,
+                "physical_core_representatives": cores,
+                "physical_core_count": len(cores),
+                "thread_sibling_groups": [sorted(group) for group in sorted(unique, key=min)],
+                "topology_method": "sysfs_thread_siblings_list",
+                "topology_source": "sysfs_physical_core"}
+    except (OSError, ValueError) as exc:
+        return {"allowed_logical_cpus": allowed,
+                "physical_core_representatives": list(allowed),
+                "physical_core_count": None, "thread_sibling_groups": None,
+                "topology_method": "unavailable",
+                "topology_source": "logical_cpu_fallback",
+                "topology_error": f"{type(exc).__name__}: {exc}"}
 
 def physical_topology_verified(affinity):
     return affinity.get("topology_source") == "sysfs_physical_core"

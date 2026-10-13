@@ -123,6 +123,44 @@ def test_full_topology_requires_sysfs_physical_core_evidence() -> None:
     assert not bench.physical_topology_verified({"topology_source": "logical_cpu_fallback"})
 
 
+def _write_cpu_topology(sysfs: Path, cpu: int, siblings: str, *, core_id: int = 0) -> None:
+    topology = sysfs / f"cpu{cpu}" / "topology"
+    topology.mkdir(parents=True)
+    (topology / "thread_siblings_list").write_text(siblings, encoding="ascii")
+    (topology / "physical_package_id").write_text("0", encoding="ascii")
+    (topology / "core_id").write_text(str(core_id), encoding="ascii")
+
+
+def test_topology_uses_siblings_when_multidie_core_ids_repeat(tmp_path: Path) -> None:
+    sysfs = tmp_path / "sys"
+    for cpu in (0, 1, 48, 49):
+        _write_cpu_topology(sysfs, cpu, str(cpu), core_id=cpu % 2)
+    info = bench.cpu_topology([0, 1, 48, 49], sysfs=sysfs)
+    assert info["physical_core_representatives"] == [0, 1, 48, 49]
+    assert info["physical_core_count"] == 4
+    assert info["thread_sibling_groups"] == [[0], [1], [48], [49]]
+    assert bench.physical_topology_verified(info)
+
+
+def test_topology_collapses_sysfs_smt_sibling_pairs(tmp_path: Path) -> None:
+    sysfs = tmp_path / "sys"
+    for cpu, siblings in ((0, "0,48"), (48, "0,48"), (1, "1,49"), (49, "1,49")):
+        _write_cpu_topology(sysfs, cpu, siblings)
+    info = bench.cpu_topology([0, 1, 48, 49], sysfs=sysfs)
+    assert info["physical_core_representatives"] == [0, 1]
+    assert info["thread_sibling_groups"] == [[0, 48], [1, 49]]
+
+
+def test_inconsistent_sysfs_sibling_lists_do_not_verify_physical_cores(tmp_path: Path) -> None:
+    sysfs = tmp_path / "sys"
+    _write_cpu_topology(sysfs, 0, "0,1")
+    _write_cpu_topology(sysfs, 1, "1")
+    info = bench.cpu_topology([0, 1], sysfs=sysfs)
+    assert info["topology_source"] == "logical_cpu_fallback"
+    assert info["topology_method"] == "unavailable"
+    assert not bench.physical_topology_verified(info)
+
+
 def test_skipped_physical_core_slots_make_smoke_incomplete(tmp_path: Path, monkeypatch) -> None:
     root = tmp_path / "incomplete-run"
     monkeypatch.setattr(bench, "environment", lambda *args: {
