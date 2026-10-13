@@ -1127,7 +1127,7 @@ def run_controller(args) -> int:
     common.write_json(output / "status.json", summary)
     print(json.dumps({"status": status, "output_root": str(output),
                       "h1_complete": h1_complete, "h2_stage_count": len(h2_records)}, sort_keys=True), flush=True)
-    return 0 if h1_complete else 1
+    return 0 if status == "COMPLETE" else 1
 
 
 def run_stage(args) -> int:

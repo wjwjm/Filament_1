@@ -212,7 +212,7 @@ def test_controller_publishes_each_exclusive_stage_receipt_once(tmp_path: Path, 
     monkeypatch.setattr(module, "_run_probe", lambda _args, root, _deadline: (
         {"rank_to_hostname": {"0": "node-a", "1": "node-b"}}, {"exit_code": 0}))
     monkeypatch.setattr(module.p1, "_load_science", lambda: (
-        object(), lambda _array: "field", lambda _path: "raw", object(), {"backend": "numpy"}))
+        object(), lambda _array: "field", lambda _path: "raw", type("ThreadPoolFixture", (), {"__version__": "3.6.0"})(), {"backend": "numpy"}))
     monkeypatch.setattr(module, "_environment", lambda *_args: {})
 
     def fake_stage(_args, root, _probe, stage, nodes, layout, _budget, _deadline,
