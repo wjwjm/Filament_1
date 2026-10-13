@@ -545,11 +545,11 @@ def _finite_float(value):
 def _load_context(input_root: Path, bench_root: Path, vendor_dir: Path) -> dict:
     common.add_vendor(str(vendor_dir))
     import numpy as np
-    from KHz_filament import device
+    from KHz_filament.device import USE_GPU, xp
     from KHz_filament.confio import load_all
     from KHz_filament.hr4e5_formal_entry import build_prefix_schedule
     from KHz_filament.longitudinal import build_longitudinal_schedule
-    if device.USE_GPU or device.xp is not np:
+    if USE_GPU or xp is not np:
         raise OpticalError("NumPy CPU backend required; GPU backend is disabled for this task")
     source_binding = _source_binding(bench_root)
     assets = verify_asset_mapping(input_root)

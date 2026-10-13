@@ -83,3 +83,11 @@ def test_optical_supervisor_monitor_fault_retains_receipt(monkeypatch,tmp_path):
     assert result['stop_evidence']['terminated']
     assert (tmp_path/'A/supervisor_receipt.json').exists()
     assert (tmp_path/'A/child.log').exists()
+
+
+def test_optical_load_context_uses_device_module(monkeypatch,tmp_path):
+    root=Path(__file__).resolve().parents[3]
+    def reached(*args): raise RuntimeError('asset validation reached after CPU backend check')
+    monkeypatch.setattr(o,'verify_asset_mapping',reached)
+    with pytest.raises(RuntimeError,match='asset validation reached'):
+        o._load_context(tmp_path,root,tmp_path)
