@@ -214,7 +214,8 @@ def _probe_record() -> dict:
         raise P1RError("srun probe did not receive 96 verified physical cores: " +
                        json.dumps(topology, sort_keys=True))
     return {"record_type": "P1R_NODE_PROBE", "rank": int(os.environ.get("SLURM_PROCID", "-1")),
-            "hostname": socket.gethostname(), "affinity": topology,
+            "hostname": socket.gethostname(), "slurm_node_name": os.environ.get("SLURMD_NODENAME"),
+            "affinity": topology,
             "slurm_step_id": os.environ.get("SLURM_STEP_ID")}
 
 
@@ -632,7 +633,18 @@ def _validate_probe_dir(probe_dir: Path) -> dict:
         by_rank[rank] = row
     if len({row["hostname"] for row in by_rank.values()}) != 2:
         raise P1RError("two-node srun probe did not prove distinct hostnames")
-    return {"rank_to_hostname": {str(rank): by_rank[rank]["hostname"] for rank in (0, 1)},
+    allocation_expr = os.environ.get("SLURM_JOB_NODELIST")
+    if not allocation_expr:
+        raise P1RError("allocation NodeList is missing")
+    query = subprocess.run(["scontrol", "show", "hostnames", allocation_expr],
+                           capture_output=True, text=True, check=True, timeout=10)
+    allocation_nodes = query.stdout.split()
+    rank_nodes = [by_rank[rank].get("slurm_node_name") for rank in (0, 1)]
+    if len(allocation_nodes) != 2 or len(set(allocation_nodes)) != 2 or rank_nodes != allocation_nodes:
+        raise P1RError("Slurm NodeName/rank order differs from allocation host list")
+    return {"rank_to_slurm_node": {str(rank): rank_nodes[rank] for rank in (0, 1)},
+            "allocation_nodes_in_order": allocation_nodes,
+            "rank_to_hostname": {str(rank): by_rank[rank]["hostname"] for rank in (0, 1)},
             "ranks": by_rank, "shared_directory_proof": "TWO_RANK_EXCLUSIVE_RECEIPTS_VISIBLE"}
 
 
@@ -666,7 +678,7 @@ def _stage_run(args, root: Path, probe: dict, stage: str, node_count: int,
     for rank in range(node_count):
         (stage_dir / f"node-{rank:02d}").mkdir(mode=0o750)
         (stage_dir / f"node-{rank:02d}" / "tasks").mkdir(mode=0o750)
-    hosts = ",".join(probe["rank_to_hostname"][str(rank)] for rank in range(node_count))
+    hosts = ",".join(probe["rank_to_slurm_node"][str(rank)] for rank in range(node_count))
     inner = ["--mode", "stage", "--stage", stage, "--layout", layout,
              "--node-count", str(node_count), "--stage-budget", str(budget),
              "--output-root", str(stage_dir), "--input-root", args.input_root,

@@ -237,3 +237,40 @@ def test_controller_publishes_each_exclusive_stage_receipt_once(tmp_path: Path, 
         assert path.is_file()
         assert json.loads(path.read_text(encoding="utf-8"))["status"] == "COMPLETE"
     assert json.loads((output_root / "status.json").read_text(encoding="utf-8"))["status"] == "COMPLETE"
+
+
+def test_probe_maps_fqdn_to_verified_slurm_nodename_and_rank_order(tmp_path, monkeypatch):
+    import subprocess
+    nodes = ["cb0108", "cc0807"]
+    for rank, node in enumerate(nodes):
+        (tmp_path / f"probe-rank-{rank}.json").write_text(json.dumps({
+            "record_type": "P1R_NODE_PROBE", "rank": rank,
+            "hostname": node + ".para.bscc", "slurm_node_name": node}), encoding="utf-8")
+    monkeypatch.setenv("SLURM_JOB_NODELIST", ",".join(nodes))
+    monkeypatch.setattr(p1r.subprocess, "run", lambda *_a, **_k:
+                        subprocess.CompletedProcess([], 0, stdout="cb0108\ncc0807\n"))
+    probe = p1r._validate_probe_dir(tmp_path)
+    assert probe["rank_to_slurm_node"] == {"0": "cb0108", "1": "cc0807"}
+    assert probe["rank_to_hostname"]["0"] == "cb0108.para.bscc"
+    row = json.loads((tmp_path / "probe-rank-0.json").read_text())
+    row["slurm_node_name"] = "cc0807"
+    (tmp_path / "probe-rank-0.json").write_text(json.dumps(row), encoding="utf-8")
+    with pytest.raises(p1r.P1RError, match="NodeName/rank order"):
+        p1r._validate_probe_dir(tmp_path)
+
+
+@pytest.mark.parametrize("nodes,expected", [(1, "cb0108"), (2, "cb0108,cc0807")])
+def test_stage_nodelist_uses_scheduler_names_not_fqdn(tmp_path, monkeypatch, nodes, expected):
+    from types import SimpleNamespace
+    (tmp_path / "stages").mkdir()
+    probe = {"rank_to_hostname": {"0": "cb0108.para.bscc", "1": "cc0807.para.bscc"},
+             "rank_to_slurm_node": {"0": "cb0108", "1": "cc0807"}}
+    def capture(n, hosts, *_args):
+        assert n == nodes and hosts == expected
+        raise RuntimeError("captured_before_launch")
+    monkeypatch.setattr(p1r, "_srun_command", capture)
+    args = SimpleNamespace(input_root="inputs", manifest="manifest", workload="workload",
+                           vendor_dir="vendor", memory_limit_bytes=p1r.MEMORY_LIMIT_BYTES)
+    with pytest.raises(RuntimeError, match="captured_before_launch"):
+        p1r._stage_run(args, tmp_path, probe, "fixture", nodes, "H1", 10,
+                      time.monotonic()+10, lambda _: "raw", lambda _: "canonical")
