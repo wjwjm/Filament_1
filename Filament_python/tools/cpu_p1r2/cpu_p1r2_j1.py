@@ -539,7 +539,8 @@ def _run_window(*, source, pre_fields, grid, beam, prop, ion, heat, raman,
                 schedule, output_dir: Path, source_label: str,
                 initial_pre0: bool, profile: bool, source_hash: str | None = None,
                 pre0_hash: str | None = None, stage_name: str = "tiny",
-                execution_scope: str = "J1_REAL_INPUT", observe: bool = True) -> dict:
+                execution_scope: str = "J1_REAL_INPUT", observe: bool = True,
+                propagator_factory=None) -> dict:
     """Execute exactly eight frozen schedule intervals on a fresh source/PRE copy."""
     import numpy as np
     from contextlib import nullcontext
@@ -593,7 +594,13 @@ def _run_window(*, source, pre_fields, grid, beam, prop, ion, heat, raman,
         shape=(grid.Ny, grid.Nx), dtype=np.float64, enabled=True, mode="validation")
     hr3b_sink = HR3BDiagnosticSink(plan=plan, output_path=str(output_dir / "sinks"),
         shape=(grid.Ny, grid.Nx), dtype=np.float64, enabled=True)
-    if profile:
+    if propagator_factory is not None:
+        if profile:
+            raise J1Error("custom propagator_factory cannot be combined with the J1 profiler")
+        propagator, profiler = propagator_factory(propagate_module.propagate_one_pulse)
+        if not callable(propagator):
+            raise J1Error("custom propagator_factory did not return a callable propagator")
+    elif profile:
         propagator, profiler = _profiled_propagator()
     else:
         propagator, profiler = propagate_module.propagate_one_pulse, None
