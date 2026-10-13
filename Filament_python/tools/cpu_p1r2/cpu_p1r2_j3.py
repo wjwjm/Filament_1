@@ -34,18 +34,23 @@ EXPECTED_F_REP = 1000.0
 EXPECTED_DT_HYDRO = 1e-6
 EXPECTED_N0 = 1.00027
 EXPECTED_DX = EXPECTED_DY = 1e-5
-OPTICAL_WINDOW_BASELINE_MEASURED_SECONDS = 514.142852
-OPTICAL_WINDOW_SCHEDULING_MARGIN = 0.10
-OPTICAL_WINDOW_ESTIMATE_SECONDS = max(512.0, OPTICAL_WINDOW_BASELINE_MEASURED_SECONDS) * (
+OPTICAL_WINDOW_BASELINE_MEASURED_SECONDS = 518.0
+OPTICAL_WINDOW_SCHEDULING_MARGIN = 0.30
+OPTICAL_WINDOW_ESTIMATE_SECONDS = OPTICAL_WINDOW_BASELINE_MEASURED_SECONDS * (
     1.0 + OPTICAL_WINDOW_SCHEDULING_MARGIN)
 HYDRO_STAGE_ALLOWANCE_SECONDS = 120.0  # scheduling allowance, not a measured prediction
 HYDRO_STAGE_TIMEOUT_SECONDS = 180.0
-FIRST_CHILD_TIMEOUT_SECONDS = 2 * OPTICAL_WINDOW_ESTIMATE_SECONDS + HYDRO_STAGE_TIMEOUT_SECONDS
-RELOAD_CHILD_TIMEOUT_SECONDS = 600.0
-J3_WORK_LIMIT_SECONDS = 2700.0
+FIRST_CHILD_TIMEOUT_SECONDS = 2700.0
+RELOAD_CHILD_TIMEOUT_SECONDS = 2700.0
+J3_WORK_LIMIT_SECONDS = 6300.0
+J3_TAIL_RESERVE_SECONDS = 900.0
 MEMORY_BYTES = 320 * 1024**3
 RSS_WARN_FRACTION = 0.80
 RSS_ABORT_FRACTION = 0.90
+J2_TOOL_COMMIT = "5bdc064aaa8f7458ea65134a28ac9b8265041681"
+J2_MODULE_RELATIVE_PATH = "Filament_python/tools/cpu_p1r2/cpu_p1r2_j2.py"
+J2_ADMISSION_HASH_SCOPE = {"descriptor": "raw_bytes", "j2_result": "raw_bytes",
+    "j2_module": "git_blob_oid+canonical_lf_sha256"}
 
 
 class J3Error(RuntimeError):
@@ -342,9 +347,14 @@ def _prepare_real_context(args) -> tuple[dict, dict]:
     return {"context": context, "hydro": hydro}, allocation
 
 
+def _window_source_label(initial_pre0: bool, state_origin: str | None = None) -> str:
+    return state_origin or ("sealed_PRE0_first_eight" if initial_pre0 else "J3_NEXT1_memory")
+
+
 def _window(context: dict, pre_fields: dict, *, output_root: Path,
             stage_name: str, initial_pre0: bool, source, source_hash: str,
-            pre_hash: str | None, execution_scope: str) -> dict:
+            pre_hash: str | None, execution_scope: str,
+            propagator_factory=None, state_origin: str | None = None) -> dict:
     """Invoke the frozen complete-eight J1 propagator and verify all persisted outputs."""
     import numpy as np
     output_root.parent.mkdir(parents=True, exist_ok=True)
@@ -352,9 +362,10 @@ def _window(context: dict, pre_fields: dict, *, output_root: Path,
         grid=context["grid"], beam=context["beam"], prop=context["prop"],
         ion=context["ion"], heat=context["heat"], raman=context["raman"],
         schedule=context["schedule"], output_dir=output_root,
-        source_label="sealed_PRE0_first_eight" if initial_pre0 else "J3_NEXT1_memory",
+        source_label=_window_source_label(initial_pre0, state_origin),
         initial_pre0=initial_pre0, profile=False, source_hash=source_hash,
-        pre0_hash=pre_hash, stage_name=stage_name, execution_scope=execution_scope)
+        pre0_hash=pre_hash, stage_name=stage_name, execution_scope=execution_scope,
+        propagator_factory=propagator_factory)
     is_smoke = execution_scope == "SOFTWARE_SMOKE_ONLY"
     _write_json_new(output_root / "j3_provenance_receipt.json", {
         "schema": SCHEMA, "phase": PHASE, "execution_scope": execution_scope,
@@ -431,20 +442,98 @@ def _child_command(args, child_mode: str, child_root: Path, **extra):
     return command
 
 
+def _validate_candidate_admission(args) -> dict:
+    """Verify the external J2 admission and the actual J2 receipt it names."""
+    import json as _json
+    from tools.cpu_p1r2 import cpu_p1r2_j2 as j2
+    from tools.hpc_ops import provenance_v2
+
+    if args.candidate_descriptor is None or args.candidate_admission is None:
+        raise J3Error("candidate descriptor and candidate admission must be supplied together")
+    descriptor_path = args.candidate_descriptor
+    admission_path = args.candidate_admission
+    if not descriptor_path.is_absolute() or descriptor_path.is_symlink() or not descriptor_path.is_file():
+        raise J3Error("candidate descriptor must be an existing absolute non-symlink file")
+    if admission_path.is_symlink() or not admission_path.is_file():
+        raise J3Error("candidate admission must be an existing non-symlink file")
+    descriptor_raw = provenance_v2.raw_sha256_file(descriptor_path)
+    descriptor = j2._validate_descriptor(_json.loads(descriptor_path.read_text(encoding="utf-8")))
+    admission = _json.loads(admission_path.read_text(encoding="utf-8"))
+    required_true = ("eligible", "repeat_exact", "hard_gates")
+    if admission.get("schema") != "filament.cpu_p1r2.j3_candidate_admission.v1":
+        raise J3Error("candidate admission schema is unsupported")
+    if any(admission.get(key) is not True for key in required_true):
+        raise J3Error("candidate admission must set eligible/repeat_exact/hard_gates true")
+    if admission.get("hash_scope") != J2_ADMISSION_HASH_SCOPE:
+        raise J3Error("candidate admission hash_scope does not match the frozen byte scopes")
+    if admission.get("descriptor_raw_sha256") != descriptor_raw:
+        raise J3Error("candidate descriptor raw SHA256 does not match admission")
+    if admission.get("j2_tool_git_commit") != J2_TOOL_COMMIT:
+        raise J3Error("candidate admission is not bound to the frozen J2 tool commit")
+
+    record = {"path": J2_MODULE_RELATIVE_PATH,
+        "classification": "tracked_text", "hash_scope": provenance_v2.TRACKED_HASH_SCOPE,
+        "git_blob_oid": admission.get("j2_module_git_blob_oid"),
+        "canonical_lf_sha256": admission.get("j2_module_canonical_lf_sha256")}
+    provenance_v2._validate_tracked(args.bench_root, record, strict=True)
+    commit_blob = provenance_v2._git(args.bench_root, "rev-parse", "--verify",
+        f"{J2_TOOL_COMMIT}:{J2_MODULE_RELATIVE_PATH}")
+    if commit_blob.lower() != str(admission["j2_module_git_blob_oid"]).lower():
+        raise J3Error("J2 tracked module blob differs from the admitted J2 commit object")
+
+    result_path = Path(admission.get("j2_result_path", ""))
+    if not result_path.is_absolute() or result_path.is_symlink() or not result_path.is_file():
+        raise J3Error("admitted J2 result must be an existing absolute non-symlink file")
+    result_raw = provenance_v2.raw_sha256_file(result_path)
+    if result_raw != admission.get("j2_result_raw_sha256"):
+        raise J3Error("J2 result raw SHA256 does not match admission")
+    j2_receipt = _json.loads(result_path.read_text(encoding="utf-8"))
+    comparisons = j2_receipt.get("comparisons")
+    hard_gates_ok = (isinstance(comparisons, dict) and len(comparisons) == 4
+        and all(isinstance(row, dict) and row.get("hard_gate_pass") is True
+                for row in comparisons.values()))
+    if (j2_receipt.get("phase") != "J2"
+            or j2_receipt.get("status") != "COMPLETE_DIAGNOSTIC"
+            or j2_receipt.get("eligible_for_J3_bounded_diagnostic") is not True
+            or j2_receipt.get("candidate_repeat_exact") is not True
+            or not hard_gates_ok
+            or j2_receipt.get("candidate_descriptor") != descriptor):
+        raise J3Error("actual J2 receipt does not satisfy repeat, descriptor, and hard-gate criteria")
+    return {"status": "ADMITTED", "schema": admission["schema"],
+        "admission_path": str(admission_path), "descriptor_path": str(descriptor_path),
+        "descriptor": descriptor, "descriptor_raw_sha256": descriptor_raw,
+        "j2_result_path": str(result_path), "j2_result_raw_sha256": result_raw,
+        "j2_tool_git_commit": J2_TOOL_COMMIT,
+        "j2_module_git_blob_oid": record["git_blob_oid"],
+        "j2_module_canonical_lf_sha256": record["canonical_lf_sha256"],
+        "j2_actual_eligible": True, "j2_actual_repeat_exact": True,
+        "j2_actual_comparison_hard_gates": True}
+
+
 def _supervise_child(args, stage: str, child_mode: str, *, timeout_seconds: float,
-                     extra=None) -> dict:
-    stage_dir = args.output_root / "stages" / stage
+                     extra=None, stage_root: Path | None = None,
+                     candidate_descriptor: Path | None = None) -> dict:
+    root = stage_root or args.output_root
+    stage_dir = root / "stages" / stage
     stage_dir.mkdir(parents=True, exist_ok=False)
     child_root = stage_dir / "child"
     env = j1._child_environment(args.bench_root)
-    command = _child_command(args, child_mode, child_root, **(extra or {}))
+    latch_path = (stage_dir / "rss_80_percent.latch").resolve()
+    env["P1R2_RSS_LATCH"] = str(latch_path)
+    child_args = dict(extra or {})
+    if candidate_descriptor is not None:
+        child_args["candidate_descriptor"] = candidate_descriptor
+        child_args["candidate_descriptor_raw_sha256"] = args.candidate_descriptor_raw_sha256
+    command = _child_command(args, child_mode, child_root, **child_args)
     started = time.perf_counter()
     supervisor = j1._spawn_and_monitor(command, stage_dir=stage_dir,
         cwd=args.bench_root / "Filament_python", env=env,
-        timeout_seconds=timeout_seconds, memory_bytes=MEMORY_BYTES)
+        timeout_seconds=timeout_seconds, memory_bytes=MEMORY_BYTES,
+        rss_latch_path=latch_path)
     result = {"stage": stage, "status": "DONE" if supervisor.get("exit_code") == 0
         and supervisor.get("stop") is None else "FAIL_CHILD", "supervisor": supervisor,
-        "child_root": str(child_root)}
+        "child_root": str(child_root), "rss_latch_path": str(latch_path),
+        "rss_latch_exists": latch_path.is_file()}
     if supervisor.get("timed_out"):
         result["status"] = "LIMIT_REACHED"
     elif supervisor.get("exit_code") is None or (supervisor.get("stop") or {}).get("status") == "STOP_UNRESOLVED":
@@ -754,10 +843,27 @@ def _current_tree_rss_gate() -> dict:
     if snapshot is None:
         raise J3Error("Linux process-tree RSS snapshot is unavailable at a safe stage boundary")
     rss = int(snapshot["rss"])
+    marker = os.environ.get("P1R2_RSS_LATCH")
+    marker_exists = bool(marker and Path(marker).is_file())
     return {"rss_bytes": rss, "rss_fraction_of_320_GiB": rss / MEMORY_BYTES,
-            "latch_80_percent": rss >= int(MEMORY_BYTES * RSS_WARN_FRACTION),
+            "latch_marker_path": marker, "latch_marker_exists": marker_exists,
+            "latch_80_percent": (marker_exists
+                or rss >= int(MEMORY_BYTES * RSS_WARN_FRACTION)),
             "stop_90_percent": rss >= int(MEMORY_BYTES * RSS_ABORT_FRACTION),
             "sampled_process_tree_cpu_seconds_not_cumulative": float(snapshot.get("cpu", 0.0))}
+
+
+def _candidate_factory(args):
+    if args.candidate_descriptor is None:
+        return None
+    import json as _json
+    from tools.cpu_p1r2 import cpu_p1r2_j2 as j2
+    actual_raw = raw_sha256_file(args.candidate_descriptor)
+    expected_raw = getattr(args, "candidate_descriptor_raw_sha256", None)
+    if expected_raw is not None and actual_raw != expected_raw:
+        raise J3Error("candidate descriptor changed after admission validation")
+    descriptor = _json.loads(args.candidate_descriptor.read_text(encoding="utf-8"))
+    return j2.make_propagator_factory(descriptor)
 
 
 def _real_chain_child(args) -> int:
@@ -766,11 +872,13 @@ def _real_chain_child(args) -> int:
         prepared, allocation = _prepare_real_context(args)
         context, hydro_parameters = prepared["context"], prepared["hydro"]
         args.output_root.mkdir(parents=True, exist_ok=False)
+        propagator_factory = _candidate_factory(args)
         pre0_fields = _initial_pre_fields(context)
         initial = _window(context, pre0_fields, output_root=args.output_root / "pulse1",
             stage_name="J3-pulse1-from-PRE0", initial_pre0=True,
             source=context["source"], source_hash=context["source_hash"],
-            pre_hash=p1r.PRE0_ARRAY_SHA256, execution_scope="J3_REAL_INPUT")
+            pre_hash=p1r.PRE0_ARRAY_SHA256, execution_scope="J3_REAL_INPUT",
+            propagator_factory=propagator_factory)
         import numpy as np
         with np.load(initial["final_POST_path"], allow_pickle=False) as archive:
             post1 = _validate_fields({name: np.array(archive[name], order="C", copy=True)
@@ -830,7 +938,8 @@ def _real_chain_child(args) -> int:
         pulse2 = _window(context, hydro["fields"], output_root=args.output_root / "pulse2_chain",
             stage_name="J3-pulse2-from-in-memory-NEXT1", initial_pre0=False,
             source=source2, source_hash=source2_hash, pre_hash=None,
-            execution_scope="J3_REAL_INPUT")
+            execution_scope="J3_REAL_INPUT", propagator_factory=propagator_factory,
+            state_origin="J3_NEXT1_MEMORY")
         receipt = {"schema": SCHEMA, "phase": PHASE, "child_mode": "chain",
             "classification": CLASSIFICATION, "production_qualification": QUALIFICATION,
             "status": "COMPLETE_DIAGNOSTIC", "execution_scope": "J3_REAL_INPUT",
@@ -852,6 +961,10 @@ def _real_chain_child(args) -> int:
                 "field_canonical_sha256": hydro["field_sha256"],
                 "checkpoint_receipt": hydro["receipt"]},
             "pulse2_window": pulse2,
+            "implementation": ("SCIPY_PRIVATE_DISPATCH_CANDIDATE"
+                if propagator_factory is not None else "FROZEN_NUMPY_BASELINE"),
+            "candidate_descriptor": (json.loads(args.candidate_descriptor.read_text(encoding="utf-8"))
+                if args.candidate_descriptor is not None else None),
             "chain_coordinator_process_cpu_seconds_excluding_worker_processes":
                 time.process_time() - child_cpu_started,
             "process_cpu_aggregation": {
@@ -882,26 +995,39 @@ def _real_reload_child(args) -> int:
             expected_raw_sha256=checkpoint_receipt["NEXT1_raw_sha256"],
             expected_field_sha256=checkpoint_receipt["NEXT1_field_sha256"],
             shape=(8, 351, 301), label="J3 independently reloaded NEXT1")
-        source, source_hash, _ = p1r.validate_frozen_source(args.input_root, context["assets"])
+        # _load_context has already read and sealed-validated this child process's
+        # fresh source. Reuse that independent child copy instead of loading the
+        # same 649 MB asset a second time.
+        source = context["source"]
+        source_hash = context["source_hash"]
+        source_validation = context["source_validation"]
         if source_hash != context["source_hash"] or source_hash != p1r.SOURCE_ARRAY_SHA256:
             raise J3Error("reload-branch source differs from the sealed source")
+        if (source_validation.get("canonical_array_sha256") != source_hash
+                or source_validation.get("file_sha256") != p1r.SOURCE_RAW_SHA256):
+            raise J3Error("reload context source-validation receipt differs from sealed identity")
         pulse2 = _window(context, next1, output_root=args.output_root / "pulse2_reload",
             stage_name="J3-independent-pulse2-from-disk-NEXT1", initial_pre0=False,
             source=source, source_hash=source_hash, pre_hash=None,
-            execution_scope="J3_REAL_INPUT")
+            execution_scope="J3_REAL_INPUT", propagator_factory=_candidate_factory(args),
+            state_origin="J3_NEXT1_DISK_RELOADED")
         receipt = {"schema": SCHEMA, "phase": PHASE, "child_mode": "reload",
             "classification": CLASSIFICATION, "production_qualification": QUALIFICATION,
             "status": "COMPLETE_DIAGNOSTIC", "execution_scope": "J3_REAL_INPUT",
             "source_binding": context["source_binding"], "source_canonical_sha256": source_hash,
             "source_raw_sha256": p1r.SOURCE_RAW_SHA256,
+            "source_validation": j1._json_safe(source_validation),
             "NEXT1_input": {"raw_sha256": checkpoint_receipt["NEXT1_raw_sha256"],
                 "field_canonical_sha256": checkpoint_receipt["NEXT1_field_sha256"],
-                "independent_disk_reload": True},
+                "independent_disk_reload": True,
+                "state_origin": "J3_NEXT1_DISK_RELOADED"},
             "allocation": allocation,
             "lineage": {"fresh_source_loads": 1, "optical_pulses": 1,
                 "POST_generations": 1, "hydro_transitions": 0,
                 "branch": "INDEPENDENT_DISK_RELOAD_OF_CHAIN_NEXT1"},
             "pulse2_window": pulse2,
+            "implementation": ("SCIPY_PRIVATE_DISPATCH_CANDIDATE"
+                if args.candidate_descriptor is not None else "FROZEN_NUMPY_BASELINE"),
             "reload_child_process_cpu_seconds": time.process_time() - child_cpu_started,
             "status_semantics": "DIAGNOSTIC_ONLY_NO_PRODUCTION_QUALIFICATION"}
         _write_json_new(args.output_root / "j3_child_receipt.json", receipt)
@@ -935,13 +1061,15 @@ def _smoke_chain_child(args) -> int:
         context = _smoke_context()
         args.output_root.mkdir(parents=True, exist_ok=False)
         source_hash = j1._canonical_hash(context["source"])
+        propagator_factory = _candidate_factory(args)
         pre_fields = _validate_fields(context["pre_fields"], shape=(8, 8, 8),
                                       label="software PRE0")
         pre_hash = j1._canonical_hash(pre_fields["delta_n"])
         start_cpu = time.process_time()
         pulse1 = _window(context, pre_fields, output_root=args.output_root / "pulse1",
             stage_name="J3-smoke-pulse1", initial_pre0=True, source=context["source"],
-            source_hash=source_hash, pre_hash=pre_hash, execution_scope="SOFTWARE_SMOKE_ONLY")
+            source_hash=source_hash, pre_hash=pre_hash, execution_scope="SOFTWARE_SMOKE_ONLY",
+            propagator_factory=propagator_factory)
         with np.load(pulse1["final_POST_path"], allow_pickle=False) as archive:
             post1 = _validate_fields({name: np.array(archive[name], order="C", copy=True)
                 for name in FIELDS}, shape=(8, 8, 8), label="software POST1")
@@ -969,7 +1097,8 @@ def _smoke_chain_child(args) -> int:
         pulse2_source = np.array(context["source"], dtype=np.complex128, order="C", copy=True)
         pulse2 = _window(context, next_fields, output_root=args.output_root / "pulse2_chain",
             stage_name="J3-smoke-pulse2-chain", initial_pre0=False, source=pulse2_source,
-            source_hash=source_hash, pre_hash=None, execution_scope="SOFTWARE_SMOKE_ONLY")
+            source_hash=source_hash, pre_hash=None, execution_scope="SOFTWARE_SMOKE_ONLY",
+            propagator_factory=propagator_factory, state_origin="J3_NEXT1_MEMORY")
         receipt = {"schema": SCHEMA, "phase": PHASE, "child_mode": "smoke-chain",
             "classification": CLASSIFICATION, "production_qualification": QUALIFICATION,
             "execution_scope": "SOFTWARE_SMOKE_ONLY", "status": "COMPLETE_DIAGNOSTIC",
@@ -977,6 +1106,7 @@ def _smoke_chain_child(args) -> int:
             "POST1": {"raw_sha256": post_raw, "field_canonical_sha256": post_hashes},
             "NEXT1": {"raw_sha256": next_raw, "field_canonical_sha256": next_hashes,
                 "checkpoint_receipt": {"status": "COMPLETE_DIAGNOSTIC"}},
+            "pulse1_window": pulse1,
             "hydro_smoke": {"method": "MOCKED_NO_HR4_PHYSICS",
                 "worker_processes_launched": 0, "mocked_advance_calls": len(calls),
                 "calls": calls, "requested_n_steps": HYDRO_STEPS},
@@ -984,6 +1114,9 @@ def _smoke_chain_child(args) -> int:
                 "POST_generations": 2, "hydro_transitions": 1,
                 "branch": "SOFTWARE_SMOKE_ONLY"},
             "pulse2_window": pulse2,
+            "implementation": ("SCIPY_PRIVATE_DISPATCH_CANDIDATE"
+                if propagator_factory is not None else "FROZEN_NUMPY_BASELINE"),
+            "candidate_factory_window_count": 2 if propagator_factory is not None else 0,
             "child_process_cpu_seconds_excluding_children": time.process_time() - start_cpu}
         _write_json_new(args.output_root / "NEXT1_checkpoint_receipt.json", {
             "schema": SCHEMA, "phase": PHASE, "status": "COMPLETE_DIAGNOSTIC",
@@ -1009,20 +1142,27 @@ def _smoke_reload_child(args) -> int:
         import numpy as np
         source = np.array(context["source"], dtype=np.complex128, order="C", copy=True)
         source_hash = j1._canonical_hash(source)
+        propagator_factory = _candidate_factory(args)
         pulse2 = _window(context, next_fields, output_root=args.output_root / "pulse2_reload",
             stage_name="J3-smoke-pulse2-reload", initial_pre0=False, source=source,
-            source_hash=source_hash, pre_hash=None, execution_scope="SOFTWARE_SMOKE_ONLY")
+            source_hash=source_hash, pre_hash=None, execution_scope="SOFTWARE_SMOKE_ONLY",
+            propagator_factory=propagator_factory,
+            state_origin="J3_NEXT1_DISK_RELOADED")
         receipt = {"schema": SCHEMA, "phase": PHASE, "child_mode": "smoke-reload",
             "classification": CLASSIFICATION, "production_qualification": QUALIFICATION,
             "execution_scope": "SOFTWARE_SMOKE_ONLY", "status": "COMPLETE_DIAGNOSTIC",
             "source_canonical_sha256": source_hash,
             "NEXT1_input": {"raw_sha256": checkpoint["NEXT1_raw_sha256"],
                 "field_canonical_sha256": checkpoint["NEXT1_field_sha256"],
-                "independent_disk_reload": True},
+                "independent_disk_reload": True,
+                "state_origin": "J3_NEXT1_DISK_RELOADED"},
             "lineage": {"fresh_source_loads": 1, "optical_pulses": 1,
                 "POST_generations": 1, "hydro_transitions": 0,
                 "branch": "SOFTWARE_SMOKE_ONLY_INDEPENDENT_RELOAD"},
-            "pulse2_window": pulse2}
+            "pulse2_window": pulse2,
+            "implementation": ("SCIPY_PRIVATE_DISPATCH_CANDIDATE"
+                if propagator_factory is not None else "FROZEN_NUMPY_BASELINE"),
+            "candidate_factory_window_count": 1 if propagator_factory is not None else 0}
         _write_json_new(args.output_root / "j3_child_receipt.json", receipt)
         return 0
     except BaseException as exc:
@@ -1038,47 +1178,111 @@ def _smoke_command(args, mode: str, child_root: Path, **extra):
     return command
 
 
+def _run_smoke_implementation(args, implementation: str,
+                             candidate_descriptor: Path | None) -> dict:
+    implementation_root = args.output_root / implementation
+    implementation_root.mkdir(exist_ok=False)
+    env = j1._child_environment(args.bench_root)
+    child_args = {}
+    if candidate_descriptor is not None:
+        child_args = {"candidate_descriptor": candidate_descriptor,
+            "candidate_descriptor_raw_sha256": args.candidate_descriptor_raw_sha256}
+    chain_dir = implementation_root / "chain-stage"
+    chain_dir.mkdir(exist_ok=False)
+    chain_root = chain_dir / "child"
+    chain_sup = j1._spawn_and_monitor(_smoke_command(args, "chain", chain_root, **child_args),
+        stage_dir=chain_dir, cwd=args.bench_root / "Filament_python", env=env,
+        timeout_seconds=900, memory_bytes=MEMORY_BYTES)
+    chain_status = "DONE" if chain_sup.get("exit_code") == 0 and not chain_sup.get("stop") else "FAIL"
+    chain = {"stage": "chain", "status": chain_status, "supervisor": chain_sup,
+        "child_root": str(chain_root)}
+    reload = {"stage": "reload", "status": "BLOCKED_AFTER_CHAIN_FAILURE"}
+    comparison = None
+    if chain_status == "DONE" and not chain_sup.get("rss_80_percent_latched"):
+        chain_receipt = json.loads((chain_root / "j3_child_receipt.json").read_text(encoding="utf-8"))
+        reload_dir = implementation_root / "reload-stage"
+        reload_dir.mkdir(exist_ok=False)
+        reload_root = reload_dir / "child"
+        reload_sup = j1._spawn_and_monitor(_smoke_command(args, "reload", reload_root,
+            next1_path=chain_root / "NEXT1_checkpoint.npz",
+            next1_receipt=chain_root / "NEXT1_checkpoint_receipt.json", **child_args),
+            stage_dir=reload_dir, cwd=args.bench_root / "Filament_python", env=env,
+            timeout_seconds=900, memory_bytes=MEMORY_BYTES)
+        reload_status = "DONE" if reload_sup.get("exit_code") == 0 and not reload_sup.get("stop") else "FAIL"
+        reload = {"stage": "reload", "status": reload_status, "supervisor": reload_sup,
+            "child_root": str(reload_root)}
+        if reload_status == "DONE":
+            reload_receipt = json.loads((reload_root / "j3_child_receipt.json").read_text(encoding="utf-8"))
+            comparison = j1._compare_stage_files(chain_receipt["pulse2_window"],
+                reload_receipt["pulse2_window"], f"{implementation}_smoke_chain_vs_disk_reload")
+            chain_pre = _verify_window_pre_lineage(chain_receipt["pulse2_window"],
+                chain_receipt["NEXT1"]["field_canonical_sha256"], "smoke chain pulse2")
+            reload_pre = _verify_window_pre_lineage(reload_receipt["pulse2_window"],
+                reload_receipt["NEXT1_input"]["field_canonical_sha256"], "smoke reload pulse2")
+            comparison["same_implementation_PRE_fields_equal"] = chain_pre == reload_pre
+            comparison["reload_state_origin_is_disk_NEXT1"] = (
+                reload_receipt.get("NEXT1_input", {}).get("state_origin")
+                == "J3_NEXT1_DISK_RELOADED")
+            comparison["canonical_exact_match"] = bool(comparison["canonical_exact_match"]
+                and comparison["same_implementation_PRE_fields_equal"]
+                and comparison["reload_state_origin_is_disk_NEXT1"])
+    return {"implementation": implementation, "chain": chain, "reload": reload,
+        "comparison": comparison,
+        "repeat_exact": bool(comparison and comparison.get("canonical_exact_match")),
+        "candidate_factory_window_count": (chain_receipt.get("candidate_factory_window_count", 0)
+            + reload_receipt.get("candidate_factory_window_count", 0)
+            if chain_status == "DONE" and reload.get("status") == "DONE" else 0)}
+
+
 def _entry_smoke(args) -> int:
     try:
         if args.bench_root is None:
             raise J3Error("entry smoke requires --bench-root to bind its isolated child imports")
+        candidate_requested = (args.candidate_descriptor is not None
+            or args.candidate_admission is not None)
+        candidate_gate = {"status": "NOT_REQUESTED"}
+        if candidate_requested:
+            candidate_gate = _validate_candidate_admission(args)
+            args.candidate_descriptor_raw_sha256 = candidate_gate["descriptor_raw_sha256"]
         args.output_root.mkdir(parents=True, exist_ok=False)
-        stages, memory_latched = [], False
-        chain_dir = args.output_root / "chain-stage"
-        chain_dir.mkdir(exist_ok=False)
-        chain_root = chain_dir / "child"
-        env = j1._child_environment(args.bench_root)
-        chain_sup = j1._spawn_and_monitor(_smoke_command(args, "chain", chain_root),
-            stage_dir=chain_dir, cwd=args.bench_root / "Filament_python", env=env,
-            timeout_seconds=900, memory_bytes=MEMORY_BYTES)
-        chain_status = "DONE" if chain_sup.get("exit_code") == 0 and not chain_sup.get("stop") else "FAIL"
-        stages.append({"stage": "smoke-chain", "status": chain_status, "supervisor": chain_sup})
-        memory_latched = bool(chain_sup.get("rss_80_percent_latched"))
-        if chain_status != "DONE" or memory_latched:
-            raise J3Error("software smoke chain failed or latched the 80 percent RSS stop gate")
-        chain_receipt = json.loads((chain_root / "j3_child_receipt.json").read_text(encoding="utf-8"))
-        next1_receipt = chain_root / "NEXT1_checkpoint_receipt.json"
-        reload_dir = args.output_root / "reload-stage"
-        reload_dir.mkdir(exist_ok=False)
-        reload_root = reload_dir / "child"
-        reload_sup = j1._spawn_and_monitor(_smoke_command(args, "reload", reload_root,
-            next1_path=chain_root / "NEXT1_checkpoint.npz", next1_receipt=next1_receipt),
-            stage_dir=reload_dir, cwd=args.bench_root / "Filament_python", env=env,
-            timeout_seconds=900, memory_bytes=MEMORY_BYTES)
-        reload_status = "DONE" if reload_sup.get("exit_code") == 0 and not reload_sup.get("stop") else "FAIL"
-        stages.append({"stage": "smoke-reload", "status": reload_status, "supervisor": reload_sup})
-        if reload_status != "DONE":
-            raise J3Error("software smoke independent reload child failed")
-        reload_receipt = json.loads((reload_root / "j3_child_receipt.json").read_text(encoding="utf-8"))
-        comparison = j1._compare_stage_files(chain_receipt["pulse2_window"],
-            reload_receipt["pulse2_window"], "smoke_chain_pulse2_vs_independent_reload")
-        exact = bool(comparison.get("canonical_exact_match"))
+        baseline = _run_smoke_implementation(args, "baseline", None)
+        candidate = None
+        cross = None
+        if candidate_requested:
+            candidate = _run_smoke_implementation(args, "candidate", args.candidate_descriptor)
+            from tools.cpu_p1r2 import cpu_p1r2_j2 as j2
+            base_chain = json.loads((Path(baseline["chain"]["child_root"])
+                / "j3_child_receipt.json").read_text(encoding="utf-8"))
+            cand_chain = json.loads((Path(candidate["chain"]["child_root"])
+                / "j3_child_receipt.json").read_text(encoding="utf-8"))
+            base_reload = json.loads((Path(baseline["reload"]["child_root"])
+                / "j3_child_receipt.json").read_text(encoding="utf-8"))
+            cand_reload = json.loads((Path(candidate["reload"]["child_root"])
+                / "j3_child_receipt.json").read_text(encoding="utf-8"))
+            cross = {"pulse1": _cross_pulse1_compare(base_chain["pulse1_window"],
+                    cand_chain["pulse1_window"], "smoke_baseline_vs_candidate_pulse1"),
+                "pulse2_chain": _cross_lineaged_pulse2_compare(
+                    base_chain["pulse2_window"], cand_chain["pulse2_window"],
+                    base_chain["NEXT1"]["field_canonical_sha256"],
+                    cand_chain["NEXT1"]["field_canonical_sha256"],
+                    "smoke_baseline_vs_candidate_chain_pulse2"),
+                "pulse2_reload": _cross_lineaged_pulse2_compare(
+                    base_reload["pulse2_window"], cand_reload["pulse2_window"],
+                    base_reload["NEXT1_input"]["field_canonical_sha256"],
+                    cand_reload["NEXT1_input"]["field_canonical_sha256"],
+                    "smoke_baseline_vs_candidate_reload_pulse2")}
+            cross["hard_gates_pass"] = all(cross[name].get("hard_gate_pass") is True
+                for name in ("pulse1", "pulse2_chain", "pulse2_reload"))
+        exact = bool(baseline["repeat_exact"] and (candidate is None
+            or (candidate["repeat_exact"] and candidate["candidate_factory_window_count"] == 3
+                and cross["hard_gates_pass"])))
         result = {"schema": SCHEMA, "phase": PHASE,
             "classification": CLASSIFICATION, "production_qualification": QUALIFICATION,
             "execution_scope": "SOFTWARE_SMOKE_ONLY",
             "status": "SOFTWARE_SMOKE_EXACT" if exact else "SOFTWARE_SMOKE_DIFFERENCE",
-            "stages": stages, "comparison": comparison,
-            "mocked_hr4_calls": chain_receipt["hydro_smoke"]["mocked_advance_calls"],
+            "baseline": baseline, "candidate": candidate,
+            "candidate_admission": candidate_gate, "cross_implementation": cross,
+            "mocked_hr4_calls": 8,
             "real_hr4_physics_executed": False, "worker_processes": 0}
         _write_json_new(args.output_root / "entry_smoke_receipt.json", result)
         return 0 if exact else 1
@@ -1093,12 +1297,221 @@ def _entry_smoke(args) -> int:
         return 1
 
 
+def _run_implementation(args, implementation: str, stage_root: Path, *,
+                        candidate_descriptor: Path | None, deadline: float) -> dict:
+    stage_root.mkdir(parents=True, exist_ok=False)
+    predicted_chain = 2 * OPTICAL_WINDOW_ESTIMATE_SECONDS + HYDRO_STAGE_TIMEOUT_SECONDS
+    predicted_reload = OPTICAL_WINDOW_ESTIMATE_SECONDS
+    stages = []
+    comparison = None
+    remaining = deadline - time.time()
+    if remaining < predicted_chain + predicted_reload:
+        stages.append({"stage": "chain", "status": "SKIPPED_INSUFFICIENT_TIME",
+            "remaining_seconds": remaining, "predicted_chain_seconds": predicted_chain,
+            "predicted_reload_seconds": predicted_reload,
+            "remaining_in_work_budget": True})
+    else:
+        chain_timeout = min(FIRST_CHILD_TIMEOUT_SECONDS,
+            max(1.0, remaining - predicted_reload))
+        chain = _supervise_child(args, "chain", "chain", stage_root=stage_root,
+            candidate_descriptor=candidate_descriptor, timeout_seconds=chain_timeout)
+        stages.append(chain)
+        marker_latched = bool(chain.get("rss_latch_exists")
+            or chain.get("supervisor", {}).get("rss_80_percent_latched"))
+        if chain.get("status") == "DONE" and not marker_latched:
+            remaining = deadline - time.time()
+            if remaining < max(predicted_reload, J3_TAIL_RESERVE_SECONDS):
+                stages.append({"stage": "reload", "status": "SKIPPED_INSUFFICIENT_TIME",
+                    "remaining_seconds": remaining, "predicted_seconds": predicted_reload,
+                    "tail_reserve_seconds_within_work_budget": J3_TAIL_RESERVE_SECONDS})
+            else:
+                chain_root = Path(chain["child_root"])
+                reload_timeout = min(RELOAD_CHILD_TIMEOUT_SECONDS,
+                    max(1.0, remaining))
+                reload = _supervise_child(args, "reload", "reload",
+                    stage_root=stage_root, candidate_descriptor=candidate_descriptor,
+                    timeout_seconds=reload_timeout,
+                    extra={"next1_path": chain_root / "NEXT1_checkpoint.npz",
+                           "next1_receipt": chain_root / "NEXT1_checkpoint_receipt.json"})
+                stages.append(reload)
+                if reload.get("status") == "DONE":
+                    chain_receipt = chain["child_receipt"]
+                    reload_receipt = reload["child_receipt"]
+                    chain_pre = _verify_window_pre_lineage(chain_receipt["pulse2_window"],
+                        chain_receipt["NEXT1"]["field_canonical_sha256"],
+                        f"{implementation} chain pulse2")
+                    reload_pre = _verify_window_pre_lineage(reload_receipt["pulse2_window"],
+                        reload_receipt["NEXT1_input"]["field_canonical_sha256"],
+                        f"{implementation} reload pulse2")
+                    comparison = j1._compare_stage_files(
+                        chain_receipt["pulse2_window"], reload_receipt["pulse2_window"],
+                        f"J3_{implementation}_chain_pulse2_vs_independent_disk_NEXT1_reload")
+                    comparison["same_implementation_PRE_fields_equal"] = chain_pre == reload_pre
+                    comparison["NEXT1_checkpoint_identity_equal"] = (
+                        chain_receipt["NEXT1"]["raw_sha256"]
+                        == reload_receipt["NEXT1_input"]["raw_sha256"]
+                        and chain_receipt["NEXT1"]["field_canonical_sha256"]
+                        == reload_receipt["NEXT1_input"]["field_canonical_sha256"])
+                    comparison["reload_state_origin_is_disk_NEXT1"] = (
+                        reload_receipt["NEXT1_input"].get("state_origin")
+                        == "J3_NEXT1_DISK_RELOADED")
+                    comparison["canonical_exact_match"] = bool(
+                        comparison["canonical_exact_match"]
+                        and comparison["NEXT1_checkpoint_identity_equal"]
+                        and comparison["same_implementation_PRE_fields_equal"]
+                        and comparison["reload_state_origin_is_disk_NEXT1"])
+                    comparison["classification"] = (
+                        "EXACT_DIAGNOSTIC_MATCH" if comparison["canonical_exact_match"]
+                        else "NUMERICAL_DIFFERENCE")
+                    _write_json_new(stage_root / "chain_vs_reload_comparison.json", comparison)
+        elif marker_latched:
+            stages.append({"stage": "reload", "status": "BLOCKED_RSS_80_PERCENT_LATCH"})
+        else:
+            stages.append({"stage": "reload", "status": "BLOCKED_AFTER_CHAIN_FAILURE"})
+    chain = next((row for row in stages if row.get("stage") == "chain"), {})
+    reload = next((row for row in stages if row.get("stage") == "reload"), {})
+    chain_done = chain.get("status") == "DONE"
+    reload_done = reload.get("status") == "DONE"
+    complete = bool(chain_done and reload_done and comparison is not None)
+    repeat_exact = bool(complete and comparison.get("canonical_exact_match"))
+    status = ("COMPLETE_DIAGNOSTIC" if repeat_exact else
+        "NUMERICAL_DIFFERENCE" if complete else
+        "LIMIT_REACHED" if any(row.get("status") == "LIMIT_REACHED" for row in stages)
+        else "INCOMPLETE")
+    result = {"implementation": implementation, "status": status,
+        "stages": stages, "chain_vs_reload_comparison": comparison,
+        "repeat_exact": repeat_exact,
+        "rss_80_percent_latched": any(bool(row.get("rss_latch_exists")
+            or row.get("supervisor", {}).get("rss_80_percent_latched")) for row in stages),
+        "predicted_chain_seconds": predicted_chain,
+        "predicted_reload_seconds": predicted_reload,
+        "prediction_basis": "518_seconds_per_window_times_1.3_plus_180_second_HR4_budget"}
+    _write_json_new(stage_root / "implementation_receipt.json", result)
+    return result
+
+
+def _next1_comparison(args, baseline: dict, candidate: dict) -> dict:
+    import numpy as np
+    from tools.cpu_p1r2 import cpu_p1r2_j2 as j2
+    baseline_chain = next(row for row in baseline["stages"] if row.get("stage") == "chain")
+    candidate_chain = next(row for row in candidate["stages"] if row.get("stage") == "chain")
+    baseline_root = Path(baseline_chain["child_root"])
+    candidate_root = Path(candidate_chain["child_root"])
+    left_receipt = json.loads((baseline_root / "NEXT1_checkpoint_receipt.json").read_text(encoding="utf-8"))
+    right_receipt = json.loads((candidate_root / "NEXT1_checkpoint_receipt.json").read_text(encoding="utf-8"))
+    left = _load_npz(baseline_root / "NEXT1_checkpoint.npz",
+        expected_raw_sha256=left_receipt["NEXT1_raw_sha256"],
+        expected_field_sha256=left_receipt["NEXT1_field_sha256"],
+        shape=(8, 351, 301), label="J3 baseline NEXT1 comparison")
+    right = _load_npz(candidate_root / "NEXT1_checkpoint.npz",
+        expected_raw_sha256=right_receipt["NEXT1_raw_sha256"],
+        expected_field_sha256=right_receipt["NEXT1_field_sha256"],
+        shape=(8, 351, 301), label="J3 candidate NEXT1 comparison")
+    metrics = {}
+    for name in FIELDS:
+        metrics[name] = j2._array_error_metrics(np.asarray(left[name]), np.asarray(right[name]))
+    return {"label": "J3_baseline_vs_candidate_NEXT1_fields",
+        "fields": metrics, "all_fields_canonical_exact": all(
+            item.get("canonical_exact", False) for item in metrics.values()),
+        "interpretation": "NUMERICAL_DIFFERENCE_IS_DIAGNOSTIC_ONLY"}
+
+
+def _window_pre_fields(window: dict) -> dict:
+    value = window.get("receipt", {}).get("input_PRE_fields_canonical_sha256")
+    return value if isinstance(value, dict) else {}
+
+
+def _verify_window_pre_lineage(window: dict, checkpoint_fields: dict, label: str) -> dict:
+    actual = _window_pre_fields(window)
+    receipt = window.get("receipt", {})
+    pre0_expected = receipt.get("pre0_expected_canonical_sha256")
+    pre0_actual = receipt.get("pre0_canonical_sha256")
+    pre0_contract_ok = (pre0_actual == actual.get("delta_n") if pre0_expected is not None
+        else pre0_actual is None)
+    valid = (set(actual) == set(FIELDS) and set(checkpoint_fields) == set(FIELDS)
+        and actual == checkpoint_fields and pre0_contract_ok)
+    if not valid:
+        raise J3Error(f"{label} optical PRE hashes do not match their verified NEXT1 lineage")
+    return actual
+
+
+def _cross_pulse1_compare(left: dict, right: dict, label: str) -> dict:
+    from tools.cpu_p1r2 import cpu_p1r2_j2 as j2
+    left_pre, right_pre = _window_pre_fields(left), _window_pre_fields(right)
+    raw = j2._compare_stage_files(left, right, label)
+    result = dict(raw)
+    errors = list(raw.get("hard_gate_errors", []))
+    same_pre0 = set(left_pre) == set(FIELDS) and left_pre == right_pre
+    if not same_pre0:
+        errors.append("pre0_full_field_hashes_changed")
+    result["raw_j2_hard_gate_errors"] = list(raw.get("hard_gate_errors", []))
+    result["effective_hard_gate_errors"] = errors
+    result["pre0_full_field_hashes_equal"] = same_pre0
+    result["hard_gate_errors"] = errors
+    result["hard_gate_pass"] = not errors
+    return result
+
+
+def _cross_lineaged_pulse2_compare(left: dict, right: dict,
+                                    left_next_fields: dict, right_next_fields: dict,
+                                    label: str) -> dict:
+    """Preserve J2 evidence; reclassify only verified separately derived PRE2."""
+    from tools.cpu_p1r2 import cpu_p1r2_j2 as j2
+    left_pre = _verify_window_pre_lineage(left, left_next_fields, f"{label} left")
+    right_pre = _verify_window_pre_lineage(right, right_next_fields, f"{label} right")
+    raw = j2._compare_stage_files(left, right, label)
+    raw_errors = list(raw.get("hard_gate_errors", []))
+    left_source = left.get("receipt", {}).get("source_canonical_sha256")
+    right_source = right.get("receipt", {}).get("source_canonical_sha256")
+    source_equal = bool(left_source and left_source == right_source)
+    distinct_pre = left_pre != right_pre
+    allowed_pre_error = (distinct_pre and source_equal
+        and "pre0_canonical_sha256_changed" in raw_errors)
+    effective = [error for error in raw_errors
+        if not (allowed_pre_error and error == "pre0_canonical_sha256_changed")]
+    if not source_equal and "source_fresh_input_changed" not in effective:
+        effective.append("source_fresh_input_changed")
+    result = dict(raw)
+    result.update({
+        "raw_j2_comparison": raw,
+        "raw_j2_hard_gate_errors": raw_errors,
+        "effective_hard_gate_errors": effective,
+        "hard_gate_errors": effective,
+        "hard_gate_pass": not effective,
+        "pre2_lineage_exception": {
+            "classification": ("EXPECTED_DISTINCT_LINEAGED_PRE2_INPUT" if distinct_pre
+                else "SAME_LINEAGED_PRE2_INPUT"),
+            "left_input_PRE_fields_canonical_sha256": left_pre,
+            "right_input_PRE_fields_canonical_sha256": right_pre,
+            "left_verified_NEXT1_field_canonical_sha256": left_next_fields,
+            "right_verified_NEXT1_field_canonical_sha256": right_next_fields,
+            "left_PRE_matches_own_NEXT1": True,
+            "right_PRE_matches_own_NEXT1": True,
+            "same_fresh_source_E": source_equal,
+            "only_pre_hash_gate_reclassified": bool(allowed_pre_error),
+            "other_raw_hard_gates_preserved": True},
+    })
+    return result
+
+
 def _run_j3(args) -> int:
     if args.phase != PHASE:
         raise J3Error("J3 coordinator requires explicit --phase J3")
+    if any(value is None for value in (args.bench_root, args.input_root, args.vendor_dir)):
+        raise J3Error("full J3 requires bench-root, input-root and vendor-dir")
+    start_cpu = time.process_time()
     prepared, allocation = _prepare_real_context(args)
     context = prepared["context"]
-    hydro_parameters = prepared["hydro"]
+    candidate_requested = args.candidate_descriptor is not None or args.candidate_admission is not None
+    candidate_gate = {"status": "NOT_REQUESTED"}
+    if candidate_requested:
+        try:
+            candidate_gate = _validate_candidate_admission(args)
+            if candidate_gate.get("status") == "ADMITTED":
+                args.candidate_descriptor_raw_sha256 = candidate_gate["descriptor_raw_sha256"]
+        except Exception as exc:
+            candidate_gate = {"status": "BLOCKED_INVALID_ADMISSION",
+                "error": f"{type(exc).__name__}: {exc}"}
     allocation_start = _allocation_start_epoch()
     allocation_deadline = allocation_start + 7200.0 - 900.0
     work_deadline = min(allocation_start + J3_WORK_LIMIT_SECONDS, allocation_deadline)
@@ -1107,93 +1520,121 @@ def _run_j3(args) -> int:
     p1r._environment_receipt(args.output_root, vendor_dir=args.vendor_dir, allocation=allocation)
     input_summary = {"source_raw_sha256": p1r.SOURCE_RAW_SHA256,
         "source_canonical_sha256": context["source_hash"],
+        "source_validation": j1._json_safe(context["source_validation"]),
         "pre0_raw_sha256": p1r.PRE0_RAW_SHA256,
         "pre0_canonical_sha256": context["assets"]["pre0_canonical_sha256"],
         "transfer_mapping_sha256": context["assets"]["mapping_sha256"],
         "schedule": j1._json_safe(context["schedule"].as_metadata()),
         "runtime_config_delta": j1._json_safe(context["runtime_config_delta"]),
-        "hydro_parameters": hydro_parameters}
+        "hydro_parameters": prepared["hydro"]}
     _write_json_new(args.output_root / "input_validation_receipt.json", input_summary)
-    del prepared, context, hydro_parameters
+    _write_json_new(args.output_root / "candidate_admission_receipt.json", candidate_gate)
+    del prepared, context
     import gc
     gc.collect()
-    start_cpu = time.process_time()
-    stages = []
-    comparison = None
-    remaining = work_deadline - time.time()
-    predicted_chain = FIRST_CHILD_TIMEOUT_SECONDS
+    predicted_chain = 2 * OPTICAL_WINDOW_ESTIMATE_SECONDS + HYDRO_STAGE_TIMEOUT_SECONDS
     predicted_reload = OPTICAL_WINDOW_ESTIMATE_SECONDS
-    if remaining < predicted_chain + predicted_reload:
-        stages.append({"stage": "chain", "status": "SKIPPED_INSUFFICIENT_TIME",
-            "remaining_seconds": remaining, "required_predicted_seconds":
-                predicted_chain + predicted_reload})
-    else:
-        chain = _supervise_child(args, "chain", "chain",
-            timeout_seconds=min(FIRST_CHILD_TIMEOUT_SECONDS,
-                                max(1.0, remaining - predicted_reload)))
-        stages.append(chain)
-        memory_latched = bool(chain.get("supervisor", {}).get("rss_80_percent_latched"))
-        if chain.get("status") == "DONE" and not memory_latched:
-            remaining = work_deadline - time.time()
-            if remaining < predicted_reload:
-                stages.append({"stage": "reload", "status": "SKIPPED_INSUFFICIENT_TIME",
-                    "remaining_seconds": remaining,
-                    "predicted_seconds": predicted_reload})
-            else:
-                chain_root = Path(chain["child_root"])
-                checkpoint_receipt = json.loads(
-                    (chain_root / "NEXT1_checkpoint_receipt.json").read_text(encoding="utf-8"))
-                reload = _supervise_child(args, "reload", "reload",
-                    timeout_seconds=min(RELOAD_CHILD_TIMEOUT_SECONDS,
-                        max(1.0, remaining)),
-                    extra={"next1_path": chain_root / "NEXT1_checkpoint.npz",
-                           "next1_receipt": chain_root / "NEXT1_checkpoint_receipt.json"})
-                stages.append(reload)
-                if reload.get("status") == "DONE":
-                    chain_receipt = chain["child_receipt"]
-                    reload_receipt = reload["child_receipt"]
-                    comparison = j1._compare_stage_files(
-                        chain_receipt["pulse2_window"], reload_receipt["pulse2_window"],
-                        "J3_chain_pulse2_vs_independent_NEXT1_reload")
-                    comparison["NEXT1_checkpoint_identity_equal"] = (
-                        chain_receipt["NEXT1"]["raw_sha256"]
-                        == reload_receipt["NEXT1_input"]["raw_sha256"]
-                        and chain_receipt["NEXT1"]["field_canonical_sha256"]
-                        == reload_receipt["NEXT1_input"]["field_canonical_sha256"])
-                    comparison["canonical_exact_match"] = bool(
-                        comparison["canonical_exact_match"]
-                        and comparison["NEXT1_checkpoint_identity_equal"])
-                    comparison["classification"] = (
-                        "EXACT_DIAGNOSTIC_MATCH" if comparison["canonical_exact_match"]
-                        else "NUMERICAL_DIFFERENCE")
-                    _write_json_new(args.output_root / "chain_vs_reload_comparison.json",
-                                    comparison)
-        elif memory_latched:
-            stages.append({"stage": "reload", "status": "BLOCKED_RSS_80_PERCENT_LATCH"})
+    baseline = _run_implementation(args, "baseline", args.output_root / "baseline",
+        candidate_descriptor=None, deadline=work_deadline)
+    candidate = None
+    cross_comparison = None
+    candidate_status = candidate_gate["status"]
+    baseline_latched = baseline.get("rss_80_percent_latched", False)
+    if candidate_requested:
+        if candidate_gate.get("status") != "ADMITTED":
+            candidate_status = "BLOCKED_INVALID_ADMISSION"
+        elif baseline_latched:
+            candidate_status = "BLOCKED_RSS_80_PERCENT_LATCH"
+        elif baseline.get("repeat_exact") is not True:
+            candidate_status = "BLOCKED_BASELINE_REPEAT_NOT_EXACT"
         else:
-            stages.append({"stage": "reload", "status": "BLOCKED_AFTER_CHAIN_FAILURE"})
-    chain_done = any(row.get("stage") == "chain" and row.get("status") == "DONE"
-                     for row in stages)
-    reload_done = any(row.get("stage") == "reload" and row.get("status") == "DONE"
-                      for row in stages)
-    if chain_done and reload_done and comparison is not None:
-        status = ("COMPLETE_DIAGNOSTIC" if comparison["canonical_exact_match"]
-                  else "NUMERICAL_DIFFERENCE")
-    elif any(row.get("status") == "LIMIT_REACHED" for row in stages):
-        status = "LIMIT_REACHED"
+            remaining = work_deadline - time.time()
+            predicted_candidate_total = predicted_chain + predicted_reload
+            if remaining < max(predicted_candidate_total, J3_TAIL_RESERVE_SECONDS):
+                candidate_status = "SKIPPED_INSUFFICIENT_TIME"
+            else:
+                candidate = _run_implementation(args, "candidate",
+                    args.output_root / "candidate",
+                    candidate_descriptor=args.candidate_descriptor,
+                    deadline=work_deadline)
+                candidate_status = candidate["status"]
+                if (candidate.get("status") == "COMPLETE_DIAGNOSTIC"
+                        and baseline.get("status") == "COMPLETE_DIAGNOSTIC"):
+                    from tools.cpu_p1r2 import cpu_p1r2_j2 as j2
+                    baseline_chain = next(row for row in baseline["stages"]
+                        if row.get("stage") == "chain")
+                    candidate_chain = next(row for row in candidate["stages"]
+                        if row.get("stage") == "chain")
+                    baseline_reload = next(row for row in baseline["stages"]
+                        if row.get("stage") == "reload")
+                    candidate_reload = next(row for row in candidate["stages"]
+                        if row.get("stage") == "reload")
+                    cross_comparison = {
+                        "pulse1": _cross_pulse1_compare(
+                            baseline_chain["child_receipt"]["pulse1_window"],
+                            candidate_chain["child_receipt"]["pulse1_window"],
+                            "J3_baseline_vs_candidate_pulse1"),
+                        "pulse2_chain": _cross_lineaged_pulse2_compare(
+                            baseline_chain["child_receipt"]["pulse2_window"],
+                            candidate_chain["child_receipt"]["pulse2_window"],
+                            baseline_chain["child_receipt"]["NEXT1"]["field_canonical_sha256"],
+                            candidate_chain["child_receipt"]["NEXT1"]["field_canonical_sha256"],
+                            "J3_baseline_vs_candidate_chain_pulse2"),
+                        "pulse2_independent_reload": _cross_lineaged_pulse2_compare(
+                            baseline_reload["child_receipt"]["pulse2_window"],
+                            candidate_reload["child_receipt"]["pulse2_window"],
+                            baseline_reload["child_receipt"]["NEXT1_input"]["field_canonical_sha256"],
+                            candidate_reload["child_receipt"]["NEXT1_input"]["field_canonical_sha256"],
+                            "J3_baseline_vs_candidate_disk_reload_pulse2"),
+                        "NEXT1_fields": _next1_comparison(args, baseline, candidate)}
+                    cross_comparison["all_hard_gates_pass"] = all(
+                        cross_comparison[key].get("hard_gate_pass") is True
+                        for key in ("pulse1", "pulse2_chain", "pulse2_independent_reload"))
+                    cross_comparison["nonzero_numerical_differences_remain_diagnostic_only"] = True
+                    _write_json_new(args.output_root / "baseline_vs_candidate_comparison.json",
+                                    cross_comparison)
+                    if not cross_comparison["all_hard_gates_pass"]:
+                        candidate_status = "NUMERICAL_DIFFERENCE_HARD_GATE"
+                    elif not candidate["repeat_exact"]:
+                        candidate_status = "CANDIDATE_REPEAT_NOT_EXACT"
+    if candidate_status not in ("ADMITTED", "NOT_REQUESTED") and candidate is None:
+        overall_status = "COMPLETE_DIAGNOSTIC_BASELINE_ONLY" if baseline.get("repeat_exact") else baseline.get("status", "INCOMPLETE")
+    elif candidate is not None and candidate_status == "COMPLETE_DIAGNOSTIC":
+        overall_status = "COMPLETE_DIAGNOSTIC"
+    elif candidate is not None and candidate_status == "NUMERICAL_DIFFERENCE_HARD_GATE":
+        overall_status = "NUMERICAL_DIFFERENCE"
+    elif candidate is not None and candidate_status == "CANDIDATE_REPEAT_NOT_EXACT":
+        overall_status = "NUMERICAL_DIFFERENCE"
+    elif candidate is not None and candidate_status != "COMPLETE_DIAGNOSTIC":
+        overall_status = candidate_status if candidate_status in {
+            "NUMERICAL_DIFFERENCE", "LIMIT_REACHED", "INCOMPLETE"} else "INCOMPLETE"
     else:
-        status = "INCOMPLETE"
+        overall_status = baseline.get("status", "INCOMPLETE")
     receipt = {"schema": SCHEMA, "phase": PHASE,
         "classification": CLASSIFICATION, "production_qualification": QUALIFICATION,
-        "status": status, "execution_mode": "SERIAL_CHAIN_THEN_INDEPENDENT_RELOAD",
+        "status": overall_status,
+        "execution_mode": "SERIAL_BASELINE_CHAIN_RELOAD_THEN_ADMITTED_CANDIDATE_CHAIN_RELOAD",
         "allocation": allocation, "allocation_start_epoch": allocation_start,
         "allocation_wall_limit_seconds": 7200, "allocation_reserve_seconds": 900,
         "j3_work_limit_seconds": J3_WORK_LIMIT_SECONDS, "work_deadline_epoch": work_deadline,
-        "stage_order": ["chain", "reload"], "stages": stages,
-        "comparison": comparison, "input_validation": input_summary,
+        "coordinator_admission_source_loads": 1,
+        "coordinator_process_cpu_includes_admission_and_source_validation": True,
+        "tail_reserve_seconds": J3_TAIL_RESERVE_SECONDS,
+        "stage_order": ["baseline.chain", "baseline.reload", "candidate.chain", "candidate.reload"],
+        "baseline": baseline, "candidate": candidate,
+        "candidate_admission": candidate_gate, "candidate_status": candidate_status,
+        "cross_implementation_comparison": cross_comparison,
+        "lineage_accounting": {"per_implementation": {
+            "primary_chain": {"fresh_source_loads": 2, "optical_pulses": 2,
+                "POST_generations": 2, "hydro_transitions": 1},
+            "independent_disk_reload": {"fresh_source_loads": 1, "optical_pulses": 1,
+                "POST_generations": 1, "hydro_transitions": 0},
+            "actual_optical_windows_if_both_stages_complete": 3,
+            "reload_second_pulse_is_a_separate_execution_not_a_third_chain_pulse": True}},
+        "input_validation": input_summary,
         "optical_scheduling_model": {
             "recent_J1_baseline_service_seconds": OPTICAL_WINDOW_BASELINE_MEASURED_SECONDS,
-            "historical_prior_estimate_seconds": 512.0,
+            "scheduling_basis_seconds_per_window": 518.0,
             "scheduling_window_seconds": OPTICAL_WINDOW_ESTIMATE_SECONDS,
             "scheduling_margin_fraction": OPTICAL_WINDOW_SCHEDULING_MARGIN,
             "interpretation": "Conservative stage-scheduling allowance, not a wall-clock ETA"},
@@ -1210,9 +1651,10 @@ def _run_j3(args) -> int:
         "rss_policy": {"80_percent": "LATCH_AND_BLOCK_LATER_STAGE",
             "90_percent": "BOUNDED_TERMINATION_OF_CURRENT_CHILD",
             "memory_limit_bytes": MEMORY_BYTES},
-        "diagnostic_boundary": "P1R2_J3_BASELINE_DIAGNOSTIC_ONLY"}
+        "diagnostic_boundary": "P1R2_J3_BASELINE_AND_OPTIONAL_SCIPY_CANDIDATE_DIAGNOSTIC_ONLY",
+        "cross_implementation_nonzero_differences_are_not_scientific_acceptance": True}
     _write_json_new(args.output_root / "run_receipt.json", receipt)
-    return 0 if status == "COMPLETE_DIAGNOSTIC" else 1
+    return 0 if overall_status in ("COMPLETE_DIAGNOSTIC", "COMPLETE_DIAGNOSTIC_BASELINE_ONLY") else 1
 
 
 def _parser():
@@ -1226,6 +1668,9 @@ def _parser():
     parser.add_argument("--smoke-child", choices=("chain", "reload"), help=argparse.SUPPRESS)
     parser.add_argument("--next1-path", type=Path)
     parser.add_argument("--next1-receipt", type=Path)
+    parser.add_argument("--candidate-descriptor", type=Path)
+    parser.add_argument("--candidate-admission", type=Path)
+    parser.add_argument("--candidate-descriptor-raw-sha256")
     parser.add_argument("--worker-task", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--entry-smoke", action="store_true")
     return parser

@@ -792,14 +792,15 @@ def _terminate_child_bounded(proc, *, grace_seconds=5.0) -> dict:
 
 def _spawn_and_monitor(command, *, stage_dir: Path, cwd: Path, env: dict,
                        timeout_seconds: float, memory_bytes: int | None,
-                       poll_seconds=0.5) -> dict:
+                       poll_seconds=0.5, rss_latch_path: Path | None = None) -> dict:
     """Run a child with file-backed logs, bounded stop, RSS polling and low-rate PSS."""
     stage_dir.mkdir(parents=True, exist_ok=True)
     stdout_path, stderr_path = stage_dir / "stdout.log", stage_dir / "stderr.log"
     peak_rss = 0
     peak_sampled_tree_cpu = 0.0
     pss_samples = []
-    warn_latched = False
+    rss_latch_path = Path(rss_latch_path) if rss_latch_path is not None else None
+    warn_latched = bool(rss_latch_path is not None and rss_latch_path.is_file())
     last_pss = 0.0
     started = time.monotonic()
     kwargs = {"cwd": str(cwd), "env": env, "stdout": stdout_path.open("xb"),
@@ -824,6 +825,16 @@ def _spawn_and_monitor(command, *, stage_dir: Path, cwd: Path, env: dict,
         policy = _rss_action(rss, memory_bytes)
         if policy["warn_80"]:
             warn_latched = True
+            if rss_latch_path is not None:
+                try:
+                    fd = os.open(rss_latch_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                except FileExistsError:
+                    pass
+                else:
+                    with os.fdopen(fd, "w", encoding="utf-8") as marker:
+                        marker.write(json.dumps({"reason": "RSS_80_PERCENT",
+                            "observed_rss_bytes": rss,
+                            "memory_bytes": memory_bytes}) + "\n")
         now = time.monotonic()
         if now - last_pss >= PSS_SAMPLE_SECONDS:
             pss_samples.append({"monotonic_elapsed_seconds": now - started,
