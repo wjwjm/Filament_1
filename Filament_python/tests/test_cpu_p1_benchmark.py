@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from tools.cpu_p1 import cpu_p1_fft as bench
+from tools.cpu_p1 import cpu_p1_hydro as hydro
 
 
 def valid_slurm_env() -> dict[str, str]:
@@ -204,5 +205,224 @@ def test_tiny_subprocess_smoke_preserves_outputs(tmp_path: Path) -> None:
     # A second invocation cannot replace the completed result directory.
     again = subprocess.run(command, capture_output=True, text=True, timeout=20, check=False)
     assert again.returncode == 2
+    assert json.loads((root / "status.json").read_text(encoding="utf-8")) == status
+
+
+def test_hydro_flat_task_sampling_and_reuse_contract() -> None:
+    p1 = hydro.worker_plan(1)
+    assert [ordinal for worker in p1 for ordinal in worker["task_ordinals"]] == [0, 12, 24, 36]
+    p8 = hydro.worker_plan(8)
+    p8_ordinals = [ordinal for worker in p8 for ordinal in worker["task_ordinals"]]
+    assert len(set(p8_ordinals)) == 32
+    assert p8_ordinals == [int(i * 48 / 32) for i in range(32)]
+    for workers, expected_unique, expected_reused in ((24, 48, 48), (48, 48, 144), (96, 48, 336)):
+        ordinals = [ordinal for worker in hydro.worker_plan(workers)
+                    for ordinal in worker["task_ordinals"]]
+        assert len(ordinals) == workers * 4
+        assert len(set(ordinals)) == expected_unique
+        assert len(ordinals) - len(set(ordinals)) == expected_reused
+    assert hydro.input_scaling_class(8) == "REAL_INPUT_FIXED_TASKS_PER_WORKER"
+    assert hydro.input_scaling_class(24) == "REPEATED_REAL_INPUT_SCALING_ONLY"
+
+
+def test_hydro_invoke_preserves_frozen_1000_step_contract() -> None:
+    fields = {name: np.ones((2, 3), dtype=np.float64) for name in hydro.FIELDS}
+    captured = {}
+
+    def fake_advance(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return {**dict(zip(hydro.FIELDS, args)), "steps": 1000,
+                "performance": {"backend": "numpy"}, "observables": {}}
+
+    manifest = {"dx_m": 1e-5, "dy_m": 2e-5,
+                "hydro": {"dt_hydro": 1e-6, "chi": 2.17e-5, "nu": 1.5e-5,
+                          "n0": 1.00027, "gravity_x": 0.0, "gravity_y": -9.81,
+                          "cfl_limit": 1.0}}
+    result = hydro.invoke_hydro(fake_advance, fields, manifest)
+    assert result["steps"] == 1000
+    assert captured["kwargs"]["n_steps"] == 1000
+    assert captured["kwargs"]["require_stable"] is True
+    assert captured["kwargs"]["dx"] == 1e-5
+    assert captured["kwargs"] == {
+        "dx": 1e-5, "dy": 2e-5, "dt_hydro": 1e-6, "chi": 2.17e-5,
+        "nu": 1.5e-5, "n0": 1.00027, "gravity_x": 0.0,
+        "gravity_y": -9.81, "cfl_limit": 1.0, "n_steps": 1000,
+        "require_stable": True,
+    }
+
+
+def test_hydro_manifest_requires_accepted_raw_sha_and_frozen_parameters(tmp_path: Path) -> None:
+    manifest = {
+        "schema": hydro.MANIFEST_SCHEMA, "identity": hydro.INPUT_IDENTITY,
+        "diagnostic_only": True,
+        "config_sha256": "eaec83ad326a29af95881912db76a7e5c26943dec9e0d6876ca9c9cc2a100c22",
+        "source_manifest_sha256": "3e2c7557e5e8027ac1d9fb42411fe885fe3ea13bef9ee60e91538462adaf32d2",
+        "dtype": "float64", "shape": [351, 301], "unique_real_screens": 48,
+        "dx_m": 1e-5, "dy_m": 1e-5, "hydro": dict(hydro.EXPECTED_HYDRO_PARAMETERS),
+        "records": [],
+    }
+    for namespace in ("current", "post", "next"):
+        for ordinal in range(48):
+            manifest["records"].append({
+                "namespace": namespace, "ordinal": ordinal,
+                "relative_path": f"{namespace}/{ordinal:03d}.npz",
+                "hash_scope": "raw_bytes", "sha256": "a" * 64,
+                "size_bytes": 100, "field_sha256": {name: "b" * 64 for name in hydro.FIELDS},
+                "screen_id": f"source_index_{ordinal:05d}", "z_m": ordinal * 1e-3,
+            })
+    input_root = tmp_path / "inputs"
+    input_root.mkdir()
+    path = input_root / "candidate_input_manifest.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    accepted_hash = lambda _path: hydro.EXPECTED_MANIFEST_RAW_SHA256
+    loaded, records = hydro.load_manifest(path, input_root, accepted_hash)
+    assert loaded["raw_sha256"] == hydro.EXPECTED_MANIFEST_RAW_SHA256
+    assert len(records["post"]) == 48
+    with pytest.raises(hydro.HydroError, match="manifest raw SHA256 mismatch"):
+        hydro.load_manifest(path, input_root, lambda _path: "0" * 64)
+    manifest["hydro"]["chi"] = 1.0
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(hydro.HydroError, match="hydro_parameters"):
+        hydro.load_manifest(path, input_root, accepted_hash)
+
+
+def test_hydro_a0_repeat_gate_requires_exact_canonical_hashes_and_keeps_metrics() -> None:
+    hashes = {name: name * 64 for name in hydro.FIELDS}
+    receipts = [
+        {"output": {"canonical_field_sha256": dict(hashes)},
+         "historical_next_field_comparison": {"delta_n": {"max_abs": 1e-9}}},
+        {"output": {"canonical_field_sha256": dict(hashes)},
+         "cpu_repeat_comparison": {"delta_n": {"max_abs": 0.0}}},
+    ]
+    assert hydro._a0_repeat_gate(receipts)["hash_match"]
+    receipts[1]["output"]["canonical_field_sha256"]["vx"] = "c" * 64
+    assert not hydro._a0_repeat_gate(receipts)["hash_match"]
+    assert receipts[0]["historical_next_field_comparison"]["delta_n"]["max_abs"] == 1e-9
+
+
+def test_hydro_a1_start_failure_terminates_already_started_processes() -> None:
+    class FakeProcess:
+        def __init__(self, fail=False):
+            self.fail = fail
+            self.alive = False
+            self.terminated = False
+            self.joined = False
+
+        def start(self):
+            if self.fail:
+                raise RuntimeError("synthetic process start failure")
+            self.alive = True
+
+        def is_alive(self):
+            return self.alive
+
+        def terminate(self):
+            self.terminated = True
+            self.alive = False
+
+        def join(self, timeout=None):
+            self.joined = True
+
+        def kill(self):
+            self.alive = False
+
+    class FakeContext:
+        def __init__(self):
+            self.processes = [FakeProcess(), FakeProcess(fail=True)]
+
+        def Process(self, *args, **kwargs):
+            return self.processes.pop(0)
+
+    context = FakeContext()
+    already_started = context.processes[0]
+    with pytest.raises(RuntimeError, match="synthetic process start failure"):
+        hydro._start_processes(context, [((), {}), ((), {})])
+    assert already_started.terminated and already_started.joined
+
+
+def test_hydro_supervisor_cleans_only_failed_cases_process_group(tmp_path: Path, monkeypatch) -> None:
+    called = []
+
+    class FakeProcess:
+        pid = 43127
+
+        def __init__(self, command, **kwargs):
+            assert kwargs["start_new_session"] is True
+
+        def poll(self):
+            return 17
+
+        def wait(self):
+            return 17
+
+    monkeypatch.setattr(hydro.subprocess, "Popen", FakeProcess)
+    monkeypatch.setattr(hydro, "_cleanup_case_process_group", called.append)
+    monkeypatch.setattr(hydro.os, "name", "posix")
+    result = hydro._supervise_case(["fake"], tmp_path, "case-fail", hydro.time.monotonic() + 5,
+                                   1024**3)
+    assert result["exit_code"] == 17
+    assert called == [43127]
+
+
+def test_hydro_npz_loader_checks_raw_canonical_hashes_and_metadata(tmp_path: Path) -> None:
+    from KHz_filament.hr4e_timestep import sha256_array
+    from tools.hpc_ops.provenance_v2 import raw_sha256_file
+
+    root = tmp_path / "input"
+    root.mkdir()
+    shape = hydro.EXPECTED_SHAPE
+    arrays = {"delta_n": np.zeros(shape, dtype=np.float64),
+              "vx": np.ones(shape, dtype=np.float64),
+              "vy": -np.ones(shape, dtype=np.float64)}
+    hashes = {name: sha256_array(value) for name, value in arrays.items()}
+    metadata = {"schema": hydro.STREAM_SCHEMA, "namespace": "POST", "ordinal": 24,
+                "screen_id": "source_index_08022", "z_m": 0.802249999999928,
+                "shape": list(shape), "dtype": "float64", "field_sha256": hashes}
+    path = root / "screen.npz"
+    with path.open("xb") as stream:
+        np.savez(stream, **arrays, metadata_json=np.asarray(json.dumps(metadata, sort_keys=True)))
+    record = {"ordinal": 24, "namespace": "post", "screen_id": "source_index_08022",
+              "z_m": metadata["z_m"], "relative_path": "screen.npz",
+              "sha256": raw_sha256_file(path), "hash_scope": "raw_bytes",
+              "size_bytes": path.stat().st_size, "field_sha256": hashes}
+    loaded, receipt = hydro.load_screen(record, root, raw_sha256_file, sha256_array)
+    assert all(np.array_equal(loaded[name], arrays[name]) for name in hydro.FIELDS)
+    assert receipt["raw_sha256"] == record["sha256"]
+    assert receipt["canonical_field_sha256"] == hashes
+    record["sha256"] = "0" * 64
+    with pytest.raises(hydro.HydroError, match="raw SHA256 mismatch"):
+        hydro.load_screen(record, root, raw_sha256_file, sha256_array)
+
+
+def test_hydro_sbatch_literals_and_cpu_only_contract() -> None:
+    path = Path(hydro.__file__).with_suffix(".sbatch")
+    text = path.read_text(encoding="utf-8")
+    assert "#SBATCH --partition=v6_384" in text
+    assert "#SBATCH --account=bscc-t" in text
+    assert "#SBATCH --qos=normal" in text
+    assert "#SBATCH --nodes=1" in text
+    assert "#SBATCH --cpus-per-task=96" in text
+    assert "#SBATCH --time=01:00:00" in text
+    assert "--constraint" not in text
+    assert "FIXED_PYTHON=/publicfs01/fs1-share/soft/amd-soft/miniforge/24.11/bin/python" in text
+    assert "export UPPE_USE_GPU=0" in text
+    assert "--deadline-seconds 3300 --a0-deadline-seconds 900" in text
+
+
+def test_hydro_synthetic_fake_callable_subprocess_smoke_is_nonoverwriting(tmp_path: Path) -> None:
+    root = tmp_path / "hydro-smoke"
+    command = [sys.executable, str(Path(hydro.__file__).resolve()), "--smoke",
+               "--output-root", str(root), "--smoke-shape", "5", "4"]
+    first = subprocess.run(command, capture_output=True, text=True, timeout=30, check=False)
+    assert first.returncode == 0, first.stderr + first.stdout
+    status = json.loads((root / "status.json").read_text(encoding="utf-8"))
+    assert status["status"] == "COMPLETE"
+    assert status["input_kind"] == "SYNTHETIC_ENGINEERING_SMOKE_ONLY"
+    assert status["scientific_inputs_used"] is False
+    assert status["fake_callable_used"] is True
+    assert (root / "synthetic_smoke.npz").is_file()
+    second = subprocess.run(command, capture_output=True, text=True, timeout=30, check=False)
+    assert second.returncode == 2
     assert json.loads((root / "status.json").read_text(encoding="utf-8")) == status
 

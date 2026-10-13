@@ -22,3 +22,26 @@ sbatch --test-only "$BENCH_ROOT/Filament_python/tools/cpu_p1/cpu_p1_fft.sbatch" 
 
 输出包括 `performance_summary.csv`、逐条追加的 `benchmark_results.jsonl`、终态 `status.json`、环境/affinity/线程池 JSON，以及 lscpu、numactl、NumPy 配置和 `/proc` 文本快照；每个子进程另留 stdout/stderr。
 
+## CPU P1 Hydro A0/A1
+
+`cpu_p1_hydro.py` 只测冻结 `advance_hr4_single_screen` 的 CPU 单屏计算，输出均为 `P1_DIAGNOSTIC_ONLY` / `NOT_PRODUCTION_QUALIFIED`。正式诊断只接受父端审定的 48 屏历史 S5 POST/NEXT 输入清单；它不是 S4R 384 屏输入，因此不运行 384 屏强扩展，也不直接对比 S4R 服务吞吐。
+
+A0 对真实 POST ordinal 24 连续运行两次，各 1000 步、`require_stable=True`。两次输出三场 canonical hash 必须逐项完全相同；否则记为 `CPU_REPEAT_DRIFT` 并停止 A1，同时保留误差与观测量回执。仅 A0 完整成功后才进入 A1。A1 依次执行 P=1、8、24、48、96，每 worker 处理四个完整屏任务；每个 worker 绑定一个 sysfs 验证的物理核、线程池限为 1。按全档 `n=4P` 展平任务序号：当 `n≤48` 时 ordinal=`floor(flat_task_index*48/n)`，否则 ordinal=`flat_task_index%48`。因此 P=1/8 分别覆盖 4/32 个不同屏；P=24/48/96 均复用 48 屏，统一标记 `REPEATED_REAL_INPUT_SCALING_ONLY`。完整模式只接受 raw SHA256 为 `f273cfeb2f112de62be9a787d58bc2a7c40ac44f5d7e9978c057dfb9d3aa552a` 的冻结 manifest，并核对其中 hydro 参数和网格间距。所有输入任务在每次读取时重验 NPZ 原始 SHA256、三场 canonical array hash、shape/dtype/C 布局/有限数和嵌入 metadata；每次完整任务单独落盘，超时保留已完成任务。父进程以文件承接子进程日志并监控进程树 RSS/CPU；到 80% 申请内存或 3300 秒总预算时熔断，A0 子项上限 900 秒。每档结束后才能开始下一档；任一档非 COMPLETE 即停止扩展。
+
+节点 receipt 记录分配/affinity、`lscpu -e`、`/proc/self/status`、线程池和 complex64/complex128 NumPy FFT 返回 dtype 探针。NumPy 后端必须在导入 HR-4 前固定为 `UPPE_USE_GPU=0` 并经 `debug_backend()` 复核。任务计时拆分输入读/原始与 canonical 哈希、HR-4 kernel wall/CPU time、输出写入/哈希和完整 service；数值比较分别保留三个场的 max_abs/max_rel/L2、标量 observables、同 worker 重复值以及对应历史 NEXT 参考。比较只作诊断记录，不赋予 GPU 配对或科学准入资格。
+
+合成 `--smoke` 只调用小数组 fake callable 验证输出与非覆盖行为，不导入/运行 HR-4，也不代表真实数据路径成功。完整模式要求 Linux `/proc`、经 `thread_siblings_list` 验证的 96 物理核、固定解释器、冻结 threadpoolctl 3.6.0 与有效 Slurm CPU allocation。
+
+```bash
+FIXED_PYTHON=/publicfs01/fs1-share/soft/amd-soft/miniforge/24.11/bin/python
+BENCH_ROOT=/absolute/path/to/Filament_1
+OUTPUT_ROOT=/absolute/path/to/new/cpu-p1-hydro-run
+VENDOR_DIR=/absolute/path/to/cpu-p1/dependencies
+INPUT_ROOT=/absolute/path/to/input_readonly
+"$FIXED_PYTHON" -s -B "$BENCH_ROOT/Filament_python/tools/hpc_ops/audit_batch_entry.py" --batch "$BENCH_ROOT/Filament_python/tools/cpu_p1/cpu_p1_hydro.sbatch" --fixed-python "$FIXED_PYTHON"
+bash -n "$BENCH_ROOT/Filament_python/tools/cpu_p1/cpu_p1_hydro.sbatch"
+sbatch --test-only "$BENCH_ROOT/Filament_python/tools/cpu_p1/cpu_p1_hydro.sbatch" "$BENCH_ROOT" "$OUTPUT_ROOT" "$VENDOR_DIR" "$INPUT_ROOT"
+```
+
+这里仅展示提交前检查命令；此代码变更不提交 Slurm 作业。任务需另行授权后才能实际提交。输出目录必须不存在且其父目录预先存在；最大工作集为 708 个完整 1000 步屏任务，证据保留在任务输出目录。
+
