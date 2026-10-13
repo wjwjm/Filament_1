@@ -1004,7 +1004,7 @@ def _real_reload_child(args) -> int:
         source_validation = context["source_validation"]
         if source_hash != context["source_hash"] or source_hash != p1r.SOURCE_ARRAY_SHA256:
             raise J3Error("reload-branch source differs from the sealed source")
-        if (source_validation.get("canonical_array_sha256") != source_hash
+        if (source_validation.get("canonical_array_hash") != source_hash
                 or source_validation.get("file_sha256") != p1r.SOURCE_RAW_SHA256):
             raise J3Error("reload context source-validation receipt differs from sealed identity")
         pulse2 = _window(context, next1, output_root=args.output_root / "pulse2_reload",
@@ -1495,7 +1495,7 @@ def _cross_lineaged_pulse2_compare(left: dict, right: dict,
     return result
 
 
-def _run_j3(args) -> int:
+def _run_j3(args, *, baseline_runner=None) -> int:
     if args.phase != PHASE:
         raise J3Error("J3 coordinator requires explicit --phase J3")
     if any(value is None for value in (args.bench_root, args.input_root, args.vendor_dir)):
@@ -1535,8 +1535,8 @@ def _run_j3(args) -> int:
     gc.collect()
     predicted_chain = 2 * OPTICAL_WINDOW_ESTIMATE_SECONDS + HYDRO_STAGE_TIMEOUT_SECONDS
     predicted_reload = OPTICAL_WINDOW_ESTIMATE_SECONDS
-    baseline = _run_implementation(args, "baseline", args.output_root / "baseline",
-        candidate_descriptor=None, deadline=work_deadline)
+    baseline = (baseline_runner or _run_implementation)(args, "baseline",
+        args.output_root / "baseline", candidate_descriptor=None, deadline=work_deadline)
     candidate = None
     cross_comparison = None
     candidate_status = candidate_gate["status"]

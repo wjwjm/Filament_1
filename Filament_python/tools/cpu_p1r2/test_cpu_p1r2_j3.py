@@ -78,12 +78,99 @@ def test_reload_state_origin_is_explicitly_disk_loaded_next1():
     assert j3._window_source_label(False) == "J3_NEXT1_memory"
 
 
+def test_real_reload_child_uses_validator_schema_without_reloading_source(tmp_path, monkeypatch):
+    shape = (8, 351, 301)
+    next_fields = {name: np.zeros(shape, dtype=np.float64, order="C")
+                   for name in j3.FIELDS}
+    next_path = tmp_path / "NEXT1_checkpoint.npz"
+    next_raw = j3._write_npz_new(next_path, next_fields)
+    next_hashes = j3._field_hashes(next_fields)
+    next_receipt = tmp_path / "NEXT1_checkpoint_receipt.json"
+    next_receipt.write_text(json.dumps({"status": "COMPLETE_DIAGNOSTIC",
+        "NEXT1_raw_sha256": next_raw, "NEXT1_field_sha256": next_hashes}),
+        encoding="utf-8")
+
+    source = np.zeros((2,), dtype=np.complex128)
+    source_validation = {"canonical_array_hash": p1r.SOURCE_ARRAY_SHA256,
+        "file_sha256": p1r.SOURCE_RAW_SHA256}
+    context = {"source": source, "source_hash": p1r.SOURCE_ARRAY_SHA256,
+        "source_validation": source_validation,
+        "source_binding": {"source": "sealed-test-fixture"}}
+    monkeypatch.setattr(j3, "_prepare_real_context",
+        lambda _args: ({"context": context}, {"test_allocation": True}))
+    monkeypatch.setattr(j3, "_candidate_factory", lambda _args: None)
+    source_reload_calls = []
+    monkeypatch.setattr(p1r, "validate_frozen_source",
+        lambda *_args, **_kwargs: source_reload_calls.append(True))
+    window_calls = []
+
+    def fake_window(_context, pre_fields, *, output_root, **kwargs):
+        output_root.mkdir(parents=True, exist_ok=False)
+        window_calls.append((pre_fields, kwargs))
+        return {"status": "COMPLETE_DIAGNOSTIC", "test_window": True,
+            "receipt": {"state_origin": kwargs["state_origin"]}}
+
+    monkeypatch.setattr(j3, "_window", fake_window)
+
+    valid_args = SimpleNamespace(output_root=tmp_path / "valid-reload",
+        next1_path=next_path, next1_receipt=next_receipt,
+        candidate_descriptor=None, input_root=tmp_path)
+    assert j3._real_reload_child(valid_args) == 0
+    valid = json.loads((valid_args.output_root / "j3_child_receipt.json").read_text())
+    assert valid["status"] == "COMPLETE_DIAGNOSTIC"
+    assert valid["source_validation"]["canonical_array_hash"] == p1r.SOURCE_ARRAY_SHA256
+    assert len(window_calls) == 1
+    assert window_calls[0][0]["delta_n"].shape == shape
+    assert window_calls[0][1]["source"] is source
+    assert source_reload_calls == []
+
+    source_validation["canonical_array_hash"] = "bad-canonical-hash"
+    invalid_args = SimpleNamespace(output_root=tmp_path / "invalid-reload",
+        next1_path=next_path, next1_receipt=next_receipt,
+        candidate_descriptor=None, input_root=tmp_path)
+    assert j3._real_reload_child(invalid_args) == 1
+    failure = json.loads((invalid_args.output_root / "j3_child_failure.json").read_text())
+    assert "source-validation receipt differs" in failure["error"]
+    assert len(window_calls) == 1
+
+
 def test_parser_registers_candidate_options_once():
     args = j3._parser().parse_args(["--phase", "J3", "--candidate-descriptor", "d.json",
         "--candidate-admission", "a.json", "--candidate-descriptor-raw-sha256", "abc"])
     assert args.candidate_descriptor == Path("d.json")
     assert args.candidate_admission == Path("a.json")
     assert args.candidate_descriptor_raw_sha256 == "abc"
+
+
+def test_run_j3_accepts_baseline_runner_with_existing_implementation_signature(
+        tmp_path, monkeypatch):
+    context = {"source_hash": "source-hash", "source_validation": {},
+        "assets": {"pre0_canonical_sha256": "pre0-hash", "mapping_sha256": "mapping-hash"},
+        "schedule": SimpleNamespace(as_metadata=lambda: {"schedule": "test"}),
+        "runtime_config_delta": {}}
+    monkeypatch.setattr(j3, "_prepare_real_context",
+        lambda _args: ({"context": context, "hydro": {}}, {}))
+    monkeypatch.setattr(j3, "_allocation_start_epoch", lambda: 1_000_000.0)
+    monkeypatch.setattr(p1r, "_environment_receipt", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(j3, "_write_json_new", lambda *_args, **_kwargs: None)
+    calls = {}
+
+    def baseline_runner(args, implementation, stage_root, *,
+                        candidate_descriptor, deadline):
+        calls.update(args=args, implementation=implementation,
+            stage_root=stage_root, candidate_descriptor=candidate_descriptor,
+            deadline=deadline)
+        return {"status": "COMPLETE_DIAGNOSTIC_BASELINE_ONLY", "repeat_exact": False}
+
+    args = SimpleNamespace(phase="J3", bench_root=tmp_path, input_root=tmp_path,
+        vendor_dir=tmp_path, output_root=tmp_path / "run", candidate_descriptor=None,
+        candidate_admission=None)
+    assert j3._run_j3(args, baseline_runner=baseline_runner) == 0
+    assert calls["args"] is args
+    assert calls["implementation"] == "baseline"
+    assert calls["stage_root"] == args.output_root / "baseline"
+    assert calls["candidate_descriptor"] is None
+    assert calls["deadline"] == 1_006_300.0
 
 
 def test_cross_pulse2_reclassifies_only_verified_distinct_pre_hash_gate(monkeypatch):
