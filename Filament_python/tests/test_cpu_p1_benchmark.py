@@ -365,6 +365,34 @@ def test_hydro_supervisor_cleans_only_failed_cases_process_group(tmp_path: Path,
     assert called == [43127]
 
 
+def test_hydro_case_command_starts_and_rejects_invalid_manifest_before_argparse(tmp_path: Path) -> None:
+    input_root = tmp_path / "inputs"
+    input_root.mkdir()
+    manifest = input_root / "candidate_input_manifest.json"
+    manifest.write_text("{}", encoding="utf-8")
+    output_root = tmp_path / "parent-output-not-created"
+    vendor_dir = tmp_path / "vendor"
+    vendor_dir.mkdir()
+    (vendor_dir / "threadpoolctl.py").write_text(
+        "from contextlib import nullcontext\n"
+        "__version__ = '3.6.0'\n"
+        "def threadpool_limits(limits=1): return nullcontext()\n",
+        encoding="utf-8")
+    args = argparse.Namespace(input_root=str(input_root), manifest=str(manifest),
+                              vendor_dir=str(vendor_dir))
+    command = hydro._make_child_command(
+        args, output_root, "A0", "A0", 1, [0], hydro.time.monotonic() + 30)
+
+    result = subprocess.run(command, capture_output=True, text=True, timeout=60, check=False)
+
+    assert result.returncode == 2
+    assert "required: --output-root" not in result.stderr
+    failure = json.loads(result.stderr.strip().splitlines()[-1])
+    assert failure["status"] == "FAIL"
+    assert "input manifest raw SHA256 mismatch" in failure["error"]
+    assert not output_root.exists()
+
+
 def test_hydro_npz_loader_checks_raw_canonical_hashes_and_metadata(tmp_path: Path) -> None:
     from KHz_filament.hr4e_timestep import sha256_array
     from tools.hpc_ops.provenance_v2 import raw_sha256_file

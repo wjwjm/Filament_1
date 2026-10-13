@@ -772,6 +772,7 @@ def _publish_task_receipts(root: Path, seen: set[str], accounting: dict) -> tupl
 def _make_child_command(args, root: Path, case_id: str, case_mode: str,
                         workers: int, cpus: list[int], deadline: float) -> list[str]:
     return [sys.executable, str(Path(__file__).resolve()),
+            "--output-root", str(root),
             "--case-mode", case_mode, "--case-workers", str(workers),
             "--case-cpus", ",".join(map(str, cpus)),
             "--case-deadline", str(deadline), "--input-root", args.input_root,
