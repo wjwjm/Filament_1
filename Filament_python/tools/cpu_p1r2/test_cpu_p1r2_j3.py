@@ -12,6 +12,7 @@ import pytest
 from tools.cpu_p1r2 import cpu_p1r2_j3 as j3
 from tools.cpu_p1r2 import cpu_p1r2_j1 as j1
 from tools.cpu_p1r2 import cpu_p1r2_j2 as j2
+from tools.cpu_p1r import cpu_p1r_optical as p1r
 
 
 def test_hydro_adapter_keeps_1000_steps_and_frozen_arguments():
@@ -126,6 +127,69 @@ def test_cross_pulse2_rejects_pre_not_matching_its_own_next1(monkeypatch):
     with pytest.raises(j3.J3Error, match="PRE hashes"):
         j3._cross_lineaged_pulse2_compare(left, right, pre,
             {"delta_n": "wrong", "vx": "x", "vy": "y"}, "cross")
+
+
+def test_real_chain_success_receipt_carries_pulse1_window_into_cross_compare(
+        tmp_path, monkeypatch):
+    shape = (8, 351, 301)
+    fields = {name: np.zeros(shape, dtype=np.float64, order="C") for name in j3.FIELDS}
+    pre_hashes = j3._field_hashes(fields)
+    source = np.zeros((2,), dtype=np.complex128)
+    context = {"source": source, "source_hash": p1r.SOURCE_ARRAY_SHA256,
+        "assets": {}, "source_binding": {"source": "sealed-test-fixture"},
+        "runtime_config_delta": {"test_fixture": True}}
+    hydro_parameters = {"observable_coordinate_frames": {"test": "fixture"}}
+    monkeypatch.setattr(j3, "_prepare_real_context",
+        lambda _args: ({"context": context, "hydro": hydro_parameters}, {}))
+    monkeypatch.setattr(j3, "_candidate_factory", lambda _args: None)
+    monkeypatch.setattr(j3, "_initial_pre_fields", lambda _context: fields)
+    monkeypatch.setattr(j3, "_current_tree_rss_gate", lambda: {
+        "latch_80_percent": False, "stop_90_percent": False})
+
+    def fake_window(_context, _pre, *, output_root, stage_name, **_kwargs):
+        output_root.mkdir(parents=True, exist_ok=False)
+        post_path = output_root / "final_POST.npz"
+        np.savez(post_path, **fields)
+        return {"status": "COMPLETE_DIAGNOSTIC", "stage_name": stage_name,
+            "test_window_tag": stage_name, "final_POST_path": str(post_path),
+            "final_POST_canonical_sha256": pre_hashes,
+            "final_E_canonical_sha256": "test-final-e-hash",
+            "receipt": {"input_PRE_fields_canonical_sha256": pre_hashes,
+                "pre0_expected_canonical_sha256": p1r.PRE0_ARRAY_SHA256,
+                "pre0_canonical_sha256": pre_hashes["delta_n"],
+                "source_canonical_sha256": p1r.SOURCE_ARRAY_SHA256}}
+
+    monkeypatch.setattr(j3, "_window", fake_window)
+    monkeypatch.setattr(p1r, "validate_frozen_source",
+        lambda *_args, **_kwargs: (source.copy(), p1r.SOURCE_ARRAY_SHA256,
+            {"canonical_array_sha256": p1r.SOURCE_ARRAY_SHA256,
+             "file_sha256": p1r.SOURCE_RAW_SHA256}))
+    monkeypatch.setattr(j3, "_process_hydro_workers", lambda *_args, **_kwargs: {
+        "fields": fields, "raw_sha256": "test-next1-raw",
+        "field_sha256": pre_hashes,
+        "receipt": {"worker_processes_completed": 8,
+            "rss_80_percent_latched": False,
+            "aggregate_peak_process_tree_rss_bytes": 0,
+            "worker_cpu_accounting": {"sum_worker_process_cpu_seconds": 0.0}}})
+
+    output_root = tmp_path / "real-chain-child"
+    args = SimpleNamespace(output_root=output_root, input_root=tmp_path,
+        candidate_descriptor=None)
+    assert j3._real_chain_child(args) == 0
+    receipt = json.loads((output_root / "j3_child_receipt.json").read_text())
+    pulse1 = receipt["pulse1_window"]
+    assert pulse1["test_window_tag"] == "J3-pulse1-from-PRE0"
+
+    candidate_window = dict(pulse1)
+    compared = {}
+    monkeypatch.setattr(j2, "_compare_stage_files", lambda left, right, label: (
+        compared.update(left=left, right=right, label=label)
+        or {"hard_gate_errors": [], "hard_gate_pass": True}))
+    comparison = j3._cross_pulse1_compare(pulse1, candidate_window, "receipt-regression")
+    assert compared["left"] == pulse1
+    assert compared["label"] == "receipt-regression"
+    assert comparison["pre0_full_field_hashes_equal"] is True
+    assert comparison["hard_gate_pass"] is True
 
 
 def test_chain_and_reload_route_candidate_factory_only_to_candidate_windows(tmp_path, monkeypatch):

@@ -960,6 +960,7 @@ def _real_chain_child(args) -> int:
             "NEXT1": {"raw_sha256": hydro["raw_sha256"],
                 "field_canonical_sha256": hydro["field_sha256"],
                 "checkpoint_receipt": hydro["receipt"]},
+            "pulse1_window": initial,
             "pulse2_window": pulse2,
             "implementation": ("SCIPY_PRIVATE_DISPATCH_CANDIDATE"
                 if propagator_factory is not None else "FROZEN_NUMPY_BASELINE"),
