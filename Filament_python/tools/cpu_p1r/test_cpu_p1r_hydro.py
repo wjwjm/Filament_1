@@ -274,3 +274,26 @@ def test_stage_nodelist_uses_scheduler_names_not_fqdn(tmp_path, monkeypatch, nod
     with pytest.raises(RuntimeError, match="captured_before_launch"):
         p1r._stage_run(args, tmp_path, probe, "fixture", nodes, "H1", 10,
                       time.monotonic()+10, lambda _: "raw", lambda _: "canonical")
+
+
+def test_allocation_probe_exercises_explicit_1n_and_2n_stage_placement(tmp_path, monkeypatch):
+    (tmp_path / "process_logs").mkdir()
+    probe = {"rank_to_hostname": {"0": "cb0108.para.bscc", "1": "cc0807.para.bscc"},
+             "rank_to_slurm_node": {"0": "cb0108", "1": "cc0807"}}
+    observed = []
+    def run(command, _logs, name, _deadline):
+        nodes = int(command[command.index("--nodes")+1])
+        hostlist = command[command.index("--nodelist")+1] if "--nodelist" in command else None
+        observed.append((nodes, hostlist))
+        target = Path(command[command.index("--probe-dir")+1])
+        for rank in range(nodes):
+            (target / f"probe-rank-{rank}.json").write_text(json.dumps({
+                "rank": rank, "hostname": probe["rank_to_hostname"][str(rank)],
+                "slurm_node_name": probe["rank_to_slurm_node"][str(rank)]}), encoding="utf-8")
+        return {"exit_code": 0, "outcome": None, "remote_step_teardown_verified": True}
+    monkeypatch.setattr(p1r, "_run_srun", run)
+    monkeypatch.setattr(p1r, "_validate_probe_dir", lambda _path: probe)
+    p1r._run_probe(object(), tmp_path, time.monotonic()+10)
+    assert observed == [(2, None), (1, "cb0108"), (2, "cb0108,cc0807")]
+    assert (tmp_path / "explicit-1n-probe.json").is_file()
+    assert (tmp_path / "explicit-2n-probe.json").is_file()

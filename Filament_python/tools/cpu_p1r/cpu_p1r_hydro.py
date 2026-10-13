@@ -661,6 +661,26 @@ def _run_probe(args, root: Path, deadline: float) -> tuple[dict, dict]:
             accounting.get("remote_step_teardown_verified") is not True):
         raise P1RError("two-node srun probe failed: " + json.dumps(accounting, sort_keys=True))
     probe = _validate_probe_dir(probe_dir)
+    # Exercise the same explicit NodeName placement used by both science modes.
+    # The first implicit 2N probe alone did not cover this path in job 8816805.
+    for nodes in (1, 2):
+        name = f"explicit-{nodes}n-probe"
+        target = logs / name
+        target.mkdir(mode=0o750)
+        hosts = ",".join(probe["rank_to_slurm_node"][str(rank)] for rank in range(nodes))
+        command = _srun_command(nodes, hosts, sys.executable, script,
+                                ["--mode", "probe", "--probe-dir", str(target)], "p1r-" + name)
+        check = _run_srun(command, logs, name, deadline)
+        common.write_json(root / (name + ".json"), check)
+        if (check["exit_code"] != 0 or check["outcome"] or
+                check.get("remote_step_teardown_verified") is not True):
+            raise P1RError("explicit NodeName probe failed: " + name)
+        for rank in range(nodes):
+            record = json.loads((target / f"probe-rank-{rank}.json").read_text(encoding="utf-8"))
+            if (record.get("rank") != rank or
+                    record.get("slurm_node_name") != probe["rank_to_slurm_node"][str(rank)] or
+                    record.get("hostname") != probe["rank_to_hostname"][str(rank)]):
+                raise P1RError("explicit NodeName probe rank/host mismatch: " + name)
     common.write_json(root / "probe.json", probe)
     return probe, accounting
 
