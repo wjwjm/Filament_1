@@ -13,7 +13,10 @@ from tools.cpu_o1.cpu_o1 import (
     WorkspaceStamp,
     available_numba_threads,
     compare_numeric,
+    compare_numeric_bounded,
     evolve_rho_time_cpu_o1,
+    local_environment_fingerprint,
+    make_joint_propagator_factory,
     workspace_matches,
 )
 
@@ -84,11 +87,13 @@ def _assert_exact_tree(reference, candidate, path="root"):
 
 
 def _assert_contract_tree(reference, candidate, path="root"):
-    """Check return shape/keys without imposing a cross-implementation tolerance."""
+    """Enforce the accepted fixed-environment exact return contract."""
     if isinstance(reference, np.ndarray):
         assert isinstance(candidate, np.ndarray), path
         assert reference.shape == candidate.shape, path
         assert reference.dtype == candidate.dtype, path
+        metric = compare_numeric(reference, candidate)
+        assert metric["canonical_exact"] and metric["bitwise_equal"], path
         return
     if isinstance(reference, dict):
         assert list(reference) == list(candidate), path
@@ -100,8 +105,12 @@ def _assert_contract_tree(reference, candidate, path="root"):
         for index, (left, right) in enumerate(zip(reference, candidate)):
             _assert_contract_tree(left, right, f"{path}[{index}]")
         return
-    if isinstance(reference, (int, float, np.number)):
-        assert isinstance(candidate, (int, float, np.number)), path
+    if isinstance(reference, (bool, int, float, complex, np.number)):
+        assert type(reference) is type(candidate), path
+        left = np.asarray(reference)
+        right = np.asarray(candidate)
+        assert left.dtype == right.dtype, path
+        assert left.tobytes() == right.tobytes(), path
         return
     assert type(reference) is type(candidate), path
     assert reference == candidate, path
@@ -118,31 +127,81 @@ def _persist_metrics(record):
         stream.write(json.dumps(record, sort_keys=True, allow_nan=False) + "\n")
 
 
-def _metric_record(reference, candidate, *, label, settings, measurement=None):
+def _scalar_token(value):
+    if isinstance(value, np.generic):
+        return {
+            "type": type(value).__name__,
+            "dtype": str(np.asarray(value).dtype),
+            "bytes_hex": np.asarray(value).tobytes().hex(),
+            "repr": repr(value.item()),
+        }
+    if isinstance(value, float):
+        return {"type": "float", "bytes_hex": np.asarray(value).tobytes().hex(), "repr": repr(value)}
+    if isinstance(value, complex):
+        return {"type": "complex", "bytes_hex": np.asarray(value).tobytes().hex(), "repr": repr(value)}
+    return {"type": type(value).__name__, "value": value}
+
+
+def _metric_record(reference, candidate, *, label, settings, measurement=None, require_exact=True):
     result = {}
+    scalar_metrics = {}
     def visit(ref_value, candidate_value, key):
         if isinstance(ref_value, np.ndarray):
-            result[key] = _metric_fields(compare_numeric(ref_value, candidate_value))
+            metric = compare_numeric(ref_value, candidate_value)
+            result[key] = _metric_fields(metric)
+            if not (metric["canonical_exact"] and metric["bitwise_equal"]):
+                mismatches.append(key)
         elif isinstance(ref_value, dict):
+            assert list(ref_value) == list(candidate_value), key
             for name, nested in ref_value.items():
                 visit(nested, candidate_value[name], f"{key}.{name}")
         elif isinstance(ref_value, tuple):
+            assert len(ref_value) == len(candidate_value), key
             for index, (left, right) in enumerate(zip(ref_value, candidate_value)):
                 visit(left, right, f"{key}[{index}]")
+        elif isinstance(ref_value, (bool, int, float, complex, np.number)):
+            exact = type(ref_value) is type(candidate_value)
+            if exact:
+                left = np.asarray(ref_value)
+                right = np.asarray(candidate_value)
+                exact = left.dtype == right.dtype and left.tobytes() == right.tobytes()
+            scalar_metrics[key] = {
+                "reference": _scalar_token(ref_value),
+                "candidate": _scalar_token(candidate_value),
+                "exact": bool(exact),
+            }
+            if not exact:
+                mismatches.append(key)
+        else:
+            assert type(ref_value) is type(candidate_value), key
+            assert ref_value == candidate_value, key
 
+    mismatches = []
     visit(reference, candidate, "result")
-    _persist_metrics({
+    record = {
         "label": label,
         "settings": settings,
         "measurement": measurement,
         "array_metrics": result,
-    })
+        "scalar_metrics": scalar_metrics,
+        "exact_gate": "required" if require_exact else "diagnostic_only",
+        "mismatches": mismatches,
+        "numerical_classification": (
+            "NUMERIC_DIAGNOSTIC_ONLY / ACCEPTANCE_TOLERANCE_NOT_AUTHORIZED"
+            if mismatches else "EXACT_LOCAL_COMPARISON"
+        ),
+    }
+    _persist_metrics(record)
+    if require_exact and mismatches:
+        raise AssertionError(f"{label}: exact local regression mismatch: {mismatches}")
 
 
 def _metric_fields(metric):
     fields = {
         name: metric[name]
         for name in (
+            "shape", "reference_shape", "candidate_shape",
+            "reference_dtype", "candidate_dtype",
             "canonical_exact", "value_equal", "bitwise_equal", "all_finite", "max_abs",
             "reference_canonical_sha256", "candidate_canonical_sha256",
             "reference_max_abs", "normalized_linf", "normalized_linf_reason",
@@ -160,6 +219,214 @@ def _metric_fields(metric):
     ).ravel().tolist()
     fields["zero_reference_mask_shape"] = list(relative.shape)
     return fields
+
+
+def test_exact_regression_environment_is_the_pinned_local_toolchain():
+    fingerprint = local_environment_fingerprint()
+    assert fingerprint["python"] == "3.12.8"
+    assert fingerprint["python_implementation"] == "CPython"
+    assert fingerprint["versions"] == {
+        "numpy": "2.2.5",
+        "scipy": "1.15.2",
+        "numba": "0.61.2",
+        "llvmlite": "0.44.0",
+        "pytest": "8.3.5",
+    }
+    assert fingerprint["byteorder"] == "little"
+    assert fingerprint["exact_regression_qualification"] == {
+        "eligible": True,
+        "status": "PINNED_WINDOWS_AMD64_GENERIC_WORKQUEUE",
+        "reasons": [],
+    }
+
+
+@pytest.mark.parametrize(
+    ("attribute", "value", "reason"),
+    [("system", "Linux", "platform_not_windows"),
+     ("machine", "ARM64", "machine_not_amd64")],
+)
+def test_exact_regression_qualification_rejects_platform_drift(
+    monkeypatch, attribute, value, reason,
+):
+    import tools.cpu_o1.cpu_o1 as cpu_o1_module
+
+    monkeypatch.setattr(cpu_o1_module.platform, attribute, lambda: value)
+    qualification = local_environment_fingerprint()["exact_regression_qualification"]
+    assert qualification["eligible"] is False
+    assert qualification["status"] == "UNQUALIFIED_ENVIRONMENT"
+    assert reason in qualification["reasons"]
+
+
+def test_exact_regression_qualification_rejects_cpu_target_drift(monkeypatch):
+    monkeypatch.setenv("NUMBA_CPU_NAME", "native")
+    qualification = local_environment_fingerprint()["exact_regression_qualification"]
+    assert qualification["eligible"] is False
+    assert qualification["status"] == "UNQUALIFIED_ENVIRONMENT"
+    assert "numba_target_not_generic" in qualification["reasons"]
+
+
+def test_comparison_tree_rejects_scalar_dtype_and_array_changes():
+    reference = {
+        "step_clip_count": 0,
+        "preclip_step_min": np.float64(-0.0),
+        "field": np.asarray([1.0, 2.0], dtype=np.float64),
+    }
+    with pytest.raises(AssertionError):
+        _assert_contract_tree(reference, {**reference, "step_clip_count": 999})
+    with pytest.raises(AssertionError):
+        _assert_contract_tree(reference, {**reference, "preclip_step_min": np.float64(0.0)})
+    with pytest.raises(AssertionError):
+        _assert_contract_tree(reference, {**reference, "field": reference["field"].astype(np.float32)})
+    changed_field = reference["field"].copy()
+    changed_field[1] = 9.0
+    with pytest.raises(AssertionError):
+        _assert_contract_tree(reference, {**reference, "field": changed_field})
+
+
+def test_metric_record_captures_scalar_leaves_and_array_dtypes(tmp_path, monkeypatch):
+    monkeypatch.setenv("CPU_O1_EVIDENCE_DIR", str(tmp_path))
+    reference = {"clip": 2, "extreme": np.float64(-0.25), "field": np.ones((2,), dtype=np.float64)}
+    _metric_record(reference, reference, label="scalar_dtype_probe", settings={})
+    record = json.loads((tmp_path / "cpu_o1_local_comparisons.jsonl").read_text(encoding="utf-8"))
+    assert record["scalar_metrics"]["result.clip"]["exact"]
+    assert record["scalar_metrics"]["result.extreme"]["exact"]
+    assert record["array_metrics"]["result.field"]["reference_dtype"] == "float64"
+    assert record["array_metrics"]["result.field"]["candidate_dtype"] == "float64"
+    assert record["array_metrics"]["result.field"]["reference_shape"] == [2]
+    assert record["array_metrics"]["result.field"]["candidate_shape"] == [2]
+
+
+def test_bounded_comparator_streams_and_caps_difference_examples():
+    import tracemalloc
+
+    reference = np.arange(4096, dtype=np.float64).reshape(64, 64)
+    candidate = reference.copy()
+    candidate[0, 0] = 2.0
+    candidate[63, 63] += 1.0
+    tracing_was_active = tracemalloc.is_tracing()
+    metric = compare_numeric_bounded(
+        reference, candidate, max_working_bytes=4096, max_examples=1,
+    )
+    assert tracemalloc.is_tracing() is tracing_was_active
+    assert metric["shape"] == [64, 64]
+    assert metric["reference_dtype"] == metric["candidate_dtype"] == "float64"
+    assert metric["max_abs"] == 2.0
+    assert len(metric["worst_differences"]) <= 1
+    assert metric["comparison_chunk_limit_bytes"] == 4096
+    assert metric["zero_reference_count"] == 1
+    assert metric["zero_reference_mask_zlib_base64"]
+    assert metric["canonical_hash_traced_memory_scope"] == (
+        "tracemalloc-tracked allocations; not process RSS or all native allocations"
+    )
+    assert metric["canonical_hash_process_rss_scope"] == (
+        "whole-process RSS endpoints; not isolated to hash allocations and not a peak"
+    )
+    if tracing_was_active:
+        assert metric["canonical_hash_tracemalloc_status"] == "UNMEASURED_EXTERNAL_TRACEMALLOC_ACTIVE"
+        assert metric["canonical_hash_traced_peak_bytes"] is None
+        assert metric["canonical_hash_tracemalloc_unmeasured_reason"]
+    else:
+        assert metric["canonical_hash_tracemalloc_status"] == "MEASURED_ISOLATED_TRACED_PEAK"
+        assert isinstance(metric["canonical_hash_traced_peak_bytes"], int)
+        assert metric["canonical_hash_traced_peak_bytes"] >= 0
+        assert metric["canonical_hash_traced_current_delta_bytes"] >= 0
+    if metric["canonical_hash_process_rss_status"] == "ENDPOINTS_SAMPLED_NOT_HASH_PEAK":
+        assert isinstance(metric["canonical_hash_process_rss_before_bytes"], int)
+        assert isinstance(metric["canonical_hash_process_rss_after_bytes"], int)
+        assert metric["canonical_hash_process_rss_delta_bytes"] == (
+            metric["canonical_hash_process_rss_after_bytes"]
+            - metric["canonical_hash_process_rss_before_bytes"]
+        )
+    memory_fields = (
+        "canonical_hash_seconds", "canonical_hash_input_bytes",
+        "canonical_hash_tracemalloc_status", "canonical_hash_tracemalloc_unmeasured_reason",
+        "canonical_hash_traced_peak_bytes", "canonical_hash_traced_current_delta_bytes",
+        "canonical_hash_traced_memory_scope", "canonical_hash_process_rss_before_bytes",
+        "canonical_hash_process_rss_after_bytes", "canonical_hash_process_rss_delta_bytes",
+        "canonical_hash_process_rss_status", "canonical_hash_process_rss_unavailable_reason",
+        "canonical_hash_process_rss_scope", "comparison_working_memory_scope",
+    )
+    _persist_metrics({
+        "label": "bounded_comparison_memory",
+        "settings": {"comparison_chunk_limit_bytes": 4096},
+        "measurement": {name: metric[name] for name in memory_fields},
+        "comparison": {
+            "shape": metric["shape"], "reference_dtype": metric["reference_dtype"],
+            "candidate_dtype": metric["candidate_dtype"],
+            "canonical_exact": metric["canonical_exact"],
+        },
+        "exact_gate": "MEMORY_DIAGNOSTIC_ONLY",
+    })
+
+
+def test_bounded_comparator_preserves_external_tracemalloc_state_and_peak():
+    import gc
+    import tracemalloc
+
+    reference = np.arange(1024, dtype=np.float64)
+    candidate = reference.copy()
+    tracing_was_active = tracemalloc.is_tracing()
+    started_here = not tracing_was_active
+    if started_here:
+        tracemalloc.start()
+    try:
+        if started_here:
+            prior_peak = bytearray(2 * 1024 * 1024)
+            del prior_peak
+            gc.collect()
+        _, peak_before = tracemalloc.get_traced_memory()
+        metric = compare_numeric_bounded(reference, candidate, max_working_bytes=4096)
+        _, peak_after = tracemalloc.get_traced_memory()
+        assert tracemalloc.is_tracing()
+        assert peak_after >= peak_before
+        assert metric["canonical_hash_tracemalloc_status"] == "UNMEASURED_EXTERNAL_TRACEMALLOC_ACTIVE"
+        assert metric["canonical_hash_traced_peak_bytes"] is None
+        assert metric["canonical_hash_tracemalloc_unmeasured_reason"] == (
+            "tracemalloc was already active; its caller-owned peak was not reset or read"
+        )
+    finally:
+        if started_here and tracemalloc.is_tracing():
+            tracemalloc.stop()
+    assert tracemalloc.is_tracing() is tracing_was_active
+
+
+def test_bounded_comparator_sidecar_roundtrip_for_strided_multichunk_input(tmp_path):
+    import hashlib
+    import zlib
+
+    base = np.arange(64 * 48, dtype=np.float64).reshape(64, 48)
+    base[::7, ::5] = 0.0
+    reference = base[::2, 1::3].T
+    assert not reference.flags.c_contiguous
+    candidate = reference.copy()
+    candidate[3, 4] += 0.5
+    sidecar = tmp_path / "zero_mask.bin"
+
+    metric = compare_numeric_bounded(
+        reference, candidate, max_working_bytes=1024,
+        max_examples=128, zero_mask_path=sidecar,
+    )
+    expected_packed = np.packbits(
+        (reference == 0).ravel(order="C"), bitorder="little",
+    ).tobytes()
+    assert zlib.decompress(sidecar.read_bytes()) == expected_packed
+    assert metric["zero_reference_mask_sha256"] == hashlib.sha256(expected_packed).hexdigest()
+    assert metric["zero_reference_mask_status"] == "SIDECAR_WRITTEN"
+    assert len(metric["worst_differences"]) <= 128
+
+
+def test_bounded_comparator_rejects_out_of_contract_limits_and_integer_arrays():
+    floating = np.ones((4,), dtype=np.float64)
+    with pytest.raises(ValueError, match="64 MiB"):
+        compare_numeric_bounded(
+            floating, floating, max_working_bytes=64 * 1024 * 1024 + 1,
+        )
+    with pytest.raises(ValueError, match="128"):
+        compare_numeric_bounded(floating, floating, max_examples=129)
+    with pytest.raises(TypeError, match="floating or complex"):
+        compare_numeric_bounded(np.arange(4), np.arange(4))
+    with pytest.raises(TypeError, match="floating or complex"):
+        compare_numeric_bounded(np.ones(4, dtype=bool), np.ones(4, dtype=bool))
 
 
 def test_plan_rejects_ambiguous_parallel_and_layout_settings():
@@ -750,3 +1017,335 @@ def test_raman_reference_stage_heun_reload_and_iir_causality():
         Gamma_R=2.0e12, iir_sampling="exact_piecewise_linear",
     )
     assert np.array_equal(causal[:-1], np.zeros_like(causal[:-1]))
+
+
+def _raman_candidate_fixture(nt=384, ny=5, nx=7, *, zero=False):
+    t = np.arange(nt, dtype=np.float64)[:, None, None]
+    scale = np.geomspace(1.0e-3, 1.0e3, ny * nx).reshape(1, ny, nx)
+    temporal = np.exp(-((t - 0.38 * nt) / (0.19 * nt)) ** 2)
+    phase = 0.7 * np.sin(0.071 * t) + 0.2 * np.cos(0.037 * t)
+    field = (1.0e7 * temporal * scale * (np.cos(phase) + 1j * np.sin(phase)))
+    field = np.ascontiguousarray(field, dtype=np.complex128)
+    if zero:
+        field.fill(0.0)
+    dt = 1.0e-15
+    kwargs = {
+        "Omega": 2.0 * np.pi * np.fft.fftfreq(nt, d=dt),
+        "dt": dt,
+        "omega0": 2.0e15,
+        "n0": 1.0,
+        "n_R": 2.3e-23,
+        "omega_R": 1.6e13,
+        "Gamma_R": 1.3e13,
+        "method": "iir",
+        "iir_sampling": "exact_piecewise_linear",
+    }
+    return field, kwargs
+
+
+@pytest.mark.parametrize("kernel_threads", [1, 2, 4])
+def test_raman_candidate_stage_heun_energy_and_field_version(kernel_threads):
+    from KHz_filament.propagate import propagate_one_pulse
+    from KHz_filament.raman import stable_field_fluence_and_loss
+    from tools.cpu_o1.cpu_o1 import (
+        _stable_field_fluence_and_loss_cpu_o1,
+        apply_isaacs_raman_step_cpu_o1,
+        isaacs_raman_stage_cpu_o1,
+    )
+
+    if kernel_threads > available_numba_threads():
+        pytest.skip(f"Numba exposes only {available_numba_threads()} local threads")
+    implementation = "numba_serial" if kernel_threads == 1 else "numba_parallel"
+    plan = CPUExecutionPlan(implementation=implementation, kernel_threads=kernel_threads)
+    field, kwargs = _raman_candidate_fixture()
+    before = field.copy()
+    factory = make_joint_propagator_factory("R", kernel_threads=kernel_threads, block_pixels=32)
+    _, dispatch = factory(propagate_one_pulse)
+    namespace = dispatch.cpu_o1_raman_namespace
+    reference_stage_function = namespace["isaacs_raman_stage"]
+    reference_apply_function = namespace["apply_isaacs_raman_operator_step"]
+    reference_stage = reference_stage_function(field, **kwargs)
+    dz = 1.0e-5
+    reference_result, reference_diagnostics = reference_apply_function(
+        field, dz, **kwargs, integrator="heun", return_diagnostics=True,
+        stage1=reference_stage,
+    )
+    reference_transform_counts = dispatch.report()["transform_counts"]
+    assert reference_transform_counts.get("temporal:fft", 0) > 0
+    assert reference_transform_counts.get("temporal:ifft", 0) > 0
+    dispatch.counts.clear()
+    candidate_stage_metrics = {}
+    candidate_stage = isaacs_raman_stage_cpu_o1(
+        field, raman_namespace=namespace, plan=plan,
+        metrics_out=candidate_stage_metrics, **kwargs,
+    )
+    assert candidate_stage_metrics["implementation"] == "cpu_o1_raman_pointwise_numba"
+    assert candidate_stage_metrics["product"]["kernel"] == "product"
+    assert candidate_stage_metrics["rhs"]["kernel"] == "rhs"
+    assert candidate_stage["I_R"].shape == (384, 5, 7)
+    assert not np.shares_memory(field, candidate_stage["rhs"])
+    assert not np.shares_memory(field, candidate_stage["I_R"])
+    assert np.array_equal(field, before)
+    _metric_record(
+        {key: value for key, value in reference_stage.items() if key != "walltime_s"},
+        {key: value for key, value in candidate_stage.items() if key != "walltime_s"},
+        label=f"raman_candidate_stage_nt384_threads{kernel_threads}",
+        settings=plan.as_dict(), measurement=candidate_stage_metrics,
+        require_exact=False,
+    )
+
+    stage2_calls = []
+
+    def candidate_stage_function(current, **stage_kwargs):
+        metrics = {}
+        value = isaacs_raman_stage_cpu_o1(
+            current, raman_namespace=namespace, plan=plan,
+            metrics_out=metrics, **stage_kwargs,
+        )
+        stage2_calls.append((current.copy(), value, metrics))
+        return value
+
+    candidate_apply_metrics = {}
+    candidate_result, candidate_diagnostics = apply_isaacs_raman_step_cpu_o1(
+        field, dz, raman_namespace=namespace, plan=plan,
+        stage_function=candidate_stage_function, metrics_out=candidate_apply_metrics,
+        **kwargs, integrator="heun", return_diagnostics=True,
+        stage1=candidate_stage,
+    )
+    assert len(stage2_calls) == 1
+    assert not np.array_equal(candidate_stage["I_R"], candidate_diagnostics["I_R_stage2"])
+    assert candidate_apply_metrics["implementation"] == "cpu_o1_raman_heun_numba"
+    assert candidate_diagnostics["convolution_count"] == 2
+    assert candidate_diagnostics["finite"] is True
+    assert candidate_diagnostics["actual_loss_evaluation"] == "stable_component_difference_float64"
+    candidate_transform_counts = dispatch.report()["transform_counts"]
+    assert candidate_transform_counts == reference_transform_counts
+    assert candidate_transform_counts.get("temporal:fft", 0) > 0
+    assert candidate_transform_counts.get("temporal:ifft", 0) > 0
+    assert np.array_equal(field, before)
+    assert np.isfinite(candidate_result).all()
+    ref_ledger = {key: value for key, value in reference_diagnostics.items()
+                  if key != "operator_walltime_s"}
+    candidate_ledger = {key: value for key, value in candidate_diagnostics.items()
+                        if key != "operator_walltime_s"}
+    _metric_record(
+        {"field": reference_result, "ledger": ref_ledger},
+        {"field": candidate_result, "ledger": candidate_ledger},
+        label=f"raman_candidate_heun_ledger_nt384_threads{kernel_threads}",
+        settings=plan.as_dict(), measurement=candidate_apply_metrics,
+        require_exact=False,
+    )
+
+    changed = field.copy()
+    changed[::2, 1::2, 1::2] *= (1.0 - 1.0e-12 + 2.0e-12j)
+    reference_energy = stable_field_fluence_and_loss(field, changed, dt=kwargs["dt"], n0=kwargs["n0"])
+    energy_metrics = {}
+    candidate_energy = _stable_field_fluence_and_loss_cpu_o1(
+        field, changed, dt=kwargs["dt"], n0=kwargs["n0"],
+        raman_namespace=namespace, plan=plan, metrics_out=energy_metrics, chunk_t=32,
+    )
+    assert np.isfinite(candidate_energy[0]).all() and np.isfinite(candidate_energy[1]).all()
+    assert np.any(candidate_energy[1] != 0.0)
+    _metric_record(
+        reference_energy, candidate_energy,
+        label=f"raman_candidate_stable_energy_tiny_change_threads{kernel_threads}",
+        settings={**plan.as_dict(), "chunk_t": 32}, measurement=energy_metrics,
+        require_exact=False,
+    )
+
+
+def test_raman_candidate_zero_field_keeps_complete_heun_diagnostics_exact():
+    from KHz_filament import raman as raman_module
+    from KHz_filament.raman import apply_isaacs_raman_operator_step, isaacs_raman_stage
+    from tools.cpu_o1.cpu_o1 import apply_isaacs_raman_step_cpu_o1, isaacs_raman_stage_cpu_o1
+
+    field, kwargs = _raman_candidate_fixture(nt=16, ny=2, nx=3, zero=True)
+    namespace = vars(raman_module)
+    plan = CPUExecutionPlan(implementation="numba_serial")
+    reference_stage = isaacs_raman_stage(field, **kwargs)
+    candidate_stage = isaacs_raman_stage_cpu_o1(
+        field, raman_namespace=namespace, plan=plan, **kwargs,
+    )
+    _metric_record(
+        {key: value for key, value in reference_stage.items() if key != "walltime_s"},
+        {key: value for key, value in candidate_stage.items() if key != "walltime_s"},
+        label="raman_candidate_zero_stage", settings=plan.as_dict(),
+    )
+
+    def candidate_stage_function(current, **stage_kwargs):
+        return isaacs_raman_stage_cpu_o1(
+            current, raman_namespace=namespace, plan=plan, **stage_kwargs,
+        )
+
+    reference_result, reference_ledger = apply_isaacs_raman_operator_step(
+        field, 1.0e-5, **kwargs, integrator="heun", return_diagnostics=True,
+        stage1=reference_stage,
+    )
+    candidate_result, candidate_ledger = apply_isaacs_raman_step_cpu_o1(
+        field, 1.0e-5, raman_namespace=namespace, plan=plan,
+        stage_function=candidate_stage_function, **kwargs,
+        integrator="heun", return_diagnostics=True, stage1=candidate_stage,
+    )
+    assert candidate_ledger["finite"] is True
+    assert candidate_ledger["convolution_count"] == 2
+    assert np.array_equal(candidate_result, np.zeros_like(field))
+    _metric_record(
+        {"field": reference_result,
+         "ledger": {key: value for key, value in reference_ledger.items()
+                    if key != "operator_walltime_s"}},
+        {"field": candidate_result,
+         "ledger": {key: value for key, value in candidate_ledger.items()
+                    if key != "operator_walltime_s"}},
+        label="raman_candidate_zero_heun_full_ledger", settings=plan.as_dict(),
+    )
+
+
+def test_joint_factory_scratch_and_event_state_are_per_propagator():
+    from KHz_filament.propagate import propagate_one_pulse
+
+    reference_globals = propagate_one_pulse.__globals__
+    source_evolve = reference_globals["evolve_rho_time"]
+    source_stage = reference_globals["isaacs_raman_stage"]
+    factory = make_joint_propagator_factory("I", kernel_threads=1)
+    first, first_dispatch = factory(propagate_one_pulse)
+    second, second_dispatch = factory(propagate_one_pulse)
+    assert first_dispatch.cpu_o1_rate_workspace is not second_dispatch.cpu_o1_rate_workspace
+    assert first._cpu_o1_candidate_events is first_dispatch.cpu_o1_candidate_events
+    assert second._cpu_o1_candidate_events is second_dispatch.cpu_o1_candidate_events
+    assert first._cpu_o1_candidate_events is not second._cpu_o1_candidate_events
+    assert first._cpu_o1_execution["workspace_owner"] == "per_factory"
+    assert first._cpu_o1_execution["temporal_workers"] == 48
+    assert first._cpu_o1_execution["spatial_workers"] == 24
+    assert reference_globals["evolve_rho_time"] is source_evolve
+    assert reference_globals["isaacs_raman_stage"] is source_stage
+
+
+def test_joint_b_i_r_ir_tiny_propagations_wire_candidates_and_preserve_topology(tmp_path):
+    import importlib
+    from tools.cpu_p1r2 import cpu_p1r2_j1 as j1
+    from tools.cpu_p1r2 import cpu_p1r2_j2 as j2
+
+    propagate_module = importlib.import_module("KHz_filament.propagate")
+    outputs = {}
+    factories = {}
+    original_propagate = propagate_module.propagate_one_pulse
+    original_stage = original_propagate.__globals__["isaacs_raman_stage"]
+    for identity in ("B", "I", "R", "IR"):
+        context = j1._tiny_context(operator_mode="full_isaacs_eq27")
+        from KHz_filament.config import GridConfig
+        from KHz_filament.grids import make_axes
+        from KHz_filament.hr4e5_formal_entry import pre0_fields_from_delta_n
+        from KHz_filament.runner import build_transverse_input_field
+
+        grid = GridConfig(
+            Nx=7, Ny=5, Nt=64, Lx=context["grid"].Lx,
+            Ly=context["grid"].Ly, Twin=context["grid"].Twin,
+        )
+        axes = make_axes(grid.Nx, grid.Ny, grid.Nt, grid.Lx, grid.Ly, grid.Twin)
+        source, _ = build_transverse_input_field(axes, context["beam"], np.complex128)
+        context["grid"] = grid
+        context["source"] = np.ascontiguousarray(source, dtype=np.complex128)
+        pre0 = np.zeros((8, grid.Ny, grid.Nx), dtype=np.float64, order="C")
+        context["pre_fields"] = pre0_fields_from_delta_n(pre0, expected_count=8)
+        assert context["source"].shape == (64, 5, 7)
+        assert context["source"].shape[0] <= 384
+        assert context["source"].shape[1] <= 5
+        assert context["source"].shape[2] <= 7
+        case_root = tmp_path / identity
+        factory = make_joint_propagator_factory(identity, kernel_threads=1, block_pixels=32)
+        receipt = j1._run_window(
+            source=context["source"], pre_fields=context["pre_fields"],
+            grid=context["grid"], beam=context["beam"], prop=context["prop"],
+            ion=context["ion"], heat=context["heat"], raman=context["raman"],
+            schedule=context["schedule"], output_dir=case_root,
+            source_label="synthetic_tiny_PRE0", initial_pre0=True, profile=False,
+            stage_name=f"cpu_o1_{identity}", execution_scope="SOFTWARE_SMOKE_ONLY",
+            observe=False, propagator_factory=factory,
+        )
+        assert receipt["status"] == "COMPLETE_DIAGNOSTIC"
+        assert receipt["interval_count"] == 8
+        dispatch = factory.last_dispatch
+        assert dispatch.cpu_o1_execution["identity"] == identity
+        assert dispatch.cpu_o1_execution["temporal_workers"] == 48
+        assert dispatch.cpu_o1_execution["spatial_workers"] == 24
+        assert factory.last_propagator._cpu_o1_candidate_events is dispatch.cpu_o1_candidate_events
+        kinds = [event["kind"] for event in dispatch.cpu_o1_candidate_events]
+        if identity in {"I", "IR"}:
+            assert "ionization" in kinds
+        if identity in {"R", "IR"}:
+            assert "raman_stage" in kinds and "raman_apply" in kinds
+        if identity == "B":
+            assert kinds == []
+        outputs[identity] = {
+            "receipt": receipt,
+            "root": case_root,
+            "events": kinds,
+            "execution": dispatch.cpu_o1_execution,
+            "transform_counts": dispatch.report()["transform_counts"],
+        }
+        factories[identity] = factory
+
+    baseline_raman_counts = outputs["B"]["transform_counts"]
+    assert baseline_raman_counts.get("temporal:fft", 0) > 0
+    assert baseline_raman_counts.get("temporal:ifft", 0) > 0
+    for identity in ("I", "R", "IR"):
+        assert outputs[identity]["transform_counts"] == baseline_raman_counts
+
+    for identity in ("I", "R", "IR"):
+        baseline = outputs["B"]
+        candidate = outputs[identity]
+        comparison = j2._compare_stage_files(
+            {
+                "receipt": baseline["receipt"],
+                "final_E_path": baseline["root"] / "final_E.npy",
+                "final_POST_path": baseline["root"] / "final_POST.npz",
+                "diagnostics_path": baseline["root"] / "diagnostics.npz",
+            },
+            {
+                "receipt": candidate["receipt"],
+                "final_E_path": candidate["root"] / "final_E.npy",
+                "final_POST_path": candidate["root"] / "final_POST.npz",
+                "diagnostics_path": candidate["root"] / "diagnostics.npz",
+            },
+            label=f"B_vs_{identity}_tiny_full_operator",
+        )
+        array_sets = {}
+        for side, item in (("reference", baseline), ("candidate", candidate)):
+            array_sets[side] = {
+                "final_E": {"E": np.load(item["root"] / "final_E.npy", allow_pickle=False)},
+            }
+            for group, filename in (("final_POST", "final_POST.npz"),
+                                    ("diagnostics", "diagnostics.npz")):
+                with np.load(item["root"] / filename, allow_pickle=False) as archive:
+                    array_sets[side][group] = {name: archive[name].copy() for name in archive.files}
+        for group, rows in comparison["metrics"].items():
+            for name, metrics in rows.items():
+                reference_array = array_sets["reference"].get(group, {}).get(name)
+                candidate_array = array_sets["candidate"].get(group, {}).get(name)
+                if reference_array is not None and candidate_array is not None:
+                    metrics.update({
+                        "reference_shape": list(reference_array.shape),
+                        "candidate_shape": list(candidate_array.shape),
+                        "reference_dtype": str(reference_array.dtype),
+                        "candidate_dtype": str(candidate_array.dtype),
+                    })
+        assert comparison["hard_gate_pass"], comparison["hard_gate_errors"]
+        _persist_metrics({
+            "label": f"joint_tiny_propagation_B_vs_{identity}",
+            "settings": {"identity": identity, "events": candidate["events"],
+                         "execution": candidate["execution"],
+                         "reference_transform_counts": baseline["transform_counts"],
+                         "candidate_transform_counts": candidate["transform_counts"]},
+            "measurement": None,
+            "comparison": comparison,
+            "exact_gate": "frozen_topology_and_diagnostic_hard_gates",
+            "numerical_classification": (
+                "EXACT_DIAGNOSTIC_MATCH" if comparison["canonical_exact_match"]
+                else "NUMERIC_DIAGNOSTIC_ONLY / ACCEPTANCE_TOLERANCE_NOT_AUTHORIZED"
+            ),
+        })
+
+    workspaces = [factories[name].last_dispatch.cpu_o1_rate_workspace for name in ("I", "IR")]
+    assert workspaces[0] is not workspaces[1]
+    assert propagate_module.propagate_one_pulse is original_propagate
+    assert original_propagate.__globals__["isaacs_raman_stage"] is original_stage
