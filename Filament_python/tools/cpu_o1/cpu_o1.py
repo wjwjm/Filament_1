@@ -184,10 +184,12 @@ def compare_numeric(reference, candidate) -> dict:
     candidate_hash = _canonical_hash(got)
     return {
         "shape": list(ref.shape),
+        "element_count": int(ref.size),
         "reference_shape": list(ref.shape),
         "candidate_shape": list(got.shape),
         "reference_dtype": str(ref.dtype),
         "candidate_dtype": str(got.dtype),
+        "dtype_equal": bool(ref.dtype == got.dtype),
         "reference_canonical_sha256": reference_hash,
         "candidate_canonical_sha256": candidate_hash,
         "canonical_exact": bool(reference_hash == candidate_hash),
@@ -327,9 +329,22 @@ def compare_numeric_bounded(
     zero_count = 0
     finite_pair_count = 0
     nonfinite_mismatch_count = 0
+    reference_operand_nonfinite_count = 0
+    candidate_operand_nonfinite_count = 0
+    reference_operand_infinity_count = 0
+    candidate_operand_infinity_count = 0
+    same_nonfinite_value_count = 0
+    finite_subtraction_overflow_count = 0
+    reference_magnitude_overflow_count = 0
+    candidate_magnitude_overflow_count = 0
+    difference_magnitude_overflow_count = 0
+    normalization_overflow_count = 0
+    zero_reference_nonzero_difference_count = 0
     value_equal = True
     bitwise_equal = ref.dtype == got.dtype
     all_finite = True
+    reference_all_nan = bool(ref.size)
+    candidate_all_nan = bool(got.size)
     mask_hash = hashlib.sha256()
     mask_compressor = zlib.compressobj(level=6)
     compressed_mask_parts = []
@@ -342,6 +357,54 @@ def compare_numeric_bounded(
     worst = []
     flat_offset = 0
     pending_mask_bits = np.empty((0,), dtype=bool)
+
+    def component_equal(left, right):
+        with np.errstate(invalid="ignore"):
+            return (left == right) | (np.isnan(left) & np.isnan(right))
+
+    def same_value_mask(left, right):
+        if left.dtype.kind == "c" or right.dtype.kind == "c":
+            return (component_equal(np.real(left), np.real(right))
+                    & component_equal(np.imag(left), np.imag(right)))
+        return component_equal(left, right)
+
+    def stable_ratio(numerator, denominator):
+        """Return a representable positive ratio, or an explicit reason."""
+        if numerator == 0.0:
+            return 0.0, None
+        if denominator == 0.0:
+            return None, "zero_reference_scale_with_nonzero_difference"
+        if not (math.isfinite(numerator) and math.isfinite(denominator)):
+            return None, "nonfinite_operand_or_magnitude"
+        n_mantissa, n_exponent = math.frexp(numerator)
+        d_mantissa, d_exponent = math.frexp(denominator)
+        try:
+            value = math.ldexp(n_mantissa / d_mantissa, n_exponent - d_exponent)
+        except OverflowError:
+            return None, "normalization_overflow"
+        if not math.isfinite(value):
+            return None, "normalization_overflow"
+        if value == 0.0:
+            return None, "normalization_underflow"
+        return float(value), None
+
+    def stable_l2_ratio(diff_scale, diff_sumsq, ref_scale, ref_sumsq):
+        if diff_scale == 0.0:
+            return 0.0, None
+        if ref_scale == 0.0:
+            return None, "zero_reference_scale_with_nonzero_difference"
+        log_ratio = (math.log(diff_scale) - math.log(ref_scale)
+                     + 0.5 * (math.log(diff_sumsq) - math.log(ref_sumsq)))
+        if log_ratio > math.log(float.fromhex("0x1.fffffffffffffp+1023")):
+            return None, "normalization_overflow"
+        if log_ratio < math.log(float.fromhex("0x0.0000000000001p-1022")):
+            return None, "normalization_underflow"
+        value = math.exp(log_ratio)
+        if not math.isfinite(value):
+            return None, "normalization_overflow"
+        if value == 0.0:
+            return None, "normalization_underflow"
+        return float(value), None
 
     def emit_mask_bits(bits):
         packed = np.packbits(bits, bitorder="little").tobytes()
@@ -380,15 +443,25 @@ def compare_numeric_bounded(
         emit_mask_bits(mask_bits[:complete_bits])
         pending_mask_bits = mask_bits[complete_bits:].copy()
 
-        ref_mag = np.abs(ref_chunk)
+        with np.errstate(invalid="ignore", over="ignore"):
+            ref_mag = np.abs(ref_chunk)
+            got_mag = np.abs(got_chunk)
         finite_ref = np.isfinite(ref_chunk)
         finite_got = np.isfinite(got_chunk)
         finite_pair = finite_ref & finite_got
-        all_finite = all_finite and bool(np.all(finite_ref)) and bool(np.all(finite_got))
+        reference_operand_nonfinite_count += int(np.count_nonzero(~finite_ref))
+        candidate_operand_nonfinite_count += int(np.count_nonzero(~finite_got))
+        reference_operand_infinity_count += int(np.count_nonzero(np.isinf(ref_chunk)))
+        candidate_operand_infinity_count += int(np.count_nonzero(np.isinf(got_chunk)))
         with np.errstate(invalid="ignore"):
-            same_value = ref_chunk == got_chunk
-            if ref_chunk.dtype.kind in "fc" or got_chunk.dtype.kind in "fc":
-                same_value = same_value | (np.isnan(ref_chunk) & np.isnan(got_chunk))
+            reference_all_nan = reference_all_nan and bool(ref_chunk.size and np.isnan(ref_chunk).all())
+            candidate_all_nan = candidate_all_nan and bool(got_chunk.size and np.isnan(got_chunk).all())
+        reference_magnitude_overflow = finite_ref & ~np.isfinite(ref_mag)
+        candidate_magnitude_overflow = finite_got & ~np.isfinite(got_mag)
+        reference_magnitude_overflow_count += int(np.count_nonzero(reference_magnitude_overflow))
+        candidate_magnitude_overflow_count += int(np.count_nonzero(candidate_magnitude_overflow))
+        all_finite = all_finite and bool(np.all(finite_ref)) and bool(np.all(finite_got))
+        same_value = same_value_mask(ref_chunk, got_chunk)
         value_equal = value_equal and bool(np.all(same_value))
         if bitwise_equal:
             # nditer exposes bounded chunks even for strided source arrays.
@@ -398,18 +471,24 @@ def compare_numeric_bounded(
             )
         finite_pair_count += int(np.count_nonzero(finite_pair))
         with np.errstate(invalid="ignore", over="ignore"):
-            difference = np.abs(got_chunk - ref_chunk)
-        diff_finite = np.isfinite(difference)
-        same_nonfinite = (
-            (np.isnan(ref_chunk) & np.isnan(got_chunk))
-            | (np.isinf(ref_chunk) & np.isinf(got_chunk) & (ref_chunk == got_chunk))
+            raw_difference = got_chunk - ref_chunk
+            difference = np.abs(raw_difference)
+        finite_subtraction_overflow = finite_pair & ~np.isfinite(raw_difference)
+        finite_subtraction_overflow_count += int(np.count_nonzero(finite_subtraction_overflow))
+        difference_magnitude_overflow = (
+            finite_pair & np.isfinite(raw_difference) & ~np.isfinite(difference)
         )
+        difference_magnitude_overflow_count += int(np.count_nonzero(difference_magnitude_overflow))
+        diff_finite = np.isfinite(difference)
+        same_nonfinite = ~finite_pair & same_value
+        same_nonfinite_value_count += int(np.count_nonzero(same_nonfinite))
         nonfinite_mismatch = (~finite_pair) & ~same_nonfinite
         nonfinite_mismatch_count += int(np.count_nonzero(nonfinite_mismatch))
-        if np.any(finite_ref):
-            ref_max = max(ref_max, float(np.max(ref_mag[finite_ref])))
+        finite_ref_magnitude = finite_ref & np.isfinite(ref_mag)
+        if np.any(finite_ref_magnitude):
+            ref_max = max(ref_max, float(np.max(ref_mag[finite_ref_magnitude])))
             reference_lassq_scale, reference_lassq_sumsq = lassq_update(
-                reference_lassq_scale, reference_lassq_sumsq, ref_chunk[finite_ref]
+                reference_lassq_scale, reference_lassq_sumsq, ref_chunk[finite_ref_magnitude]
             )
         if np.any(diff_finite):
             diff_max = max(diff_max, float(np.max(difference[diff_finite])))
@@ -419,8 +498,15 @@ def compare_numeric_bounded(
 
         denominator = np.where(zero_mask, 1.0, ref_mag)
         relative = np.zeros(difference.shape, dtype=np.float64)
-        np.divide(difference, denominator, out=relative, where=~zero_mask)
-        relative[zero_mask & (difference != 0)] = np.inf
+        with np.errstate(invalid="ignore", over="ignore", divide="ignore"):
+            np.divide(difference, denominator, out=relative, where=~zero_mask)
+        zero_diff = zero_mask & (difference != 0)
+        zero_reference_nonzero_difference_count += int(np.count_nonzero(zero_diff))
+        relative[zero_diff] = np.inf
+        normalization_overflow = (
+            finite_pair & ~zero_mask & np.isfinite(difference) & ~np.isfinite(relative)
+        )
+        normalization_overflow_count += int(np.count_nonzero(normalization_overflow))
         bad = (finite_pair & (difference != 0)) | nonfinite_mismatch
         if max_examples and np.any(bad):
             local_indices = np.flatnonzero(bad)
@@ -454,29 +540,43 @@ def compare_numeric_bounded(
     elif tail:
         compressed_mask_parts.append(tail)
     packed_mask_blob = b"".join(compressed_mask_parts) if mask_stream is None else None
-    if ref.size:
-        reference_l2 = reference_lassq_scale * math.sqrt(reference_lassq_sumsq)
-        difference_l2 = difference_lassq_scale * math.sqrt(difference_lassq_sumsq)
-    else:
-        reference_l2 = difference_l2 = 0.0
     if ref_max > 0.0:
-        normalized_linf = diff_max / ref_max
-        normalized_reason = None
+        normalized_linf, normalized_reason = stable_ratio(diff_max, ref_max)
     elif diff_max == 0.0:
-        normalized_linf = 0.0
-        normalized_reason = None
+        normalized_linf, normalized_reason = 0.0, None
     else:
-        normalized_linf = None
-        normalized_reason = "zero_reference_scale_with_nonzero_difference"
-    if reference_l2 > 0.0:
-        relative_l2 = difference_l2 / reference_l2
-        relative_reason = None
-    elif difference_l2 == 0.0:
-        relative_l2 = 0.0
-        relative_reason = None
+        normalized_linf, normalized_reason = None, "zero_reference_scale_with_nonzero_difference"
+    if reference_lassq_scale > 0.0:
+        relative_l2, relative_reason = stable_l2_ratio(
+            difference_lassq_scale, difference_lassq_sumsq,
+            reference_lassq_scale, reference_lassq_sumsq,
+        )
+    elif difference_lassq_scale == 0.0:
+        relative_l2, relative_reason = 0.0, None
     else:
-        relative_l2 = None
-        relative_reason = "zero_reference_scale_with_nonzero_difference"
+        relative_l2, relative_reason = None, "zero_reference_scale_with_nonzero_difference"
+    metrics_have_nonfinite_operands = bool(
+        reference_operand_nonfinite_count or candidate_operand_nonfinite_count
+    )
+    metrics_have_overflow = bool(
+        finite_subtraction_overflow_count or reference_magnitude_overflow_count
+        or candidate_magnitude_overflow_count or difference_magnitude_overflow_count
+    )
+    if metrics_have_nonfinite_operands:
+        max_abs, max_abs_reason = None, "nonfinite_operands_present"
+        reference_max_abs, reference_max_abs_reason = None, "nonfinite_operands_present"
+        normalized_linf, normalized_reason = None, "nonfinite_operands_present"
+        relative_l2, relative_reason = None, "nonfinite_operands_present"
+    elif metrics_have_overflow:
+        max_abs, max_abs_reason = None, "magnitude_or_difference_overflow"
+        reference_max_abs, reference_max_abs_reason = None, "magnitude_or_difference_overflow"
+        normalized_linf, normalized_reason = None, "magnitude_or_difference_overflow"
+        relative_l2, relative_reason = None, "magnitude_or_difference_overflow"
+    else:
+        max_abs, max_abs_reason = float(diff_max), None
+        reference_max_abs, reference_max_abs_reason = float(ref_max), None
+    normalization_overflow_count += int(normalized_reason == "normalization_overflow")
+    normalization_overflow_count += int(relative_reason == "normalization_overflow")
     sorted_worst = sorted(worst, key=lambda item: (item[0], item[1]), reverse=True)[:max_examples]
     examples = []
     for score, flat_index, absolute in sorted_worst:
@@ -494,6 +594,7 @@ def compare_numeric_bounded(
         })
     return {
         "shape": list(ref.shape),
+        "element_count": int(ref.size),
         "reference_shape": list(ref.shape),
         "candidate_shape": list(got.shape),
         "reference_dtype": str(ref.dtype),
@@ -504,10 +605,26 @@ def compare_numeric_bounded(
         "value_equal": bool(value_equal),
         "bitwise_equal": bool(bitwise_equal),
         "all_finite": bool(all_finite),
+        "reference_all_nan": bool(reference_all_nan),
+        "candidate_all_nan": bool(candidate_all_nan),
         "finite_pair_count": finite_pair_count,
         "nonfinite_mismatch_count": nonfinite_mismatch_count,
-        "max_abs": diff_max if nonfinite_mismatch_count == 0 else float("inf"),
-        "reference_max_abs": ref_max,
+        "dtype_equal": bool(ref.dtype == got.dtype),
+        "reference_operand_nonfinite_count": reference_operand_nonfinite_count,
+        "candidate_operand_nonfinite_count": candidate_operand_nonfinite_count,
+        "reference_operand_infinity_count": reference_operand_infinity_count,
+        "candidate_operand_infinity_count": candidate_operand_infinity_count,
+        "same_nonfinite_value_count": same_nonfinite_value_count,
+        "finite_subtraction_overflow_count": finite_subtraction_overflow_count,
+        "reference_magnitude_overflow_count": reference_magnitude_overflow_count,
+        "candidate_magnitude_overflow_count": candidate_magnitude_overflow_count,
+        "difference_magnitude_overflow_count": difference_magnitude_overflow_count,
+        "normalization_overflow_count": normalization_overflow_count,
+        "zero_reference_nonzero_difference_count": zero_reference_nonzero_difference_count,
+        "max_abs": max_abs,
+        "max_abs_reason": max_abs_reason,
+        "reference_max_abs": reference_max_abs,
+        "reference_max_abs_reason": reference_max_abs_reason,
         "normalized_linf": normalized_linf,
         "normalized_linf_reason": normalized_reason,
         "relative_l2": relative_l2,
@@ -553,8 +670,20 @@ def local_environment_fingerprint() -> dict:
     """Return the toolchain identity used by CPU-O1 exact local fixtures."""
     import importlib.metadata
     import sys
+    import sysconfig
 
     import numba
+    try:
+        import threadpoolctl
+        threadpools = threadpoolctl.threadpool_info()
+        threadpoolctl_version = importlib.metadata.version("threadpoolctl")
+    except (ImportError, importlib.metadata.PackageNotFoundError):
+        threadpools = None
+        threadpoolctl_version = None
+    try:
+        psutil_version = importlib.metadata.version("psutil")
+    except importlib.metadata.PackageNotFoundError:
+        psutil_version = None
 
     versions = {}
     for package in ("numpy", "scipy", "numba", "llvmlite", "pytest"):
@@ -572,9 +701,13 @@ def local_environment_fingerprint() -> dict:
         "numba_threading_layer_config": str(numba.config.THREADING_LAYER),
         "numba_threading_layer_env": os.environ.get("NUMBA_THREADING_LAYER"),
         "numba_active_threading_layer": active_threading_layer,
+        "numba_threading_layer_priority": list(numba.config.THREADING_LAYER_PRIORITY),
         "numba_threads_available": int(numba.config.NUMBA_NUM_THREADS),
         "numba_threads_current": int(numba.get_num_threads()),
-        "nested_parallelism_enabled": bool(numba.config.THREADING_LAYER_PRIORITY),
+        "parallel_call_organization": "NOT_OBSERVED_BY_ENVIRONMENT_FINGERPRINT",
+        "parallel_call_policy": (
+            "Q1 serial identity sequence; one active child; Numba kernel and FFT workers are not nested"
+        ),
     }
     expected_versions = {
         "numpy": "2.2.5", "scipy": "1.15.2", "numba": "0.61.2",
@@ -596,6 +729,42 @@ def local_environment_fingerprint() -> dict:
         qualification_reasons.append("numba_threading_layer_not_workqueue")
     if (active_threading_layer not in {"NOT_INITIALIZED", "workqueue"}):
         qualification_reasons.append("active_threading_layer_mismatch")
+    glibc = platform.libc_ver()
+    linux_reasons = []
+    expected_linux_versions = {
+        **expected_versions, "threadpoolctl": "3.6.0", "psutil": "7.0.0",
+    }
+    observed_linux_versions = dict(versions)
+    observed_linux_versions.update({"threadpoolctl": threadpoolctl_version, "psutil": psutil_version})
+    if platform.python_version() != "3.12.8":
+        linux_reasons.append("python_version_mismatch")
+    if platform.python_implementation() != "CPython":
+        linux_reasons.append("python_implementation_mismatch")
+    if platform.system() != "Linux":
+        linux_reasons.append("platform_not_linux")
+    if platform.machine().lower() not in {"x86_64", "amd64"}:
+        linux_reasons.append("machine_not_x86_64")
+    if sys.byteorder != "little":
+        linux_reasons.append("byteorder_not_little")
+    if observed_linux_versions != expected_linux_versions:
+        linux_reasons.append("locked_package_versions_mismatch")
+    if glibc[0].lower() != "glibc" or not glibc[1]:
+        linux_reasons.append("glibc_identity_unavailable")
+    if not sysconfig.get_config_var("SOABI") or not sysconfig.get_config_var("EXT_SUFFIX"):
+        linux_reasons.append("python_abi_identity_unavailable")
+    if runtime["numba_cpu_target"] != "generic" or runtime["numba_cpu_target_env"] != "generic":
+        linux_reasons.append("numba_target_not_generic")
+    if (runtime["numba_threading_layer_config"] != "workqueue"
+            or runtime["numba_threading_layer_env"] != "workqueue"):
+        linux_reasons.append("numba_threading_layer_not_workqueue")
+    if active_threading_layer != "workqueue":
+        linux_reasons.append("numba_active_workqueue_not_proven")
+    cache_value = os.environ.get("NUMBA_CACHE_DIR")
+    cache_path = Path(cache_value).expanduser() if cache_value else None
+    cache_writable = bool(cache_path is not None and cache_path.is_dir()
+                          and os.access(cache_path, os.W_OK))
+    if not cache_writable:
+        linux_reasons.append("numba_cache_not_writable_or_unconfigured")
     return {
         "python": platform.python_version(),
         "python_implementation": platform.python_implementation(),
@@ -604,13 +773,32 @@ def local_environment_fingerprint() -> dict:
         "machine": platform.machine(),
         "processor": platform.processor(),
         "versions": versions,
+        "additional_runtime_versions": {
+            "threadpoolctl": threadpoolctl_version, "psutil": psutil_version,
+        },
         "byteorder": sys.byteorder,
         "runtime": runtime,
+        "linux_runtime_identity": {
+            "libc_name": glibc[0], "libc_version": glibc[1],
+            "python_soabi": sysconfig.get_config_var("SOABI"),
+            "python_ext_suffix": sysconfig.get_config_var("EXT_SUFFIX"),
+            "threadpool_info": threadpools,
+            "numba_cache_dir": str(cache_path) if cache_path is not None else None,
+            "numba_cache_dir_exists": bool(cache_path is not None and cache_path.is_dir()),
+            "numba_cache_dir_writable": cache_writable,
+        },
         "exact_regression_qualification": {
             "eligible": not qualification_reasons,
             "status": "PINNED_WINDOWS_AMD64_GENERIC_WORKQUEUE"
             if not qualification_reasons else "UNQUALIFIED_ENVIRONMENT",
             "reasons": qualification_reasons,
+        },
+        "linux_q1_qualification": {
+            "eligible": not linux_reasons,
+            "status": "PINNED_LINUX_X86_64_GENERIC_WORKQUEUE"
+            if not linux_reasons else "LINUX_Q1_NOT_QUALIFIED",
+            "reasons": linux_reasons,
+            "expected_locked_versions": expected_linux_versions,
         },
     }
 
@@ -678,10 +866,14 @@ def make_joint_propagator_factory(
     kernel_threads: int = 1,
     block_pixels: int = 32,
     layout: Layout = "NtB",
+    temporal_workers: int = 48,
+    spatial_workers: int = 24,
 ):
     """Return a fresh private propagator for B/I/R/IR local comparisons.
 
-    Every identity uses the measured 48/24 temporal/spatial FFT dispatch.
+    The default identity uses the measured 48/24 temporal/spatial FFT
+    dispatch. Explicit 1/1 is reserved for the Linux login-node tiny gate;
+    the real Q1 coordinator requests 48/24.
     Ionization and Raman replacements are installed only in the cloned
     propagator globals returned by the P1-R2 factory.
     """
@@ -696,17 +888,24 @@ def make_joint_propagator_factory(
     if layout not in {"NtB", "BNt"}:
         raise ValueError("layout must be NtB or BNt")
 
+    if (isinstance(temporal_workers, bool) or not isinstance(temporal_workers, int)
+            or temporal_workers < 1 or temporal_workers > 96):
+        raise ValueError("temporal_workers must be an integer in [1, 96]")
+    if (isinstance(spatial_workers, bool) or not isinstance(spatial_workers, int)
+            or spatial_workers < 1 or spatial_workers > 96):
+        raise ValueError("spatial_workers must be an integer in [1, 96]")
     plan = CPUExecutionPlan(
         implementation="numba_parallel" if kernel_threads > 1 else "numba_serial",
-        temporal_workers=48,
-        spatial_workers=24,
+        temporal_workers=temporal_workers,
+        spatial_workers=spatial_workers,
         kernel_threads=kernel_threads,
         block_pixels=block_pixels,
         layout=layout,
         workspace_owner=("per_factory" if identity in {"I", "IR"} else "per_call"),
     )
     base_factory = make_base_cpufft_factory(
-        CPUExecutionPlan(temporal_workers=48, spatial_workers=24)
+        CPUExecutionPlan(temporal_workers=temporal_workers,
+                         spatial_workers=spatial_workers)
     )
 
     def factory(frozen_propagator):
@@ -769,8 +968,8 @@ def make_joint_propagator_factory(
             propagator.__globals__["apply_isaacs_raman_operator_step"] = apply_candidate
         propagator._cpu_o1_execution = {
             "identity": identity,
-            "temporal_workers": 48,
-            "spatial_workers": 24,
+            "temporal_workers": temporal_workers,
+            "spatial_workers": spatial_workers,
             "kernel_threads": plan.kernel_threads,
             "block_pixels": plan.block_pixels,
             "layout": plan.layout,

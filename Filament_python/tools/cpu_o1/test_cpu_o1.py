@@ -19,6 +19,9 @@ from tools.cpu_o1.cpu_o1 import (
     make_joint_propagator_factory,
     workspace_matches,
 )
+from tools.cpu_o1.numeric_gate import build_numeric_gate, classify_comparison
+from tools.cpu_o1 import q1_t0
+from tools.cpu_o1.q1_t0 import _array_comparison_row, main as q1_t0_main
 
 
 class _ToyWfunc:
@@ -255,6 +258,9 @@ def test_exact_regression_qualification_rejects_platform_drift(
     assert qualification["eligible"] is False
     assert qualification["status"] == "UNQUALIFIED_ENVIRONMENT"
     assert reason in qualification["reasons"]
+    linux = local_environment_fingerprint()["linux_q1_qualification"]
+    assert linux["eligible"] is False
+    assert "platform_not_linux" not in linux["reasons"] if value == "Linux" else True
 
 
 def test_exact_regression_qualification_rejects_cpu_target_drift(monkeypatch):
@@ -263,6 +269,14 @@ def test_exact_regression_qualification_rejects_cpu_target_drift(monkeypatch):
     assert qualification["eligible"] is False
     assert qualification["status"] == "UNQUALIFIED_ENVIRONMENT"
     assert "numba_target_not_generic" in qualification["reasons"]
+
+
+def test_environment_fingerprint_separates_layer_policy_from_parallel_execution():
+    runtime = local_environment_fingerprint()["runtime"]
+    assert "nested_parallelism_enabled" not in runtime
+    assert isinstance(runtime["numba_threading_layer_priority"], list)
+    assert runtime["parallel_call_organization"] == "NOT_OBSERVED_BY_ENVIRONMENT_FINGERPRINT"
+    assert "one active child" in runtime["parallel_call_policy"]
 
 
 def test_comparison_tree_rejects_scalar_dtype_and_array_changes():
@@ -427,6 +441,332 @@ def test_bounded_comparator_rejects_out_of_contract_limits_and_integer_arrays():
         compare_numeric_bounded(np.arange(4), np.arange(4))
     with pytest.raises(TypeError, match="floating or complex"):
         compare_numeric_bounded(np.ones(4, dtype=bool), np.ones(4, dtype=bool))
+
+
+@pytest.mark.parametrize(
+    ("reference", "candidate", "expected"),
+    [
+        (np.asarray([1.0e308]), np.asarray([-1.0e308]), "finite_subtraction_overflow_count"),
+        (np.asarray([1.7e308 + 1.7e308j]), np.asarray([1.7e308 + 1.7e308j]), "reference_magnitude_overflow_count"),
+        (np.asarray([np.nextafter(0.0, 1.0)]), np.asarray([1.0]), "normalization_overflow_count"),
+    ],
+)
+def test_bounded_comparator_reports_overflow_without_nonstandard_json(
+    reference, candidate, expected,
+):
+    metrics = compare_numeric_bounded(reference, candidate, max_working_bytes=1024)
+    assert metrics[expected] > 0
+    assert metrics["max_abs"] is None or np.isfinite(metrics["max_abs"])
+    assert metrics["normalized_linf"] is None or np.isfinite(metrics["normalized_linf"])
+    assert metrics["relative_l2"] is None or np.isfinite(metrics["relative_l2"])
+    json.dumps(metrics, allow_nan=False)
+
+
+def test_bounded_comparator_distinguishes_matching_and_mismatched_nonfinite_values():
+    matching = compare_numeric_bounded(
+        np.asarray([np.nan, np.inf, -np.inf]),
+        np.asarray([np.nan, np.inf, -np.inf]),
+        max_working_bytes=1024,
+    )
+    assert matching["same_nonfinite_value_count"] == 3
+    assert matching["nonfinite_mismatch_count"] == 0
+    assert matching["canonical_exact"]
+    assert matching["max_abs"] is None
+    assert matching["max_abs_reason"] == "nonfinite_operands_present"
+    json.dumps(matching, allow_nan=False)
+
+    mismatch = compare_numeric_bounded(
+        np.asarray([1.0]), np.asarray([np.nan]), max_working_bytes=1024,
+    )
+    assert mismatch["reference_operand_nonfinite_count"] == 0
+    assert mismatch["candidate_operand_nonfinite_count"] == 1
+    assert mismatch["nonfinite_mismatch_count"] == 1
+    assert mismatch["max_abs"] is None
+    json.dumps(mismatch, allow_nan=False)
+
+
+def test_bounded_comparator_surfaces_dtype_shape_and_zero_scale_gates():
+    mixed = compare_numeric_bounded(
+        np.asarray([1.0], dtype=np.float64),
+        np.asarray([1.0], dtype=np.float32), max_working_bytes=1024,
+    )
+    assert mixed["dtype_equal"] is False
+    with pytest.raises(ValueError, match="shape mismatch"):
+        compare_numeric_bounded(np.ones((2,), dtype=np.float64),
+                                np.ones((1,), dtype=np.float64))
+    zero = compare_numeric_bounded(
+        np.zeros(1, dtype=np.float64), np.ones(1, dtype=np.float64),
+        max_working_bytes=1024,
+    )
+    assert zero["zero_reference_nonzero_difference_count"] == 1
+    assert zero["normalized_linf"] is None
+    assert zero["normalized_linf_reason"] == "zero_reference_scale_with_nonzero_difference"
+    json.dumps(zero, allow_nan=False)
+
+
+def _q1_metric_row(name, metrics, *, scope="science"):
+    return {"field_name": name, "scope": scope, "metrics": metrics}
+
+
+def test_q1_numeric_gate_exact_finite_diff_signed_zero_and_hard_failures():
+    base = {
+        "reference_shape": [1], "candidate_shape": [1], "dtype_equal": True,
+        "reference_dtype": "float64", "candidate_dtype": "float64",
+        "all_finite": True, "canonical_exact": True, "bitwise_equal": True,
+        "value_equal": True, "max_abs": 0.0,
+    }
+    exact = classify_comparison(_q1_metric_row("E", {**base}))
+    assert exact["classification"] == "CURRENT_LINUX_LOCAL_EXACT"
+    signed_zero = classify_comparison(_q1_metric_row("E", {
+        **base, "canonical_exact": False, "bitwise_equal": False,
+    }))
+    assert signed_zero["classification"] == "FINITE_NONEXACT_DIFFERENCE"
+    numeric_diff = classify_comparison(_q1_metric_row("E", {
+        **base, "canonical_exact": False, "bitwise_equal": False,
+        "value_equal": False, "max_abs": 1e-8,
+    }))
+    assert numeric_diff["classification"] == "FINITE_NONZERO_DIFFERENCE"
+    dtype_fail = classify_comparison(_q1_metric_row("E", {
+        **base, "candidate_dtype": "float32", "dtype_equal": False,
+    }))
+    assert dtype_fail["classification"] == "NONFINITE_OR_TOPOLOGY_FAILURE"
+    inconsistent_dtype = classify_comparison(_q1_metric_row("E", {
+        **base, "dtype_equal": False,
+    }))
+    assert inconsistent_dtype["classification"] == "TOOL_FAILURE"
+
+
+def test_q1_numeric_gate_allows_only_named_exact_nan_placeholders_and_tool_errors():
+    exact_nan = compare_numeric_bounded(
+        np.asarray([np.nan, np.nan], dtype=np.float64),
+        np.asarray([np.nan, np.nan], dtype=np.float64), max_working_bytes=1024,
+    )
+    allowed = classify_comparison(_q1_metric_row(
+        "energy_step_start_J", exact_nan, scope="diagnostics",
+    ))
+    assert allowed["proceed"] is True
+    denied = classify_comparison(_q1_metric_row(
+        "unlisted", exact_nan, scope="diagnostics",
+    ))
+    assert denied["classification"] == "NONFINITE_OR_TOPOLOGY_FAILURE"
+    for invalid_complex in (
+        np.asarray([complex(np.nan, np.inf)]),
+        np.asarray([complex(np.nan, np.nan)]),
+    ):
+        complex_metrics = compare_numeric_bounded(
+            invalid_complex, invalid_complex.copy(), max_working_bytes=1024,
+        )
+        rejected = classify_comparison(_q1_metric_row(
+            "energy_step_start_J", complex_metrics, scope="diagnostics",
+        ))
+        assert rejected["classification"] == "NONFINITE_OR_TOPOLOGY_FAILURE"
+        assert rejected["proceed"] is False
+
+    infinity_metrics = compare_numeric_bounded(
+        np.asarray([np.inf, np.inf], dtype=np.float64),
+        np.asarray([np.inf, np.inf], dtype=np.float64), max_working_bytes=1024,
+    )
+    assert classify_comparison(_q1_metric_row(
+        "energy_step_start_J", infinity_metrics, scope="diagnostics",
+    ))["proceed"] is False
+    tool_failure = build_numeric_gate(
+        identity_checks={"source": True}, linux_environment_eligible=True,
+        tool_error="RuntimeError: comparator failed",
+    )
+    assert tool_failure["classification"] == "TOOL_FAILURE"
+    with pytest.raises(ValueError):
+        json.dumps(tool_failure | {"bad": float("inf")}, allow_nan=False)
+    json.dumps(tool_failure, allow_nan=False)
+
+
+def test_q1_timing_only_rows_do_not_claim_a_numerical_exact_gate():
+    receipt = build_numeric_gate(
+        identity_checks={"source": True}, linux_environment_eligible=True,
+        comparisons=[_q1_metric_row("linear_walltime_step_s", {}, scope="timing")],
+    )
+    assert receipt["classification"] == "IDENTITY_PASS"
+    assert receipt["proceed_to_next_identity"] is True
+    unknown_timing = classify_comparison(_q1_metric_row(
+        "unregistered_field", {}, scope="timing",
+    ))
+    assert unknown_timing["classification"] == "TOOL_FAILURE"
+    assert unknown_timing["proceed"] is False
+
+
+@pytest.mark.parametrize("missing", [
+    "reference_shape", "candidate_shape", "reference_dtype", "candidate_dtype",
+    "dtype_equal", "canonical_exact", "bitwise_equal", "all_finite",
+])
+def test_q1_numeric_gate_rejects_missing_comparison_identity_metadata(missing):
+    metrics = {
+        "reference_shape": [1], "candidate_shape": [1],
+        "reference_dtype": "float64", "candidate_dtype": "float64",
+        "dtype_equal": True, "canonical_exact": True, "bitwise_equal": True,
+        "all_finite": True,
+    }
+    metrics.pop(missing)
+    result = classify_comparison(_q1_metric_row("E", metrics))
+    assert result["classification"] == "TOOL_FAILURE"
+    assert result["proceed"] is False
+
+
+def test_q1_tiny_gate_array_adapter_uses_bounded_comparator_and_hard_contracts():
+    exact = _array_comparison_row(
+        "tiny_E", np.arange(32, dtype=np.float64), np.arange(32, dtype=np.float64),
+        scope="science",
+    )
+    assert exact["metrics"]["canonical_exact"] is True
+    assert exact["metrics"]["bitwise_equal"] is True
+    json.dumps(exact, allow_nan=False)
+
+    dtype_mismatch = _array_comparison_row(
+        "tiny_E", np.ones(2, dtype=np.float64), np.ones(2, dtype=np.float32),
+        scope="science",
+    )
+    assert classify_comparison(dtype_mismatch)["classification"] == "NONFINITE_OR_TOPOLOGY_FAILURE"
+    shape_mismatch = _array_comparison_row(
+        "tiny_POST", np.ones((2, 3), dtype=np.float64),
+        np.ones((3, 2), dtype=np.float64), scope="science",
+    )
+    assert classify_comparison(shape_mismatch)["classification"] == "NONFINITE_OR_TOPOLOGY_FAILURE"
+
+
+def _make_q1_comparison_fixture(root: Path) -> tuple[Path, Path]:
+    reference, candidate = root / "reference", root / "candidate"
+    for side in (reference, candidate):
+        propagation = side / "propagation"
+        propagation.mkdir(parents=True)
+        np.save(propagation / "final_E.npy", np.arange(8, dtype=np.float64).reshape(2, 2, 2))
+        np.save(side / "scientific_Qacc.npy", np.asarray([0.0, 2.0], dtype=np.float64))
+        np.savez(propagation / "final_POST.npz", delta_n=np.asarray([1.0, 2.0]))
+        np.savez(propagation / "diagnostics.npz", U_z=np.asarray([3.0, 4.0]))
+    return reference, candidate
+
+
+def test_q1_raw_comparison_jsonl_preserves_rows_before_later_comparison_error(
+    tmp_path, monkeypatch,
+):
+    reference, candidate = _make_q1_comparison_fixture(tmp_path)
+    comparison_path = candidate / "comparison.jsonl"
+    original = q1_t0._array_comparison_row
+
+    def fail_on_post(field_name, *args, **kwargs):
+        if field_name == "final_POST.delta_n":
+            raise ArithmeticError("injected POST comparator failure")
+        return original(field_name, *args, **kwargs)
+
+    monkeypatch.setattr(q1_t0, "_array_comparison_row", fail_on_post)
+    with pytest.raises(ArithmeticError, match="injected POST comparator"):
+        q1_t0._compare_window_outputs(
+            reference, candidate, "I", comparison_path=comparison_path,
+            scalar_reference={}, scalar_candidate={},
+        )
+
+    records = [json.loads(line) for line in comparison_path.read_text(encoding="utf-8").splitlines()]
+    assert [row["record_type"] for row in records] == [
+        "array_comparison", "array_comparison", "comparison_error",
+    ]
+    assert records[0]["identity"] == "I"
+    assert records[0]["field_name"] == "final_E"
+    assert records[0]["metrics"]["reference_canonical_sha256"]
+    assert records[0]["metrics"]["zero_reference_mask_sha256"]
+    assert records[0]["metrics"]["max_abs"] == 0.0
+    assert records[1]["field_name"] == "public_return_Qacc"
+    assert records[1]["metrics"]["reference_canonical_sha256"]
+    assert records[2]["rows_written"] == 2
+    assert records[2]["error"] == "injected POST comparator failure"
+    for row in records:
+        json.dumps(row, allow_nan=False)
+
+
+def test_q1_tiny_gate_compares_and_persists_private_python_scalar_diagnostics(tmp_path):
+    reference, candidate = _make_q1_comparison_fixture(tmp_path)
+    payload, reference_scalars = q1_t0._numeric_scalar_diagnostics({
+        "n_intervals": np.int64(8), "z_start": np.float64(-0.0),
+        "nested": {"deposition_channel": np.float64(2.5)},
+        "array_field": np.asarray([1.0]),
+    })
+    candidate_payload, candidate_scalars = q1_t0._numeric_scalar_diagnostics({
+        "n_intervals": np.int64(8), "z_start": np.float64(-0.0),
+        "nested": {"deposition_channel": np.float64(2.5)},
+        "array_field": np.asarray([1.0]),
+    })
+    assert payload == candidate_payload
+    assert set(reference_scalars) == {"n_intervals", "nested.deposition_channel", "z_start"}
+    scalar_path = candidate / "scientific_scalar_diagnostics.json"
+    q1_t0._write_scalar_diagnostics(scalar_path, "I", payload)
+    assert json.loads(scalar_path.read_text(encoding="utf-8"))["fields"] == payload
+
+    comparison_path = candidate / "comparison.jsonl"
+    rows = q1_t0._compare_window_outputs(
+        reference, candidate, "I", comparison_path=comparison_path,
+        scalar_reference=reference_scalars, scalar_candidate=candidate_scalars,
+    )
+    scalar_rows = [row for row in rows if row.get("diagnostic_source") ==
+                   "private_propagator_return_diag_scalar"]
+    assert {row["field_name"] for row in scalar_rows} == set(reference_scalars)
+    assert all(row["metrics"]["canonical_exact"] for row in scalar_rows)
+    persisted = [json.loads(line) for line in comparison_path.read_text(encoding="utf-8").splitlines()]
+    assert len(persisted) == len(rows)
+    assert all(record["identity"] == "I" for record in persisted)
+    assert all(record["metrics"]["reference_shape"] == [] for record in persisted
+               if record.get("diagnostic_source") == "private_propagator_return_diag_scalar")
+    for record in persisted:
+        json.dumps(record, allow_nan=False)
+
+
+def test_q1_public_qacc_return_difference_is_bounded_and_blocks_gate(tmp_path):
+    reference, candidate = _make_q1_comparison_fixture(tmp_path)
+    np.save(candidate / "scientific_Qacc.npy",
+            np.asarray([0.0, 2.25], dtype=np.float64))
+    comparison_path = candidate / "comparison.jsonl"
+    rows = q1_t0._compare_window_outputs(
+        reference, candidate, "I", comparison_path=comparison_path,
+        scalar_reference={}, scalar_candidate={},
+    )
+    qacc_row = next(row for row in rows if row["field_name"] == "public_return_Qacc")
+    assert qacc_row["metrics"]["max_abs"] == 0.25
+    assert qacc_row["metrics"]["canonical_exact"] is False
+    decision = classify_comparison(qacc_row)
+    assert decision["classification"] == "FINITE_NONZERO_DIFFERENCE"
+    assert decision["proceed"] is False
+
+    gate = build_numeric_gate(
+        identity_checks={"environment": True, "source": True},
+        linux_environment_eligible=True, comparisons=rows,
+    )
+    assert gate["classification"] == "FINITE_NONZERO_DIFFERENCE"
+    assert gate["proceed_to_next_identity"] is False
+    persisted = [json.loads(line) for line in comparison_path.read_text(encoding="utf-8").splitlines()]
+    persisted_qacc = next(row for row in persisted if row["field_name"] == "public_return_Qacc")
+    assert persisted_qacc["identity"] == "I"
+    assert persisted_qacc["metrics"]["candidate_canonical_sha256"]
+    json.dumps(persisted_qacc, allow_nan=False)
+
+
+def test_q1_joint_factory_can_explicitly_configure_single_thread_preflight_dispatch():
+    factory = make_joint_propagator_factory(
+        "B", kernel_threads=1, block_pixels=32, layout="NtB",
+        temporal_workers=1, spatial_workers=1,
+    )
+    assert callable(factory)
+    with pytest.raises(ValueError, match="temporal_workers"):
+        make_joint_propagator_factory("B", temporal_workers=0)
+
+
+def test_q1_linux_tiny_gate_cli_persists_strict_tool_failure_receipt(
+    tmp_path, monkeypatch,
+):
+    def fail_before_probe(*args, **kwargs):
+        raise RuntimeError("pinned Linux dependency unavailable")
+
+    monkeypatch.setattr("tools.cpu_o1.q1_t0.run_linux_tiny_science_gate", fail_before_probe)
+    output = tmp_path / "linux_tiny"
+    assert q1_t0_main(["--linux-tiny-gate", "--output-root", str(output)]) == 1
+    receipt = json.loads((output / "NUMERIC_GATE.json").read_text(encoding="utf-8"))
+    assert receipt["classification"] == "TOOL_FAILURE"
+    assert receipt["proceed_to_next_identity"] is False
+    json.dumps(receipt, allow_nan=False)
 
 
 def test_plan_rejects_ambiguous_parallel_and_layout_settings():
