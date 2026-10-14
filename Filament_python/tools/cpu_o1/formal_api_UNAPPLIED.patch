@@ -1,0 +1,20 @@
+--- a/Filament_python/KHz_filament/ionization/runtime.py
++++ b/Filament_python/KHz_filament/ionization/runtime.py
+@@ -217,7 +217,16 @@
+     raise ValueError(f"[ionization] species '{name}' 缺少电离能：请提供 Ui_J 或 Ip_eV。")
+ 
+ 
+-def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *, quasi_static_time: bool = False, time_stat: str = "peak", mean_clip_frac: float = 1e-3, expects: str | None = None, return_species_terms: bool = False, return_species_densities: bool = False, diagnose_integrator_stability: bool = False):
++def evolve_rho_time(input_array, dt: float, N0: float, beta_rec: float, Wfunc, *, quasi_static_time: bool = False, time_stat: str = "peak", mean_clip_frac: float = 1e-3, expects: str | None = None, return_species_terms: bool = False, return_species_densities: bool = False, diagnose_integrator_stability: bool = False, cpu_executor=None):
++    # PROPOSED ONLY: explicit CPU executor; None keeps the frozen path.
++    if cpu_executor is not None:
++        return cpu_executor.evolve_rho_time(
++            input_array, dt, N0, beta_rec, Wfunc,
++            quasi_static_time=quasi_static_time, time_stat=time_stat,
++            mean_clip_frac=mean_clip_frac, expects=expects,
++            return_species_terms=return_species_terms,
++            return_species_densities=return_species_densities,
++            diagnose_integrator_stability=diagnose_integrator_stability)
+     tm = str(getattr(Wfunc, "_time_mode", "")).lower()
+     if tm in ("qs_peak", "qs_mean", "qs_mean_esq"):
+         quasi_static_time = True

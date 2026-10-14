@@ -49,6 +49,7 @@ $targetedTests = @(
     (Join-Path $filamentPythonRoot 'tests\test_cpu_p1_benchmark.py'),
     (Join-Path $filamentPythonRoot 'tools\cpu_p1r'),
     (Join-Path $filamentPythonRoot 'tools\cpu_p1r2'),
+    (Join-Path $filamentPythonRoot 'tools\cpu_o1'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5s_s4r.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5p_launcher.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5_e5_1a.py'),
