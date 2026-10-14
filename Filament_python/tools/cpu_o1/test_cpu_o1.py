@@ -1902,6 +1902,11 @@ def test_q1_real_first_boundary_completeness_and_nonexact_stop(tmp_path):
 
 
 def test_q1_real_full_observer_preserves_frozen_tiny_result(tmp_path, monkeypatch):
+    original_compare = q1_t0.compare_numeric_bounded
+    def require_sidecar(*args, **kwargs):
+        assert kwargs.get("zero_mask_path") is not None
+        return original_compare(*args, **kwargs)
+    monkeypatch.setattr(q1_t0,"compare_numeric_bounded",require_sidecar)
     from tools.cpu_o1 import q1_t0_real as real
     from tools.cpu_p1r2 import cpu_p1r2_j1 as j1
     from importlib import import_module
@@ -2032,3 +2037,32 @@ def test_q1_scalar_capture_preserves_and_requires_frozen_code():
         return unrelated, None
     with pytest.raises(RuntimeError,match="frozen propagator code binding"):
         _scalar_capture_factory(bad_factory,{})(frozen)
+
+
+def test_q1_endpoint_comparisons_write_distinct_bounded_mask_sidecars(tmp_path,monkeypatch):
+    import zlib
+    original = q1_t0.compare_numeric_bounded
+    paths=[]
+    def required(*args,**kwargs):
+        path=kwargs.get("zero_mask_path")
+        assert path is not None
+        assert kwargs["max_working_bytes"] == 64*1024*1024
+        assert kwargs["max_examples"] == 128
+        paths.append(Path(path))
+        return original(*args,**kwargs)
+    monkeypatch.setattr(q1_t0,"compare_numeric_bounded",required)
+    reference,candidate=_make_q1_comparison_fixture(tmp_path)
+    for name in ("self_check.jsonl","cross_check.jsonl"):
+        rows=q1_t0._compare_window_outputs(reference,candidate,"I",comparison_path=candidate/name)
+        for row in rows:
+            metrics=row["metrics"]
+            if "zero_reference_mask_status" not in metrics:continue
+            assert metrics["zero_reference_mask_status"]=="SIDECAR_WRITTEN"
+            assert metrics["zero_reference_mask_zlib_base64"] is None
+            packed=zlib.decompress(Path(metrics["zero_reference_mask_sidecar"]).read_bytes())
+            count=int(np.prod(metrics["reference_shape"]))
+            bits=np.unpackbits(np.frombuffer(packed,dtype=np.uint8),bitorder="little")[:count]
+            assert int(bits.sum())==metrics["zero_reference_count"]
+    assert len(paths)==len(set(paths)) and all(p.is_file() for p in paths)
+    with pytest.raises(FileExistsError):
+        q1_t0._array_comparison_row("cannot_overwrite",np.zeros(2),np.zeros(2),scope="science",zero_mask_path=paths[0])

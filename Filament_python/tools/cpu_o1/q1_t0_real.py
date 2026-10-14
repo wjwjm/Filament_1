@@ -474,6 +474,11 @@ def _first_boundary_rows(reference_root: Path, candidate_root: Path,
             _append_jsonl_stream(stream, record)
             rows.append(record)
 
+        def compare(field_name, reference, candidate, *, scope):
+            mask_path = output_path.parent / (output_path.stem + "_masks") / f"{len(rows):04d}.zero_mask.zlib"
+            return q1_t0._array_comparison_row(field_name, reference, candidate,
+                scope=scope, zero_mask_path=mask_path)
+
         try:
             for name in ("E.npy", "Qacc.npy", "Qacc_raman.npy"):
                 left_path, right_path = reference_root / name, candidate_root / name
@@ -487,7 +492,7 @@ def _first_boundary_rows(reference_root: Path, candidate_root: Path,
                 elif left_path.is_file():
                     left = np.load(left_path, mmap_mode="r", allow_pickle=False)
                     right = np.load(right_path, mmap_mode="r", allow_pickle=False)
-                    emit(q1_t0._array_comparison_row(
+                    emit(compare(
                         f"first_boundary.{name[:-4]}", left, right, scope="science"))
 
             with np.load(reference_root / "POST.npz", allow_pickle=False) as left, \
@@ -497,7 +502,7 @@ def _first_boundary_rows(reference_root: Path, candidate_root: Path,
                         "metrics": _missing_array_metrics(set(left.files), set(right.files))})
                 else:
                     for name in sorted(left.files):
-                        emit(q1_t0._array_comparison_row(
+                        emit(compare(
                             f"first_boundary.POST.{name}", left[name], right[name], scope="science"))
 
             with np.load(reference_root / "diagnostics.npz", allow_pickle=False) as left, \
@@ -510,7 +515,7 @@ def _first_boundary_rows(reference_root: Path, candidate_root: Path,
                         scope = "timing" if name in {
                             "raman_operator_walltime_step_s", "linear_walltime_step_s",
                             "ionization_walltime_step_s", "total_walltime_step_s"} else "diagnostics"
-                        emit(q1_t0._array_comparison_row(
+                        emit(compare(
                             name, left[name], right[name], scope=scope))
 
             left_scalars = _read_scalar_sidecar(reference_root / "scalar_diagnostics.json")
@@ -523,7 +528,7 @@ def _first_boundary_rows(reference_root: Path, candidate_root: Path,
                     scope = "timing" if name in {
                         "raman_operator_walltime_step_s", "linear_walltime_step_s",
                         "ionization_walltime_step_s", "total_walltime_step_s"} else "diagnostics"
-                    emit(q1_t0._array_comparison_row(
+                    emit(compare(
                         name, np.asarray(left_scalars[name]),
                         np.asarray(right_scalars[name]), scope=scope))
         except BaseException as exc:

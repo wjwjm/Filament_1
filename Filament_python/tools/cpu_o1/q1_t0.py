@@ -107,7 +107,8 @@ def _write_new_array(path: Path, array) -> None:
         os.fsync(stream.fileno())
 
 
-def _array_comparison_row(field_name: str, reference, candidate, *, scope: str):
+def _array_comparison_row(field_name: str, reference, candidate, *, scope: str,
+                          zero_mask_path: Path | None = None):
     """Build one comparison row, using the bounded comparator for float/complex."""
     import numpy as np
     from tools.cpu_p1r2 import cpu_p1r2_j1 as j1
@@ -127,7 +128,7 @@ def _array_comparison_row(field_name: str, reference, candidate, *, scope: str):
         }
     elif left.dtype.kind in "fc":
         metrics = compare_numeric_bounded(left, right, max_working_bytes=64 * 1024 * 1024,
-                                          max_examples=128)
+                                          max_examples=128, zero_mask_path=zero_mask_path)
     else:
         # Discrete scientific fields have an exact dtype/shape/value contract.
         left_hash, right_hash = j1._canonical_hash(left), j1._canonical_hash(right)
@@ -172,16 +173,21 @@ def _compare_window_outputs(reference_dir: Path, candidate_dir: Path,
             if rows_sink is not None:
                 rows_sink.append(record)
 
+        def compare(field_name, reference, candidate, *, scope):
+            mask_path = target.parent / (target.stem + "_masks") / f"{len(rows):04d}.zero_mask.zlib"
+            return _array_comparison_row(field_name, reference, candidate,
+                scope=scope, zero_mask_path=mask_path)
+
         try:
             ref_e = np.load(ref_root / "final_E.npy", mmap_mode="r", allow_pickle=False)
             got_e = np.load(got_root / "final_E.npy", mmap_mode="r", allow_pickle=False)
-            emit(_array_comparison_row("final_E", ref_e, got_e, scope="science"))
+            emit(compare("final_E", ref_e, got_e, scope="science"))
             ref_qacc_path = reference_dir / "scientific_Qacc.npy"
             got_qacc_path = candidate_dir / "scientific_Qacc.npy"
             if ref_qacc_path.is_file() and got_qacc_path.is_file():
                 ref_qacc = np.load(ref_qacc_path, mmap_mode="r", allow_pickle=False)
                 got_qacc = np.load(got_qacc_path, mmap_mode="r", allow_pickle=False)
-                emit(_array_comparison_row(
+                emit(compare(
                     "public_return_Qacc", ref_qacc, got_qacc, scope="science"))
             else:
                 emit({"field_name": "public_return_Qacc", "scope": "science",
@@ -203,7 +209,7 @@ def _compare_window_outputs(reference_dir: Path, candidate_dir: Path,
                             "bitwise_equal": False}})
                 else:
                     for name in sorted(left.files):
-                        emit(_array_comparison_row(
+                        emit(compare(
                             f"final_POST.{name}", left[name], right[name], scope="science"))
             with np.load(ref_root / "diagnostics.npz", allow_pickle=False) as left, \
                     np.load(got_root / "diagnostics.npz", allow_pickle=False) as right:
@@ -219,7 +225,7 @@ def _compare_window_outputs(reference_dir: Path, candidate_dir: Path,
                     for name in sorted(left.files):
                         scope = ("timing" if name in j1.TIMING_DIAGNOSTIC_FIELDS
                                  else "diagnostics")
-                        emit(_array_comparison_row(name, left[name], right[name], scope=scope))
+                        emit(compare(name, left[name], right[name], scope=scope))
 
             left_scalars = scalar_reference or {}
             right_scalars = scalar_candidate or {}
@@ -235,7 +241,7 @@ def _compare_window_outputs(reference_dir: Path, candidate_dir: Path,
             else:
                 for name in sorted(left_scalars):
                     scope = "timing" if name in j1.TIMING_DIAGNOSTIC_FIELDS else "diagnostics"
-                    row = _array_comparison_row(
+                    row = compare(
                         name, np.asarray(left_scalars[name]),
                         np.asarray(right_scalars[name]), scope=scope)
                     row["diagnostic_source"] = "private_propagator_return_diag_scalar"
