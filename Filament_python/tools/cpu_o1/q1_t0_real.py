@@ -28,6 +28,8 @@ RESERVE_SECONDS = 900.0
 MEMORY_WARN_FRACTION = 0.80
 MEMORY_ABORT_FRACTION = 0.90
 MEMORY_SAMPLE_SECONDS = 1.0
+MAX_STORAGE_CAP_BYTES = 11 * 1024**3
+MAX_STORAGE_FILES = 50000
 EXPECTED_EXTERNAL_INPUT_COUNT = 14
 EXPECTED_FFT_WORKERS = {"temporal": 48, "spatial": 24}
 EXPECTED_KERNEL_THREADS = 24
@@ -109,7 +111,12 @@ def _validate_external_input_set(manifest: dict, input_root: Path,
 
 
 def _storage_inventory(root: Path) -> dict:
-    """Count task-root bytes/files without following links or deleting anything."""
+    """Count task-root entries without following links or deleting anything.
+
+    Symlinks contribute their own lstat size and one inode to the file count.
+    Their targets remain ordinary walk entries, so a pytest ``current`` link
+    does not double-count the numbered target directory.
+    """
     root = root.resolve(strict=True)
     total_bytes = 0
     files = 0
@@ -120,11 +127,21 @@ def _storage_inventory(root: Path) -> dict:
             item = current_path / name
             if item.is_symlink():
                 symlinks.append(str(item))
+                try:
+                    total_bytes += item.lstat().st_size
+                except OSError as exc:
+                    raise OSError(f"cannot lstat storage symlink {item}: {exc}") from exc
+                files += 1
                 dirnames.remove(name)
         for name in filenames:
             item = current_path / name
             if item.is_symlink():
                 symlinks.append(str(item))
+                try:
+                    total_bytes += item.lstat().st_size
+                except OSError as exc:
+                    raise OSError(f"cannot lstat storage symlink {item}: {exc}") from exc
+                files += 1
                 continue
             try:
                 total_bytes += item.stat().st_size
@@ -148,6 +165,12 @@ def _check_storage_growth(root: Path, *, growth_cap_bytes: int,
     state["growth_cap_bytes"] = int(growth_cap_bytes)
     state["max_files"] = int(max_files)
     return state
+
+
+def _validate_storage_caps(storage_cap_bytes: int, max_files: int) -> None:
+    if not (0 < int(storage_cap_bytes) <= MAX_STORAGE_CAP_BYTES) or not (
+            0 < int(max_files) <= MAX_STORAGE_FILES):
+        raise ValueError("storage caps must be within 11 GiB and 50000 files")
 
 
 def _child_environment(bench_root: Path, expected_python: Path) -> dict[str, str]:
@@ -1159,8 +1182,7 @@ def _coordinator_preflight(args) -> dict:
         raise FileExistsError(f"Q1 output root must be new: {output_root}")
     if not _resolved_under(output_root.parent, storage_root):
         raise ValueError("output-root must be inside storage-root")
-    if not (0 < int(args.storage_cap_bytes) <= 11 * 1024**3) or not (0 < int(args.max_files) <= 50000):
-        raise ValueError("storage caps must be within 11 GiB and 50000 files")
+    _validate_storage_caps(args.storage_cap_bytes, args.max_files)
     storage_before = _storage_inventory(storage_root)
     _validate_storage_symlinks(storage_before, storage_root)
     if storage_before["files"] > int(args.max_files):
@@ -1581,11 +1603,48 @@ def _run_coordinator(args) -> dict:
 
 
 def _validate_storage_symlinks(state, root):
-    allowed = Path(root).resolve() / "environment" / "venv"
+    root = Path(root).resolve(strict=True)
+    allowed = root / "environment" / "venv"
     for text in state["symlinks"]:
+        link = Path(text)
         try:
-            Path(text).relative_to(allowed)
+            link.relative_to(allowed)
+            continue
+        except ValueError:
+            pass
+
+        # pytest tmp_path leaves one convenience link beside its numbered
+        # directory: preflight/<stage>/pytest_tmp/test_*current -> test_*<n>.
+        # Admit only an existing real sibling directory with the matching
+        # numeric instance name. Inventory does not traverse the link.
+        try:
+            relative = link.relative_to(root)
         except ValueError as exc:
+            raise RuntimeError("unexpected task-root symlink: " + text) from exc
+        parts = relative.parts
+        expected_shape = (len(parts) == 4 and parts[0] == "preflight"
+                          and parts[1] not in ("", ".", "..")
+                          and parts[2] == "pytest_tmp")
+        suffix = "current"
+        if (not expected_shape or not link.name.startswith("test_")
+                or not link.name.endswith(suffix)):
+            raise RuntimeError("unexpected task-root symlink: " + text)
+        target_prefix = link.name[:-len(suffix)]
+        try:
+            raw_target = Path(os.readlink(link))
+            target_entry = raw_target if raw_target.is_absolute() else link.parent / raw_target
+            parent = link.parent.resolve(strict=True)
+            if (target_entry.parent.resolve(strict=True) != parent
+                    or target_entry.is_symlink()
+                    or not target_entry.is_dir()):
+                raise ValueError("pytest current target is not a real sibling directory")
+            target = target_entry.resolve(strict=True)
+            target_suffix = (target.name[len(target_prefix):]
+                             if target.name.startswith(target_prefix) else "")
+            if (target.parent != parent or not target_suffix
+                    or not target_suffix.isascii() or not target_suffix.isdigit()):
+                raise ValueError("pytest current target name is not the matching numbered instance")
+        except (OSError, ValueError) as exc:
             raise RuntimeError("unexpected task-root symlink: " + text) from exc
 
 
@@ -1650,9 +1709,13 @@ def main(argv=None):
                 raise FileNotFoundError(str(getattr(args, name)))
         if args.output_root.exists():
             raise FileExistsError(str(args.output_root))
+        _validate_storage_caps(args.storage_cap_bytes, args.max_files)
+        storage = _check_storage_growth(args.storage_root,
+            growth_cap_bytes=args.storage_cap_bytes, max_files=args.max_files)
         print(json.dumps({"status": "DRY_RUN_ONLY", "real_input_used": False,
             "identity_order": IDENTITIES, "fft": EXPECTED_FFT_WORKERS,
-            "kernel_threads": EXPECTED_KERNEL_THREADS, "storage_cap_bytes": args.storage_cap_bytes}))
+            "kernel_threads": EXPECTED_KERNEL_THREADS, "storage_cap_bytes": args.storage_cap_bytes,
+            "storage_inventory": storage}, allow_nan=False))
         return 0
     if args.entry_smoke:
         print(json.dumps(_entry_smoke(args), allow_nan=False))

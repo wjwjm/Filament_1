@@ -1741,6 +1741,135 @@ def test_q1_real_storage_total_cap_and_symlink_scope(tmp_path):
         real._validate_storage_symlinks({'symlinks':[str(tmp_path/'outputs/link')]}, tmp_path)
 
 
+def _make_test_symlink_or_skip(link, target, *, directory=True):
+    try:
+        link.symlink_to(target, target_is_directory=directory)
+    except OSError as exc:
+        if os.name == 'nt':
+            pytest.skip(f'Windows symlink privilege is unavailable: {exc}')
+        raise
+    return link
+
+
+@pytest.fixture
+def q1_created_symlink_cleanup(tmp_path):
+    created = []
+
+    def remember(link):
+        created.append(Path(link))
+
+    yield remember
+
+    for link in created:
+        try:
+            link.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def test_q1_real_storage_allows_only_counted_pytest_current_sibling(
+        tmp_path, q1_created_symlink_cleanup):
+    from tools.cpu_o1 import q1_t0_real as real
+
+    pytest_tmp = tmp_path/'preflight'/'linux_final'/'pytest_tmp'
+    numbered = pytest_tmp/'test_q1_storage0'
+    numbered.mkdir(parents=True)
+    payload = numbered/'kept.txt'
+    payload.write_bytes(b'pytest target payload')
+    current = pytest_tmp/'test_q1_storagecurrent'
+    q1_created_symlink_cleanup(_make_test_symlink_or_skip(current, numbered.name))
+
+    state = real._storage_inventory(tmp_path)
+    real._validate_storage_symlinks(state, tmp_path)
+    assert state['symlinks'] == [str(current)]
+    assert state['bytes'] == payload.stat().st_size + current.lstat().st_size
+    assert state['files'] == 2  # target file plus the symlink inode
+    checked = real._check_storage_growth(tmp_path,
+        growth_cap_bytes=state['bytes'], max_files=state['files'])
+    assert checked['bytes'] == state['bytes']
+    assert checked['files'] == state['files']
+
+
+@pytest.mark.parametrize('case', ['external', 'dangling', 'wrong_directory', 'wrong_name', 'wrong_path'])
+def test_q1_real_storage_rejects_noncanonical_pytest_links(
+        tmp_path, case, q1_created_symlink_cleanup):
+    from tools.cpu_o1 import q1_t0_real as real
+
+    pytest_tmp = tmp_path/'preflight'/'linux_final'/'pytest_tmp'
+    pytest_tmp.mkdir(parents=True)
+    link = pytest_tmp/'test_q1_linkcurrent'
+    if case == 'external':
+        outside = tmp_path/'outside'/'test_q1_link0'
+        outside.mkdir(parents=True)
+        link_target = os.path.relpath(outside, pytest_tmp)
+    elif case == 'dangling':
+        link_target = 'test_q1_link0'
+    elif case == 'wrong_directory':
+        nested = pytest_tmp/'nested'/'test_q1_link0'
+        nested.mkdir(parents=True)
+        link_target = os.path.join('nested', nested.name)
+    elif case == 'wrong_name':
+        other = pytest_tmp/'test_other0'
+        other.mkdir()
+        link_target = other.name
+    else:
+        outputs = tmp_path/'outputs'
+        outputs.mkdir()
+        link = outputs/'test_q1_linkcurrent'
+        valid = pytest_tmp/'test_q1_link0'
+        valid.mkdir()
+        link_target = os.path.relpath(valid, outputs)
+    q1_created_symlink_cleanup(_make_test_symlink_or_skip(link, link_target))
+
+    state = real._storage_inventory(tmp_path)
+    with pytest.raises(RuntimeError, match='unexpected task-root symlink'):
+        real._validate_storage_symlinks(state, tmp_path)
+
+
+def test_q1_real_dry_run_enforces_storage_inventory_and_limits(tmp_path, monkeypatch, capsys):
+    from tools.cpu_o1 import q1_t0_real as real
+
+    bench = tmp_path/'bench'; bench.mkdir()
+    input_root = tmp_path/'inputs'; input_root.mkdir()
+    vendor = tmp_path/'vendor'; vendor.mkdir()
+    binding = tmp_path/'binding.json'; binding.write_text('{}', encoding='utf-8')
+    provenance = tmp_path/'provenance.json'; provenance.write_text('{}', encoding='utf-8')
+    storage = tmp_path/'storage'; storage.mkdir()
+    (storage/'preflight_inventory.txt').write_bytes(b'evidence')
+    (storage/'second_inventory_entry.txt').write_bytes(b'more')
+    output = tmp_path/'new_output'
+    monkeypatch.setattr(real, '_check_expected_python', lambda _path: {'status': 'TEST'})
+    state = real._storage_inventory(storage)
+
+    argv = ['--bench-root', str(bench), '--input-root', str(input_root),
+        '--vendor-dir', str(vendor), '--expected-source-binding', str(binding),
+        '--provenance', str(provenance), '--storage-root', str(storage),
+        '--output-root', str(output), '--expected-python', str(tmp_path/'python'),
+        '--storage-cap-bytes', str(state['bytes']), '--max-files', str(state['files']),
+        '--dry-run']
+    assert real.main(argv) == 0
+    receipt = json.loads(capsys.readouterr().out)
+    assert receipt['status'] == 'DRY_RUN_ONLY'
+    assert receipt['storage_inventory']['bytes'] == state['bytes']
+    assert receipt['storage_inventory']['files'] == state['files']
+
+    fixed = argv[:-5]
+    assert real.main(fixed + ['--storage-cap-bytes', str(11 * 1024**3),
+        '--max-files', '50000', '--dry-run']) == 0
+    cap_error = 'storage caps must be within 11 GiB and 50000 files'
+    for cap, files in ((0, state['files']), (11 * 1024**3 + 1, state['files']),
+                       (state['bytes'], 0), (state['bytes'], 50001)):
+        with pytest.raises(ValueError, match=cap_error):
+            real.main(fixed + ['--storage-cap-bytes', str(cap),
+                '--max-files', str(files), '--dry-run'])
+    with pytest.raises(RuntimeError, match='total task-root bytes exceed cap'):
+        real.main(fixed + ['--storage-cap-bytes', str(state['bytes'] - 1),
+            '--max-files', str(state['files']), '--dry-run'])
+    with pytest.raises(RuntimeError, match='storage file count exceeds cap'):
+        real.main(fixed + ['--storage-cap-bytes', str(state['bytes']),
+            '--max-files', str(state['files'] - 1), '--dry-run'])
+
+
 def test_q1_real_first_boundary_completeness_and_nonexact_stop(tmp_path):
     from tools.cpu_o1 import q1_t0_real as real
     from types import SimpleNamespace
