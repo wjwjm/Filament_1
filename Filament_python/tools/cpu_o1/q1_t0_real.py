@@ -782,8 +782,9 @@ def _child_main(args) -> int:
             spatial_workers=EXPECTED_FFT_WORKERS["spatial"])
         candidate_events = list(getattr(factory.last_propagator,
             "_cpu_o1_candidate_events", ()))
-        candidate_thread_counts = sorted({int(row.get("kernel_threads", 0))
-            for row in candidate_events if row.get("kernel_threads") is not None})
+        thread_evidence = (_candidate_thread_evidence(candidate_events,
+            expected_threads=EXPECTED_KERNEL_THREADS) if args.identity in {"I","R","IR"} else [])
+        candidate_thread_counts = sorted({row["threads"] for row in thread_evidence})
         if args.identity in {"I", "R", "IR"}:
             if candidate_thread_counts != [EXPECTED_KERNEL_THREADS]:
                 raise RuntimeError(f"compiled candidate did not execute with exactly 24 workers: {candidate_thread_counts}")
@@ -838,6 +839,7 @@ def _child_main(args) -> int:
             "fresh_source_loaded": True, "dispatch": dispatch,
             "schedule": j1._json_safe(context["schedule"].as_metadata()),
             "actual_numba_layer": actual_layer,
+            "actual_candidate_thread_evidence": thread_evidence,
             "numba_threads_configured": int(numba.get_num_threads()),
             "native_threadpools": threadpoolctl.threadpool_info(),
             "first_boundary_receipt": observer.q1_first_boundary,
@@ -977,6 +979,34 @@ def _run_allocation_probe(output_root: Path) -> dict:
     return receipt
 
 
+def _candidate_thread_evidence(events: list[dict], *, expected_threads: int) -> list[dict]:
+    """Read ionization and nested Raman kernel receipts from actual calls."""
+    evidence=[]
+    def visit(value, kind, path):
+        if isinstance(value, dict):
+            for thread_key, layer_key in (("numba_threads", "numba_threading_layer"),
+                                          ("kernel_threads", "threading_layer")):
+                if thread_key in value:
+                    count=value[thread_key];layer=value.get(layer_key)
+                    if isinstance(count,bool) or not isinstance(count,int) or count != expected_threads:
+                        raise RuntimeError("candidate thread receipt mismatch at " + path)
+                    if (count > 1 and layer != "workqueue") or (count == 1 and layer not in (None,"workqueue","workqueue_not_initialized")):
+                        raise RuntimeError("candidate thread-layer receipt mismatch at " + path)
+                    evidence.append({"kind":kind,"path":path,"threads":count,"layer":layer})
+            for key,item in value.items():
+                if isinstance(item,(dict,list,tuple)):visit(item,kind,path+"."+str(key))
+        elif isinstance(value,(list,tuple)):
+            for index,item in enumerate(value):visit(item,kind,path+"["+str(index)+"]")
+    for index,event in enumerate(events):
+        before=len(evidence);kind=event.get("kind")
+        visit(event,kind,str(index))
+        if len(evidence)==before:
+            raise RuntimeError("candidate event lacks actual thread receipt: " + str(kind))
+    if not evidence:
+        raise RuntimeError("candidate calls supplied no actual thread receipts")
+    return evidence
+
+
 def _run_wired_tiny(output_root: Path) -> dict:
     """Prove actual 48/24 FFT dispatch and 24-thread IR wiring in allocation."""
     import numpy as np
@@ -1013,8 +1043,8 @@ def _run_wired_tiny(output_root: Path) -> dict:
         temporal_workers=EXPECTED_FFT_WORKERS["temporal"],
         spatial_workers=EXPECTED_FFT_WORKERS["spatial"])
     events = list(getattr(factory.last_propagator, "_cpu_o1_candidate_events", ()))
-    actual_threads = sorted({int(row.get("kernel_threads", 0)) for row in events
-                             if row.get("kernel_threads") is not None})
+    thread_evidence = _candidate_thread_evidence(events, expected_threads=EXPECTED_KERNEL_THREADS)
+    actual_threads = sorted({row["threads"] for row in thread_evidence})
     if actual_threads != [EXPECTED_KERNEL_THREADS]:
         raise RuntimeError(f"allocation wired-tiny candidate worker count differs: {actual_threads}")
     if str(numba.threading_layer()) != "workqueue" or int(numba.get_num_threads()) != EXPECTED_KERNEL_THREADS:
@@ -1028,6 +1058,7 @@ def _run_wired_tiny(output_root: Path) -> dict:
         "identity": "IR", "production_qualification": "NOT_PRODUCTION_QUALIFIED",
         "synthetic_input_only": True,
         "dispatch": dispatch, "candidate_thread_counts": actual_threads,
+        "actual_candidate_thread_evidence": thread_evidence,
         "numba_layer": str(numba.threading_layer()),
         "numba_threads": int(numba.get_num_threads()),
         "native_threadpools": threadpoolctl.threadpool_info(),
