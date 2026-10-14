@@ -1919,7 +1919,8 @@ def test_q1_real_full_observer_preserves_frozen_tiny_result(tmp_path, monkeypatc
         return call(**{k:context[k] for k in ('source','pre_fields','grid','beam','prop','ion','heat','raman','schedule')},
             output_dir=target,source_label='SYNTHETIC_TEST_ONLY',initial_pre0=True,profile=False,
             source_hash=j1._canonical_hash(context['source']),pre0_hash=j1._canonical_hash(context['pre_fields']['delta_n']),
-            stage_name='Q1_OBSERVER_TEST',execution_scope='SOFTWARE_SMOKE_ONLY',observe=observe,propagator_factory=factory)
+            stage_name='Q1_OBSERVER_TEST',execution_scope='SOFTWARE_SMOKE_ONLY',observe=observe,
+            propagator_factory=__import__('tools.cpu_o1.q1_t0',fromlist=['_scalar_capture_factory'])._scalar_capture_factory(factory,{}))
     execute(run,case/'propagation',True)
     execute(j1._run_window,tmp_path/'unobserved',False)
     assert observer.last_instance.q1_first_gate['proceed_to_next_identity'] is True
@@ -2012,3 +2013,22 @@ def test_q1_real_thread_receipts_cover_ion_and_nested_raman(tmp_path,monkeypatch
     assert receipt["candidate_thread_counts"]==[threads]
     assert all(not r["path"].endswith(".settings") for r in receipt["actual_candidate_thread_evidence"])
     assert {r["kind"] for r in receipt["actual_candidate_thread_evidence"]}=={"ionization","raman_stage","raman_apply"}
+
+
+def test_q1_scalar_capture_preserves_and_requires_frozen_code():
+    from tools.cpu_o1.q1_t0 import _scalar_capture_factory
+    def frozen():
+        return np.zeros((1,)), np.ones((1,)), {"count": 2}
+    def good_factory(source):
+        source.__j1_inner_code__ = source.__code__
+        return source, None
+    capture={}
+    wrapped, _ = _scalar_capture_factory(good_factory,capture)(frozen)
+    assert wrapped.__j1_inner_code__ is frozen.__code__
+    wrapped()
+    assert capture["payload"]["count"]["value"] == "2"
+    def bad_factory(source):
+        def unrelated(): return source()
+        return unrelated, None
+    with pytest.raises(RuntimeError,match="frozen propagator code binding"):
+        _scalar_capture_factory(bad_factory,{})(frozen)

@@ -301,6 +301,11 @@ def _scalar_capture_factory(factory, capture: dict):
             capture["values"] = values
             return result
 
+        # J1 observes the frozen inner function, never this scalar-capture wrapper.
+        inner_code = getattr(propagator, "__j1_inner_code__", None)
+        if inner_code is not frozen_propagator.__code__:
+            raise RuntimeError("scalar capture requires the frozen propagator code binding")
+        captured_propagator.__j1_inner_code__ = inner_code
         return captured_propagator, dispatch
 
     return create
