@@ -681,7 +681,8 @@ def _child_main(args) -> int:
         from tools.cpu_p1r2 import cpu_p1r2_j1 as j1
         from tools.cpu_o1 import q1_t0
         from tools.cpu_o1.cpu_o1 import make_joint_propagator_factory
-        from KHz_filament import propagate as propagate_module
+        from importlib import import_module
+        propagate_module = import_module("KHz_filament.propagate")
         import numpy as np
         import numba
         import threadpoolctl

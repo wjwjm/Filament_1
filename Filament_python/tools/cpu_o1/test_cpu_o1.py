@@ -1775,7 +1775,8 @@ def test_q1_real_first_boundary_completeness_and_nonexact_stop(tmp_path):
 def test_q1_real_full_observer_preserves_frozen_tiny_result(tmp_path, monkeypatch):
     from tools.cpu_o1 import q1_t0_real as real
     from tools.cpu_p1r2 import cpu_p1r2_j1 as j1
-    from KHz_filament import propagate as propagation_module
+    from importlib import import_module
+    propagation_module = import_module("KHz_filament.propagate")
     context=j1._tiny_context()
     case=tmp_path/'observed';case.mkdir()
     contract=real._frozen_diag_list_contract(Path(propagation_module.__file__))
