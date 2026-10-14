@@ -1689,3 +1689,171 @@ def test_joint_b_i_r_ir_tiny_propagations_wire_candidates_and_preserve_topology(
     assert workspaces[0] is not workspaces[1]
     assert propagate_module.propagate_one_pulse is original_propagate
     assert original_propagate.__globals__["isaacs_raman_stage"] is original_stage
+
+# Q1 real adapter tests use bounded synthetic fixtures and never submit jobs.
+def test_q1_real_progress_framing_and_deadlines():
+    from tools.cpu_o1 import q1_t0_real as real
+    rows, tail = real._complete_jsonl_lines(b'{"event":1}\n{"even')
+    assert rows == [b'{"event":1}'] and tail == b'{"even'
+    rows, tail = real._complete_jsonl_lines(tail + b't":2}\n')
+    assert json.loads(rows[0]) == {"event":2} and tail == b''
+    assert real._deadline_reason(now=901, stage_started=0, first_interval_started=0,
+        first_boundary_arrived=False, timeout_seconds=2700) == 'FIRST_INTERVAL_TIMEOUT'
+    assert real._deadline_reason(now=901, stage_started=0, first_interval_started=0,
+        first_boundary_arrived=True, timeout_seconds=2700) is None
+    assert real._deadline_reason(now=2701, stage_started=0, first_interval_started=None,
+        first_boundary_arrived=False, timeout_seconds=2700) == 'WINDOW_TIMEOUT'
+
+
+def test_q1_real_memory_missing_stops_and_reaps(tmp_path, monkeypatch):
+    from tools.cpu_o1 import q1_t0_real as real
+    from tools.cpu_p1 import cpu_p1_fft as common
+    from tools.cpu_p1r2 import cpu_p1r2_j1 as j1
+    class FakeProcess:
+        pid = 123
+        returncode = None
+        def poll(self): return self.returncode
+        def wait(self, timeout): return self.returncode
+    process = FakeProcess()
+    monkeypatch.setattr(real.subprocess, 'Popen', lambda *a, **kw: process)
+    monkeypatch.setattr(common, 'tree_snapshot', lambda pid: None)
+    monkeypatch.setattr(j1, '_pss_tree_snapshot', lambda pid: {})
+    monkeypatch.setattr(real, '_cgroup_memory_snapshot', lambda pid: {'status':'UNAVAILABLE'})
+    def terminate(proc):
+        proc.returncode = -15
+        return {'test_terminated': True}
+    monkeypatch.setattr(j1, '_terminate_child_bounded', terminate)
+    result = real._supervise_child(['unused'], case_root=tmp_path, cwd=tmp_path,
+        env={}, timeout_seconds=10, memory_bytes=1024)
+    assert result['stop']['reason'] == 'SUPERVISOR_TOOL_FAILURE'
+    assert 'MEMORY_TELEMETRY_UNAVAILABLE' in result['stop']['error']
+    assert result['exit_code'] == -15 and (tmp_path/'supervisor_receipt.json').is_file()
+
+
+def test_q1_real_storage_total_cap_and_symlink_scope(tmp_path):
+    from tools.cpu_o1 import q1_t0_real as real
+    (tmp_path/'existing').write_bytes(b'1234')
+    with pytest.raises(RuntimeError, match='total task-root'):
+        real._check_storage_growth(tmp_path, growth_cap_bytes=3, max_files=20)
+    assert real._check_storage_growth(tmp_path, growth_cap_bytes=4, max_files=20)['bytes']==4
+    real._validate_storage_symlinks({'symlinks':[str(tmp_path/'environment/venv/bin/python')]}, tmp_path)
+    with pytest.raises(RuntimeError, match='unexpected'):
+        real._validate_storage_symlinks({'symlinks':[str(tmp_path/'outputs/link')]}, tmp_path)
+
+
+def test_q1_real_first_boundary_completeness_and_nonexact_stop(tmp_path):
+    from tools.cpu_o1 import q1_t0_real as real
+    from types import SimpleNamespace
+    import shutil
+    case=tmp_path/'B';case.mkdir()
+    loc={'E':np.ones((4,2,3),dtype=np.complex128), 'Qacc':np.zeros((2,3)),
+        'Qacc_raman':np.zeros((2,3)), 'z':0.1,'interval_index':0,'dz_try':0.1,
+        'U0_baseline':1.0,'U_now':1.0,'adaptive_rejection_count':0,'safety_mode_trigger_count':0,
+        'z_list':[0.1], 'thermal_slow_state':SimpleNamespace(post_fields=lambda index:
+            {k:np.zeros((2,3)) for k in ('delta_n','vx','vy')})}
+    snapshot=real._first_boundary_snapshot(SimpleNamespace(f_locals=loc), identity='B',
+        case_root=case,observer_started=0,boundary_monotonic=1,
+        diagnostic_contract={'z_axis':'z_list'})
+    root=case/'first_boundary';real._write_new_json(root/'snapshot.json',snapshot)
+    assert real._compare_first_boundary('B',root,None)['proceed_to_next_identity']
+    candidate=tmp_path/'I';candidate.mkdir()
+    for name in ('E.npy','Qacc.npy','Qacc_raman.npy','POST.npz','diagnostics.npz','scalar_diagnostics.json','snapshot.json'):
+        shutil.copyfile(root/name,candidate/name)
+    field=np.load(candidate/'E.npy');field[0,0,0]+=0.25;np.save(candidate/'E.npy',field)
+    gate=real._compare_first_boundary('I',candidate,root)
+    assert not gate['proceed_to_next_identity']
+    assert gate['classification']=='FINITE_NONZERO_DIFFERENCE'
+    broken=tmp_path/'missing';broken.mkdir()
+    bad=dict(loc);bad.pop('Qacc')
+    receipt=real._first_boundary_snapshot(SimpleNamespace(f_locals=bad), identity='B',
+        case_root=broken,observer_started=0,boundary_monotonic=1,
+        diagnostic_contract={'z_axis':'z_list','missing':'missing_list'})
+    assert not receipt['complete_E_POST_diagnostics_snapshot']
+    assert receipt['diagnostic_missing_fields']==['missing']
+
+
+def test_q1_real_full_observer_preserves_frozen_tiny_result(tmp_path, monkeypatch):
+    from tools.cpu_o1 import q1_t0_real as real
+    from tools.cpu_p1r2 import cpu_p1r2_j1 as j1
+    from KHz_filament import propagate as propagation_module
+    context=j1._tiny_context()
+    case=tmp_path/'observed';case.mkdir()
+    contract=real._frozen_diag_list_contract(Path(propagation_module.__file__))
+    observer=real._observer_class(j1,identity='B',case_root=case,
+        baseline_root=None,diagnostic_contract=contract)
+    run=real._private_run_window(j1,observer)
+    assert j1._run_window.__globals__['ScalarBoundaryObserver'] is j1.ScalarBoundaryObserver
+    def execute(call, target, observe, identity="B"):
+        factory=make_joint_propagator_factory(identity,kernel_threads=1,block_pixels=32,layout='NtB',
+            temporal_workers=1,spatial_workers=1)
+        return call(**{k:context[k] for k in ('source','pre_fields','grid','beam','prop','ion','heat','raman','schedule')},
+            output_dir=target,source_label='SYNTHETIC_TEST_ONLY',initial_pre0=True,profile=False,
+            source_hash=j1._canonical_hash(context['source']),pre0_hash=j1._canonical_hash(context['pre_fields']['delta_n']),
+            stage_name='Q1_OBSERVER_TEST',execution_scope='SOFTWARE_SMOKE_ONLY',observe=observe,propagator_factory=factory)
+    execute(run,case/'propagation',True)
+    execute(j1._run_window,tmp_path/'unobserved',False)
+    assert observer.last_instance.q1_first_gate['proceed_to_next_identity'] is True
+    left=np.load(case/'propagation/final_E.npy');right=np.load(tmp_path/'unobserved/final_E.npy')
+    assert compare_numeric_bounded(left,right)['bitwise_equal']
+    assert len(observer.last_instance.rows)==8
+
+    # Exercise each private candidate and reject at the first complete boundary.
+    for identity in ("I", "R", "IR"):
+        target=tmp_path/identity;target.mkdir()
+        candidate_observer=real._observer_class(j1,identity=identity,case_root=target,
+            baseline_root=case/"first_boundary",diagnostic_contract=contract)
+        execute(real._private_run_window(j1,candidate_observer),target/"propagation",True,identity)
+        assert candidate_observer.last_instance.q1_first_gate["proceed_to_next_identity"]
+        assert len(candidate_observer.last_instance.rows)==8
+    original_snapshot=real._first_boundary_snapshot
+    def perturbed(*args,**kwargs):
+        result=original_snapshot(*args,**kwargs)
+        field_path=Path(result["root"])/"E.npy"
+        field=np.load(field_path);field.flat[0]+=1.0;np.save(field_path,field)
+        return result
+    monkeypatch.setattr(real,"_first_boundary_snapshot",perturbed)
+    stopped=tmp_path/"stopped";stopped.mkdir()
+    rejecting=real._observer_class(j1,identity="I",case_root=stopped,
+        baseline_root=case/"first_boundary",diagnostic_contract=contract)
+    with pytest.raises(real.Q1ControlledStop):
+        execute(real._private_run_window(j1,rejecting),stopped/"propagation",True,"I")
+    assert len(rejecting.last_instance.rows)==1
+    assert not (stopped/"propagation/final_E.npy").exists()
+    assert rejecting.last_instance.q1_first_gate["classification"]=="FINITE_NONZERO_DIFFERENCE"
+    assert j1._run_window.__globals__["ScalarBoundaryObserver"] is j1.ScalarBoundaryObserver
+
+
+def test_q1_real_allocation_probe_requires_complete_lifecycle(tmp_path,monkeypatch):
+    from tools.cpu_o1 import q1_t0_real as real
+    from tools.cpu_p1r2 import allocation_probe
+    def probe(argv):
+        target=Path(argv[1]);target.mkdir()
+        (target/"receipt.json").write_text(json.dumps({"status":"PASS"}))
+        return 0
+    monkeypatch.setattr(allocation_probe,"main",probe)
+    assert real._run_allocation_probe(tmp_path)["status"]=="PASS"
+    def failed(argv):
+        target=Path(argv[1]);target.mkdir()
+        (target/"receipt.json").write_text(json.dumps({"status":"FAIL"}))
+        return 1
+    monkeypatch.setattr(allocation_probe,"main",failed)
+    another=tmp_path/"failure";another.mkdir()
+    with pytest.raises(RuntimeError,match="startup/wait/cleanup"):
+        real._run_allocation_probe(another)
+
+def test_q1_real_stage_identity_requires_explicit_schedule(tmp_path,monkeypatch):
+    from tools.cpu_o1 import q1_t0_real as real
+    from tools.cpu_p1r2 import cpu_p1r2_j1 as j1
+    monkeypatch.setattr(j1,"_validate_stage",lambda path:{"status":"VALIDATED"})
+    value={"identity":"B","status":"COMPLETE_DIAGNOSTIC","propagation_receipt":{
+        "execution_scope":"J1_REAL_INPUT","interval_count":8,"source_canonical_sha256":"source","pre0_canonical_sha256":"pre"}}
+    path=tmp_path/"q1_child_receipt.json"
+    path.write_text(json.dumps(value))
+    with pytest.raises(RuntimeError,match="real complete"):
+        real._check_stage_identity("B",tmp_path,None)
+    value["schedule"]={"z_edges":[0,1,2,3,4,5,6,7,8]}
+    path.write_text(json.dumps(value))
+    assert real._check_stage_identity("B",tmp_path,None)["validation"]["status"]=="VALIDATED"
+    baseline=dict(value);baseline["schedule"]={"z_edges":[0,2,4,6,8,10,12,14,16]}
+    with pytest.raises(RuntimeError,match="schedule changed"):
+        real._check_stage_identity("B",tmp_path,baseline)
