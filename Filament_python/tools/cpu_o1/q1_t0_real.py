@@ -987,13 +987,22 @@ def _candidate_thread_evidence(events: list[dict], *, expected_threads: int) -> 
             for thread_key, layer_key in (("numba_threads", "numba_threading_layer"),
                                           ("kernel_threads", "threading_layer")):
                 if thread_key in value:
-                    count=value[thread_key];layer=value.get(layer_key)
+                    if layer_key not in value:
+                        raise RuntimeError("candidate runtime receipt lacks thread layer at " + path)
+                    count=value[thread_key];layer=value[layer_key]
                     if isinstance(count,bool) or not isinstance(count,int) or count != expected_threads:
                         raise RuntimeError("candidate thread receipt mismatch at " + path)
                     if (count > 1 and layer != "workqueue") or (count == 1 and layer not in (None,"workqueue","workqueue_not_initialized")):
                         raise RuntimeError("candidate thread-layer receipt mismatch at " + path)
                     evidence.append({"kind":kind,"path":path,"threads":count,"layer":layer})
             for key,item in value.items():
+                if key == "settings":
+                    # CPUExecutionPlan is a requested configuration, not runtime proof.
+                    if (not isinstance(item,dict) or
+                            item.get("kernel_threads") != expected_threads or
+                            isinstance(item.get("kernel_threads"),bool)):
+                        raise RuntimeError("candidate settings thread count mismatch at " + path)
+                    continue
                 if isinstance(item,(dict,list,tuple)):visit(item,kind,path+"."+str(key))
         elif isinstance(value,(list,tuple)):
             for index,item in enumerate(value):visit(item,kind,path+"["+str(index)+"]")

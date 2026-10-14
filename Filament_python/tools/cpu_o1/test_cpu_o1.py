@@ -1989,17 +1989,26 @@ def test_q1_real_stage_identity_requires_explicit_schedule(tmp_path,monkeypatch)
         real._check_stage_identity("B",tmp_path,baseline)
 
 
-def test_q1_real_thread_receipts_cover_ion_and_nested_raman(tmp_path,monkeypatch):
+@pytest.mark.parametrize("threads", [1, 2, 4])
+def test_q1_real_thread_receipts_cover_ion_and_nested_raman(tmp_path,monkeypatch,threads):
     from tools.cpu_o1 import q1_t0_real as real
-    rows=[{"kind":"ionization","numba_threads":24,"numba_threading_layer":"workqueue"},
+    rows=[{"kind":"ionization","numba_threads":24,"numba_threading_layer":"workqueue",
+           "settings":{"kernel_threads":24,"implementation":"numba_parallel"}},
           {"kind":"raman_stage","product":{"kernel_threads":24,"threading_layer":"workqueue"},
            "rhs":{"kernel_threads":24,"threading_layer":"workqueue"}}]
     assert len(real._candidate_thread_evidence(rows,expected_threads=24))==3
-    for bad in ([{"kind":"ionization"}],[],[{"kind":"raman_stage","rhs":{"kernel_threads":1,"threading_layer":"workqueue"}}]):
+    for bad in ([{"kind":"ionization"}],[],
+                [{"kind":"ionization","settings":{"kernel_threads":24}}],
+                [{"kind":"ionization","numba_threads":24,"numba_threading_layer":"workqueue","settings":{"kernel_threads":1}}],
+                [{"kind":"raman_stage","rhs":{"kernel_threads":24}}],
+                [{"kind":"raman_stage","rhs":{"kernel_threads":1,"threading_layer":"workqueue"}}]):
         with pytest.raises(RuntimeError):real._candidate_thread_evidence(bad,expected_threads=24)
-    monkeypatch.setattr(real,"EXPECTED_KERNEL_THREADS",1)
+    if threads > available_numba_threads():
+        pytest.skip("thread count exceeds available test environment")
+    monkeypatch.setattr(real,"EXPECTED_KERNEL_THREADS",threads)
     monkeypatch.setattr(real,"EXPECTED_FFT_WORKERS",{"temporal":1,"spatial":1})
     receipt=real._run_wired_tiny(tmp_path)
     assert receipt["status"]=="WIRED_TINY_ONLY"
-    assert receipt["candidate_thread_counts"]==[1]
+    assert receipt["candidate_thread_counts"]==[threads]
+    assert all(not r["path"].endswith(".settings") for r in receipt["actual_candidate_thread_evidence"])
     assert {r["kind"] for r in receipt["actual_candidate_thread_evidence"]}=={"ionization","raman_stage","raman_apply"}
