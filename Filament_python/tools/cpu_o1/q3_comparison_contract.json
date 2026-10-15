@@ -1,0 +1,3450 @@
+{
+  "schema": "filament.cpu_q3.comparison_contract.v1",
+  "source": {
+    "artifact": "CPU_Q2_T0_REPEAT_BI_20261015T033547Z_b75becf.zip",
+    "artifact_sha256": "42187a3a6d136da11c017cf882e4dc8681049558b9c5d48f9604648b47f9b0bc",
+    "q2_tool_head": "b75becfe3a9b0ff6e381727fb516aa761d37c051",
+    "first_boundary_template_count": 105,
+    "first_boundary_template_sha256": "1636390dde0c6e1f4e8b7d5a0b7e01061258b6ed08a7310d420c275ca2d93151",
+    "endpoint_template_count": 235,
+    "endpoint_template_sha256": "5c7fc3bed3e2856faf04ce851a5aaedef041858fdb2112200c4c01fa81cef112",
+    "first_boundary_expected_fields": [
+      {
+        "field_name": "first_boundary.E",
+        "scope": "science"
+      },
+      {
+        "field_name": "first_boundary.Qacc",
+        "scope": "science"
+      },
+      {
+        "field_name": "first_boundary.Qacc_raman",
+        "scope": "science"
+      },
+      {
+        "field_name": "first_boundary.POST.delta_n",
+        "scope": "science"
+      },
+      {
+        "field_name": "first_boundary.POST.vx",
+        "scope": "science"
+      },
+      {
+        "field_name": "first_boundary.POST.vy",
+        "scope": "science"
+      },
+      {
+        "field_name": "E_dep_cumulative_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_ib_interval_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_ib_interval_closure_residual_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_ib_interval_direct_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_ion_interval_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_ion_interval_closure_residual_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_ion_interval_direct_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_plasma_interval_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_plasma_interval_closure_residual_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_plasma_interval_direct_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_raman_interval_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_raman_interval_closure_residual_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_raman_interval_operator_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_raman_interval_reduction_reference_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_raman_operator_energy_residual_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_rot_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_total_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_loss_from_input_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "IR_abs_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "IR_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "I_center_t0_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "I_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "I_onaxis_max_interp_list",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "I_onaxis_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "U_rel_change_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "U_step_change_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "U_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "adaptive_rejection_count_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_R_applied_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_R_closed_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_R_eff_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_R_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_R_mean_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_R_raw_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_ib_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_ion_applied_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_ion_corr_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_ion_raw_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_total_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_elec_applied_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_elec_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_elec_peak_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_plasma_applied_min_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_plasma_min_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_rot_applied_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_rot_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_rot_peak_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_elec_applied_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_elec_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_kerr_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_plasma_applied_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_plasma_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_plasma_raw_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_rot_applied_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_rot_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dz_used_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "energy_after_linear_half1_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "energy_after_linear_half2_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "energy_after_nonraman_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "energy_after_raman_post_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "energy_after_raman_pre_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "energy_step_start_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "fwhm_fluence_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "fwhm_plasma_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "fwhm_time_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "gpu_allocated_step_bytes",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "gpu_reserved_step_bytes",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "ionization_walltime_step_s",
+        "scope": "timing"
+      },
+      {
+        "field_name": "linear_walltime_step_s",
+        "scope": "timing"
+      },
+      {
+        "field_name": "raman_IR_max_raw",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_actual_local_negative_min_J_m2",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_actual_loss_cumulative_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_actual_loss_step_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_closure_residual_step",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_convolution_count_step",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_cumulative_closure_residual",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_energy_projection_initial_residual",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_energy_projection_iterations",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_energy_projection_scale_deviation",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_operator_applied",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_operator_energy_closure_relative_interval",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_operator_substep_count",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_operator_walltime_step_s",
+        "scope": "timing"
+      },
+      {
+        "field_name": "raman_rhs_l2_norm",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_target_loss_cumulative_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_target_loss_step_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_N2_at_rho_total_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_N2_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_O2_at_rho_total_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_O2_fraction_at_rho_total_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_O2_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_onaxis_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_onaxis_t_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "safety_mode_trigger_count_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "total_walltime_step_s",
+        "scope": "timing"
+      },
+      {
+        "field_name": "w_mom_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "z_axis",
+        "scope": "diagnostics"
+      }
+    ],
+    "endpoint_expected_fields": [
+      {
+        "field_name": "final_E",
+        "scope": "science"
+      },
+      {
+        "field_name": "public_return_Qacc",
+        "scope": "science"
+      },
+      {
+        "field_name": "final_POST.delta_n",
+        "scope": "science"
+      },
+      {
+        "field_name": "final_POST.vx",
+        "scope": "science"
+      },
+      {
+        "field_name": "final_POST.vy",
+        "scope": "science"
+      },
+      {
+        "field_name": "Delta_T_impulse_max",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "Delta_T_post_max",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_cumulative_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_ib_interval_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_ib_interval_closure_residual_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_ib_interval_direct_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_ion_interval_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_ion_interval_closure_residual_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_ion_interval_direct_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_plasma_interval_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_plasma_interval_closure_residual_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_plasma_interval_direct_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_raman_interval_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_raman_interval_closure_residual_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_raman_interval_operator_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_raman_interval_reduction_reference_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_raman_operator_energy_residual_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_rot_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_total_interval_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_total_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_dep_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_loss_from_input_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_th_ib_interval_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_th_ion_interval_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_th_raman_interval_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "E_thermal_interval_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "IR_abs_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "IR_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "I_center_t0_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "I_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "I_onaxis_max_interp_list",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "I_onaxis_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "Qacc_raman",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "U_rel_change_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "U_step_change_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "U_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "adaptive_rejection_count_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_R_applied_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_R_closed_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_R_eff_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_R_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_R_mean_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_R_raw_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_ib_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_ion_applied_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_ion_corr_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_ion_raw_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "alpha_total_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_elec_applied_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_elec_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_elec_peak_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_increment_min",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_increment_onaxis",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_plasma_applied_min_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_plasma_min_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_rot_applied_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_rot_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_rot_peak_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_state_min_after_update",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_n_state_onaxis_after_update",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "delta_rho_min",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "deposition_q_shape",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_elec_applied_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_elec_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_kerr_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_plasma_applied_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_plasma_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_plasma_raw_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_rot_applied_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dphi_rot_max_abs_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dz_intervals",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "dz_used_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "energy_after_linear_half1_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "energy_after_linear_half2_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "energy_after_nonraman_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "energy_after_raman_post_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "energy_after_raman_pre_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "energy_step_start_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "fwhm_fluence_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "fwhm_plasma_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "fwhm_time_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "gpu_allocated_step_bytes",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "gpu_reserved_step_bytes",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "hr3b_isobaric_max_abs_residual",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "hr3b_map_archive_shape",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "hr3b_mapping_max_abs_residual",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "hr3b_state_shape",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "ionization_walltime_step_s",
+        "scope": "timing"
+      },
+      {
+        "field_name": "linear_walltime_step_s",
+        "scope": "timing"
+      },
+      {
+        "field_name": "raman_IR_max_raw",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_actual_local_negative_min_J_m2",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_actual_loss_cumulative_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_actual_loss_step_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_closure_residual_step",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_convolution_count_step",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_cumulative_closure_residual",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_energy_projection_initial_residual",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_energy_projection_iterations",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_energy_projection_scale_deviation",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_operator_applied",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_operator_energy_closure_relative_interval",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_operator_substep_count",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_operator_walltime_step_s",
+        "scope": "timing"
+      },
+      {
+        "field_name": "raman_rhs_l2_norm",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_target_loss_cumulative_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "raman_target_loss_step_J",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_N2_at_rho_total_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_N2_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_O2_at_rho_total_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_O2_fraction_at_rho_total_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_O2_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_onaxis_max_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "rho_onaxis_t_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "safety_mode_trigger_count_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "thermal_map_archive_shape",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "thermal_map_interval_index",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "thermal_map_snap_error_m",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "thermal_map_target_z_m",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "thermal_map_z_left_m",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "thermal_map_z_mid_m",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "thermal_map_z_right_m",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "thermalization_dz_intervals",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "thermalization_z_edges",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "total_walltime_step_s",
+        "scope": "timing"
+      },
+      {
+        "field_name": "w_mom_z",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "z_axis",
+        "scope": "diagnostics"
+      },
+      {
+        "field_name": "z_edges",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_dep_accounted_authoritative_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_dep_ib_pulse_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_dep_ion_pulse_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_dep_plasma_pulse_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_dep_raman_operator_energy_pulse_residual_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_dep_raman_operator_pulse_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_dep_raman_pulse_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_dep_raman_pulse_closure_residual_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_dep_total_pulse_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_field_energy_bookkeeping_relative_residual",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_field_energy_bookkeeping_residual_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_field_in_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_field_loss_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_field_out_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_th_ib_pulse_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_th_ion_pulse_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_th_raman_pulse_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "E_thermal_pulse_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "authoritative_hr3a_thermal_source_available",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "authoritative_hr_slow_state_update_active",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "bk_nee_profile_enabled",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_channel_count",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_closure_relative_tolerance",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_ib_active",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_ib_authoritative",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_ib_configured",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_ion_active",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_ion_authoritative",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_ion_configured",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_ion_feedback_applied",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_level1_all_available_mechanism_closure_pass",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_level2_all_available_mechanism_closure_pass",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_n_intervals",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_payload_allocated",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_raman_active",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_raman_authoritative",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_raman_configured",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "deposition_raman_feedback_applied",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "diagnostic_validation_passed",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "diagnostic_validation_trace_count",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "f_R_ignored_rot_sinexp",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "f_R_used_historical_fr_mixture",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "field_energy_bookkeeping_authoritative",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "historical_raman_Gamma_R_1_s",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "historical_raman_omega_R_rad_s",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "hr3b_authoritative",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "hr3b_beta_th_m3_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "hr3b_first_failed_interval",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "hr3b_map_archive_complete",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "hr3b_map_archive_enabled",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "hr3b_state_disk_backed",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "hr3b_state_interval_centered",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "ionization_loss_on",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "ionization_operator_correction_on",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "ionization_solver_on",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "legacy_slow_heat_compatibility_path_active",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "longitudinal_z_end",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "longitudinal_z_start",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "n2_elec_used",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "n_R_used",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "n_intervals",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "nonlinear_use_electronic_kerr",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "nonlinear_use_ionization_loss",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "nonlinear_use_ionization_solver",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "nonlinear_use_plasma_phase",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "nonlinear_use_raman_absorption",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "nonlinear_use_raman_full_operator",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "nonlinear_use_raman_phase",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "nonlinear_use_self_steepening",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "operator_energy_diagnostics_enabled",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "optical_grid_Lx",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "optical_grid_Ly",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "optical_grid_Nx",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "optical_grid_Ny",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "optical_grid_dx",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "optical_grid_dy",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "performance_measurement_enabled",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "raman_absorption_calculated",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "raman_absorption_on",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "raman_deposition_authoritative",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "raman_operator_energy_cumulative_relative",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "raman_operator_energy_cumulative_tolerance",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "raman_operator_energy_step_p99",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "raman_operator_energy_step_p99_tolerance",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "raman_operator_feedback_enabled",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermal_grid_Lx",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermal_grid_Ly",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermal_grid_Nx",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermal_grid_Ny",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermal_grid_dx",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermal_grid_dy",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermal_grid_matches_optical",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermal_map_archive_complete",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermal_map_archive_enabled",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermalization_authoritative",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermalization_complete_microscopic_approximation",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermalization_first_failed_interval",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermalization_max_abs_T2_residual_ib_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermalization_max_abs_T2_residual_ion_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermalization_max_abs_T2_residual_raman_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "thermalization_max_abs_T3_residual_J",
+        "scope": "diagnostics"
+      },
+      {
+        "diagnostic_source": "private_propagator_return_diag_scalar",
+        "field_name": "total_deposition_authoritative",
+        "scope": "diagnostics"
+      }
+    ],
+    "additional_groups": [
+      "NEXT1_metadata_memory_vs_disk:B_H1",
+      "NEXT1_metadata_memory_vs_disk:I_H1",
+      "PRE2_entry:B_P2_CONT",
+      "PRE2_entry:B_P2_RELOAD",
+      "PRE2_entry:I_P2_CONT",
+      "PRE2_entry:I_P2_RELOAD"
+    ]
+  },
+  "expected_group_count": 31,
+  "groups": [
+    {
+      "group_id": "B_P1:first_boundary:B_P1",
+      "case_id": "B_P1",
+      "implementation": "B",
+      "comparison_stage": "first_boundary",
+      "reference_case_id": "B_P1",
+      "relationship": "SELF",
+      "field_template": "first_boundary"
+    },
+    {
+      "group_id": "B_P1:endpoint:B_P1",
+      "case_id": "B_P1",
+      "implementation": "B",
+      "comparison_stage": "endpoint",
+      "reference_case_id": "B_P1",
+      "relationship": "SELF",
+      "field_template": "endpoint"
+    },
+    {
+      "group_id": "B_P2_CONT:first_boundary:B_P2_CONT",
+      "case_id": "B_P2_CONT",
+      "implementation": "B",
+      "comparison_stage": "first_boundary",
+      "reference_case_id": "B_P2_CONT",
+      "relationship": "SELF",
+      "field_template": "first_boundary"
+    },
+    {
+      "group_id": "B_P2_CONT:endpoint:B_P2_CONT",
+      "case_id": "B_P2_CONT",
+      "implementation": "B",
+      "comparison_stage": "endpoint",
+      "reference_case_id": "B_P2_CONT",
+      "relationship": "SELF",
+      "field_template": "endpoint"
+    },
+    {
+      "group_id": "B_P2_RELOAD:first_boundary:B_P2_RELOAD",
+      "case_id": "B_P2_RELOAD",
+      "implementation": "B",
+      "comparison_stage": "first_boundary",
+      "reference_case_id": "B_P2_RELOAD",
+      "relationship": "SELF",
+      "field_template": "first_boundary"
+    },
+    {
+      "group_id": "B_P2_RELOAD:endpoint:B_P2_RELOAD",
+      "case_id": "B_P2_RELOAD",
+      "implementation": "B",
+      "comparison_stage": "endpoint",
+      "reference_case_id": "B_P2_RELOAD",
+      "relationship": "SELF",
+      "field_template": "endpoint"
+    },
+    {
+      "group_id": "I_P1:first_boundary:I_P1",
+      "case_id": "I_P1",
+      "implementation": "I",
+      "comparison_stage": "first_boundary",
+      "reference_case_id": "I_P1",
+      "relationship": "SELF",
+      "field_template": "first_boundary"
+    },
+    {
+      "group_id": "I_P1:endpoint:I_P1",
+      "case_id": "I_P1",
+      "implementation": "I",
+      "comparison_stage": "endpoint",
+      "reference_case_id": "I_P1",
+      "relationship": "SELF",
+      "field_template": "endpoint"
+    },
+    {
+      "group_id": "I_P2_CONT:first_boundary:I_P2_CONT",
+      "case_id": "I_P2_CONT",
+      "implementation": "I",
+      "comparison_stage": "first_boundary",
+      "reference_case_id": "I_P2_CONT",
+      "relationship": "SELF",
+      "field_template": "first_boundary"
+    },
+    {
+      "group_id": "I_P2_CONT:endpoint:I_P2_CONT",
+      "case_id": "I_P2_CONT",
+      "implementation": "I",
+      "comparison_stage": "endpoint",
+      "reference_case_id": "I_P2_CONT",
+      "relationship": "SELF",
+      "field_template": "endpoint"
+    },
+    {
+      "group_id": "I_P2_RELOAD:first_boundary:I_P2_RELOAD",
+      "case_id": "I_P2_RELOAD",
+      "implementation": "I",
+      "comparison_stage": "first_boundary",
+      "reference_case_id": "I_P2_RELOAD",
+      "relationship": "SELF",
+      "field_template": "first_boundary"
+    },
+    {
+      "group_id": "I_P2_RELOAD:endpoint:I_P2_RELOAD",
+      "case_id": "I_P2_RELOAD",
+      "implementation": "I",
+      "comparison_stage": "endpoint",
+      "reference_case_id": "I_P2_RELOAD",
+      "relationship": "SELF",
+      "field_template": "endpoint"
+    },
+    {
+      "group_id": "I_P1:first_boundary:B_P1",
+      "case_id": "I_P1",
+      "implementation": "I",
+      "comparison_stage": "first_boundary",
+      "reference_case_id": "B_P1",
+      "relationship": "DIRECT_CROSS_CASE",
+      "field_template": "first_boundary"
+    },
+    {
+      "group_id": "I_P1:endpoint:B_P1",
+      "case_id": "I_P1",
+      "implementation": "I",
+      "comparison_stage": "endpoint",
+      "reference_case_id": "B_P1",
+      "relationship": "DIRECT_CROSS_CASE",
+      "field_template": "endpoint"
+    },
+    {
+      "group_id": "B_P2_RELOAD:first_boundary:B_P2_CONT",
+      "case_id": "B_P2_RELOAD",
+      "implementation": "B",
+      "comparison_stage": "first_boundary",
+      "reference_case_id": "B_P2_CONT",
+      "relationship": "DIRECT_CROSS_CASE",
+      "field_template": "first_boundary"
+    },
+    {
+      "group_id": "B_P2_RELOAD:endpoint:B_P2_CONT",
+      "case_id": "B_P2_RELOAD",
+      "implementation": "B",
+      "comparison_stage": "endpoint",
+      "reference_case_id": "B_P2_CONT",
+      "relationship": "DIRECT_CROSS_CASE",
+      "field_template": "endpoint"
+    },
+    {
+      "group_id": "I_P2_CONT:first_boundary:B_P2_CONT",
+      "case_id": "I_P2_CONT",
+      "implementation": "I",
+      "comparison_stage": "first_boundary",
+      "reference_case_id": "B_P2_CONT",
+      "relationship": "DIRECT_CROSS_CASE",
+      "field_template": "first_boundary"
+    },
+    {
+      "group_id": "I_P2_CONT:endpoint:B_P2_CONT",
+      "case_id": "I_P2_CONT",
+      "implementation": "I",
+      "comparison_stage": "endpoint",
+      "reference_case_id": "B_P2_CONT",
+      "relationship": "DIRECT_CROSS_CASE",
+      "field_template": "endpoint"
+    },
+    {
+      "group_id": "I_P2_RELOAD:first_boundary:I_P2_CONT",
+      "case_id": "I_P2_RELOAD",
+      "implementation": "I",
+      "comparison_stage": "first_boundary",
+      "reference_case_id": "I_P2_CONT",
+      "relationship": "DIRECT_CROSS_CASE",
+      "field_template": "first_boundary"
+    },
+    {
+      "group_id": "I_P2_RELOAD:endpoint:I_P2_CONT",
+      "case_id": "I_P2_RELOAD",
+      "implementation": "I",
+      "comparison_stage": "endpoint",
+      "reference_case_id": "I_P2_CONT",
+      "relationship": "DIRECT_CROSS_CASE",
+      "field_template": "endpoint"
+    },
+    {
+      "group_id": "I_H1:NEXT1_fields:B_H1",
+      "case_id": "I_H1",
+      "implementation": "I",
+      "comparison_stage": "NEXT1_fields",
+      "reference_case_id": "B_H1",
+      "relationship": "DIRECT_CROSS_HR4",
+      "expected_fields": [
+        {
+          "field_name": "NEXT1.screen-00.delta_n",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-00.vx",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-00.vy",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-01.delta_n",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-01.vx",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-01.vy",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-02.delta_n",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-02.vx",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-02.vy",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-03.delta_n",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-03.vx",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-03.vy",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-04.delta_n",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-04.vx",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-04.vy",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-05.delta_n",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-05.vx",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-05.vy",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-06.delta_n",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-06.vx",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-06.vy",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-07.delta_n",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-07.vx",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        },
+        {
+          "field_name": "NEXT1.screen-07.vy",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_NEXT1_STATE"
+        }
+      ]
+    },
+    {
+      "group_id": "I_H1:NEXT1_observables:B_H1",
+      "case_id": "I_H1",
+      "implementation": "I",
+      "comparison_stage": "NEXT1_observables",
+      "reference_case_id": "B_H1",
+      "relationship": "DIRECT_CROSS_HR4",
+      "expected_fields": [
+        {
+          "field_name": "NEXT1.screen-00.n_steps",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_STEP_COUNT"
+        },
+        {
+          "field_name": "NEXT1.screen-00.screen_observables.min_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-00.screen_observables.max_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-00.screen_observables.max_abs_vx",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-00.screen_observables.max_abs_vy",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-00.screen_observables.max_abs_v",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-00.screen_observables.thermal_channel_centroid_x_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-00.screen_observables.thermal_channel_centroid_y_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-00.screen_observables.thermal_channel_width_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-00.screen_observables.thermal_channel_defined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-00.stability.diffusion_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-00.stability.diffusion_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-00.stability.advection_CFL",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-00.stability.passed_diffusion_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-00.stability.passed_diffusion_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-00.stability.passed_diffusion",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-00.stability.combined_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-00.stability.combined_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-00.stability.passed_combined_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-00.stability.passed_combined_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-00.stability.passed_advection",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-00.stability.passed_combined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-00.stability.overall_pass",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-01.n_steps",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_STEP_COUNT"
+        },
+        {
+          "field_name": "NEXT1.screen-01.screen_observables.min_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-01.screen_observables.max_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-01.screen_observables.max_abs_vx",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-01.screen_observables.max_abs_vy",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-01.screen_observables.max_abs_v",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-01.screen_observables.thermal_channel_centroid_x_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-01.screen_observables.thermal_channel_centroid_y_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-01.screen_observables.thermal_channel_width_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-01.screen_observables.thermal_channel_defined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-01.stability.diffusion_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-01.stability.diffusion_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-01.stability.advection_CFL",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-01.stability.passed_diffusion_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-01.stability.passed_diffusion_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-01.stability.passed_diffusion",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-01.stability.combined_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-01.stability.combined_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-01.stability.passed_combined_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-01.stability.passed_combined_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-01.stability.passed_advection",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-01.stability.passed_combined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-01.stability.overall_pass",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-02.n_steps",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_STEP_COUNT"
+        },
+        {
+          "field_name": "NEXT1.screen-02.screen_observables.min_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-02.screen_observables.max_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-02.screen_observables.max_abs_vx",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-02.screen_observables.max_abs_vy",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-02.screen_observables.max_abs_v",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-02.screen_observables.thermal_channel_centroid_x_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-02.screen_observables.thermal_channel_centroid_y_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-02.screen_observables.thermal_channel_width_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-02.screen_observables.thermal_channel_defined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-02.stability.diffusion_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-02.stability.diffusion_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-02.stability.advection_CFL",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-02.stability.passed_diffusion_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-02.stability.passed_diffusion_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-02.stability.passed_diffusion",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-02.stability.combined_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-02.stability.combined_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-02.stability.passed_combined_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-02.stability.passed_combined_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-02.stability.passed_advection",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-02.stability.passed_combined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-02.stability.overall_pass",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-03.n_steps",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_STEP_COUNT"
+        },
+        {
+          "field_name": "NEXT1.screen-03.screen_observables.min_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-03.screen_observables.max_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-03.screen_observables.max_abs_vx",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-03.screen_observables.max_abs_vy",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-03.screen_observables.max_abs_v",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-03.screen_observables.thermal_channel_centroid_x_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-03.screen_observables.thermal_channel_centroid_y_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-03.screen_observables.thermal_channel_width_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-03.screen_observables.thermal_channel_defined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-03.stability.diffusion_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-03.stability.diffusion_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-03.stability.advection_CFL",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-03.stability.passed_diffusion_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-03.stability.passed_diffusion_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-03.stability.passed_diffusion",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-03.stability.combined_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-03.stability.combined_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-03.stability.passed_combined_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-03.stability.passed_combined_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-03.stability.passed_advection",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-03.stability.passed_combined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-03.stability.overall_pass",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-04.n_steps",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_STEP_COUNT"
+        },
+        {
+          "field_name": "NEXT1.screen-04.screen_observables.min_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-04.screen_observables.max_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-04.screen_observables.max_abs_vx",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-04.screen_observables.max_abs_vy",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-04.screen_observables.max_abs_v",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-04.screen_observables.thermal_channel_centroid_x_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-04.screen_observables.thermal_channel_centroid_y_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-04.screen_observables.thermal_channel_width_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-04.screen_observables.thermal_channel_defined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-04.stability.diffusion_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-04.stability.diffusion_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-04.stability.advection_CFL",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-04.stability.passed_diffusion_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-04.stability.passed_diffusion_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-04.stability.passed_diffusion",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-04.stability.combined_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-04.stability.combined_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-04.stability.passed_combined_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-04.stability.passed_combined_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-04.stability.passed_advection",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-04.stability.passed_combined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-04.stability.overall_pass",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-05.n_steps",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_STEP_COUNT"
+        },
+        {
+          "field_name": "NEXT1.screen-05.screen_observables.min_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-05.screen_observables.max_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-05.screen_observables.max_abs_vx",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-05.screen_observables.max_abs_vy",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-05.screen_observables.max_abs_v",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-05.screen_observables.thermal_channel_centroid_x_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-05.screen_observables.thermal_channel_centroid_y_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-05.screen_observables.thermal_channel_width_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-05.screen_observables.thermal_channel_defined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-05.stability.diffusion_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-05.stability.diffusion_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-05.stability.advection_CFL",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-05.stability.passed_diffusion_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-05.stability.passed_diffusion_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-05.stability.passed_diffusion",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-05.stability.combined_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-05.stability.combined_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-05.stability.passed_combined_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-05.stability.passed_combined_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-05.stability.passed_advection",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-05.stability.passed_combined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-05.stability.overall_pass",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-06.n_steps",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_STEP_COUNT"
+        },
+        {
+          "field_name": "NEXT1.screen-06.screen_observables.min_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-06.screen_observables.max_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-06.screen_observables.max_abs_vx",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-06.screen_observables.max_abs_vy",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-06.screen_observables.max_abs_v",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-06.screen_observables.thermal_channel_centroid_x_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-06.screen_observables.thermal_channel_centroid_y_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-06.screen_observables.thermal_channel_width_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-06.screen_observables.thermal_channel_defined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-06.stability.diffusion_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-06.stability.diffusion_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-06.stability.advection_CFL",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-06.stability.passed_diffusion_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-06.stability.passed_diffusion_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-06.stability.passed_diffusion",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-06.stability.combined_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-06.stability.combined_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-06.stability.passed_combined_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-06.stability.passed_combined_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-06.stability.passed_advection",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-06.stability.passed_combined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-06.stability.overall_pass",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-07.n_steps",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_STEP_COUNT"
+        },
+        {
+          "field_name": "NEXT1.screen-07.screen_observables.min_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-07.screen_observables.max_delta_n",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-07.screen_observables.max_abs_vx",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-07.screen_observables.max_abs_vy",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-07.screen_observables.max_abs_v",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-07.screen_observables.thermal_channel_centroid_x_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-07.screen_observables.thermal_channel_centroid_y_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-07.screen_observables.thermal_channel_width_m",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-07.screen_observables.thermal_channel_defined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_SCREEN_OBSERVABLE"
+        },
+        {
+          "field_name": "NEXT1.screen-07.stability.diffusion_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-07.stability.diffusion_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-07.stability.advection_CFL",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-07.stability.passed_diffusion_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-07.stability.passed_diffusion_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-07.stability.passed_diffusion",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-07.stability.combined_number_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-07.stability.combined_number_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-07.stability.passed_combined_chi",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-07.stability.passed_combined_nu",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-07.stability.passed_advection",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-07.stability.passed_combined",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        },
+        {
+          "field_name": "NEXT1.screen-07.stability.overall_pass",
+          "scope": "diagnostics",
+          "diagnostic_source": "Q3_HR4_STABILITY"
+        }
+      ]
+    },
+    {
+      "group_id": "I_H1:NEXT1_metadata:B_H1",
+      "case_id": "I_H1",
+      "implementation": "I",
+      "comparison_stage": "NEXT1_metadata",
+      "reference_case_id": "B_H1",
+      "relationship": "DIRECT_CROSS_HR4",
+      "expected_fields": [
+        {
+          "field_name": "NEXT1.screen-00.ordinal",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-00.z_start_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-00.z_end_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-00.dz_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-00.post_delta_n_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-00.post_vx_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-00.post_vy_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-01.ordinal",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-01.z_start_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-01.z_end_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-01.dz_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-01.post_delta_n_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-01.post_vx_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-01.post_vy_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-02.ordinal",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-02.z_start_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-02.z_end_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-02.dz_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-02.post_delta_n_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-02.post_vx_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-02.post_vy_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-03.ordinal",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-03.z_start_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-03.z_end_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-03.dz_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-03.post_delta_n_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-03.post_vx_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-03.post_vy_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-04.ordinal",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-04.z_start_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-04.z_end_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-04.dz_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-04.post_delta_n_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-04.post_vx_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-04.post_vy_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-05.ordinal",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-05.z_start_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-05.z_end_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-05.dz_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-05.post_delta_n_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-05.post_vx_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-05.post_vy_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-06.ordinal",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-06.z_start_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-06.z_end_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-06.dz_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-06.post_delta_n_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-06.post_vx_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-06.post_vy_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-07.ordinal",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-07.z_start_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-07.z_end_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-07.dz_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-07.post_delta_n_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-07.post_vx_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.screen-07.post_vy_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_LINEAGE_METADATA"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.f_rep_hz",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.dt_hydro_s",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.n_steps",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.dx_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.dy_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.n0_dimensionless",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.chi_m2_s",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.D_th_m2_s",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.nu_m2_s",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.gravity_x_m_s2",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.gravity_y_m_s2",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.cfl_limit",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.x_min_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.x_max_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.y_min_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.y_max_m",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.advection_scheme",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.diffusion_scheme",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.time_integrator",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.grid_layout",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.boundary_delta_n",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.boundary_velocity",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.identity_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.derived_config_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        },
+        {
+          "field_name": "NEXT1.hydro_parameters.hr4_source_sha256",
+          "scope": "science",
+          "diagnostic_source": "Q3_HR4_PARAMETER_PROVENANCE"
+        }
+      ]
+    },
+    {
+      "group_id": "B_H1:NEXT1_memory_vs_disk:B_H1",
+      "case_id": "B_H1",
+      "implementation": "B",
+      "comparison_stage": "NEXT1_memory_vs_disk",
+      "reference_case_id": "B_H1",
+      "relationship": "CHECKPOINT_SELF_EXACT",
+      "expected_fields": [
+        {
+          "field_name": "NEXT1.delta_n",
+          "scope": "science",
+          "diagnostic_source": "Q3_NEXT1_CHECKPOINT"
+        },
+        {
+          "field_name": "NEXT1.vx",
+          "scope": "science",
+          "diagnostic_source": "Q3_NEXT1_CHECKPOINT"
+        },
+        {
+          "field_name": "NEXT1.vy",
+          "scope": "science",
+          "diagnostic_source": "Q3_NEXT1_CHECKPOINT"
+        }
+      ]
+    },
+    {
+      "group_id": "I_H1:NEXT1_memory_vs_disk:I_H1",
+      "case_id": "I_H1",
+      "implementation": "I",
+      "comparison_stage": "NEXT1_memory_vs_disk",
+      "reference_case_id": "I_H1",
+      "relationship": "CHECKPOINT_SELF_EXACT",
+      "expected_fields": [
+        {
+          "field_name": "NEXT1.delta_n",
+          "scope": "science",
+          "diagnostic_source": "Q3_NEXT1_CHECKPOINT"
+        },
+        {
+          "field_name": "NEXT1.vx",
+          "scope": "science",
+          "diagnostic_source": "Q3_NEXT1_CHECKPOINT"
+        },
+        {
+          "field_name": "NEXT1.vy",
+          "scope": "science",
+          "diagnostic_source": "Q3_NEXT1_CHECKPOINT"
+        }
+      ]
+    },
+    {
+      "implementation": "B",
+      "reference_case_id": "B_H1",
+      "comparison_stage": "NEXT1_metadata_memory_vs_disk",
+      "group_id": "B_H1:NEXT1_memory_vs_disk_metadata:B_H1",
+      "case_id": "B_H1",
+      "expected_fields": [
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.screen_ids"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.z_edges_m"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.dz_intervals_m"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.grid_shape"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.field_shape"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.field_dtype"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.field_units"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.f_rep_hz"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.dt_hydro_s"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.n_steps"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.effective_hr4_parameters"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.source_canonical_sha256"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.pre0_canonical_sha256"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.schedule_identity_sha256"
+        }
+      ]
+    },
+    {
+      "implementation": "I",
+      "reference_case_id": "I_H1",
+      "comparison_stage": "NEXT1_metadata_memory_vs_disk",
+      "group_id": "I_H1:NEXT1_memory_vs_disk_metadata:I_H1",
+      "case_id": "I_H1",
+      "expected_fields": [
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.screen_ids"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.z_edges_m"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.dz_intervals_m"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.grid_shape"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.field_shape"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.field_dtype"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.field_units"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.f_rep_hz"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.dt_hydro_s"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.n_steps"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.effective_hr4_parameters"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.source_canonical_sha256"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.pre0_canonical_sha256"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "NEXT1_checkpoint_science_metadata",
+          "field_name": "NEXT1_metadata.schedule_identity_sha256"
+        }
+      ]
+    },
+    {
+      "implementation": "B",
+      "reference_case_id": "B_H1",
+      "comparison_stage": "PRE2_entry",
+      "group_id": "B_P2_CONT:PRE2_entry:B_H1",
+      "case_id": "B_P2_CONT",
+      "expected_fields": [
+        {
+          "scope": "science",
+          "diagnostic_source": "actual_P2_propagation_input_pre_fields",
+          "field_name": "PRE2.delta_n"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "actual_P2_propagation_input_pre_fields",
+          "field_name": "PRE2.vx"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "actual_P2_propagation_input_pre_fields",
+          "field_name": "PRE2.vy"
+        }
+      ]
+    },
+    {
+      "implementation": "B",
+      "reference_case_id": "B_H1",
+      "comparison_stage": "PRE2_entry",
+      "group_id": "B_P2_RELOAD:PRE2_entry:B_H1",
+      "case_id": "B_P2_RELOAD",
+      "expected_fields": [
+        {
+          "scope": "science",
+          "diagnostic_source": "actual_P2_propagation_input_pre_fields",
+          "field_name": "PRE2.delta_n"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "actual_P2_propagation_input_pre_fields",
+          "field_name": "PRE2.vx"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "actual_P2_propagation_input_pre_fields",
+          "field_name": "PRE2.vy"
+        }
+      ]
+    },
+    {
+      "implementation": "I",
+      "reference_case_id": "I_H1",
+      "comparison_stage": "PRE2_entry",
+      "group_id": "I_P2_CONT:PRE2_entry:I_H1",
+      "case_id": "I_P2_CONT",
+      "expected_fields": [
+        {
+          "scope": "science",
+          "diagnostic_source": "actual_P2_propagation_input_pre_fields",
+          "field_name": "PRE2.delta_n"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "actual_P2_propagation_input_pre_fields",
+          "field_name": "PRE2.vx"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "actual_P2_propagation_input_pre_fields",
+          "field_name": "PRE2.vy"
+        }
+      ]
+    },
+    {
+      "implementation": "I",
+      "reference_case_id": "I_H1",
+      "comparison_stage": "PRE2_entry",
+      "group_id": "I_P2_RELOAD:PRE2_entry:I_H1",
+      "case_id": "I_P2_RELOAD",
+      "expected_fields": [
+        {
+          "scope": "science",
+          "diagnostic_source": "actual_P2_propagation_input_pre_fields",
+          "field_name": "PRE2.delta_n"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "actual_P2_propagation_input_pre_fields",
+          "field_name": "PRE2.vx"
+        },
+        {
+          "scope": "science",
+          "diagnostic_source": "actual_P2_propagation_input_pre_fields",
+          "field_name": "PRE2.vy"
+        }
+      ]
+    }
+  ],
+  "nonfinite_hr4_values": "FAIL_CLOSED_NO_NEW_NAN_WHITELIST",
+  "timing_pid_path_differences": "EXCLUDED_BY_EXPLICIT_OMISSION_ONLY"
+}
