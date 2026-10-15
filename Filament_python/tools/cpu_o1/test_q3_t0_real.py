@@ -140,25 +140,28 @@ def test_q3_dynamic_storage_pytest_current_link_is_counted(tmp_path):
 
 @pytest.mark.skipif(not sys.platform.startswith('linux'), reason='Linux symlink semantics')
 @pytest.mark.parametrize('case',['invalid_name','non_sibling','external'])
-def test_q3_dynamic_storage_rejects_invalid_pytest_current_targets(tmp_path,case):
+def test_q3_dynamic_storage_rejects_invalid_pytest_current_targets(case):
+    import tempfile
     from tools.cpu_o1 import q1_t0_real as q1
 
-    storage_root=tmp_path/'storage'
-    output_root=tmp_path/'outputs'/'run-invalid-link'
-    basetemp=q3._q3_dynamic_test_basetemp(storage_root,output_root)
-    basetemp.mkdir(parents=True)
-    link=basetemp/'test_q3_rejectedcurrent'
-    if case=='invalid_name':
-        target=basetemp/'test_other0'
-    elif case=='non_sibling':
-        target=basetemp/'nested'/'test_q3_rejected0'
-    else:
-        target=tmp_path/'outside'/'test_q3_rejected0'
-    target.mkdir(parents=True)
-    os.symlink(os.path.relpath(target,basetemp),link)
+    with tempfile.TemporaryDirectory() as temporary:
+        workspace=Path(temporary)
+        storage_root=workspace/'storage'
+        output_root=workspace/'outputs'/'run-invalid-link'
+        basetemp=q3._q3_dynamic_test_basetemp(storage_root,output_root)
+        basetemp.mkdir(parents=True)
+        link=basetemp/'test_q3_rejectedcurrent'
+        if case=='invalid_name':
+            target=basetemp/'test_other0'
+        elif case=='non_sibling':
+            target=basetemp/'nested'/'test_q3_rejected0'
+        else:
+            target=workspace/'outside'/'test_q3_rejected0'
+        target.mkdir(parents=True)
+        os.symlink(os.path.relpath(target,basetemp),link)
 
-    with pytest.raises(RuntimeError,match='unexpected task-root symlink'):
-        q1._check_storage_growth(storage_root,growth_cap_bytes=1024**2,max_files=100)
+        with pytest.raises(RuntimeError,match='unexpected task-root symlink'):
+            q1._check_storage_growth(storage_root,growth_cap_bytes=1024**2,max_files=100)
 
 
 @pytest.mark.parametrize('branch',['B','I'])
