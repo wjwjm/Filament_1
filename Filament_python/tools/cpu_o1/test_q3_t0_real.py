@@ -200,3 +200,9 @@ def test_q3_real_window_seam_with_tiny_frozen_fixture(tmp_path,monkeypatch):
     assert receipt["propagation_receipt"]["interval_count"]==8
     assert set(groups)=={"B_P1:first_boundary:B_P1","B_P1:endpoint:B_P1"}
     assert receipt["fresh_source"]["fresh_copy"]
+    post_fields,post_hashes,post_path,post_raw=q3._load_case_post(
+        receipt,context,j3,case_root=tmp_path/"B_P1")
+    assert post_path==tmp_path/"B_P1"/"propagation"/"final_POST.npz"
+    assert set(post_fields)==set(q3.FIELDS)==set(post_hashes)
+    assert post_hashes==receipt["propagation_receipt"]["final_POST_canonical_sha256"]
+    assert post_raw==receipt["propagation_receipt"]["final_POST_raw_sha256"]

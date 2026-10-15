@@ -1052,10 +1052,10 @@ def _set_phase(phase_path: Path, *, phase: str, stage_id: str,
         "first_interval_timeout_seconds": first_interval_timeout_seconds})
 
 
-def _load_case_post(window: dict, context: dict, j3) -> tuple[dict, dict, Path, str]:
+def _load_case_post(window: dict, context: dict, j3, *, case_root: Path) -> tuple[dict, dict, Path, str]:
     import numpy as np
     receipt = window["propagation_receipt"]
-    post_path = Path(receipt["final_POST_path"])
+    post_path = Path(case_root) / "propagation" / "final_POST.npz"
     post_raw = j3.raw_sha256_file(post_path)
     if post_raw != receipt["final_POST_raw_sha256"]:
         raise Q3Error("Q3 POST1 raw file hash differs from the optical window receipt")
@@ -1149,7 +1149,8 @@ def _chain_child(args) -> int:
             output_root=output_root, phase_path=phase_path,
             comparison_references=references, contract=contract,
             group_rows=group_rows)
-        post1, post_hashes, post_path, post_raw = _load_case_post(p1_case, context, j3)
+        post1, post_hashes, post_path, post_raw = _load_case_post(
+            p1_case, context, j3, case_root=output_root / p1_case["case_id"])
         activity = {"post1_vs_pre0": _activity_summary(pre0, post1)}
 
         _require_safe_next_stage(stage_root, j3, f"{identity} before HR4")
