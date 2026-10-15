@@ -327,13 +327,12 @@ def _load_cold_receipt(path: str | None) -> dict[str, Any] | None:
 
 
 def _load_formal_config(config_path: Path) -> tuple[Any, Any]:
-    # This import path is CPU/config-only. CuPy must still be absent at this point.
+    # confio imports constants/hr4, which intentionally import device/CuPy.
+    # The caller must establish the cache boundary before entering this chain.
     from KHz_filament.confio import load_all
 
     loaded = load_all(str(config_path))
     grid, beam, _prop, _ion, _heat, _run, raman = loaded
-    if "cupy" in sys.modules or "KHz_filament.device" in sys.modules:
-        raise RuntimeError("formal config loading imported CuPy/device before the cold-cache check")
     if int(grid.Nt) != 384:
         raise ValueError(f"formal N5 Raman compile probe requires Nt=384, got {grid.Nt}")
     if str(getattr(raman, "model", "")).lower() != "isaacs_rot_sinexp":
@@ -366,8 +365,6 @@ def run_raman_probe(
     runtime_environment = validate_runtime_environment(run_root)
     config_path = config_path.resolve(strict=True)
     config_sha256 = _raw_sha256(config_path)
-    grid, (beam, raman) = _load_formal_config(config_path)
-
     visible = os.environ.get("CUDA_VISIBLE_DEVICES", "")
     tokens = visible.split(",")
     if os.environ.get("UPPE_USE_GPU") != "1":
@@ -389,6 +386,9 @@ def run_raman_probe(
     )
 
     started = time.perf_counter()
+    # Config loading follows the same import path as formal workers, but only
+    # after inherited paths and the cold/warm cache precondition are proven.
+    grid, (beam, raman) = _load_formal_config(config_path)
     from KHz_filament.hr4e5_gpu_bootstrap import probe_gpu_runtime
 
     gpu = probe_gpu_runtime()

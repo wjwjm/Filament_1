@@ -198,3 +198,48 @@ def test_probe_source_is_diagnostic_only():
     assert '"propagation_called": False' in source
     assert 'dtype=cp.complex128' in source
     assert 'int(grid.Nt) != 384' in source
+
+def test_probe_establishes_cache_boundary_before_formal_import(tmp_path, monkeypatch):
+    run_root, cache = _runtime_tree(tmp_path, monkeypatch)
+    config = tmp_path / "formal.json"
+    config.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("UPPE_USE_GPU", "1")
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "0")
+    seen = []
+    inventory = preflight.cache_inventory
+    preconditions = preflight.validate_phase_preconditions
+
+    def record_inventory(path):
+        seen.append("cache_inventory")
+        return inventory(path)
+
+    def record_preconditions(*args, **kwargs):
+        seen.append("cache_preconditions")
+        return preconditions(*args, **kwargs)
+
+    class BoundaryReached(Exception):
+        pass
+
+    def load_formal(path):
+        assert seen == ["cache_inventory", "cache_preconditions"]
+        assert path == config
+        raise BoundaryReached("no GPU computation in this software test")
+
+    monkeypatch.setattr(preflight, "cache_inventory", record_inventory)
+    monkeypatch.setattr(preflight, "validate_phase_preconditions", record_preconditions)
+    monkeypatch.setattr(preflight, "_load_formal_config", load_formal)
+    with pytest.raises(BoundaryReached):
+        preflight.run_raman_probe(phase="cold", run_root=run_root,
+            config_path=config, output_path=tmp_path / "receipt.json", cold_receipt_path=None)
+
+
+def test_real_formal_config_import_accepts_existing_device_module(tmp_path, monkeypatch):
+    from KHz_filament import confio
+    from types import SimpleNamespace
+    grid = SimpleNamespace(Nt=384)
+    beam = SimpleNamespace(lam0=800e-9, n0=1.0)
+    raman = SimpleNamespace(model="isaacs_rot_sinexp", method="iir",
+        iir_sampling="exact_piecewise_linear", n_R=2.3e-23, omega_R=1.6e13, Gamma_R=1.3e13)
+    monkeypatch.setattr(confio, "load_all", lambda path: (grid, beam, None, None, None, None, raman))
+    assert "KHz_filament.device" in __import__("sys").modules
+    assert preflight._load_formal_config(tmp_path / "formal.json") == (grid, (beam, raman))

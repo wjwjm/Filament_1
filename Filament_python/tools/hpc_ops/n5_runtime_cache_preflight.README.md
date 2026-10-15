@@ -38,3 +38,7 @@ cd -- "$RUN_ROOT"
 The caller supplies UPPE_USE_GPU=1 and exactly one CUDA_VISIBLE_DEVICES
 token only to each diagnostic GPU child. All cache and temp path variables
 remain inherited unchanged by coordinator, health, probe, and formal driver.
+The cold/warm cache inventory and phase precondition run before confio.load_all.
+The formal import chain confio -> config_normalize -> constants/hr4 -> device
+may import CuPy; it is allowed only after this cache boundary and the inherited
+project environment gate. The probe does not assume configuration imports are CPU-only.
