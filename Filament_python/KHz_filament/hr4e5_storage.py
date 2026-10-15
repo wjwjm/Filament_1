@@ -17,6 +17,7 @@ import shutil
 import socket
 import sys
 import tempfile
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -431,15 +432,282 @@ class StorageIntegrityError(StorageBudgetError):
     """A path or file identity cannot be proven safe."""
 
 
+# Set FILAMENT_STORAGE_LOCK_TRACE_DIR to an absolute directory outside every
+# campaign root to opt into process/thread-local JSONL lock diagnostics.
+_LOCK_TRACE_DIR_ENV = "FILAMENT_STORAGE_LOCK_TRACE_DIR"
+_LOCK_TRACE_LOCAL = threading.local()
+
+
+def _trace_path_is_within(path: Path, root: Path) -> bool:
+    candidate = os.path.normcase(str(path.resolve(strict=False)))
+    boundary = os.path.normcase(str(root.resolve(strict=False)))
+    try:
+        return os.path.commonpath((candidate, boundary)) == boundary
+    except ValueError:
+        return False
+
+
+def _lock_trace_context(
+    *, lock_path: Path | None = None, campaign_root: Path | None = None,
+    operation_name: str | None = None,
+) -> dict[str, Any] | None:
+    """Create diagnostic identity only when tracing is explicitly enabled."""
+    raw_directory = os.environ.get(_LOCK_TRACE_DIR_ENV)
+    if not raw_directory:
+        return None
+    try:
+        directory = Path(raw_directory).expanduser()
+        if not directory.is_absolute():
+            raise ValueError(f"{_LOCK_TRACE_DIR_ENV} must be absolute")
+        directory = directory.resolve(strict=False)
+        root = None if campaign_root is None else Path(campaign_root).resolve(strict=False)
+        if root is not None and _trace_path_is_within(directory, root):
+            raise ValueError(f"{_LOCK_TRACE_DIR_ENV} must be outside the campaign root")
+
+        pid = os.getpid()
+        start_identity = _process_start_token(pid) or "unknown"
+        host = _host_identity()
+        hostname = socket.gethostname()
+        thread_id = threading.get_ident()
+        thread_name = threading.current_thread().name
+        safe_component = lambda value: "".join(
+            character if character.isalnum() or character in "-_" else "_"
+            for character in str(value)
+        )
+        safe_host = safe_component(hostname)
+        safe_start_identity = safe_component(start_identity)
+        filename = f"lock-{safe_host}-{pid}-{safe_start_identity}-{thread_id}.jsonl"
+        lock_kind = "unscoped"
+        if lock_path is not None:
+            name = Path(lock_path).name
+            if name == ".E5_1A_CAMPAIGN.lock":
+                lock_kind = "campaign_state"
+            elif name == ".storage_budget.lock":
+                lock_kind = "storage_ledger"
+            else:
+                lock_kind = "file"
+        return {
+            "trace_dir": directory,
+            "trace_file": directory / filename,
+            "campaign_root": root,
+            "lock_path": None if lock_path is None else str(Path(lock_path)),
+            "lock_kind": lock_kind,
+            "operation_name": operation_name,
+            "host_identity": host,
+            "hostname": hostname,
+            "pid": pid,
+            "process_start_identity": start_identity,
+            "thread_id": thread_id,
+            "thread_name": thread_name,
+            "lock_span_id": f"{pid}-{thread_id}-{time.monotonic_ns()}",
+        }
+    except Exception as error:
+        _LOCK_TRACE_LOCAL.error_count = getattr(_LOCK_TRACE_LOCAL, "error_count", 0) + 1
+        _LOCK_TRACE_LOCAL.last_error = f"{type(error).__name__}: {error}"
+        return None
+
+
+def _trace_utc(wall_time_ns: int) -> str:
+    seconds, nanoseconds = divmod(int(wall_time_ns), 1_000_000_000)
+    return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(seconds)) + f".{nanoseconds:09d}Z"
+
+
+def _emit_lock_trace(
+    event: str, context: dict[str, Any] | None, **fields: Any,
+) -> None:
+    """Append to a process/thread-specific file; tracing failures never escape."""
+    if context is None:
+        return
+    started_ns = time.perf_counter_ns()
+    try:
+        wall_time_ns = time.time_ns()
+        previous_ns = getattr(_LOCK_TRACE_LOCAL, "last_append_ns", None)
+        record = {
+            "schema": "khz_filament.hr4e5.storage_lock_trace.v1",
+            "event": event,
+            "wall_time_ns": wall_time_ns,
+            "monotonic_ns": time.monotonic_ns(),
+            "wall_time_utc": _trace_utc(wall_time_ns),
+            "host_identity": context["host_identity"],
+            "hostname": context["hostname"],
+            "pid": context["pid"],
+            "process_start_identity": context["process_start_identity"],
+            "thread_id": context["thread_id"],
+            "thread_name": context["thread_name"],
+            "operation_name": context.get("operation_name"),
+            "lock_path": context.get("lock_path"),
+            "lock_kind": context.get("lock_kind", "unscoped"),
+            "lock_span_id": context.get("lock_span_id"),
+            "campaign_root": (None if context.get("campaign_root") is None
+                              else str(context["campaign_root"])),
+            "previous_trace_append_duration_ns": previous_ns,
+            **fields,
+        }
+        payload = (json.dumps(record, sort_keys=True, separators=(",", ":"),
+                              ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
+        trace_file = Path(context["trace_file"])
+        trace_file.parent.mkdir(parents=True, exist_ok=True)
+        descriptor = os.open(str(trace_file), os.O_CREAT | os.O_APPEND | os.O_WRONLY, 0o600)
+        try:
+            offset = 0
+            while offset < len(payload):
+                offset += os.write(descriptor, payload[offset:])
+        finally:
+            os.close(descriptor)
+        _LOCK_TRACE_LOCAL.write_count = getattr(_LOCK_TRACE_LOCAL, "write_count", 0) + 1
+    except Exception as error:
+        _LOCK_TRACE_LOCAL.error_count = getattr(_LOCK_TRACE_LOCAL, "error_count", 0) + 1
+        _LOCK_TRACE_LOCAL.last_error = f"{type(error).__name__}: {error}"
+    finally:
+        try:
+            duration_ns = time.perf_counter_ns() - started_ns
+            _LOCK_TRACE_LOCAL.last_append_ns = duration_ns
+            _LOCK_TRACE_LOCAL.write_attempt_count = (
+                getattr(_LOCK_TRACE_LOCAL, "write_attempt_count", 0) + 1
+            )
+            _LOCK_TRACE_LOCAL.write_duration_ns = (
+                getattr(_LOCK_TRACE_LOCAL, "write_duration_ns", 0) + duration_ns
+            )
+        except Exception:
+            # Timing diagnostics are best-effort and cannot affect the lock.
+            pass
+
+
+def _trace_metric_add(name: str, value: int) -> None:
+    """Accumulate per-thread work counters for the enclosing phase receipt."""
+    metrics = getattr(_LOCK_TRACE_LOCAL, "phase_metrics", None)
+    if metrics is not None:
+        metrics[name] = int(metrics.get(name, 0)) + int(value)
+
+
+@contextmanager
+def _trace_phase(
+    phase_name: str, *, campaign_root: Path | None = None,
+    operation_name: str | None = None, **details: Any,
+):
+    """Measure a storage phase only when tracing is enabled."""
+    context = getattr(_LOCK_TRACE_LOCAL, "lock_context", None)
+    if context is None:
+        context = _lock_trace_context(campaign_root=campaign_root, operation_name=operation_name)
+    if context is None:
+        yield None
+        return
+    metrics = getattr(_LOCK_TRACE_LOCAL, "phase_metrics", None)
+    if metrics is None:
+        metrics = {}
+        _LOCK_TRACE_LOCAL.phase_metrics = metrics
+    metrics_start = dict(metrics)
+    wall_start = time.time_ns()
+    monotonic_start = time.monotonic_ns()
+    status = "ok"
+    error_type = None
+    try:
+        yield details
+    except Exception as error:
+        status = "error"
+        error_type = type(error).__name__
+        raise
+    finally:
+        wall_end = time.time_ns()
+        monotonic_end = time.monotonic_ns()
+        metric_deltas = {
+            name: int(value) - int(metrics_start.get(name, 0))
+            for name, value in metrics.items()
+        }
+        _emit_lock_trace(
+            "phase", context, phase_name=phase_name,
+            start_wall_time_ns=wall_start, end_wall_time_ns=wall_end,
+            start_monotonic_ns=monotonic_start, end_monotonic_ns=monotonic_end,
+            duration_ns=max(0, monotonic_end - monotonic_start),
+            status=status, error_type=error_type,
+            phase_metrics=metric_deltas, **details,
+        )
+
+
+def _lock_trace_status() -> dict[str, Any]:
+    """Expose per-thread trace status and measured append overhead to harnesses."""
+    raw_directory = os.environ.get(_LOCK_TRACE_DIR_ENV)
+    return {
+        "enabled": bool(raw_directory),
+        "environment_variable": _LOCK_TRACE_DIR_ENV,
+        "configured_directory": raw_directory or None,
+        "trace_file": getattr(_LOCK_TRACE_LOCAL, "trace_file", None),
+        "last_append_duration_ns": getattr(_LOCK_TRACE_LOCAL, "last_append_ns", 0),
+        "write_count": getattr(_LOCK_TRACE_LOCAL, "write_count", 0),
+        "write_attempt_count": getattr(_LOCK_TRACE_LOCAL, "write_attempt_count", 0),
+        "write_duration_ns": getattr(_LOCK_TRACE_LOCAL, "write_duration_ns", 0),
+        "error_count": getattr(_LOCK_TRACE_LOCAL, "error_count", 0),
+        "last_error": getattr(_LOCK_TRACE_LOCAL, "last_error", None),
+    }
+
+
+def _caller_operation_name() -> str:
+    """Infer a stable caller name for imported campaign-lock uses."""
+    try:
+        caller = sys._getframe(2)
+        return f"{caller.f_globals.get('__name__', 'unknown')}.{caller.f_code.co_qualname}"
+    except Exception:
+        return "unknown"
+
+
 class _FileLock:
     """Small cross-platform advisory lock used for ledger transitions."""
 
-    def __init__(self, path: Path, timeout_s: float = 10.0):
+    def __init__(
+        self, path: Path, timeout_s: float = 10.0, *,
+        operation_name: str | None = None, campaign_root: Path | None = None,
+    ):
         self.path = Path(path)
         self.timeout_s = float(timeout_s)
         self._handle = None
+        self.operation_name = operation_name
+        self.campaign_root = Path(campaign_root) if campaign_root is not None else self.path.parent
+        self._trace_context: dict[str, Any] | None = None
+        self._trace_request_monotonic_ns: int | None = None
+        self._trace_acquired_monotonic_ns: int | None = None
+        self._trace_previous_context: dict[str, Any] | None = None
+        self._trace_terminal_event = False
 
     def __enter__(self) -> "_FileLock":
+        if os.environ.get(_LOCK_TRACE_DIR_ENV):
+            operation_name = self.operation_name or _caller_operation_name()
+            self._trace_context = _lock_trace_context(
+                lock_path=self.path, campaign_root=self.campaign_root,
+                operation_name=operation_name,
+            )
+            self._trace_request_monotonic_ns = time.monotonic_ns()
+            if self._trace_context is not None:
+                _LOCK_TRACE_LOCAL.trace_file = str(self._trace_context["trace_file"])
+                _emit_lock_trace("requested", self._trace_context,
+                                 lock_timeout_s=self.timeout_s)
+        try:
+            return self._acquire()
+        except BaseException as error:
+            # __exit__ is not called when __enter__ fails. In particular an
+            # interrupt in post-acquire tracing must not strand the OS lock.
+            try:
+                if self._handle is not None:
+                    if self._trace_acquired_monotonic_ns is not None:
+                        self.__exit__(type(error), error, error.__traceback__)
+                    else:
+                        self._handle.close()
+                        self._handle = None
+            except BaseException:
+                # Preserve the original process-control/acquisition exception.
+                pass
+            finally:
+                if getattr(_LOCK_TRACE_LOCAL, "lock_context", None) is self._trace_context:
+                    _LOCK_TRACE_LOCAL.lock_context = self._trace_previous_context
+            if self._trace_context is not None and not self._trace_terminal_event:
+                _emit_lock_trace(
+                    "acquire_error", self._trace_context,
+                    elapsed_ns=(None if self._trace_request_monotonic_ns is None else
+                                max(0, time.monotonic_ns() - self._trace_request_monotonic_ns)),
+                    error_type=type(error).__name__,
+                )
+            raise
+
+    def _acquire(self) -> "_FileLock":
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._handle = self.path.open("a+b")
         if self._handle.tell() == 0:
@@ -458,9 +726,32 @@ class _FileLock:
                     import fcntl
 
                     fcntl.flock(self._handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                self._trace_acquired_monotonic_ns = (
+                    time.monotonic_ns() if self._trace_context is not None else None
+                )
+                if self._trace_context is not None:
+                    self._trace_previous_context = getattr(_LOCK_TRACE_LOCAL, "lock_context", None)
+                    _LOCK_TRACE_LOCAL.lock_context = self._trace_context
+                    _emit_lock_trace(
+                        "acquired", self._trace_context,
+                        wait_duration_ns=max(
+                            0, self._trace_acquired_monotonic_ns
+                            - int(self._trace_request_monotonic_ns),
+                        ),
+                        lock_timeout_s=self.timeout_s,
+                    )
                 return self
             except OSError as error:
                 if time.monotonic() >= deadline:
+                    if self._trace_context is not None:
+                        _emit_lock_trace(
+                            "timeout", self._trace_context,
+                            wait_duration_ns=max(
+                                0, time.monotonic_ns() - int(self._trace_request_monotonic_ns),
+                            ),
+                            lock_timeout_s=self.timeout_s, error_type=type(error).__name__,
+                        )
+                        self._trace_terminal_event = True
                     self._handle.close()
                     self._handle = None
                     raise StorageBudgetError("timed out acquiring storage ledger lock") from error
@@ -469,6 +760,8 @@ class _FileLock:
     def __exit__(self, exc_type, exc, traceback) -> None:
         if self._handle is None:
             return
+        release_error_type = None
+        released_monotonic_ns = None
         try:
             if os.name == "nt":
                 import msvcrt
@@ -479,9 +772,42 @@ class _FileLock:
                 import fcntl
 
                 fcntl.flock(self._handle.fileno(), fcntl.LOCK_UN)
+        except BaseException as error:
+            release_error_type = type(error).__name__
+            raise
         finally:
-            self._handle.close()
-            self._handle = None
+            try:
+                self._handle.close()
+            except BaseException as error:
+                if release_error_type is None:
+                    release_error_type = type(error).__name__
+                raise
+            finally:
+                self._handle = None
+                released_monotonic_ns = (
+                    time.monotonic_ns() if self._trace_context is not None else None
+                )
+                if self._trace_context is not None:
+                    if getattr(_LOCK_TRACE_LOCAL, "lock_context", None) is self._trace_context:
+                        _LOCK_TRACE_LOCAL.lock_context = self._trace_previous_context
+                    hold_duration_ns = (
+                        None if self._trace_acquired_monotonic_ns is None
+                        else max(0, int(released_monotonic_ns)
+                                 - self._trace_acquired_monotonic_ns)
+                    )
+                    _emit_lock_trace(
+                        "released" if release_error_type is None else "release_error",
+                        self._trace_context,
+                        wait_duration_ns=(
+                            None if self._trace_request_monotonic_ns is None
+                            or self._trace_acquired_monotonic_ns is None
+                            else max(0, self._trace_acquired_monotonic_ns
+                                     - self._trace_request_monotonic_ns)
+                        ),
+                        hold_duration_ns=hold_duration_ns,
+                        released_monotonic_ns=released_monotonic_ns,
+                        error_type=release_error_type,
+                    )
 
 
 def _utc() -> str:
@@ -526,18 +852,44 @@ def _is_sha256(value: Any) -> bool:
 
 
 def _atomic_json(path: Path, value: Mapping[str, Any], *, overwrite: bool = True) -> None:
+    with _trace_phase(
+        "atomic_json", campaign_root=path.parent, operation_name="_atomic_json",
+        file_path=str(path), overwrite=bool(overwrite),
+    ):
+        _atomic_json_impl(path, value, overwrite=overwrite)
+
+
+def _atomic_json_impl(path: Path, value: Mapping[str, Any], *, overwrite: bool = True) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
+    with _trace_phase(
+        "atomic_temp_create", campaign_root=path.parent,
+        operation_name="_atomic_json", file_path=str(path),
+    ):
+        descriptor, temporary = tempfile.mkstemp(
+            prefix=path.name + ".", suffix=".tmp", dir=path.parent,
+        )
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
-            json.dump(_json_safe(dict(value)), handle, indent=2, sort_keys=True, allow_nan=False)
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
+        with _trace_phase(
+            "atomic_json_write_flush_fsync", campaign_root=path.parent,
+            operation_name="_atomic_json", file_path=str(path),
+        ):
+            with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+                json.dump(_json_safe(dict(value)), handle, indent=2, sort_keys=True, allow_nan=False)
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
         if not overwrite and path.exists():
             raise FileExistsError(path)
-        os.replace(temporary, path)
-        _fsync_directory(path.parent)
+        with _trace_phase(
+            "atomic_replace", campaign_root=path.parent,
+            operation_name="_atomic_json", file_path=str(path),
+        ):
+            os.replace(temporary, path)
+        with _trace_phase(
+            "atomic_directory_fsync", campaign_root=path.parent,
+            operation_name="_atomic_json", file_path=str(path.parent),
+        ):
+            _fsync_directory(path.parent)
     except Exception:
         try:
             os.unlink(temporary)
@@ -560,11 +912,23 @@ def _fsync_directory(path: Path) -> None:
 
 
 def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
+    trace_active = getattr(_LOCK_TRACE_LOCAL, "lock_context", None) is not None
+    started_ns = time.perf_counter_ns() if trace_active else None
+    byte_count = 0
+    try:
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for block in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(block)
+                byte_count += len(block)
+        return digest.hexdigest()
+    finally:
+        if trace_active:
+            _trace_metric_add("sha256_file_count", 1)
+            _trace_metric_add("sha256_bytes", byte_count)
+            _trace_metric_add(
+                "sha256_duration_ns", time.perf_counter_ns() - int(started_ns),
+            )
 
 
 def _relative(root: Path, path: str | Path) -> tuple[Path, str]:
@@ -749,7 +1113,18 @@ def _validated_external_canonical_source_identity(
         raise StorageIntegrityError("external canonical source identity cannot be reconstructed") from error
 
 
-def _iter_regular_files(root: Path) -> Iterable[Path]:
+def _iter_regular_files(
+    root: Path, *, phase_name: str = "directory_scan",
+    campaign_root: Path | None = None,
+) -> Iterable[Path]:
+    with _trace_phase(
+        phase_name, campaign_root=campaign_root,
+        operation_name="_iter_regular_files", scan_root=str(root),
+    ):
+        yield from _iter_regular_files_impl(root)
+
+
+def _iter_regular_files_impl(root: Path) -> Iterable[Path]:
     """Yield files without following directory links."""
     if not root.exists():
         return
@@ -874,7 +1249,10 @@ class StorageBudget:
         self.admission_identity = None if admission_identity is None else dict(admission_identity)
         if not self.ledger_path.exists():
             _atomic_json(self.ledger_path, self._new_ledger(), overwrite=False)
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.__init__",
+            campaign_root=self.root,
+        ):
             self._validate(self._read())
 
     def _new_ledger(self) -> dict[str, Any]:
@@ -904,15 +1282,26 @@ class StorageBudget:
         }
 
     def _read(self) -> dict[str, Any]:
-        try:
-            data = json.loads(self.ledger_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as error:
-            raise StorageBudgetError("storage ledger is unreadable") from error
-        if not isinstance(data, dict):
-            raise StorageBudgetError("storage ledger must be an object")
-        return data
+        with _trace_phase(
+            "ledger_json_read_decode", campaign_root=self.root,
+            operation_name="StorageBudget._read", file_path=str(self.ledger_path),
+        ):
+            try:
+                data = json.loads(self.ledger_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as error:
+                raise StorageBudgetError("storage ledger is unreadable") from error
+            if not isinstance(data, dict):
+                raise StorageBudgetError("storage ledger must be an object")
+            return data
 
     def _validate(self, data: Mapping[str, Any]) -> None:
+        with _trace_phase(
+            "ledger_validation", campaign_root=self.root,
+            operation_name="StorageBudget._validate", file_path=str(self.ledger_path),
+        ):
+            self._validate_impl(data)
+
+    def _validate_impl(self, data: Mapping[str, Any]) -> None:
         if data.get("schema") != STORAGE_SCHEMA:
             raise StorageBudgetError("storage ledger schema is invalid")
         if int(data.get("cap_bytes", -1)) != self.cap_bytes:
@@ -1069,15 +1458,22 @@ class StorageBudget:
                     raise StorageIntegrityError(f"fenced child writer grant lacks DEAD evidence: {grant_id}")
 
     def _write(self, data: Mapping[str, Any]) -> None:
-        self._validate(data)
-        _atomic_json(self.ledger_path, data)
+        with _trace_phase(
+            "ledger_write", campaign_root=self.root,
+            operation_name="StorageBudget._write", file_path=str(self.ledger_path),
+        ):
+            self._validate(data)
+            _atomic_json(self.ledger_path, data)
 
     @contextmanager
-    def _locked(self):
+    def _locked(self, *, operation_name: str = "StorageBudget._locked"):
         # Windows can reject os.replace transiently while another handle in a
         # freshly exited process is closing the same ledger.  The lock is held
         # here, so retrying the same durable replacement is safe and bounded.
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name=operation_name,
+            campaign_root=self.root,
+        ):
             data = self._read()
             self._validate(data)
             yield data
@@ -1096,7 +1492,9 @@ class StorageBudget:
 
     def actual_bytes(self) -> int:
         total = 0
-        for path in _iter_regular_files(self.root):
+        for path in _iter_regular_files(
+            self.root, phase_name="root_allocation_scan", campaign_root=self.root,
+        ):
             try:
                 total += int(path.stat().st_size)
             except OSError as error:
@@ -1133,7 +1531,11 @@ class StorageBudget:
         for relative in paths:
             path, _ = _relative(self.root, relative)
             if path.is_dir():
-                total += sum(p.stat().st_size for p in _iter_regular_files(path))
+                total += sum(
+                    p.stat().st_size for p in _iter_regular_files(
+                        path, phase_name="allocation_path_scan", campaign_root=self.root,
+                    )
+                )
             elif path.is_file():
                 total += path.stat().st_size
         return total
@@ -1174,7 +1576,10 @@ class StorageBudget:
     def check_capacity(self, additional_bytes: int = 0, *, peak_bytes: int = 0, purpose: str = "write") -> dict[str, Any]:
         additional = _nonnegative_int(additional_bytes, "additional_bytes")
         peak = _nonnegative_int(peak_bytes, "peak_bytes")
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.check_capacity",
+            campaign_root=self.root,
+        ):
             data = self._read()
             self._validate(data)
             used = self.actual_bytes()
@@ -1227,7 +1632,7 @@ class StorageBudget:
             raise ValueError("reservation purpose is required")
         rid = str(reservation_id or f"res-{os.getpid()}-{time.time_ns()}")
         owner_name = str(owner or f"pid:{os.getpid()}")
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.reserve") as data:
             used = self.actual_bytes()
             active = self._reserved_bytes(data)
             free = self._provider_free_bytes()
@@ -1260,7 +1665,7 @@ class StorageBudget:
 
     def release(self, reservation_id: str, *, status: str = "RELEASED") -> dict[str, Any]:
         rid = str(reservation_id)
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.release") as data:
             item = data["reservations"].get(rid)
             if not isinstance(item, Mapping):
                 raise StorageBudgetError(f"unknown reservation: {rid}")
@@ -1282,7 +1687,7 @@ class StorageBudget:
 
     def consume(self, reservation_id: str, *, actual_bytes: int | None = None) -> dict[str, Any]:
         rid = str(reservation_id)
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.consume") as data:
             item = data["reservations"].get(rid)
             if not isinstance(item, Mapping) or item.get("status") != "ACTIVE":
                 raise StorageBudgetError(f"reservation is not active: {rid}")
@@ -1347,6 +1752,16 @@ class StorageBudget:
         return False
 
     def _snapshot_intent_files(self, allowed_paths: Sequence[str]) -> dict[str, dict[str, Any]]:
+        with _trace_phase(
+            "intent_snapshot_and_hash", campaign_root=self.root,
+            operation_name="StorageBudget._snapshot_intent_files",
+            allowed_path_count=len(allowed_paths),
+        ):
+            return self._snapshot_intent_files_impl(allowed_paths)
+
+    def _snapshot_intent_files_impl(
+        self, allowed_paths: Sequence[str],
+    ) -> dict[str, dict[str, Any]]:
         snapshot: dict[str, dict[str, Any]] = {}
         for raw in allowed_paths:
             path, relative = _relative(self.root, raw)
@@ -1355,7 +1770,9 @@ class StorageBudget:
             if path.is_file():
                 snapshot[relative] = {"identity": _identity(path), "sha256": _sha256_file(path)}
             elif path.is_dir():
-                for item in _iter_regular_files(path):
+                for item in _iter_regular_files(
+                    path, phase_name="intent_directory_scan", campaign_root=self.root,
+                ):
                     _, item_relative = _relative(self.root, item)
                     snapshot[item_relative] = {"identity": _identity(item), "sha256": _sha256_file(item)}
         return snapshot
@@ -1393,7 +1810,7 @@ class StorageBudget:
         if self.require_intents and not bound_hash:
             raise StorageIntegrityError("formal creation intent requires an admission hash")
         iid = str(intent_id or f"intent-{os.getpid()}-{time.time_ns()}")
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.create_intent") as data:
             reservation = data["reservations"].get(rid)
             if not isinstance(reservation, Mapping) or reservation.get("status") != "ACTIVE":
                 raise StorageBudgetError("creation intent requires an active reservation")
@@ -1437,7 +1854,7 @@ class StorageBudget:
             raise ValueError("writer_kind must be LEGACY_WRITER or COORDINATOR_RECONCILER")
         identity = dict(process or process_identity())
         wid = str(writer_id or f"writer-{identity['pid']}-{time.time_ns()}")
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.open_writer") as data:
             reservation = data["reservations"].get(str(reservation_id))
             intent = data["intents"].get(str(intent_id))
             if not isinstance(reservation, Mapping) or reservation.get("status") != "ACTIVE":
@@ -1574,7 +1991,7 @@ class StorageBudget:
                 or not str(implementation.get("schema", ""))
                 or not _is_sha256(implementation.get("identity_sha256"))):
             raise StorageIntegrityError("intent epoch rebound identity is incomplete")
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.rebind_intent_epoch") as data:
             intent = data["intents"].get(iid)
             reservation = data["reservations"].get(rid)
             if not isinstance(intent, Mapping) or intent.get("status") not in {"ACTIVE", "INTERRUPTED"}:
@@ -1709,7 +2126,7 @@ class StorageBudget:
             "allowed_paths": paths,
             "expected_bytes": expected,
         }
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.create_child_writer_grant") as data:
             reservation = data["reservations"].get(rid)
             intent = data["intents"].get(iid)
             if not isinstance(reservation, Mapping) or reservation.get("status") != "ACTIVE":
@@ -1799,7 +2216,7 @@ class StorageBudget:
     ) -> dict[str, Any]:
         """Attach the launched, waiting child's OS identity to a PENDING grant."""
         identity = _checked_process_identity(process)
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.record_child_writer_launch_candidate") as data:
             item = data.setdefault("child_writer_grants", {}).get(str(grant_id))
             if not isinstance(item, Mapping) or item.get("state") != "PENDING":
                 raise StorageBudgetError("child writer grant is not PENDING")
@@ -1826,7 +2243,7 @@ class StorageBudget:
         """Atomically bind PENDING to this process before it performs science writes."""
         if not isinstance(scope, Mapping):
             raise StorageIntegrityError("child writer bind requires the intended scope")
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.bind_child_writer_grant") as data:
             item = data.setdefault("child_writer_grants", {}).get(str(grant_id))
             if not isinstance(item, Mapping):
                 raise StorageBudgetError(f"child writer grant is missing: {grant_id}")
@@ -1858,7 +2275,10 @@ class StorageBudget:
         operation: str, path: str | Path,
     ) -> dict[str, Any]:
         """Check the bound child's role, epoch, process, operation and path scope."""
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.authorize_child_writer_operation",
+            campaign_root=self.root,
+        ):
             data = self._read(); self._validate(data)
             item = data.get("child_writer_grants", {}).get(str(grant_id))
             if not isinstance(item, Mapping) or item.get("state") != "BOUND_ACTIVE":
@@ -1893,7 +2313,7 @@ class StorageBudget:
         """Let only the bound child close its grant in the same coordinator epoch."""
         if status not in {"CLOSED", "INTERRUPTED"}:
             raise ValueError("child writer grant close status is invalid")
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.close_child_writer_grant") as data:
             item = data.setdefault("child_writer_grants", {}).get(str(grant_id))
             if not isinstance(item, Mapping) or item.get("state") != "BOUND_ACTIVE":
                 raise StorageBudgetError("child writer grant is not BOUND_ACTIVE")
@@ -1916,7 +2336,7 @@ class StorageBudget:
 
     def abandon_pending_writer_grant(self, grant_id: str, *, nonce: str) -> dict[str, Any]:
         """Abandon a pre-bind launch only when its recorded process is proved DEAD."""
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.abandon_pending_writer_grant") as data:
             item = data.setdefault("child_writer_grants", {}).get(str(grant_id))
             if not isinstance(item, Mapping) or item.get("state") != "PENDING":
                 raise StorageBudgetError("only a PENDING child writer grant can be abandoned")
@@ -1942,7 +2362,7 @@ class StorageBudget:
         self, *, coordinator_epoch: str | int | None = None,
     ) -> dict[str, Any]:
         """Fence dead bound children and abandon dead pre-bind launches atomically."""
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.fence_dead_writer_grants") as data:
             grants = data.setdefault("child_writer_grants", {})
             pending = [(gid, item) for gid, item in grants.items()
                        if item.get("state") == "PENDING"
@@ -1996,14 +2416,20 @@ class StorageBudget:
                     "interrupted_stale_grant_ids": fenced, "probes": evidence_by_id}
 
     def writer_grants(self) -> dict[str, Any]:
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.writer_grants",
+            campaign_root=self.root,
+        ):
             data = self._read(); self._validate(data)
             return json.loads(json.dumps(data.get("child_writer_grants", {})))
 
     def unresolved_writer_grants(
         self, *, coordinator_epoch: str | int | None = None,
     ) -> list[dict[str, Any]]:
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.unresolved_writer_grants",
+            campaign_root=self.root,
+        ):
             data = self._read(); self._validate(data)
             return [json.loads(json.dumps(item)) for item in data.get("child_writer_grants", {}).values()
                     if item.get("state") in {"PENDING", "BOUND_ACTIVE"}
@@ -2012,7 +2438,10 @@ class StorageBudget:
     def pending_writer_grants(
         self, *, coordinator_epoch: str | int | None = None,
     ) -> list[dict[str, Any]]:
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.pending_writer_grants",
+            campaign_root=self.root,
+        ):
             data = self._read(); self._validate(data)
             return [json.loads(json.dumps(item)) for item in data.get("child_writer_grants", {}).values()
                     if item.get("state") == "PENDING"
@@ -2022,7 +2451,7 @@ class StorageBudget:
                      status: str = "CLOSED", reason: str | None = None) -> dict[str, Any]:
         if status not in {"CLOSED", "INTERRUPTED"}:
             raise ValueError("writer close status is invalid")
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.close_writer") as data:
             item = data["writers"].get(str(writer_id))
             if not isinstance(item, Mapping) or item.get("status") != "ACTIVE":
                 raise StorageBudgetError("writer is not active")
@@ -2039,7 +2468,10 @@ class StorageBudget:
 
     def active_writers(self, *, coordinator_epoch: str | int | None = None,
                        include_management: bool = True) -> list[dict[str, Any]]:
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.active_writers",
+            campaign_root=self.root,
+        ):
             data = self._read(); self._validate(data)
             management_roles = {"TERMINAL_EVIDENCE", "REPORT", "GC_EVIDENCE"}
             active = [dict(item) for item in data["writers"].values()
@@ -2076,7 +2508,7 @@ class StorageBudget:
 
     def interrupt_dead_writer(self, writer_id: str, *, probe: Mapping[str, Any] | None = None) -> dict[str, Any]:
         """Fence one verifiably dead writer without changing reserved bytes."""
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.interrupt_dead_writer") as data:
             wid = str(writer_id)
             item = data["writers"].get(wid)
             if not isinstance(item, Mapping) or item.get("status") != "ACTIVE":
@@ -2105,7 +2537,7 @@ class StorageBudget:
 
     def interrupt_stale_writers(self, *, coordinator_epoch: str | int) -> dict[str, Any]:
         """Verify dead writers and fence them without releasing reserved bytes."""
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.interrupt_stale_writers") as data:
             active = [(wid, item) for wid, item in data["writers"].items()
                       if item.get("status") == "ACTIVE" and
                       str(item.get("coordinator_epoch")) == str(coordinator_epoch)]
@@ -2191,7 +2623,7 @@ class StorageBudget:
     ) -> dict[str, Any]:
         """Validate files created under an intent and register ownership."""
         iid = str(intent_id)
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.complete_intent") as data:
             item = data["intents"].get(iid)
             if not isinstance(item, Mapping):
                 raise StorageBudgetError(f"unknown creation intent: {iid}")
@@ -2251,7 +2683,7 @@ class StorageBudget:
 
     def interrupt_intent(self, intent_id: str, *, reason: str = "interrupted") -> dict[str, Any]:
         iid = str(intent_id)
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.interrupt_intent") as data:
             item = data["intents"].get(iid)
             if not isinstance(item, Mapping):
                 raise StorageBudgetError(f"unknown creation intent: {iid}")
@@ -2270,7 +2702,10 @@ class StorageBudget:
 
     def writer_receipt(self, writer_id: str) -> dict[str, Any]:
         """Return one writer registration for a controlled worker entry."""
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.writer_receipt",
+            campaign_root=self.root,
+        ):
             data = self._read()
             self._validate(data)
             item = data.get("writers", {}).get(str(writer_id))
@@ -2280,7 +2715,10 @@ class StorageBudget:
 
     def intent(self, intent_id: str) -> dict[str, Any]:
         """Return one creation intent for a controlled worker entry."""
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.intent",
+            campaign_root=self.root,
+        ):
             data = self._read()
             self._validate(data)
             item = data.get("intents", {}).get(str(intent_id))
@@ -2324,7 +2762,10 @@ class StorageBudget:
         instance._admission_identity = dict(admission_identity)
         instance.admission_hash = str((admission_identity or {}).get("identity_sha256", ""))
         instance.provider = MockQuotaProvider(free_bytes=None, quota_bytes=None)
-        with _FileLock(instance.lock_path):
+        with _FileLock(
+            instance.lock_path, operation_name="StorageBudget.open_for_worker",
+            campaign_root=instance.root,
+        ):
             data = instance._read()
             instance.require_quota = bool(data.get("require_quota", False))
             instance._validate(data)
@@ -2332,13 +2773,19 @@ class StorageBudget:
 
 
     def intents(self) -> dict[str, Any]:
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.intents",
+            campaign_root=self.root,
+        ):
             data = self._read()
             self._validate(data)
             return json.loads(json.dumps(data.get("intents", {})))
 
     def reservations(self) -> dict[str, Any]:
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.reservations",
+            campaign_root=self.root,
+        ):
             data = self._read(); self._validate(data)
             return json.loads(json.dumps(data.get("reservations", {})))
 
@@ -2346,7 +2793,10 @@ class StorageBudget:
 
     def validate_intent(self, intent_id: str, *, path: str | Path | None = None,
                         require_completed: bool = False, require_active: bool = False) -> dict[str, Any]:
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.validate_intent",
+            campaign_root=self.root,
+        ):
             data = self._read()
             self._validate(data)
             item = data.get("intents", {}).get(str(intent_id))
@@ -2430,7 +2880,7 @@ class StorageBudget:
             "registered_utc": _utc(),
         }
         key = relative
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.register_artifact") as data:
             existing = data["artifacts"].get(key)
             if existing is not None and dict(existing.get("identity", {})) != identity:
                 raise StorageIntegrityError("artifact identity changed for an existing ledger path")
@@ -2442,7 +2892,10 @@ class StorageBudget:
         return self.register_artifact(path, **kwargs)
 
     def artifacts(self) -> dict[str, Any]:
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.artifacts",
+            campaign_root=self.root,
+        ):
             data = self._read()
             self._validate(data)
             return json.loads(json.dumps(data["artifacts"]))
@@ -2454,7 +2907,10 @@ class StorageBudget:
         identity.  Keep the ledger lock for the whole ownership pass so that
         GC and intent transitions cannot mix records from different versions.
         """
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.validate_paired_exact_ownership",
+            campaign_root=self.root,
+        ):
             data = self._read()
             self._validate(data)
             for binding in bindings:
@@ -2527,7 +2983,7 @@ class StorageBudget:
         digest = _sha256_file(checked)
         if digest != str(expected_sha256):
             raise StorageIntegrityError("internal prefix raw identity changed")
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.register_preexisting_prefix") as data:
             existing = data["artifacts"].get(relative)
             if existing is not None:
                 if (existing.get("role") != "EXTERNAL_PREFIX" or existing.get("campaign_id") != self.campaign_id
@@ -2585,7 +3041,7 @@ class StorageBudget:
                 or str(binding.get("role", "")) != "INPUT_LUT"):
             raise StorageIntegrityError("frozen LUT input is not listed in admitted staging identity")
         input_kind = str(binding.get("input_kind", "frozen_lut"))
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.register_preexisting_frozen_lut") as data:
             existing = data["artifacts"].get(relative)
             if existing is not None:
                 if (existing.get("role") != "INPUT_LUT"
@@ -2623,7 +3079,7 @@ class StorageBudget:
     def set_reclaimable(self, paths: Sequence[str | Path], *, value: bool = True) -> list[str]:
         """Set retention only for artifacts already owned by completed formal intents."""
         changed: list[str] = []
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.set_reclaimable") as data:
             for raw in paths:
                 _, relative = _relative(self.root, raw)
                 item = data["artifacts"].get(relative)
@@ -2687,9 +3143,16 @@ class StorageBudget:
         else:
             expected_map = {"final": {resolve_expected(path) for path in expected_roles}}
         expected_paths = set().union(*expected_map.values()) if expected_map else set()
-        actual_paths = {str(path.resolve()) for path in _iter_regular_files(base)}
+        actual_paths = {
+            str(path.resolve()) for path in _iter_regular_files(
+                base, phase_name="terminal_root_inventory_scan", campaign_root=self.root,
+            )
+        }
         management = {str(path.resolve()) for path in self._management_paths()}
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.validate_terminal_inventory",
+            campaign_root=self.root,
+        ):
             ledger = self._read()
             self._validate(ledger)
         artifacts = json.loads(json.dumps(ledger["artifacts"]))
@@ -3191,7 +3654,7 @@ class StorageBudget:
         )
         pid = str(plan_id or f"gc-{os.getpid()}-{time.time_ns()}")
         raw_targets = [str(item) for item in targets]
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.plan_reclaim") as data:
             if pid in data["gc_plans"]:
                 raise StorageBudgetError(f"reclamation plan already exists: {pid}")
             records = self._validate_gc_targets(data, raw_targets)
@@ -3241,7 +3704,10 @@ class StorageBudget:
 
     def reclaim_plan(self, plan_id: str) -> dict[str, Any] | None:
         """Return a snapshot of an existing transaction without creating one."""
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.reclaim_plan",
+            campaign_root=self.root,
+        ):
             data = self._read(); self._validate(data)
             plan = data.get("gc_plans", {}).get(str(plan_id))
             return None if plan is None else json.loads(json.dumps(plan))
@@ -3253,7 +3719,10 @@ class StorageBudget:
         path, relative = _relative(self.root, relative_path)
         if path.exists():
             return False
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.reclaimed_target",
+            campaign_root=self.root,
+        ):
             data = self._read(); self._validate(data)
             artifact = data["artifacts"].get(relative)
             if (not isinstance(artifact, Mapping)
@@ -3302,7 +3771,7 @@ class StorageBudget:
         expected_trajectory: str | None = None, expected_pulse: int | None = None,
         expected_attempt: int | None = None, expected_admission_hash: str | None = None,
     ) -> dict[str, Any]:
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.validate_reclaim_plan") as data:
             plan = self._load_plan(data, plan_id)
             self._validate_reclaim_step_binding(
                 plan, expected_trajectory=expected_trajectory,
@@ -3360,7 +3829,7 @@ class StorageBudget:
         if not bool(no_active_writers):
             raise StorageBudgetError("reclamation requires a quiescent coordinator")
         count = 0
-        with self._locked() as data:
+        with self._locked(operation_name="StorageBudget.apply_reclaim") as data:
             plan = self._load_plan(data, plan_id)
             self._validate_reclaim_step_binding(
                 plan, expected_trajectory=expected_trajectory,
@@ -3466,7 +3935,10 @@ class StorageBudget:
         expected_pulse: int | None = None, expected_attempt: int | None = None,
         expected_admission_hash: str | None = None,
     ) -> dict[str, Any]:
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.verify_reclaim",
+            campaign_root=self.root,
+        ):
             data = self._read()
             self._validate(data)
             plan = self._load_plan(data, plan_id)
@@ -3505,7 +3977,10 @@ class StorageBudget:
             return {"schema": GC_SCHEMA, "plan_id": str(plan_id), "status": status, "missing": missing, "deleted_bytes": int(plan.get("deleted_bytes", 0))}
 
     def budget_report(self) -> dict[str, Any]:
-        with _FileLock(self.lock_path):
+        with _FileLock(
+            self.lock_path, operation_name="StorageBudget.budget_report",
+            campaign_root=self.root,
+        ):
             data = self._read()
             self._validate(data)
             used = self.actual_bytes()
