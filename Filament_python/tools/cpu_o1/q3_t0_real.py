@@ -1534,6 +1534,7 @@ def _run_q3(args) -> dict:
             raise Q3Error("allocation B/I wiring gate failed")
         # Dynamic Linux regressions, including real tiny two-pulse/reload, run here only.
         pytest_basetemp = _q3_dynamic_test_basetemp(args.storage_root, root)
+        pytest_basetemp.parent.mkdir(parents=True, exist_ok=False)
         command = [str(args.expected_python),"-s","-B","-m","pytest","-p","no:cacheprovider","-q",
             str(Path(__file__).with_name("test_cpu_o1.py")), str(Path(__file__).with_name("test_q3_t0_real.py")),
             "-k","q1_ or q2_ or q3_ or bounded_comparator","--basetemp",str(pytest_basetemp)]

@@ -119,6 +119,7 @@ def test_q3_dynamic_storage_pytest_current_link_is_counted(tmp_path):
         storage_root.mkdir()
         output_root=workspace/'outputs'/'run-current-link'
         basetemp=q3._q3_dynamic_test_basetemp(storage_root,output_root)
+        basetemp.parent.mkdir(parents=True,exist_ok=False)
         generated_test=workspace/'test_generated_q3_tmp.py'
         generated_test.write_text(
             'def test_pytest_tmp_path_current(tmp_path):\n'
