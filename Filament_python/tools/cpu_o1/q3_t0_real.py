@@ -1497,6 +1497,12 @@ def _validate_caps(cap, files):
         raise Q3Error("Q3 storage cap must be within 16 GiB / 50000 files")
 
 
+def _q3_dynamic_test_basetemp(storage_root: Path, output_root: Path) -> Path:
+    """Keep pytest temporary files under the storage-accounted Q3 run scope."""
+    run_scope = hashlib.sha256(os.fsencode(str(Path(output_root).resolve()))).hexdigest()
+    return Path(storage_root).resolve() / "preflight" / f"q3_{run_scope}" / "pytest_tmp"
+
+
 def _run_q3(args) -> dict:
     from types import FunctionType
     from tools.cpu_o1 import q1_t0_real as q1
@@ -1527,9 +1533,10 @@ def _run_q3(args) -> dict:
         if result["wired_tiny"].get("status") != "WIRED_TINY_ONLY":
             raise Q3Error("allocation B/I wiring gate failed")
         # Dynamic Linux regressions, including real tiny two-pulse/reload, run here only.
+        pytest_basetemp = _q3_dynamic_test_basetemp(args.storage_root, root)
         command = [str(args.expected_python),"-s","-B","-m","pytest","-p","no:cacheprovider","-q",
             str(Path(__file__).with_name("test_cpu_o1.py")), str(Path(__file__).with_name("test_q3_t0_real.py")),
-            "-k","q1_ or q2_ or q3_ or bounded_comparator","--basetemp",str(root/"pytest_tmp")]
+            "-k","q1_ or q2_ or q3_ or bounded_comparator","--basetemp",str(pytest_basetemp)]
         with (root/"dynamic_tests.stdout.log").open("xb") as so, (root/"dynamic_tests.stderr.log").open("xb") as se:
             test = subprocess.run(command,cwd=args.bench_root,stdout=so,stderr=se,timeout=900)
         _write_new_json(root/"DYNAMIC_TESTS.json",{"command":command,"exit_code":test.returncode})

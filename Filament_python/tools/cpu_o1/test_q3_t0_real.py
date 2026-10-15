@@ -96,6 +96,70 @@ def test_q3_storage_cap_and_pre_submission_cli():
     with pytest.raises(SystemExit):q3.main([])
 
 
+def test_q3_dynamic_storage_basetemp_is_run_scoped(tmp_path):
+    storage_root=tmp_path/'storage'
+    output_a=tmp_path/'outputs'/'run-a'
+    output_b=tmp_path/'outputs'/'run-b'
+    basetemp=q3._q3_dynamic_test_basetemp(storage_root,output_a)
+
+    assert basetemp == storage_root.resolve()/'preflight'/basetemp.parent.name/'pytest_tmp'
+    assert basetemp.parent.name.startswith('q3_')
+    assert q3._q3_dynamic_test_basetemp(storage_root,output_a)==basetemp
+    assert q3._q3_dynamic_test_basetemp(storage_root,output_b)!=basetemp
+
+
+@pytest.mark.skipif(not sys.platform.startswith('linux'), reason='Linux pytest current symlink semantics')
+def test_q3_dynamic_storage_pytest_current_link_is_counted(tmp_path):
+    import tempfile
+    from tools.cpu_o1 import q1_t0_real as q1
+
+    with tempfile.TemporaryDirectory() as temporary:
+        workspace=Path(temporary)
+        storage_root=workspace/'storage'
+        storage_root.mkdir()
+        output_root=workspace/'outputs'/'run-current-link'
+        basetemp=q3._q3_dynamic_test_basetemp(storage_root,output_root)
+        generated_test=workspace/'test_generated_q3_tmp.py'
+        generated_test.write_text(
+            'def test_pytest_tmp_path_current(tmp_path):\n'
+            '    (tmp_path / "payload.bin").write_bytes(b"counted")\n',
+            encoding='utf-8')
+
+        completed=subprocess.run(
+            [sys.executable,'-s','-B','-m','pytest','-p','no:cacheprovider','-q',
+             str(generated_test),'--basetemp',str(basetemp)],
+            cwd=workspace,capture_output=True,text=True,timeout=60)
+        assert completed.returncode==0,completed.stdout+'\n'+completed.stderr
+        current_links=list(basetemp.glob('test_*current'))
+        assert len(current_links)==1 and current_links[0].is_symlink()
+
+        checked=q1._check_storage_growth(storage_root,growth_cap_bytes=1024**2,max_files=100)
+        assert str(current_links[0]) in checked['symlinks']
+
+
+@pytest.mark.skipif(not sys.platform.startswith('linux'), reason='Linux symlink semantics')
+@pytest.mark.parametrize('case',['invalid_name','non_sibling','external'])
+def test_q3_dynamic_storage_rejects_invalid_pytest_current_targets(tmp_path,case):
+    from tools.cpu_o1 import q1_t0_real as q1
+
+    storage_root=tmp_path/'storage'
+    output_root=tmp_path/'outputs'/'run-invalid-link'
+    basetemp=q3._q3_dynamic_test_basetemp(storage_root,output_root)
+    basetemp.mkdir(parents=True)
+    link=basetemp/'test_q3_rejectedcurrent'
+    if case=='invalid_name':
+        target=basetemp/'test_other0'
+    elif case=='non_sibling':
+        target=basetemp/'nested'/'test_q3_rejected0'
+    else:
+        target=tmp_path/'outside'/'test_q3_rejected0'
+    target.mkdir(parents=True)
+    os.symlink(os.path.relpath(target,basetemp),link)
+
+    with pytest.raises(RuntimeError,match='unexpected task-root symlink'):
+        q1._check_storage_growth(storage_root,growth_cap_bytes=1024**2,max_files=100)
+
+
 @pytest.mark.parametrize('branch',['B','I'])
 def test_q3_real_tiny_two_pulse_independent_reload(tmp_path,branch):
     from tools.cpu_p1r2 import cpu_p1r2_j1 as j1
