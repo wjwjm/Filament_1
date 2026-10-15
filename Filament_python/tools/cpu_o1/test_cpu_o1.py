@@ -2066,3 +2066,227 @@ def test_q1_endpoint_comparisons_write_distinct_bounded_mask_sidecars(tmp_path,m
     assert len(paths)==len(set(paths)) and all(p.is_file() for p in paths)
     with pytest.raises(FileExistsError):
         q1_t0._array_comparison_row("cannot_overwrite",np.zeros(2),np.zeros(2),scope="science",zero_mask_path=paths[0])
+
+
+def test_q2_case_plan_keeps_case_identity_separate_and_b2_reference(tmp_path):
+    from tools.cpu_o1 import q1_t0_real as real
+
+    plan = real._matrix_case_plan(True)
+    assert [(row["case_id"], row["implementation"]) for row in plan] == [
+        ("B1", "B"), ("I1", "I"), ("I2", "I"), ("B2", "B")]
+    assert [row["reference_case_ids"] for row in plan] == [
+        (), ("B1",), ("B1", "I1"), ("B1",)]
+    roots = {case_id: tmp_path / case_id for case_id in ("B1", "I1", "I2")}
+    assert real._case_reference_roots(plan[0], {}) == []
+    assert real._case_reference_roots(plan[1], roots) == [("B1", roots["B1"])]
+    assert real._case_reference_roots(plan[2], roots) == [
+        ("B1", roots["B1"]), ("I1", roots["I1"])]
+    b2_refs = real._case_reference_roots(plan[3], roots)
+    assert b2_refs == [("B1", roots["B1"])]
+    command = real._child_command(python=tmp_path / "python",
+        bench_root=tmp_path / "checkout", input_root=tmp_path / "inputs",
+        vendor_dir=tmp_path / "vendor", case_root=tmp_path / "B2",
+        identity="B", case_id="B2", expected_source_binding=tmp_path / "binding.json",
+        boundary_references=[("B1", roots["B1"] / "first_boundary")])
+    assert command[command.index("--identity") + 1] == "B"
+    assert command[command.index("--case-id") + 1] == "B2"
+    reference_index = command.index("--boundary-reference")
+    assert command[reference_index + 1:reference_index + 3] == [
+        "B1", str(roots["B1"] / "first_boundary")]
+    with pytest.raises(RuntimeError, match="has not completed"):
+        real._case_reference_roots(plan[3], {})
+
+
+def test_q2_endpoint_repeats_keep_implementation_and_reference_case_ids(tmp_path, monkeypatch):
+    import shutil
+    from tools.cpu_o1 import q1_t0_real as real
+
+    reference, candidate = _make_q1_comparison_fixture(tmp_path)
+    roots = {"B1": tmp_path / "B1", "I1": tmp_path / "I1",
+        "I2": tmp_path / "I2", "B2": tmp_path / "B2"}
+    shutil.copytree(reference, roots["B1"])
+    shutil.copytree(reference, roots["I1"])
+    shutil.copytree(candidate, roots["I2"])
+    shutil.copytree(candidate, roots["B2"])
+    monkeypatch.setattr(real, "_read_scalar_sidecar", lambda path: {})
+
+    i2_rows, i2_gate = real._stage_endpoint_comparison("I", roots["B1"], roots["I2"],
+        case_id="I2", comparison_roots=[("B1", roots["B1"]), ("I1", roots["I1"])])
+    assert i2_gate["proceed_to_next_identity"] is True
+    assert i2_gate["gate_scope"] == "Q2_COMPLETE_EIGHT_INTERVAL_ENDPOINT"
+    assert {(row["identity"], row["case_id"], row["reference_case_id"],
+        row["comparison_stage"]) for row in i2_rows} == {
+        ("I", "I2", "I2", "endpoint"),
+        ("I", "I2", "B1", "endpoint"),
+        ("I", "I2", "I1", "endpoint"),
+    }
+
+    b2_rows, b2_gate = real._stage_endpoint_comparison("B", roots["B1"], roots["B2"],
+        case_id="B2", comparison_roots=[("B1", roots["B1"])])
+    assert b2_gate["proceed_to_next_identity"] is True
+    assert {(row["identity"], row["case_id"], row["reference_case_id"])
+        for row in b2_rows} == {("B", "B2", "B2"), ("B", "B2", "B1")}
+
+
+def test_q2_uniform_service_excludes_first_boundary_cross_and_rejects_invalid_timing():
+    from tools.cpu_o1.q1_t0_real import _uniform_service_seconds
+
+    assert _uniform_service_seconds(20.0, 3.0, 1.0, 2.0) == 20.0
+    with pytest.raises(ValueError, match="nonpositive"):
+        _uniform_service_seconds(2.0, 3.0, 0.0, 0.0)
+    with pytest.raises(ValueError, match="finite nonnegative"):
+        _uniform_service_seconds(float("nan"), 0.0, 0.0, 0.0)
+
+
+def test_q2_matrix_gate_rebuilds_from_raw_metrics_and_fails_closed():
+    from tools.cpu_o1 import q1_t0_real as real
+
+    plan = real._matrix_case_plan(True)
+    cases = [{"case_id": row["case_id"], "identity": row["implementation"],
+        "status": "DONE", "comparison_reference_case_ids": list(row["reference_case_ids"]),
+        "required_comparison_stages": ["first_boundary", "endpoint"]} for row in plan]
+    exact_metrics = {"reference_shape": [1], "candidate_shape": [1],
+        "reference_dtype": "float64", "candidate_dtype": "float64",
+        "dtype_equal": True, "canonical_exact": True, "bitwise_equal": True,
+        "value_equal": True, "all_finite": True}
+    raw_rows = []
+    for row in plan:
+        refs = (row["case_id"], *row["reference_case_ids"])
+        for stage in ("first_boundary", "endpoint"):
+            for reference_id in refs:
+                raw_rows.append({"schema": "filament.cpu_q1.raw_comparison.v1",
+                    "record_type": "exact_comparison", "identity": row["implementation"],
+                    "case_id": row["case_id"], "reference_case_id": reference_id,
+                    "comparison_stage": stage, "field_name": "E",
+                    "scope": "science", "metrics": dict(exact_metrics)})
+    comparison_contracts = []
+    for row in plan:
+        refs = (row["case_id"], *row["reference_case_ids"])
+        for stage in ("first_boundary", "endpoint"):
+            for reference_id in refs:
+                comparison_contracts.append({
+                    "schema": real.COMPARISON_FIELD_CONTRACT_SCHEMA,
+                    "case_id": row["case_id"],
+                    "comparison_stage": stage,
+                    "reference_case_id": reference_id,
+                    "expected_fields": [
+                        {"field_name": "E", "scope": "science"},
+                        {"field_name": "Qacc", "scope": "science"}],
+                })
+                raw_rows.append({"schema": "filament.cpu_q1.raw_comparison.v1",
+                    "record_type": "exact_comparison", "identity": row["implementation"],
+                    "case_id": row["case_id"], "reference_case_id": reference_id,
+                    "comparison_stage": stage, "field_name": "Qacc",
+                    "scope": "science", "metrics": dict(exact_metrics)})
+    gate = real.build_matrix_gate_from_raw_cases(cases, [r["case_id"] for r in plan],
+        raw_rows, linux_environment_eligible=True, resource_budget_respected=True,
+        matrix_status="Q2_TEST", gate_scope="TEST_ONLY",
+        comparison_contracts=comparison_contracts, require_field_contracts=True)
+    assert gate["proceed_to_next_identity"] is True
+    assert gate["raw_comparison_row_count"] == len(raw_rows)
+    assert gate["required_comparison_stages_valid"] is True
+    assert gate["raw_comparison_field_contracts_complete"] is True
+
+    malformed = [dict(row) for row in raw_rows]
+    malformed[0].pop("metrics")
+    failed = real.build_matrix_gate_from_raw_cases(cases, [r["case_id"] for r in plan],
+        malformed, linux_environment_eligible=True, resource_budget_respected=True,
+        matrix_status="Q2_TEST", gate_scope="TEST_ONLY",
+        comparison_contracts=comparison_contracts, require_field_contracts=True)
+    assert failed["classification"] == "TOOL_FAILURE"
+    assert failed["proceed_to_next_identity"] is False
+
+    incomplete = [dict(row) for row in cases]
+    incomplete[-1]["status"] = "SKIPPED"
+    failed = real.build_matrix_gate_from_raw_cases(incomplete,
+        [r["case_id"] for r in plan], raw_rows,
+        linux_environment_eligible=True, resource_budget_respected=True,
+        matrix_status="Q2_PARTIAL_MATRIX", gate_scope="TEST_ONLY",
+        comparison_contracts=comparison_contracts, require_field_contracts=True)
+    assert failed["identity_status"] == "IDENTITY_FAIL"
+    assert failed["proceed_to_next_identity"] is False
+
+    missing_reference = [row for row in raw_rows if not (
+        row["case_id"] == "I2" and row["comparison_stage"] == "endpoint"
+        and row["reference_case_id"] == "I1")]
+    failed = real.build_matrix_gate_from_raw_cases(cases,
+        [r["case_id"] for r in plan], missing_reference,
+        linux_environment_eligible=True, resource_budget_respected=True,
+        matrix_status="Q2_TEST", gate_scope="TEST_ONLY",
+        comparison_contracts=comparison_contracts, require_field_contracts=True)
+    assert failed["required_comparison_stages_valid"] is False
+    assert failed["proceed_to_next_identity"] is False
+
+    # The reference group remains present, but one expected field is absent.
+    missing_field = [dict(row) for row in raw_rows if not (
+        row["case_id"] == "I2" and row["comparison_stage"] == "endpoint"
+        and row["reference_case_id"] == "I1" and row["field_name"] == "Qacc")]
+    failed = real.build_matrix_gate_from_raw_cases(cases,
+        [r["case_id"] for r in plan], missing_field,
+        linux_environment_eligible=True, resource_budget_respected=True,
+        matrix_status="Q2_TEST", gate_scope="TEST_ONLY",
+        comparison_contracts=comparison_contracts, require_field_contracts=True)
+    assert failed["required_comparison_stages_valid"] is True
+    assert failed["comparison_field_contracts_valid"] is False
+    assert failed["proceed_to_next_identity"] is False
+
+    duplicated = [dict(row) for row in raw_rows]
+    duplicated.append(dict(next(row for row in raw_rows if row["case_id"] == "I2"
+        and row["comparison_stage"] == "endpoint" and row["reference_case_id"] == "I1")))
+    failed = real.build_matrix_gate_from_raw_cases(cases,
+        [r["case_id"] for r in plan], duplicated,
+        linux_environment_eligible=True, resource_budget_respected=True,
+        matrix_status="Q2_TEST", gate_scope="TEST_ONLY",
+        comparison_contracts=comparison_contracts, require_field_contracts=True)
+    assert failed["comparison_field_contracts_valid"] is False
+    assert failed["proceed_to_next_identity"] is False
+
+    unknown_field = [dict(row) for row in raw_rows]
+    unknown_field[0]["field_name"] = "uncontracted_field"
+    failed = real.build_matrix_gate_from_raw_cases(cases,
+        [r["case_id"] for r in plan], unknown_field,
+        linux_environment_eligible=True, resource_budget_respected=True,
+        matrix_status="Q2_TEST", gate_scope="TEST_ONLY",
+        comparison_contracts=comparison_contracts, require_field_contracts=True)
+    assert failed["comparison_field_contracts_valid"] is False
+    assert failed["proceed_to_next_identity"] is False
+
+
+def test_q2_q3_recommendation_uses_strict_repeat_and_five_percent_gates():
+    from tools.cpu_o1.q1_t0_real import _q2_performance_recommendation
+
+    def cases(i1, i2):
+        return [{"case_id": case_id, "status": "DONE",
+            "service_seconds_uniform_boundary_estimate": seconds}
+            for case_id, seconds in (("B1", 100.0), ("I1", i1),
+                ("I2", i2), ("B2", 100.0))]
+
+    supported = _q2_performance_recommendation(cases(95.0, 95.0),
+        exact_matrix_gate=True)
+    assert supported["status"] == "Q2_SUPPORTS_Q3_PROPOSAL"
+    assert supported["median_improvement_fraction"] >= 0.05
+    assert supported["max_I_strictly_less_than_min_B"] is True
+    unstable = _q2_performance_recommendation(cases(95.0, 105.0),
+        exact_matrix_gate=True)
+    assert unstable["status"] == "Q2_NO_STABLE_GAIN"
+    insufficient = _q2_performance_recommendation(cases(90.0, 90.0),
+        exact_matrix_gate=False)
+    assert insufficient["status"] == "Q2_NOT_ENOUGH_COMPLETE_EXACT_CASES"
+
+
+def test_q2_candidate_event_jsonl_is_strict_and_non_overwriting(tmp_path):
+    from tools.cpu_o1.q1_t0_real import _persist_candidate_events
+
+    path = tmp_path / "candidate_events.jsonl"
+    result = _persist_candidate_events(path, case_id="I2", implementation="I",
+        events=[{"kind": "ionization", "kernel_seconds": 1.25}], json_safe=lambda value: value)
+    assert result["status"] == "WRITTEN"
+    row = json.loads(path.read_text(encoding="utf-8"))
+    assert row["case_id"] == "I2" and row["implementation"] == "I"
+    assert row["event_index"] == 0 and row["event"]["kind"] == "ionization"
+    assert json.loads(json.dumps(row, allow_nan=False)) == row
+    before = path.read_bytes()
+    repeated = _persist_candidate_events(path, case_id="I2", implementation="I",
+        events=[], json_safe=lambda value: value)
+    assert repeated["status"] == "ALREADY_EXISTS"
+    assert path.read_bytes() == before

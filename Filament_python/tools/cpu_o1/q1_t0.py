@@ -154,7 +154,10 @@ def _compare_window_outputs(reference_dir: Path, candidate_dir: Path,
                             identity: str, *, comparison_path: Path | None = None,
                             scalar_reference: dict | None = None,
                             scalar_candidate: dict | None = None,
-                            rows_sink: list[dict] | None = None) -> list[dict]:
+                            rows_sink: list[dict] | None = None,
+                            case_id: str | None = None,
+                            reference_case_id: str | None = None,
+                            comparison_stage: str | None = None) -> list[dict]:
     """Compare outputs and persist each raw bounded metric before gate use."""
     import numpy as np
     from tools.cpu_p1r2 import cpu_p1r2_j1 as j1
@@ -168,6 +171,12 @@ def _compare_window_outputs(reference_dir: Path, candidate_dir: Path,
             record = {"schema": "filament.cpu_q1.raw_comparison.v1",
                       "record_type": "array_comparison", "identity": identity,
                       **row}
+            if case_id is not None:
+                record["case_id"] = case_id
+            if reference_case_id is not None:
+                record["reference_case_id"] = reference_case_id
+            if comparison_stage is not None:
+                record["comparison_stage"] = comparison_stage
             _write_jsonl_record(stream, record)
             rows.append(record)
             if rows_sink is not None:
@@ -252,6 +261,11 @@ def _compare_window_outputs(reference_dir: Path, candidate_dir: Path,
                 "record_type": "comparison_error", "identity": identity,
                 "error_type": type(exc).__name__, "error": str(exc),
                 "rows_written": len(rows),
+                **({"case_id": case_id} if case_id is not None else {}),
+                **({"reference_case_id": reference_case_id}
+                   if reference_case_id is not None else {}),
+                **({"comparison_stage": comparison_stage}
+                   if comparison_stage is not None else {}),
             })
             raise
         finally:
@@ -318,8 +332,10 @@ def _scalar_capture_factory(factory, capture: dict):
 
 
 def run_linux_tiny_science_gate(output_root: str | os.PathLike, *,
-                                bench_root: str | os.PathLike | None = None) -> dict:
-    """Run B/I/R/IR on an isolated one-thread tiny fixture and write a gate."""
+                                bench_root: str | os.PathLike | None = None,
+                                identity_set: str = "all",
+                                identities: tuple[str, ...] | None = None) -> dict:
+    """Run the requested identities on an isolated one-thread tiny fixture."""
     import numpy as np
     import threadpoolctl
     import numba
@@ -328,6 +344,19 @@ def run_linux_tiny_science_gate(output_root: str | os.PathLike, *,
     from tools.cpu_p1r2 import cpu_p1r2_j1 as j1
     from tools.cpu_o1 import linux_q1_preflight
     from tools.cpu_o1.cpu_o1 import _load_numba_kernels
+
+    if identity_set not in {"all", "q2-bi"}:
+        raise ValueError("identity_set must be 'all' or 'q2-bi'")
+    if identities is None:
+        requested_identities = IDENTITIES if identity_set == "all" else ("B", "I")
+    else:
+        requested_identities = tuple(str(value) for value in identities)
+        if (not requested_identities
+                or len(requested_identities) != len(set(requested_identities))
+                or any(value not in IDENTITIES for value in requested_identities)):
+            raise ValueError("identities must be a nonempty unique subset of B/I/R/IR")
+    requested_identity_set = (identity_set if identities is None else
+        ("q2-bi" if requested_identities == ("B", "I") else "explicit"))
 
     root = Path(output_root).resolve()
     if root.exists():
@@ -342,7 +371,6 @@ def run_linux_tiny_science_gate(output_root: str | os.PathLike, *,
         "linux_environment": bool(environment.get("eligible")),
         "source_binding": False,
         "fixed_single_thread_policy": False,
-        "all_four_identities_exercised": False,
     }
     rows: list[dict] = []
     per_identity = []
@@ -368,7 +396,7 @@ def run_linux_tiny_science_gate(output_root: str | os.PathLike, *,
         baseline_pre_hash = None
         baseline_scalar_values = None
         schedule_identity = None
-        for identity in IDENTITIES:
+        for identity in requested_identities:
             stage = root / identity
             stage.mkdir(exist_ok=False)
             context = j1._tiny_context()
@@ -447,7 +475,8 @@ def run_linux_tiny_science_gate(output_root: str | os.PathLike, *,
                     comparison_path=stage / "comparison.jsonl",
                     scalar_reference=baseline_scalar_values,
                     scalar_candidate=scalar_capture["values"],
-                    rows_sink=rows,
+                    rows_sink=rows, case_id=identity,
+                    reference_case_id="B",
                 )
             current_gate = build_numeric_gate(
                 identity_checks={
@@ -469,15 +498,24 @@ def run_linux_tiny_science_gate(output_root: str | os.PathLike, *,
             if not current_gate["proceed_to_next_identity"]:
                 break
 
-        identity_checks["all_four_identities_exercised"] = (
-            len(per_identity) == len(IDENTITIES)
+        all_four_identities_exercised = (
+            len(requested_identities) == len(IDENTITIES)
+            and requested_identities == IDENTITIES
+            and len(per_identity) == len(IDENTITIES)
             and all(row.get("proceed_to_next_identity") for row in per_identity))
+        identity_checks["all_requested_identities_exercised"] = (
+            len(per_identity) == len(requested_identities)
+            and all(row.get("proceed_to_next_identity") for row in per_identity))
+        if requested_identities == IDENTITIES:
+            identity_checks["all_four_identities_exercised"] = all_four_identities_exercised
         final_gate = build_numeric_gate(
             identity_checks=identity_checks,
             linux_environment_eligible=bool(environment.get("eligible")),
             comparisons=rows)
         final_gate.update({"schema": "filament.cpu_q1.numeric_gate.v1",
             "gate_scope": "LINUX_SINGLE_THREAD_SYNTHETIC_TINY_ONLY",
+            "identity_set": requested_identity_set,
+            "requested_identities": list(requested_identities),
             "identities_completed": [row["identity"] for row in per_identity],
             "identity_gates": per_identity,
             "environment_receipt": "linux_environment.json",
@@ -487,6 +525,8 @@ def run_linux_tiny_science_gate(output_root: str | os.PathLike, *,
             "elapsed_seconds": time.perf_counter() - started,
             "real_input_used": False,
             "production_qualification": "NOT_PRODUCTION_QUALIFIED"})
+        if requested_identities == IDENTITIES:
+            final_gate["all_four_identities_exercised"] = all_four_identities_exercised
     except BaseException as exc:
         error = f"{type(exc).__name__}: {exc}"
         final_gate = build_numeric_gate(
@@ -494,6 +534,8 @@ def run_linux_tiny_science_gate(output_root: str | os.PathLike, *,
             linux_environment_eligible=bool(environment.get("eligible")),
             comparisons=rows, tool_error=error)
         final_gate.update({"gate_scope": "LINUX_SINGLE_THREAD_SYNTHETIC_TINY_ONLY",
+            "identity_set": requested_identity_set,
+            "requested_identities": list(requested_identities),
             "identities_completed": [row["identity"] for row in per_identity],
             "identity_gates": per_identity,
             "environment_receipt": "linux_environment.json",
@@ -511,6 +553,10 @@ def _parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--linux-tiny-gate", action="store_true",
                         help="run the single-thread Linux synthetic science gate")
+    parser.add_argument("--identity-set", choices=("all", "q2-bi"), default="all",
+                        help="select all legacy identities or only Q2 B/I")
+    parser.add_argument("--identities", nargs="+", choices=IDENTITIES,
+                        help="explicit tiny-gate identity subset")
     parser.add_argument("--bench-root", type=Path,
                         help="checkout containing Filament_python; defaults to this module's repository")
     parser.add_argument("--output-root", type=Path, required=True,
@@ -522,8 +568,12 @@ def main(argv=None) -> int:
     args = _parser().parse_args(argv)
     if not args.linux_tiny_gate:
         raise SystemExit("select --linux-tiny-gate")
+    if args.identities is not None and args.identity_set != "all":
+        raise SystemExit("use either --identities or --identity-set, not both")
     try:
-        receipt = run_linux_tiny_science_gate(args.output_root, bench_root=args.bench_root)
+        receipt = run_linux_tiny_science_gate(args.output_root,
+            bench_root=args.bench_root, identity_set=args.identity_set,
+            identities=tuple(args.identities) if args.identities is not None else None)
         return 0 if receipt.get("proceed_to_next_identity") else 1
     except BaseException as exc:
         root = Path(args.output_root).resolve()

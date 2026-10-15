@@ -21,6 +21,20 @@ from types import FunctionType
 
 IDENTITIES = ("B", "I", "R", "IR")
 SCHEMA = "filament.cpu_q1.real8.v1"
+Q2_CASE_PLAN = (
+    {"case_id": "B1", "implementation": "B", "reference_case_ids": ()},
+    {"case_id": "I1", "implementation": "I", "reference_case_ids": ("B1",)},
+    {"case_id": "I2", "implementation": "I", "reference_case_ids": ("B1", "I1")},
+    {"case_id": "B2", "implementation": "B", "reference_case_ids": ("B1",)},
+)
+Q1_CASE_PLAN = tuple({"case_id": identity, "implementation": identity,
+    "reference_case_ids": (() if identity == "B" else ("B",))}
+    for identity in IDENTITIES)
+Q2_STORAGE_CAP_BYTES = 8 * 1024**3
+COMPARISON_FIELD_CONTRACT_SCHEMA = "filament.cpu_q2.comparison_field_contract.v1"
+Q2_STORAGE_BUDGET_BASIS = (
+    "Q1 four-case measured footprint 5469248500 bytes plus approximately 1 GiB "
+    "reserve, multiplied by 1.2 and rounded up to 8 GiB")
 ALLOCATION_SECONDS = 7200.0
 WINDOW_SECONDS = 2700.0
 FIRST_INTERVAL_SECONDS = 900.0
@@ -173,6 +187,85 @@ def _validate_storage_caps(storage_cap_bytes: int, max_files: int) -> None:
         raise ValueError("storage caps must be within 11 GiB and 50000 files")
 
 
+def _matrix_case_plan(q2: bool) -> tuple[dict, ...]:
+    """Return a fresh, serializable ordered case plan for Q1 or Q2."""
+    source = Q2_CASE_PLAN if q2 else Q1_CASE_PLAN
+    return tuple({"case_id": str(row["case_id"]),
+        "implementation": str(row["implementation"]),
+        "reference_case_ids": tuple(row["reference_case_ids"])} for row in source)
+
+
+def _case_reference_roots(case_spec: dict, completed_roots: dict[str, Path]) -> list[tuple[str, Path]]:
+    """Resolve explicit comparison references by case ID, never implementation ID."""
+    references = []
+    for reference_case_id in case_spec["reference_case_ids"]:
+        reference_root = completed_roots.get(reference_case_id)
+        if reference_root is None:
+            raise RuntimeError(f"comparison reference case has not completed: {reference_case_id}")
+        references.append((str(reference_case_id), Path(reference_root)))
+    return references
+
+
+def _q2_performance_recommendation(cases: list[dict], *, exact_matrix_gate: bool) -> dict:
+    """Apply only the preregistered Q2 engineering screen; never a science tolerance."""
+    import math
+    import statistics
+
+    required = ["B1", "I1", "I2", "B2"]
+    completed = [row.get("case_id") for row in cases if row.get("status") == "DONE"]
+    service = {row.get("case_id"): row.get("service_seconds_uniform_boundary_estimate")
+        for row in cases if row.get("status") == "DONE"}
+    output = {"status": "Q2_NOT_ENOUGH_COMPLETE_EXACT_CASES",
+        "completed_case_ids": completed,
+        "thresholds": {"max_I_strictly_less_than_min_B": True,
+            "median_improvement_fraction_minimum": 0.05,
+            "is_engineering_threshold_not_scientific_tolerance": True}}
+    if completed != required or not exact_matrix_gate:
+        return output
+    values = {case_id: service.get(case_id) for case_id in required}
+    if any(isinstance(value, bool) or not isinstance(value, (int, float))
+            or not math.isfinite(float(value)) or float(value) <= 0
+            for value in values.values()):
+        output["status"] = "Q2_NO_STABLE_GAIN_INVALID_SERVICE_TIMING"
+        return output
+    b_values = [float(values["B1"]), float(values["B2"])]
+    i_values = [float(values["I1"]), float(values["I2"])]
+    b_median, i_median = statistics.median(b_values), statistics.median(i_values)
+    improvement = 1.0 - i_median / b_median
+    separated = max(i_values) < min(b_values)
+    output.update({"case_service_seconds_uniform_boundary": values,
+        "B_median_seconds": b_median, "I_median_seconds": i_median,
+        "B_range_seconds": max(b_values) - min(b_values),
+        "I_range_seconds": max(i_values) - min(i_values),
+        "median_improvement_fraction": improvement,
+        "max_I_strictly_less_than_min_B": separated,
+        "paired_improvement_fractions": {
+            "B1_to_I1": (float(values["B1"]) - float(values["I1"])) / float(values["B1"]),
+            "B2_to_I2": (float(values["B2"]) - float(values["I2"])) / float(values["B2"]),
+        }})
+    output["status"] = ("Q2_SUPPORTS_Q3_PROPOSAL"
+        if separated and improvement >= 0.05 else "Q2_NO_STABLE_GAIN")
+    return output
+
+
+def _uniform_service_seconds(child_wall: float, first_boundary_cross: float,
+                             own_validation: float, endpoint_self_validation: float) -> float:
+    """Return comparable service time, rejecting impossible or invalid clocks."""
+    import math
+
+    values = (child_wall, first_boundary_cross, own_validation,
+              endpoint_self_validation)
+    if any(isinstance(value, bool) or not isinstance(value, (int, float))
+            or not math.isfinite(float(value)) or float(value) < 0
+            for value in values):
+        raise ValueError("service timing fields must be finite nonnegative numbers")
+    uniform = (float(child_wall) - float(first_boundary_cross)
+        + float(own_validation) + float(endpoint_self_validation))
+    if not math.isfinite(uniform) or uniform <= 0:
+        raise ValueError("uniform service time is nonpositive after first-boundary comparison exclusion")
+    return uniform
+
+
 def _child_environment(bench_root: Path, expected_python: Path) -> dict[str, str]:
     env = os.environ.copy()
     env["PYTHONPATH"] = str((bench_root / "Filament_python").resolve()) + (
@@ -190,8 +283,9 @@ def _child_environment(bench_root: Path, expected_python: Path) -> dict[str, str
 
 def _child_command(*, python: Path, bench_root: Path, input_root: Path,
                    vendor_dir: Path, case_root: Path, identity: str,
-                   expected_source_binding: Path,
-                   baseline_boundary_root: Path | None) -> list[str]:
+                   expected_source_binding: Path, case_id: str | None = None,
+                   boundary_references: list[tuple[str, Path]] | None = None,
+                   baseline_boundary_root: Path | None = None) -> list[str]:
     command = [str(python), "-s", "-B", "-m", "tools.cpu_o1.q1_t0_real", "--child",
         "--bench-root", str(bench_root), "--input-root", str(input_root),
         "--vendor-dir", str(vendor_dir), "--case-root", str(case_root),
@@ -199,6 +293,10 @@ def _child_command(*, python: Path, bench_root: Path, input_root: Path,
         str(expected_source_binding), "--expected-python", str(python)]
     if baseline_boundary_root is not None:
         command.extend(("--baseline-boundary-root", str(baseline_boundary_root)))
+    if case_id is not None:
+        command.extend(("--case-id", case_id))
+    for reference_case_id, reference_root in boundary_references or ():
+        command.extend(("--boundary-reference", reference_case_id, str(reference_root)))
     return command
 
 
@@ -460,10 +558,18 @@ def _first_boundary_snapshot(frame, *, identity: str, case_root: Path,
 
 
 def _first_boundary_rows(reference_root: Path, candidate_root: Path,
-                         identity: str, output_path: Path) -> list[dict]:
+                         identity: str, output_path: Path, *,
+                         case_id: str | None = None,
+                         reference_case_id: str | None = None) -> list[dict]:
     import numpy as np
     from tools.cpu_o1 import q1_t0
 
+    case_id = case_id or identity
+    reference_case_id = reference_case_id or case_id
+    contract_fields = _first_boundary_comparison_fields(reference_root, candidate_root)
+    _write_comparison_field_contract(output_path, case_id=case_id,
+        implementation=identity, reference_case_id=reference_case_id,
+        comparison_stage="first_boundary", expected_fields=contract_fields)
     rows = []
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("x", encoding="utf-8", newline="\n") as stream:
@@ -471,6 +577,10 @@ def _first_boundary_rows(reference_root: Path, candidate_root: Path,
             record = {"schema": "filament.cpu_q1.raw_comparison.v1",
                 "record_type": "array_comparison", "identity": identity,
                 "comparison_stage": "first_boundary", "scope": row.get("scope", "science"), **row}
+            if case_id is not None:
+                record["case_id"] = case_id
+            if reference_case_id is not None:
+                record["reference_case_id"] = reference_case_id
             _append_jsonl_stream(stream, record)
             rows.append(record)
 
@@ -528,20 +638,120 @@ def _first_boundary_rows(reference_root: Path, candidate_root: Path,
                     scope = "timing" if name in {
                         "raman_operator_walltime_step_s", "linear_walltime_step_s",
                         "ionization_walltime_step_s", "total_walltime_step_s"} else "diagnostics"
-                    emit(compare(
-                        name, np.asarray(left_scalars[name]),
-                        np.asarray(right_scalars[name]), scope=scope))
+                    row = compare(name, np.asarray(left_scalars[name]),
+                        np.asarray(right_scalars[name]), scope=scope)
+                    row["diagnostic_source"] = "first_boundary_scalar_diagnostic"
+                    emit(row)
         except BaseException as exc:
             _append_jsonl_stream(stream, {
                 "schema": "filament.cpu_q1.raw_comparison.v1",
                 "record_type": "comparison_error", "identity": identity,
                 "error_type": type(exc).__name__, "error": str(exc),
-                "rows_written": len(rows)})
+                "rows_written": len(rows),
+                **({"case_id": case_id} if case_id is not None else {}),
+                **({"reference_case_id": reference_case_id}
+                   if reference_case_id is not None else {})})
             raise
         finally:
             stream.flush()
             os.fsync(stream.fileno())
     return rows
+
+
+def _npz_field_names(path: Path) -> list[str]:
+    import numpy as np
+
+    with np.load(path, allow_pickle=False) as archive:
+        return sorted(str(name) for name in archive.files)
+
+
+def _field_contract_entry(field_name: str, scope: str,
+                          diagnostic_source: str | None = None) -> dict:
+    row = {"field_name": field_name, "scope": scope}
+    if diagnostic_source is not None:
+        row["diagnostic_source"] = diagnostic_source
+    return row
+
+
+def _write_comparison_field_contract(output_path: Path, *, case_id: str,
+        implementation: str, reference_case_id: str, comparison_stage: str,
+        expected_fields: list[dict]) -> None:
+    keys = [(row.get("field_name"), row.get("scope"), row.get("diagnostic_source"))
+            for row in expected_fields]
+    if (not expected_fields or len(keys) != len(set(keys))
+            or any(not isinstance(row.get("field_name"), str)
+                   or not row["field_name"]
+                   or row.get("scope") not in {"science", "diagnostics", "timing"}
+                   for row in expected_fields)):
+        raise RuntimeError("generated comparison field contract is empty, duplicated, or malformed")
+    _write_new_json(output_path.with_name(output_path.name + ".contract.json"), {
+        "schema": COMPARISON_FIELD_CONTRACT_SCHEMA,
+        "case_id": case_id, "implementation": implementation,
+        "reference_case_id": reference_case_id,
+        "comparison_stage": comparison_stage,
+        "expected_fields": expected_fields,
+        "generation_source": "precomparison artifact inventory and scalar sidecar fields",
+    })
+
+
+def _archive_contract_fields(reference_path: Path, candidate_path: Path, *,
+        prefix: str, mismatch_field: str, mismatch_scope: str,
+        field_scope) -> list[dict]:
+    left = _npz_field_names(reference_path)
+    right = _npz_field_names(candidate_path)
+    if left != right:
+        return [_field_contract_entry(mismatch_field, mismatch_scope)]
+    return [_field_contract_entry(prefix + name, field_scope(name)) for name in left]
+
+
+def _first_boundary_comparison_fields(reference_root: Path,
+                                      candidate_root: Path) -> list[dict]:
+    from tools.cpu_p1r2 import cpu_p1r2_j1 as j1
+
+    fields = [_field_contract_entry("first_boundary." + name, "science")
+        for name in ("E", "Qacc", "Qacc_raman")]
+    fields += _archive_contract_fields(reference_root / "POST.npz",
+        candidate_root / "POST.npz", prefix="first_boundary.POST.",
+        mismatch_field="first_boundary.POST_fields", mismatch_scope="science",
+        field_scope=lambda _name: "science")
+    timing = set(j1.TIMING_DIAGNOSTIC_FIELDS)
+    fields += _archive_contract_fields(reference_root / "diagnostics.npz",
+        candidate_root / "diagnostics.npz", prefix="",
+        mismatch_field="first_boundary.diagnostic_arrays", mismatch_scope="diagnostics",
+        field_scope=lambda name: "timing" if name in timing else "diagnostics")
+    left_scalars = _read_scalar_sidecar(reference_root / "scalar_diagnostics.json")
+    right_scalars = _read_scalar_sidecar(candidate_root / "scalar_diagnostics.json")
+    if set(left_scalars) != set(right_scalars):
+        fields.append(_field_contract_entry("first_boundary.scalar_fields", "diagnostics"))
+    else:
+        fields.extend(_field_contract_entry(name,
+            "timing" if name in timing else "diagnostics",
+            "first_boundary_scalar_diagnostic") for name in sorted(left_scalars))
+    return fields
+
+
+def _endpoint_comparison_fields(reference_root: Path, candidate_root: Path,
+        reference_scalars: dict, candidate_scalars: dict) -> list[dict]:
+    from tools.cpu_p1r2 import cpu_p1r2_j1 as j1
+
+    fields = [_field_contract_entry("final_E", "science"),
+        _field_contract_entry("public_return_Qacc", "science")]
+    fields += _archive_contract_fields(reference_root / "propagation" / "final_POST.npz",
+        candidate_root / "propagation" / "final_POST.npz", prefix="final_POST.",
+        mismatch_field="final_POST_fields", mismatch_scope="science",
+        field_scope=lambda _name: "science")
+    timing = set(j1.TIMING_DIAGNOSTIC_FIELDS)
+    fields += _archive_contract_fields(reference_root / "propagation" / "diagnostics.npz",
+        candidate_root / "propagation" / "diagnostics.npz", prefix="",
+        mismatch_field="diagnostic_fields", mismatch_scope="diagnostics",
+        field_scope=lambda name: "timing" if name in timing else "diagnostics")
+    if set(reference_scalars) != set(candidate_scalars):
+        fields.append(_field_contract_entry("python_scalar_diagnostic_fields", "diagnostics"))
+    else:
+        fields.extend(_field_contract_entry(name,
+            "timing" if name in timing else "diagnostics",
+            "private_propagator_return_diag_scalar") for name in sorted(reference_scalars))
+    return fields
 
 
 def _append_jsonl_stream(stream, value: dict) -> None:
@@ -564,37 +774,72 @@ def _missing_array_metrics(left, right) -> dict:
 
 
 def _compare_first_boundary(identity: str, candidate_root: Path,
-                            baseline_root: Path | None) -> dict:
+                            comparison_roots: list[tuple[str, Path]] | Path | None, *,
+                            case_id: str | None = None) -> dict:
     from tools.cpu_o1.numeric_gate import build_numeric_gate, write_numeric_gate
+    if comparison_roots is None:
+        comparison_roots = []
+    elif isinstance(comparison_roots, (str, os.PathLike)):
+        comparison_roots = [("B", Path(comparison_roots))]
+    else:
+        comparison_roots = list(comparison_roots)
     snapshot = json.loads((candidate_root / "snapshot.json").read_text())
-    if identity != "B" and baseline_root is None:
+    if identity != "B" and not comparison_roots:
         raise RuntimeError("candidate lacks B reference")
-    reference = (snapshot if identity == "B" else
-        json.loads((baseline_root / "snapshot.json").read_text()))
+    if identity == "B" and case_id == "B2" and not comparison_roots:
+        raise RuntimeError("repeated baseline case lacks its B1 reference")
+    reference_root = comparison_roots[0][1] if comparison_roots else candidate_root
+    reference = json.loads((reference_root / "snapshot.json").read_text())
     checks = {"first_boundary_observed": snapshot.get("interval_index") == 0,
         "complete_E_POST_diagnostics_snapshot": bool(snapshot.get("complete_E_POST_diagnostics_snapshot")
             and reference.get("complete_E_POST_diagnostics_snapshot"))}
     started = time.perf_counter()
-    rows = _first_boundary_rows(candidate_root, candidate_root, identity, candidate_root / "self_check.jsonl")
+    effective_case_id = case_id or identity
+    rows = _first_boundary_rows(candidate_root, candidate_root, identity,
+        candidate_root / "self_check.jsonl", case_id=effective_case_id,
+        reference_case_id=effective_case_id)
     self_seconds = time.perf_counter()-started
     own_gate = build_numeric_gate(identity_checks=checks, linux_environment_eligible=True, comparisons=rows)
     cross_seconds = 0.0
-    if identity != "B" and own_gate["proceed_to_next_identity"]:
+    reference_timings = {}
+    for reference_case_id, reference_path in comparison_roots:
+        if not own_gate["proceed_to_next_identity"]:
+            break
         started = time.perf_counter()
-        rows += _first_boundary_rows(baseline_root, candidate_root, identity, candidate_root / "comparison.jsonl")
-        cross_seconds = time.perf_counter()-started
+        if effective_case_id == identity and reference_case_id == "B":
+            comparison_path = candidate_root / "comparison.jsonl"
+        elif not reference_timings:
+            comparison_path = candidate_root / f"comparison_to_{reference_case_id}.jsonl"
+        else:
+            comparison_path = candidate_root / f"comparison_to_{reference_case_id}.jsonl"
+        rows += _first_boundary_rows(reference_path, candidate_root, identity,
+            comparison_path, case_id=effective_case_id,
+            reference_case_id=reference_case_id)
+        elapsed = time.perf_counter()-started
+        cross_seconds += elapsed
+        reference_timings[reference_case_id] = elapsed
+        own_gate = build_numeric_gate(identity_checks=checks,
+            linux_environment_eligible=True, comparisons=rows)
     gate = build_numeric_gate(identity_checks=checks, linux_environment_eligible=True, comparisons=rows)
-    gate.update(identity=identity, gate_scope="REAL_FIRST_ACCEPTED_INTERVAL", comparison_rows=len(rows),
+    gate.update(identity=identity, case_id=effective_case_id,
+        gate_scope="REAL_FIRST_ACCEPTED_INTERVAL", comparison_rows=len(rows),
         self_validation_seconds=self_seconds, cross_identity_comparison_seconds=cross_seconds,
+        cross_identity_comparison_seconds_by_reference=reference_timings,
         production_qualification="NOT_PRODUCTION_QUALIFIED")
     write_numeric_gate(candidate_root / "NUMERIC_GATE.json", gate)
     return gate
 
 
 def _observer_class(j1, *, identity: str, case_root: Path,
-                    baseline_root: Path | None,
-                    diagnostic_contract: dict[str, str]):
+                    diagnostic_contract: dict[str, str], case_id: str | None = None,
+                    comparison_boundary_roots: list[tuple[str, Path]] | None = None,
+                    baseline_root: Path | None = None):
     from tools.cpu_p1 import cpu_p1_fft as common
+
+    case_id = case_id or identity
+    comparison_boundary_roots = list(comparison_boundary_roots or ())
+    if baseline_root is not None and not comparison_boundary_roots:
+        comparison_boundary_roots = [("B", Path(baseline_root))]
 
     class Q1Observer(j1.ScalarBoundaryObserver):
         last_instance = None
@@ -603,7 +848,8 @@ def _observer_class(j1, *, identity: str, case_root: Path,
             super().__init__(code, progress_path, b0_limit=float("inf"))
             self.case_root = case_root
             self.identity = identity
-            self.baseline_root = baseline_root
+            self.case_id = case_id
+            self.comparison_boundary_roots = list(comparison_boundary_roots)
             self.q1_first_boundary = None
             self.q1_first_gate = None
             type(self).last_instance = self
@@ -641,7 +887,8 @@ def _observer_class(j1, *, identity: str, case_root: Path,
             _write_new_json(Path(snapshot["root"]) / "snapshot.json", snapshot)
             gate_started = time.perf_counter()
             gate = _compare_first_boundary(self.identity,
-                Path(snapshot["root"]), self.baseline_root)
+                Path(snapshot["root"]), self.comparison_boundary_roots,
+                case_id=self.case_id)
             comparison_seconds = time.perf_counter() - gate_started
             snapshot["cross_identity_comparison_seconds"] = gate["cross_identity_comparison_seconds"]
             snapshot["self_validation_seconds"] = gate["self_validation_seconds"]
@@ -683,11 +930,43 @@ def _check_expected_python(expected_python: Path) -> dict:
             "version": sys.version.split()[0], "match": True}
 
 
+def _persist_candidate_events(path: Path, *, case_id: str, implementation: str,
+                              events: list[dict], json_safe) -> dict:
+    """Persist every in-memory candidate timing event as strict JSONL once."""
+    if path.exists():
+        return {"status": "ALREADY_EXISTS", "path": path.name,
+                "event_count": len(events)}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("x", encoding="utf-8", newline="\n") as stream:
+            for index, event in enumerate(events):
+                record = json_safe({"schema": "filament.cpu_q2.candidate_event.v1",
+                    "record_type": "candidate_event", "case_id": case_id,
+                    "implementation": implementation, "event_index": index,
+                    "event": event})
+                payload = json.dumps(record, ensure_ascii=False, sort_keys=True,
+                    allow_nan=False, separators=(",", ":")) + "\n"
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+        return {"status": "WRITTEN", "path": path.name,
+                "event_count": len(events), "strict_json": True}
+    except BaseException as exc:
+        return {"status": "WRITE_FAILED", "path": path.name,
+                "event_count_written_unknown": True,
+                "error": f"{type(exc).__name__}: {exc}"}
+
+
 def _child_main(args) -> int:
     case_root = args.case_root.resolve()
     started = time.perf_counter()
     capture = {}
     observer = None
+    case_id = getattr(args, "case_id", None) or args.identity
+    if (not isinstance(case_id, str) or not case_id or len(case_id) > 64
+            or not case_id[0].isalpha()
+            or any(not (ch.isalnum() or ch in "-_") for ch in case_id)):
+        raise ValueError("case_id must be a short alphanumeric identifier")
     try:
         if args.identity not in IDENTITIES:
             raise ValueError(f"unknown Q1 identity: {args.identity}")
@@ -746,12 +1025,19 @@ def _child_main(args) -> int:
             fromlist=["pre0_fields_from_delta_n"]).pre0_fields_from_delta_n(
                 context["assets"]["pre0"], expected_count=8)
 
-        baseline_root = (args.baseline_boundary_root.resolve(strict=True)
-                         if args.baseline_boundary_root is not None else None)
+        comparison_boundary_roots = []
+        if args.baseline_boundary_root is not None:
+            comparison_boundary_roots.append(("B", args.baseline_boundary_root.resolve(strict=True)))
+        for reference_case_id, reference_root in getattr(args, "boundary_reference", None) or ():
+            resolved_reference = Path(reference_root).resolve(strict=True)
+            if any(reference_case_id == existing_id for existing_id, _ in comparison_boundary_roots):
+                raise ValueError(f"duplicate boundary reference case_id: {reference_case_id}")
+            comparison_boundary_roots.append((reference_case_id, resolved_reference))
         diagnostic_contract = _frozen_diag_list_contract(
             Path(propagate_module.__file__).resolve(strict=True))
         observer_type = _observer_class(j1, identity=args.identity,
-            case_root=case_root, baseline_root=baseline_root,
+            case_id=case_id, case_root=case_root,
+            comparison_boundary_roots=comparison_boundary_roots,
             diagnostic_contract=diagnostic_contract)
         private_window = _private_run_window(j1, observer_type)
         factory = make_joint_propagator_factory(args.identity,
@@ -767,7 +1053,8 @@ def _child_main(args) -> int:
             output_dir=case_root / "propagation",
             source_label="sealed_pre0_first_8", initial_pre0=True,
             profile=False, source_hash=source_hash, pre0_hash=pre0_hash,
-            stage_name=f"Q1_REAL_{args.identity}", execution_scope="J1_REAL_INPUT",
+            stage_name=(f"Q2_REPEAT_{case_id}" if case_id != args.identity
+                        else f"Q1_REAL_{args.identity}"), execution_scope="J1_REAL_INPUT",
             observe=True, propagator_factory=scalar_capture)
         child_window_seconds = time.perf_counter() - window_started
         observer = observer_type.last_instance
@@ -787,6 +1074,13 @@ def _child_main(args) -> int:
             spatial_workers=EXPECTED_FFT_WORKERS["spatial"])
         candidate_events = list(getattr(factory.last_propagator,
             "_cpu_o1_candidate_events", ()))
+        candidate_event_receipt = _persist_candidate_events(
+            case_root / "candidate_events.jsonl", case_id=case_id,
+            implementation=args.identity, events=candidate_events,
+            json_safe=j1._json_safe)
+        if candidate_event_receipt["status"] not in {"WRITTEN"}:
+            raise RuntimeError("candidate event stream was not durably written: "
+                + json.dumps(candidate_event_receipt, sort_keys=True, allow_nan=False))
         thread_evidence = (_candidate_thread_evidence(candidate_events,
             expected_threads=EXPECTED_KERNEL_THREADS) if args.identity in {"I","R","IR"} else [])
         candidate_thread_counts = sorted({row["threads"] for row in thread_evidence})
@@ -838,13 +1132,15 @@ def _child_main(args) -> int:
         }
         q1_receipt = {"schema": SCHEMA, "status": "COMPLETE_DIAGNOSTIC",
             "production_qualification": "NOT_PRODUCTION_QUALIFIED",
-            "identity": args.identity, "source_binding": actual_binding,
+            "identity": args.identity, "implementation": args.identity,
+            "case_id": case_id, "source_binding": actual_binding,
             "source_canonical_sha256": source_hash,
             "pre0_canonical_sha256": pre0_hash,
             "fresh_source_loaded": True, "dispatch": dispatch,
             "schedule": j1._json_safe(context["schedule"].as_metadata()),
             "actual_numba_layer": actual_layer,
             "actual_candidate_thread_evidence": thread_evidence,
+            "candidate_events": candidate_event_receipt,
             "numba_threads_configured": int(numba.get_num_threads()),
             "native_threadpools": threadpoolctl.threadpool_info(),
             "first_boundary_receipt": observer.q1_first_boundary,
@@ -863,12 +1159,24 @@ def _child_main(args) -> int:
             observer_type = locals().get("observer_type")
             observer = getattr(observer_type, "last_instance", None)
         receipt = {"schema": SCHEMA, "status": "BLOCKED_CONTROLLED_STOP",
-            "identity": args.identity, "reason": str(exc),
+            "identity": args.identity, "implementation": args.identity,
+            "case_id": case_id, "reason": str(exc),
             "production_qualification": "NOT_PRODUCTION_QUALIFIED",
             "first_boundary_receipt": getattr(observer, "q1_first_boundary", None),
             "first_boundary_gate": getattr(observer, "q1_first_gate", None),
             "elapsed_wall_seconds": time.perf_counter() - started,
             "traceback": traceback.format_exc()}
+        try:
+            factory_state = locals().get("factory")
+            events_state = list(getattr(getattr(factory_state, "last_propagator", None),
+                "_cpu_o1_candidate_events", ()))
+            converter = getattr(locals().get("j1"), "_json_safe", lambda value: value)
+            receipt["candidate_events"] = _persist_candidate_events(
+                case_root / "candidate_events.jsonl", case_id=case_id,
+                implementation=args.identity, events=events_state, json_safe=converter)
+        except BaseException as event_exc:
+            receipt["candidate_events"] = {"status": "WRITE_FAILED",
+                "error": f"{type(event_exc).__name__}: {event_exc}"}
         try:
             _write_new_json(case_root / "child_partial_receipt.json", receipt)
         except FileExistsError:
@@ -880,12 +1188,25 @@ def _child_main(args) -> int:
             observer = getattr(observer_type, "last_instance", None)
         receipt = {"schema": SCHEMA, "status": "FAIL",
             "identity": getattr(args, "identity", None),
+            "implementation": getattr(args, "identity", None), "case_id": case_id,
             "error": f"{type(exc).__name__}: {exc}",
             "elapsed_wall_seconds": time.perf_counter() - started,
             "first_boundary_receipt": getattr(observer, "q1_first_boundary", None),
             "first_boundary_gate": getattr(observer, "q1_first_gate", None),
             "traceback": traceback.format_exc(),
             "production_qualification": "NOT_PRODUCTION_QUALIFIED"}
+        try:
+            factory_state = locals().get("factory")
+            events_state = list(getattr(getattr(factory_state, "last_propagator", None),
+                "_cpu_o1_candidate_events", ()))
+            converter = getattr(locals().get("j1"), "_json_safe", lambda value: value)
+            receipt["candidate_events"] = _persist_candidate_events(
+                case_root / "candidate_events.jsonl", case_id=case_id,
+                implementation=str(receipt["implementation"]), events=events_state,
+                json_safe=converter)
+        except BaseException as event_exc:
+            receipt["candidate_events"] = {"status": "WRITE_FAILED",
+                "error": f"{type(event_exc).__name__}: {event_exc}"}
         try:
             _write_new_json(case_root / "child_failure.json", receipt)
         except FileExistsError:
@@ -910,9 +1231,197 @@ def _read_jsonl_comparisons(path: Path) -> list[dict]:
         value = json.loads(line)
         if value.get("record_type") == "comparison_error":
             raise RuntimeError(f"comparison JSONL contains a tool error at line {line_number}")
-        if value.get("record_type") == "array_comparison":
+        if value.get("record_type") in {"array_comparison", "exact_comparison"}:
             rows.append(value)
     return rows
+
+
+def load_matrix_comparison_rows(output_root: Path,
+                                cases: list[dict]) -> list[dict]:
+    """Load only persisted raw comparison JSONL rows from completed case roots."""
+    root = Path(output_root).resolve(strict=True)
+    rows = []
+    for case in cases:
+        case_id = case.get("case_id") or case.get("identity")
+        if (not isinstance(case_id, str) or not case_id
+                or not case_id.isascii()
+                or any(not (char.isalnum() or char in "-_") for char in case_id)):
+            raise ValueError("matrix case lacks case_id/identity")
+        case_root = (root / "identities" / case_id).resolve(strict=False)
+        try:
+            case_root.relative_to(root)
+        except ValueError as exc:
+            raise ValueError("matrix case root escaped the output root") from exc
+        if not case_root.exists():
+            continue
+        case_root = case_root.resolve(strict=True)
+        if not _resolved_under(case_root, root):
+            raise ValueError("matrix case root escaped the output root")
+        first_root = case_root / "first_boundary"
+        paths = []
+        if first_root.is_dir():
+            paths.extend(sorted(first_root.glob("self_check.jsonl")))
+            paths.extend(sorted(first_root.glob("comparison*.jsonl")))
+        paths.extend(sorted(case_root.glob("endpoint_self_check.jsonl")))
+        paths.extend(sorted(case_root.glob("endpoint_comparison*.jsonl")))
+        for path in paths:
+            rows.extend(_read_jsonl_comparisons(path))
+    return rows
+
+
+def load_matrix_comparison_contracts(output_root: Path) -> list[dict]:
+    """Load comparison field inventories written before their raw JSONL rows."""
+    root = Path(output_root).resolve(strict=True)
+    identities_root = root / "identities"
+    if not identities_root.is_dir():
+        return []
+    contracts = []
+    for case_root in sorted(identities_root.iterdir()):
+        if case_root.is_symlink() or not case_root.is_dir():
+            continue
+        paths = list(case_root.glob("*.contract.json"))
+        first_root = case_root / "first_boundary"
+        if first_root.is_dir():
+            paths.extend(first_root.glob("*.contract.json"))
+        for path in sorted(paths):
+            if path.is_symlink() or not _resolved_under(path, root):
+                raise ValueError("comparison contract path escaped or linked outside output root")
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(value, dict):
+                raise ValueError("comparison field contract must be a JSON object")
+            contracts.append(value)
+    return contracts
+
+
+def build_matrix_gate_from_raw_cases(
+        cases: list[dict], expected_case_ids: list[str], raw_rows: list[dict], *,
+        linux_environment_eligible: bool, resource_budget_respected: bool,
+        matrix_status: str, gate_scope: str,
+        comparison_contracts: list[dict] | None = None,
+        require_field_contracts: bool = False) -> dict:
+    """Build the final matrix gate from raw metrics, never classified summaries."""
+    from tools.cpu_o1.numeric_gate import build_numeric_gate
+
+    expected = [str(value) for value in expected_case_ids]
+    case_ids = [case.get("case_id") or case.get("identity") for case in cases]
+    completed = [case_id for case_id, case in zip(case_ids, cases)
+                 if case.get("status") == "DONE"]
+    unique_case_ids = (len(case_ids) == len(set(case_ids))
+        and all(isinstance(value, str) and value for value in case_ids))
+    rows_by_case = {case_id: 0 for case_id in expected}
+    stage_refs: dict[str, dict[str, set[str]]] = {}
+    raw_field_counts: dict[tuple[str, str, str], dict[tuple[str, str, str | None], int]] = {}
+    malformed_raw_record = None
+    for row in raw_rows:
+        if (not isinstance(row, dict)
+                or row.get("record_type", "array_comparison") not in {
+                    "array_comparison", "exact_comparison"}):
+            malformed_raw_record = "matrix input contains a non-raw comparison record"
+            continue
+        case_id = row.get("case_id") or row.get("identity")
+        if case_id in rows_by_case:
+            rows_by_case[case_id] += 1
+        stage = row.get("comparison_stage")
+        reference_case_id = row.get("reference_case_id")
+        if isinstance(case_id, str) and isinstance(stage, str) and isinstance(reference_case_id, str):
+            stage_refs.setdefault(case_id, {}).setdefault(stage, set()).add(reference_case_id)
+            field_key = (row.get("field_name"), row.get("scope", "science"),
+                         row.get("diagnostic_source"))
+            group = (case_id, stage, reference_case_id)
+            group_counts = raw_field_counts.setdefault(group, {})
+            group_counts[field_key] = group_counts.get(field_key, 0) + 1
+
+    stage_contract_ok = True
+    for case in cases:
+        case_id = case.get("case_id") or case.get("identity")
+        required_stages = case.get("required_comparison_stages")
+        if not required_stages:
+            continue
+        expected_refs = {case_id, *case.get("comparison_reference_case_ids", [])}
+        observed = stage_refs.get(case_id, {})
+        for stage in required_stages:
+            if not expected_refs.issubset(observed.get(stage, set())):
+                stage_contract_ok = False
+
+    all_expected_completed = (unique_case_ids and completed == expected
+        and case_ids == expected)
+    raw_rows_complete = (len(raw_rows) > 0
+        and set(rows_by_case) == set(expected)
+        and all(rows_by_case[case_id] > 0 for case_id in expected)
+        and stage_contract_ok)
+    field_contracts_valid = True
+    contract_count = 0
+    if require_field_contracts:
+        contracts_by_group = {}
+        malformed_contract = False
+        for contract in comparison_contracts or ():
+            if (not isinstance(contract, dict)
+                    or contract.get("schema") != COMPARISON_FIELD_CONTRACT_SCHEMA):
+                malformed_contract = True
+                continue
+            group = (contract.get("case_id"), contract.get("comparison_stage"),
+                     contract.get("reference_case_id"))
+            if group in contracts_by_group:
+                malformed_contract = True
+                continue
+            expected_fields = contract.get("expected_fields")
+            if not isinstance(expected_fields, list) or not expected_fields:
+                malformed_contract = True
+                continue
+            counts = {}
+            for field in expected_fields:
+                if (not isinstance(field, dict)
+                        or not isinstance(field.get("field_name"), str)
+                        or not field["field_name"]
+                        or field.get("scope") not in {"science", "diagnostics", "timing"}
+                        or (field.get("diagnostic_source") is not None
+                            and not isinstance(field.get("diagnostic_source"), str))):
+                    malformed_contract = True
+                    continue
+                key = (field["field_name"], field["scope"], field.get("diagnostic_source"))
+                counts[key] = counts.get(key, 0) + 1
+            if any(count != 1 for count in counts.values()):
+                malformed_contract = True
+            contracts_by_group[group] = counts
+        expected_groups = set()
+        for case in cases:
+            case_id = case.get("case_id") or case.get("identity")
+            reference_ids = {case_id, *case.get("comparison_reference_case_ids", [])}
+            for stage in case.get("required_comparison_stages", []):
+                for reference_id in reference_ids:
+                    expected_groups.add((case_id, stage, reference_id))
+        contract_count = len(contracts_by_group)
+        if set(contracts_by_group) != expected_groups:
+            malformed_contract = True
+        if set(raw_field_counts) != expected_groups:
+            field_contracts_valid = False
+        for group in expected_groups:
+            if contracts_by_group.get(group) != raw_field_counts.get(group):
+                field_contracts_valid = False
+        field_contracts_valid = field_contracts_valid and not malformed_contract
+    checks = {
+        "all_expected_cases_completed_in_order": all_expected_completed,
+        "unique_case_ids": unique_case_ids,
+        "raw_case_comparisons_present": raw_rows_complete,
+        "raw_comparison_field_contracts_complete": field_contracts_valid,
+        "linux_environment_eligible": bool(linux_environment_eligible),
+        "resource_budget_respected": bool(resource_budget_respected),
+    }
+    gate = build_numeric_gate(identity_checks=checks,
+        linux_environment_eligible=bool(linux_environment_eligible),
+        comparisons=raw_rows,
+        tool_error=malformed_raw_record)
+    gate.update({"gate_scope": gate_scope, "matrix_status": matrix_status,
+        "expected_case_ids": expected, "case_ids": case_ids,
+        "completed_case_ids": completed, "raw_comparison_row_count": len(raw_rows),
+        "raw_comparison_rows_by_case": rows_by_case,
+        "raw_comparison_field_contracts_complete": field_contracts_valid,
+        "comparison_field_contracts_required": bool(require_field_contracts),
+        "comparison_field_contracts_valid": field_contracts_valid,
+        "comparison_field_contract_count": contract_count,
+        "required_comparison_stages_valid": stage_contract_ok,
+        "production_qualification": "NOT_PRODUCTION_QUALIFIED"})
+    return gate
 
 
 def _allocation_environment() -> dict:
@@ -1021,8 +1530,8 @@ def _candidate_thread_evidence(events: list[dict], *, expected_threads: int) -> 
     return evidence
 
 
-def _run_wired_tiny(output_root: Path) -> dict:
-    """Prove actual 48/24 FFT dispatch and 24-thread IR wiring in allocation."""
+def _run_wired_tiny(output_root: Path, identities: tuple[str, ...] = ("IR",)) -> dict:
+    """Prove fixed FFT dispatch and selected candidate wiring on a tiny fixture."""
     import numpy as np
     import numba
     import threadpoolctl
@@ -1030,56 +1539,91 @@ def _run_wired_tiny(output_root: Path) -> dict:
     from tools.cpu_o1.cpu_o1 import make_joint_propagator_factory
     from tools.cpu_o1 import q1_t0
 
+    identities = tuple(identities)
+    if (not identities or len(identities) != len(set(identities))
+            or any(identity not in IDENTITIES for identity in identities)):
+        raise ValueError("wired-tiny identities must be a nonempty unique subset of B/I/R/IR")
     tiny_root = output_root / "wired_tiny"
     tiny_root.mkdir(exist_ok=False)
-    context = j1._tiny_context()
-    capture = {}
-    factory = make_joint_propagator_factory("IR",
-        kernel_threads=EXPECTED_KERNEL_THREADS,
-        block_pixels=EXPECTED_BLOCK_PIXELS, layout=EXPECTED_LAYOUT,
-        temporal_workers=EXPECTED_FFT_WORKERS["temporal"],
-        spatial_workers=EXPECTED_FFT_WORKERS["spatial"])
-    wrapped_factory = q1_t0._scalar_capture_factory(factory, capture)
     numba.set_num_threads(EXPECTED_KERNEL_THREADS)
     limits = threadpoolctl.threadpool_limits(limits=1)
-    receipt = j1._run_window(**{key: context[key] for key in (
-            "source", "pre_fields", "grid", "beam", "prop", "ion", "heat",
-            "raman", "schedule")},
-        output_dir=tiny_root / "propagation", source_label="synthetic_tiny_PRE0",
-        initial_pre0=True, profile=False, source_hash=j1._canonical_hash(context["source"]),
-        pre0_hash=j1._canonical_hash(context["pre_fields"]["delta_n"]),
-        stage_name="Q1_ALLOCATION_WIRED_TINY", execution_scope="SOFTWARE_SMOKE_ONLY",
-        observe=False, propagator_factory=wrapped_factory)
-    if any(key not in capture for key in ("qacc", "payload", "values")):
-        raise RuntimeError("allocation wired-tiny did not return Qacc/scalar diagnostics")
-    dispatch = q1_t0._check_identity_dispatch("IR", factory,
-        kernel_threads=EXPECTED_KERNEL_THREADS,
-        temporal_workers=EXPECTED_FFT_WORKERS["temporal"],
-        spatial_workers=EXPECTED_FFT_WORKERS["spatial"])
-    events = list(getattr(factory.last_propagator, "_cpu_o1_candidate_events", ()))
-    thread_evidence = _candidate_thread_evidence(events, expected_threads=EXPECTED_KERNEL_THREADS)
-    actual_threads = sorted({row["threads"] for row in thread_evidence})
-    if actual_threads != [EXPECTED_KERNEL_THREADS]:
-        raise RuntimeError(f"allocation wired-tiny candidate worker count differs: {actual_threads}")
-    if str(numba.threading_layer()) != "workqueue" or int(numba.get_num_threads()) != EXPECTED_KERNEL_THREADS:
-        raise RuntimeError("allocation wired-tiny did not initialize workqueue at 24 threads")
-    if any(int(row.get("num_threads", 1)) > 1 for row in threadpoolctl.threadpool_info()):
-        raise RuntimeError("allocation wired-tiny exceeded the one-thread native pool limit")
-    q1_t0._write_new_array(tiny_root / "scientific_Qacc.npy", capture["qacc"])
-    q1_t0._write_scalar_diagnostics(
-        tiny_root / "scientific_scalar_diagnostics.json", "IR", capture["payload"])
-    output = {"schema": SCHEMA, "status": "WIRED_TINY_ONLY",
-        "identity": "IR", "production_qualification": "NOT_PRODUCTION_QUALIFIED",
-        "synthetic_input_only": True,
-        "dispatch": dispatch, "candidate_thread_counts": actual_threads,
-        "actual_candidate_thread_evidence": thread_evidence,
-        "numba_layer": str(numba.threading_layer()),
-        "numba_threads": int(numba.get_num_threads()),
-        "native_threadpools": threadpoolctl.threadpool_info(),
-        "propagation_receipt": receipt}
-    _write_new_json(tiny_root / "wired_tiny_receipt.json", output)
-    del limits
-    return output
+    cases = []
+    try:
+        for identity in identities:
+            stage_root = tiny_root if len(identities) == 1 else tiny_root / identity
+            if len(identities) > 1:
+                stage_root.mkdir(exist_ok=False)
+            context = j1._tiny_context()
+            capture = {}
+            factory = make_joint_propagator_factory(identity,
+                kernel_threads=EXPECTED_KERNEL_THREADS,
+                block_pixels=EXPECTED_BLOCK_PIXELS, layout=EXPECTED_LAYOUT,
+                temporal_workers=EXPECTED_FFT_WORKERS["temporal"],
+                spatial_workers=EXPECTED_FFT_WORKERS["spatial"])
+            wrapped_factory = q1_t0._scalar_capture_factory(factory, capture)
+            receipt = j1._run_window(**{key: context[key] for key in (
+                    "source", "pre_fields", "grid", "beam", "prop", "ion", "heat",
+                    "raman", "schedule")},
+                output_dir=stage_root / "propagation", source_label="synthetic_tiny_PRE0",
+                initial_pre0=True, profile=False, source_hash=j1._canonical_hash(context["source"]),
+                pre0_hash=j1._canonical_hash(context["pre_fields"]["delta_n"]),
+                stage_name=f"Q1_ALLOCATION_WIRED_TINY_{identity}",
+                execution_scope="SOFTWARE_SMOKE_ONLY", observe=False,
+                propagator_factory=wrapped_factory)
+            if any(key not in capture for key in ("qacc", "payload", "values")):
+                raise RuntimeError(f"allocation wired-tiny {identity} did not return Qacc/scalar diagnostics")
+            dispatch = q1_t0._check_identity_dispatch(identity, factory,
+                kernel_threads=EXPECTED_KERNEL_THREADS,
+                temporal_workers=EXPECTED_FFT_WORKERS["temporal"],
+                spatial_workers=EXPECTED_FFT_WORKERS["spatial"])
+            events = list(getattr(factory.last_propagator, "_cpu_o1_candidate_events", ()))
+            thread_evidence = (_candidate_thread_evidence(events,
+                expected_threads=EXPECTED_KERNEL_THREADS) if identity != "B" else [])
+            actual_threads = sorted({row["threads"] for row in thread_evidence})
+            if identity != "B" and actual_threads != [EXPECTED_KERNEL_THREADS]:
+                raise RuntimeError(f"allocation wired-tiny {identity} worker count differs: {actual_threads}")
+            layer = "NOT_USED_BY_BASELINE" if identity == "B" else str(numba.threading_layer())
+            if identity != "B" and layer != "workqueue":
+                raise RuntimeError(f"allocation wired-tiny did not initialize workqueue: {layer}")
+            if int(numba.get_num_threads()) != EXPECTED_KERNEL_THREADS:
+                raise RuntimeError("allocation wired-tiny Numba thread count differs from fixed contract")
+            native_pools = threadpoolctl.threadpool_info()
+            if any(int(row.get("num_threads", 1)) > 1 for row in native_pools):
+                raise RuntimeError("allocation wired-tiny exceeded the one-thread native pool limit")
+            q1_t0._write_new_array(stage_root / "scientific_Qacc.npy", capture["qacc"])
+            q1_t0._write_scalar_diagnostics(
+                stage_root / "scientific_scalar_diagnostics.json", identity, capture["payload"])
+            case = {"identity": identity, "status": "WIRED_TINY_ONLY",
+                "dispatch": dispatch, "candidate_thread_counts": actual_threads,
+                "actual_candidate_thread_evidence": thread_evidence,
+                "numba_layer": layer, "numba_threads": int(numba.get_num_threads()),
+                "native_threadpools": native_pools, "propagation_receipt": receipt}
+            cases.append(case)
+            if len(identities) > 1:
+                _write_new_json(stage_root / "wired_tiny_receipt.json", {
+                    "schema": SCHEMA, **case,
+                    "production_qualification": "NOT_PRODUCTION_QUALIFIED",
+                    "synthetic_input_only": True})
+        output = {"schema": SCHEMA, "status": "WIRED_TINY_ONLY",
+            "identities": list(identities), "cases": cases,
+            "production_qualification": "NOT_PRODUCTION_QUALIFIED",
+            "synthetic_input_only": True,
+            "dispatch": (cases[0]["dispatch"] if len(cases) == 1 else
+                         {case["identity"]: case["dispatch"] for case in cases}),
+            "candidate_thread_counts": sorted({count for case in cases
+                for count in case["candidate_thread_counts"]}),
+            "actual_candidate_thread_evidence": [row for case in cases
+                for row in case["actual_candidate_thread_evidence"]],
+            "numba_layer": "workqueue" if any(case["numba_layer"] == "workqueue"
+                for case in cases) else "NOT_USED_BY_BASELINE",
+            "numba_threads": int(numba.get_num_threads()),
+            "native_threadpools": threadpoolctl.threadpool_info()}
+        if len(cases) == 1:
+            output.update(cases[0])
+        _write_new_json(tiny_root / "wired_tiny_receipt.json", output)
+        return output
+    finally:
+        del limits
 
 
 def _supervise_child(command: list[str], *, case_root: Path, cwd: Path,
@@ -1307,43 +1851,80 @@ def _coordinator_preflight(args) -> dict:
         "held_native_thread_limit": native_limit}
 
 
-def _stage_endpoint_comparison(identity: str, baseline_root: Path,
-                               case_root: Path) -> tuple[list[dict], dict]:
+def _stage_endpoint_comparison(identity: str, baseline_root: Path | None,
+                               case_root: Path, *, case_id: str | None = None,
+                               comparison_roots: list[tuple[str, Path]] | None = None
+                               ) -> tuple[list[dict], dict]:
     from tools.cpu_o1 import q1_t0
     from tools.cpu_o1.numeric_gate import build_numeric_gate, write_numeric_gate
     candidate_scalar = _read_scalar_sidecar(case_root / "scientific_scalar_diagnostics.json")
-    rows=[];self_seconds=0.0;cross_seconds=0.0
+    effective_case_id = case_id or identity
+    if comparison_roots is None:
+        comparison_roots = ([ ("B", baseline_root) ]
+            if identity != "B" and baseline_root is not None else [])
+    rows=[];self_seconds=0.0;cross_seconds=0.0;reference_timings={}
     try:
         started=time.perf_counter()
+        self_path = case_root / "endpoint_self_check.jsonl"
+        _write_comparison_field_contract(self_path, case_id=effective_case_id,
+            implementation=identity, reference_case_id=effective_case_id,
+            comparison_stage="endpoint",
+            expected_fields=_endpoint_comparison_fields(case_root, case_root,
+                candidate_scalar, candidate_scalar))
         rows=q1_t0._compare_window_outputs(case_root, case_root, identity,
-            comparison_path=case_root / "endpoint_self_check.jsonl",
-            scalar_reference=candidate_scalar,scalar_candidate=candidate_scalar)
+            comparison_path=self_path,
+            scalar_reference=candidate_scalar,scalar_candidate=candidate_scalar,
+            case_id=effective_case_id,reference_case_id=effective_case_id,
+            comparison_stage="endpoint")
         self_seconds=time.perf_counter()-started
         gate=build_numeric_gate(identity_checks={"endpoint_files_validated":True},
             linux_environment_eligible=True,comparisons=rows)
-        if identity != "B" and gate["proceed_to_next_identity"]:
-            baseline_scalar=_read_scalar_sidecar(baseline_root / "scientific_scalar_diagnostics.json")
+        for reference_case_id, reference_root in comparison_roots:
+            if not gate["proceed_to_next_identity"]:
+                break
+            baseline_scalar=_read_scalar_sidecar(reference_root / "scientific_scalar_diagnostics.json")
+            if effective_case_id == identity and reference_case_id == "B":
+                comparison_path=case_root / "endpoint_comparison.jsonl"
+            else:
+                comparison_path=case_root / f"endpoint_comparison_to_{reference_case_id}.jsonl"
+            _write_comparison_field_contract(comparison_path,
+                case_id=effective_case_id, implementation=identity,
+                reference_case_id=reference_case_id, comparison_stage="endpoint",
+                expected_fields=_endpoint_comparison_fields(reference_root, case_root,
+                    baseline_scalar, candidate_scalar))
             started=time.perf_counter()
-            rows+=q1_t0._compare_window_outputs(baseline_root,case_root,identity,
-                comparison_path=case_root / "endpoint_comparison.jsonl",
-                scalar_reference=baseline_scalar,scalar_candidate=candidate_scalar)
-            cross_seconds=time.perf_counter()-started
+            rows+=q1_t0._compare_window_outputs(reference_root,case_root,identity,
+                comparison_path=comparison_path,
+                scalar_reference=baseline_scalar,scalar_candidate=candidate_scalar,
+                case_id=effective_case_id,reference_case_id=reference_case_id,
+                comparison_stage="endpoint")
+            elapsed=time.perf_counter()-started
+            cross_seconds+=elapsed
+            reference_timings[reference_case_id]=elapsed
             gate=build_numeric_gate(identity_checks={"endpoint_files_validated":True},
                 linux_environment_eligible=True,comparisons=rows)
     except BaseException as exc:
         gate=build_numeric_gate(identity_checks={"endpoint_files_validated":False},
             linux_environment_eligible=True,tool_error=type(exc).__name__+": "+str(exc))
-    gate.update(identity=identity,gate_scope="COMPLETE_EIGHT_INTERVAL_ENDPOINT",comparison_rows=len(rows),
+    gate.update(identity=identity,case_id=effective_case_id,
+        gate_scope=("Q2_COMPLETE_EIGHT_INTERVAL_ENDPOINT"
+                    if case_id in {"B1", "I1", "I2", "B2"}
+                    else "COMPLETE_EIGHT_INTERVAL_ENDPOINT"),comparison_rows=len(rows),
         self_validation_seconds=self_seconds,cross_identity_comparison_seconds=cross_seconds,
+        cross_identity_comparison_seconds_by_reference=reference_timings,
         production_qualification="NOT_PRODUCTION_QUALIFIED")
     write_numeric_gate(case_root / "NUMERIC_GATE_endpoint.json",gate)
     return rows,gate
 
 
 def _check_stage_identity(identity: str, case_root: Path,
-                          baseline_receipt: dict | None) -> dict:
+                          baseline_receipt: dict | None, *,
+                          case_id: str | None = None) -> dict:
     q1_receipt = json.loads((case_root / "q1_child_receipt.json").read_text(encoding="utf-8"))
-    if q1_receipt.get("identity") != identity or q1_receipt.get("status") != "COMPLETE_DIAGNOSTIC":
+    if (q1_receipt.get("identity") != identity
+            or q1_receipt.get("implementation", identity) != identity
+            or q1_receipt.get("case_id", identity) != (case_id or identity)
+            or q1_receipt.get("status") != "COMPLETE_DIAGNOSTIC"):
         raise RuntimeError("Q1 child receipt does not identify the complete requested case")
     current = q1_receipt["propagation_receipt"]
     if (not q1_receipt.get("schedule") or current.get("execution_scope") != "J1_REAL_INPUT"
@@ -1368,6 +1949,9 @@ def _run_coordinator(args) -> dict:
     from tools.cpu_p1r import cpu_p1r_optical as p1r
     from tools.cpu_o1 import q1_t0
 
+    q2 = bool(getattr(args, "q2", False))
+    case_plan = _matrix_case_plan(q2)
+    expected_case_ids = [row["case_id"] for row in case_plan]
     allocation_started = time.monotonic()
     output_root = args.output_root.resolve(strict=False)
     storage_root = args.storage_root.resolve(strict=True)
@@ -1375,15 +1959,21 @@ def _run_coordinator(args) -> dict:
     output_root.mkdir(parents=True, exist_ok=False)
     storage_initial_bytes = int(preflight["storage_initial"]["bytes"])
     coordinator_receipt = {"schema": SCHEMA,
-        "status": "Q1_RUNNING", "identity_order": list(IDENTITIES),
+        "status": "Q2_RUNNING" if q2 else "Q1_RUNNING",
+        "identity_order": [row["implementation"] for row in case_plan],
+        "case_order": expected_case_ids,
+        "case_plan": [{**row, "reference_case_ids": list(row["reference_case_ids"])}
+                       for row in case_plan],
         "production_qualification": "NOT_PRODUCTION_QUALIFIED",
-        "task_classification": "CPU_Q1_DIAGNOSTIC_ONLY",
+        "task_classification": "CPU_Q2_DIAGNOSTIC_ONLY" if q2 else "CPU_Q1_DIAGNOSTIC_ONLY",
         "allocation_started_monotonic": allocation_started,
         "allocation_budget_seconds": ALLOCATION_SECONDS,
         "reserve_seconds": RESERVE_SECONDS,
         "preflight": {key: value for key, value in preflight.items()
                       if key != "held_native_thread_limit"},
         "cases": []}
+    if q2:
+        coordinator_receipt["storage_budget_basis"] = Q2_STORAGE_BUDGET_BASIS
     _write_new_json(output_root / "preflight.json", coordinator_receipt["preflight"])
     _write_environment_receipt(output_root, python_identity=preflight["python"],
         allocation=preflight["allocation"], linux_probe=preflight["linux_environment"],
@@ -1410,7 +2000,8 @@ def _run_coordinator(args) -> dict:
         native_limit = threadpoolctl.threadpool_limits(limits=1)
         numba.set_num_threads(EXPECTED_KERNEL_THREADS)
         coordinator_receipt["allocation_probe"] = _run_allocation_probe(output_root)
-        tiny = _run_wired_tiny(output_root)
+        tiny = _run_wired_tiny(output_root,
+            identities=("B", "I") if q2 else ("IR",))
         coordinator_receipt["allocation_wired_tiny"] = tiny
         _append_jsonl(output_root / "run_progress.jsonl", {
             "event": "allocation_wired_tiny_complete", "status": tiny["status"],
@@ -1419,14 +2010,19 @@ def _run_coordinator(args) -> dict:
             raise RuntimeError("allocation 48/24/24 wired-tiny did not pass")
         del native_limit
 
-        for index, identity in enumerate(IDENTITIES):
+        case_roots: dict[str, Path] = {}
+        for index, case_spec in enumerate(case_plan):
+            case_id = case_spec["case_id"]
+            identity = case_spec["implementation"]
+            reference_case_ids = tuple(case_spec["reference_case_ids"])
             try:
                 storage_state = _check_storage_growth(storage_root,
                     growth_cap_bytes=int(args.storage_cap_bytes),
                     max_files=int(args.max_files))
             except BaseException as exc:
-                terminal_status = "Q1_PREFLIGHT_BLOCKED_STORAGE"
-                coordinator_receipt["cases"].append({"identity": identity,
+                terminal_status = "Q2_PREFLIGHT_BLOCKED_STORAGE" if q2 else "Q1_PREFLIGHT_BLOCKED_STORAGE"
+                coordinator_receipt["cases"].append({"case_id": case_id,
+                    "identity": identity, "implementation": identity,
                     "status": terminal_status,
                     "error": f"{type(exc).__name__}: {exc}"})
                 break
@@ -1439,25 +2035,30 @@ def _run_coordinator(args) -> dict:
                     max(300.0, float(previous_stage_wall) * 1.5))
             if remaining < predicted + RESERVE_SECONDS:
                 terminal_status = "SKIPPED_INSUFFICIENT_TIME"
-                coordinator_receipt["cases"].append({"identity": identity,
+                coordinator_receipt["cases"].append({"case_id": case_id,
+                    "identity": identity, "implementation": identity,
                     "status": terminal_status, "remaining_seconds": remaining,
                     "predicted_seconds": predicted,
                     "required_reserve_seconds": RESERVE_SECONDS})
                 break
-            case_root = output_root / "identities" / identity
+            case_root = output_root / "identities" / case_id
             case_root.parent.mkdir(parents=True, exist_ok=True)
             case_root.mkdir(exist_ok=False)
-            baseline_boundary_root = (
-                baseline_case / "first_boundary" if identity != "B" and baseline_case else None)
+            comparison_roots = _case_reference_roots(case_spec, case_roots)
+            baseline_boundary_root = None
             command = _child_command(python=args.expected_python,
                 bench_root=args.bench_root, input_root=args.input_root,
                 vendor_dir=args.vendor_dir, case_root=case_root, identity=identity,
                 expected_source_binding=args.expected_source_binding,
+                case_id=case_id,
+                boundary_references=[(ref_id, ref_root / "first_boundary")
+                                     for ref_id, ref_root in comparison_roots],
                 baseline_boundary_root=baseline_boundary_root)
             env = _child_environment(args.bench_root, args.expected_python)
             stage_timeout = min(WINDOW_SECONDS, max(1.0, remaining - RESERVE_SECONDS))
             _append_jsonl(output_root / "run_progress.jsonl", {
-                "event": "identity_started", "identity": identity,
+                "event": "case_started", "case_id": case_id,
+                "implementation": identity,
                 "monotonic": time.monotonic(), "remaining_allocation_seconds": remaining,
                 "predicted_case_seconds": predicted, "timeout_seconds": stage_timeout,
                 "storage_before_identity": storage_state,
@@ -1465,7 +2066,11 @@ def _run_coordinator(args) -> dict:
             supervisor = _supervise_child(command, case_root=case_root,
                 cwd=args.bench_root.resolve() / "Filament_python", env=env,
                 timeout_seconds=stage_timeout, memory_bytes=memory_bytes)
-            case = {"identity": identity, "status": "RUNNING_RESULT_PENDING_VALIDATION",
+            case = {"case_id": case_id, "identity": identity,
+                "implementation": identity,
+                "comparison_reference_case_ids": list(reference_case_ids),
+                "required_comparison_stages": ["first_boundary", "endpoint"],
+                "status": "RUNNING_RESULT_PENDING_VALIDATION",
                 "supervisor": supervisor,
                 "child_wall_seconds_including_all_child_work": supervisor["elapsed_wall_seconds"],
                 "command": command,
@@ -1482,7 +2087,8 @@ def _run_coordinator(args) -> dict:
                 }.get(stop_reason, "STOPPED_RESOURCE_GATE")
                 terminal_status = case["status"]
                 _append_jsonl(output_root / "run_progress.jsonl", {
-                    "event": "identity_stopped", "identity": identity,
+                    "event": "case_stopped", "case_id": case_id,
+                    "implementation": identity,
                     "status": case["status"], "reason": stop_reason})
                 break
             if supervisor.get("exit_code") == 3:
@@ -1503,9 +2109,10 @@ def _run_coordinator(args) -> dict:
             try:
                 own_validation_started=time.perf_counter()
                 validated = _check_stage_identity(identity, case_root,
-                    baseline_receipt if identity != "B" else None)
+                    baseline_receipt if index > 0 else None, case_id=case_id)
                 own_validation_seconds=time.perf_counter()-own_validation_started
-                if identity == "B":
+                case_roots[case_id] = case_root
+                if index == 0:
                     baseline_case = case_root
                     baseline_receipt = validated["q1_receipt"]
                     first_gate = json.loads((case_root / "first_boundary" / "NUMERIC_GATE.json").read_text(encoding="utf-8"))
@@ -1513,11 +2120,13 @@ def _run_coordinator(args) -> dict:
                         raise Q1ControlledStop("B_FIRST_BOUNDARY_HARD_GATE_FAILED")
                 validation_started = time.perf_counter()
                 rows, endpoint_gate = _stage_endpoint_comparison(
-                    identity, baseline_case, case_root)
+                    identity, baseline_case, case_root, case_id=case_id,
+                    comparison_roots=comparison_roots)
                 first_root = case_root / "first_boundary"
-                first_jsonl = (first_root / "self_check.jsonl" if identity == "B"
-                               else first_root / "comparison.jsonl")
-                first_rows = _read_jsonl_comparisons(first_jsonl)
+                first_rows = []
+                for path in (sorted(first_root.glob("self_check.jsonl"))
+                             + sorted(first_root.glob("comparison*.jsonl"))):
+                    first_rows.extend(_read_jsonl_comparisons(path))
                 from tools.cpu_o1.numeric_gate import build_numeric_gate
                 final_gate = build_numeric_gate(identity_checks={
                     "linux_preflight": bool(preflight["linux_environment"].get("eligible")),
@@ -1529,7 +2138,8 @@ def _run_coordinator(args) -> dict:
                 }, linux_environment_eligible=True,
                     comparisons=first_rows + rows)
                 final_gate.update({"identity": identity,
-                    "gate_scope": "REAL_Q1_EIGHT_INTERVAL_WINDOW",
+                    "gate_scope": ("REAL_Q2_EIGHT_INTERVAL_WINDOW" if q2
+                        else "REAL_Q1_EIGHT_INTERVAL_WINDOW"),
                     "first_boundary_gate": json.loads((first_root / "NUMERIC_GATE.json").read_text(encoding="utf-8")),
                     "endpoint_gate": endpoint_gate,
                     "first_boundary_comparison_rows": len(first_rows),
@@ -1539,17 +2149,19 @@ def _run_coordinator(args) -> dict:
                 case["validation"] = validated
                 case["endpoint_gate"] = endpoint_gate
                 case["numeric_gate"] = final_gate
-                case["service_seconds_uniform_boundary_estimate"] = max(0.0,
-                    float(validated["q1_receipt"]["timing"]["case_wall_seconds_including_comparison"])
-                    - float(validated["q1_receipt"]["timing"][
-                        "first_boundary_cross_identity_comparison_seconds"])) + own_validation_seconds + endpoint_gate["self_validation_seconds"]
+                case["service_seconds_uniform_boundary_estimate"] = _uniform_service_seconds(
+                    validated["q1_receipt"]["timing"]["case_wall_seconds_including_comparison"],
+                    validated["q1_receipt"]["timing"][
+                        "first_boundary_cross_identity_comparison_seconds"],
+                    own_validation_seconds, endpoint_gate["self_validation_seconds"])
                 case["endpoint_validation_and_comparison_seconds"] = time.perf_counter() - validation_started
                 case["endpoint_cross_identity_comparison_seconds"] = (
                     endpoint_gate["cross_identity_comparison_seconds"])
                 case["status"] = "DONE" if final_gate.get("proceed_to_next_identity") else final_gate["classification"]
                 previous_stage_wall = supervisor["elapsed_wall_seconds"] + case["endpoint_validation_and_comparison_seconds"]
                 _append_jsonl(output_root / "run_progress.jsonl", {
-                    "event": "identity_completed", "identity": identity,
+                    "event": "case_completed", "case_id": case_id,
+                    "implementation": identity,
                     "status": case["status"],
                     "service_seconds_uniform_boundary_estimate": case["service_seconds_uniform_boundary_estimate"],
                     "endpoint_gate_classification": endpoint_gate.get("classification")})
@@ -1575,55 +2187,85 @@ def _run_coordinator(args) -> dict:
                     growth_cap_bytes=int(args.storage_cap_bytes),
                     max_files=int(args.max_files))
             except BaseException as exc:
-                terminal_status = "Q1_STORAGE_CAP_REACHED"
+                terminal_status = "Q2_STORAGE_CAP_REACHED" if q2 else "Q1_STORAGE_CAP_REACHED"
                 case["storage_error"] = f"{type(exc).__name__}: {exc}"
                 break
 
         if terminal_status is None:
             if len([row for row in coordinator_receipt["cases"]
-                    if row.get("status") == "DONE"]) == len(IDENTITIES):
-                terminal_status = "Q1_COMPLETE_FOUR_IDENTITY_SCREENING"
+                    if row.get("status") == "DONE"]) == len(case_plan):
+                terminal_status = ("Q2_COMPLETE_BI_REPEAT_PENDING_GATE" if q2
+                    else "Q1_COMPLETE_FOUR_IDENTITY_SCREENING")
             else:
-                terminal_status = "Q1_PARTIAL_MATRIX"
-        coordinator_receipt["status"] = terminal_status
+                terminal_status = "Q2_PARTIAL_MATRIX" if q2 else "Q1_PARTIAL_MATRIX"
         coordinator_receipt["rss_80_percent_latched"] = rss_latch
         coordinator_receipt["allocation_elapsed_seconds"] = time.monotonic() - allocation_started
         coordinator_receipt["storage_final"] = _check_storage_growth(storage_root,
             growth_cap_bytes=int(args.storage_cap_bytes),
             max_files=int(args.max_files))
         coordinator_receipt["next_action"] = "MANUAL_REVIEW_ONLY"
-        _write_new_json(output_root / "coordinator_receipt.json", coordinator_receipt)
-        final_comparisons = []
-        for row in coordinator_receipt["cases"]:
-            final_comparisons.extend(row.get("numeric_gate", {}).get("comparisons", []))
-        final_gate = build_numeric_gate(identity_checks={
-            "all_four_identities_completed": terminal_status == "Q1_COMPLETE_FOUR_IDENTITY_SCREENING",
-            "linux_environment_eligible": bool(preflight["linux_environment"].get("eligible")),
-            "resource_budget_respected": not rss_latch,
-        }, linux_environment_eligible=bool(preflight["linux_environment"].get("eligible")),
-            comparisons=final_comparisons,
-            tool_error=None)
-        if terminal_status != "Q1_COMPLETE_FOUR_IDENTITY_SCREENING":
-            # Partial scheduling/resource state is not itself a comparison-tool failure.
-            final_gate["classification"] = "Q1_PARTIAL_MATRIX"
-            for case in reversed(coordinator_receipt["cases"]):
-                observed = (case.get("partial_receipt", {}).get("first_boundary_gate")
-                    or case.get("endpoint_gate") or case.get("numeric_gate"))
-                if observed and not observed.get("proceed_to_next_identity"):
-                    final_gate["classification"] = observed["classification"]
-                    final_gate["blocking_gate"] = observed
-                    break
-            final_gate["proceed_to_next_identity"] = False
+        cases_by_id = {row.get("case_id", row.get("identity")): row
+                       for row in coordinator_receipt["cases"]}
+        matrix_cases = []
+        for spec in case_plan:
+            case_id = spec["case_id"]
+            current = dict(cases_by_id.get(case_id, {}))
+            current.update({"case_id": case_id,
+                "identity": spec["implementation"],
+                "implementation": spec["implementation"],
+                "comparison_reference_case_ids": list(spec["reference_case_ids"]),
+                "required_comparison_stages": ["first_boundary", "endpoint"]})
+            if "status" not in current:
+                current["status"] = "NOT_STARTED"
+            matrix_cases.append(current)
+        final_comparisons = load_matrix_comparison_rows(output_root, matrix_cases)
+        final_comparison_contracts = (load_matrix_comparison_contracts(output_root)
+            if q2 else None)
+        resource_budget_respected = bool(
+            not rss_latch
+            and coordinator_receipt["allocation_elapsed_seconds"] <= ALLOCATION_SECONDS
+            and coordinator_receipt["storage_final"]["bytes"] <= int(args.storage_cap_bytes)
+            and coordinator_receipt["storage_final"]["files"] <= int(args.max_files))
+        final_gate = build_matrix_gate_from_raw_cases(
+            matrix_cases, expected_case_ids, final_comparisons,
+            linux_environment_eligible=bool(preflight["linux_environment"].get("eligible")),
+            resource_budget_respected=resource_budget_respected,
+            matrix_status=terminal_status,
+            gate_scope="REAL_Q2_REPEAT_MATRIX" if q2 else "REAL_Q1_MATRIX",
+            comparison_contracts=final_comparison_contracts,
+            require_field_contracts=q2)
+        all_cases_done = len([row for row in matrix_cases
+            if row.get("status") == "DONE"]) == len(case_plan)
+        if all_cases_done and not final_gate.get("proceed_to_next_identity"):
+            terminal_status = "Q2_BLOCKED_RAW_MATRIX_GATE" if q2 else "Q1_BLOCKED_RAW_MATRIX_GATE"
+        q3_decision = None
+        if q2:
+            q3_decision = _q2_performance_recommendation(
+                matrix_cases, exact_matrix_gate=bool(final_gate.get("proceed_to_next_identity")))
+            if all_cases_done and final_gate.get("proceed_to_next_identity"):
+                terminal_status = q3_decision["status"]
+            elif terminal_status == "Q2_COMPLETE_BI_REPEAT_PENDING_GATE":
+                terminal_status = "Q2_PARTIAL_MATRIX"
+            coordinator_receipt["q3_recommendation"] = q3_decision
+        coordinator_receipt["status"] = terminal_status
+        coordinator_receipt["completed_case_ids"] = [row["case_id"]
+            for row in matrix_cases if row.get("status") == "DONE"]
+        coordinator_receipt["identities_completed"] = [row["implementation"]
+            for row in matrix_cases if row.get("status") == "DONE"]
+        coordinator_receipt["raw_comparison_row_count"] = len(final_comparisons)
+        coordinator_receipt["uniform_service_comparison_policy"] = (
+            "Subtract all first-boundary cross-identity comparison time; endpoint cross comparisons are excluded from uniform service and remain in allocation wall.")
         final_gate["matrix_status"] = terminal_status
-        final_gate.update({"gate_scope": "REAL_Q1_MATRIX",
-            "identities_completed": [row["identity"] for row in coordinator_receipt["cases"]
-                                     if row.get("status") == "DONE"],
-            "coordinator_receipt": "coordinator_receipt.json",
-            "production_qualification": "NOT_PRODUCTION_QUALIFIED"})
+        final_gate["coordinator_receipt"] = "coordinator_receipt.json"
+        if q2:
+            final_gate["q3_recommendation"] = q3_decision
+        coordinator_receipt["numeric_gate"] = {key: value for key, value in final_gate.items()
+            if key != "comparisons"}
+        _write_new_json(output_root / "coordinator_receipt.json", coordinator_receipt)
         write_numeric_gate(output_root / "NUMERIC_GATE.json", final_gate)
         return coordinator_receipt
     except BaseException as exc:
-        coordinator_receipt.update({"status": "Q1_PREFLIGHT_OR_COORDINATOR_FAILURE",
+        coordinator_receipt.update({"status": "Q2_PREFLIGHT_OR_COORDINATOR_FAILURE" if q2 else "Q1_PREFLIGHT_OR_COORDINATOR_FAILURE",
             "error": f"{type(exc).__name__}: {exc}",
             "traceback": traceback.format_exc(),
             "allocation_elapsed_seconds": time.monotonic() - allocation_started,
@@ -1635,7 +2277,7 @@ def _run_coordinator(args) -> dict:
                 "linux_environment_eligible": bool(preflight["linux_environment"].get("eligible")),
             }, linux_environment_eligible=bool(preflight["linux_environment"].get("eligible")),
                 tool_error=f"{type(exc).__name__}: {exc}")
-            failure_gate.update({"gate_scope": "REAL_Q1_MATRIX",
+            failure_gate.update({"gate_scope": "REAL_Q2_REPEAT_MATRIX" if q2 else "REAL_Q1_MATRIX",
                 "production_qualification": "NOT_PRODUCTION_QUALIFIED"})
             write_numeric_gate(output_root / "NUMERIC_GATE.json", failure_gate)
         except FileExistsError:
@@ -1729,10 +2371,19 @@ def main(argv=None):
     parser.add_argument("--storage-cap-bytes", type=int)
     parser.add_argument("--max-files", type=int, default=50000)
     parser.add_argument("--identity", choices=IDENTITIES)
+    parser.add_argument("--case-id")
+    parser.add_argument("--boundary-reference", nargs=2, action="append",
+        metavar=("CASE_ID", "FIRST_BOUNDARY_ROOT"))
+    parser.add_argument("--q2", action="store_true",
+        help="run the fixed B1/I1/I2/B2 CPU-Q2 repeat matrix")
     mode = parser.add_mutually_exclusive_group()
     for name in ("child", "dry-run", "entry-smoke", "entry-smoke-child"):
         mode.add_argument("--"+name, action="store_true")
     args = parser.parse_args(argv)
+    if args.q2 and args.storage_cap_bytes is None:
+        args.storage_cap_bytes = Q2_STORAGE_CAP_BYTES
+    if args.q2 and int(args.storage_cap_bytes) > Q2_STORAGE_CAP_BYTES:
+        parser.error("Q2 storage cap may not exceed the reviewed 8 GiB budget")
     if args.expected_python is None:
         parser.error("--expected-python is required")
     if args.entry_smoke_child:
@@ -1758,24 +2409,33 @@ def main(argv=None):
         storage = _check_storage_growth(args.storage_root,
             growth_cap_bytes=args.storage_cap_bytes, max_files=args.max_files)
         print(json.dumps({"status": "DRY_RUN_ONLY", "real_input_used": False,
-            "identity_order": IDENTITIES, "fft": EXPECTED_FFT_WORKERS,
+            "identity_order": [row["implementation"] for row in _matrix_case_plan(args.q2)],
+            "case_order": [row["case_id"] for row in _matrix_case_plan(args.q2)],
+            "fft": EXPECTED_FFT_WORKERS,
             "kernel_threads": EXPECTED_KERNEL_THREADS, "storage_cap_bytes": args.storage_cap_bytes,
+            "storage_budget_basis": Q2_STORAGE_BUDGET_BASIS if args.q2 else None,
             "storage_inventory": storage}, allow_nan=False))
         return 0
     if args.entry_smoke:
         print(json.dumps(_entry_smoke(args), allow_nan=False))
         return 0
     if args.child:
+        if args.case_id is None:
+            args.case_id = args.identity
         return _child_main(args)
     try:
         result = _run_coordinator(args)
-        return 0 if result["status"] == "Q1_COMPLETE_FOUR_IDENTITY_SCREENING" else 3
+        successful = ({"Q2_SUPPORTS_Q3_PROPOSAL", "Q2_NO_STABLE_GAIN"}
+                      if args.q2 else {"Q1_COMPLETE_FOUR_IDENTITY_SCREENING"})
+        return 0 if result["status"] in successful else 3
     except BaseException as exc:
         # Admission failures precede the scientific run; preserve outside its root.
-        failure = {"status": "Q1_PREFLIGHT_BLOCKED", "error": type(exc).__name__+": "+str(exc),
+        failure = {"status": "Q2_PREFLIGHT_BLOCKED" if args.q2 else "Q1_PREFLIGHT_BLOCKED",
+                   "error": type(exc).__name__+": "+str(exc),
                    "traceback": traceback.format_exc(), "next_action": "MANUAL_REVIEW_ONLY"}
         if args.storage_root and args.storage_root.is_dir():
-            _write_new_json(args.storage_root / ("Q1_COORDINATOR_FAILURE_"+str(os.getpid())+".json"), failure)
+            prefix = "Q2" if args.q2 else "Q1"
+            _write_new_json(args.storage_root / (prefix+"_COORDINATOR_FAILURE_"+str(os.getpid())+".json"), failure)
         print(json.dumps(failure, allow_nan=False), file=sys.stderr)
         return 1
 
