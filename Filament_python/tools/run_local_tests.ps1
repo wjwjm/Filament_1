@@ -55,6 +55,7 @@ $targetedTests = @(
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5_wp2_recovery_identity.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5_storage_lock_trace.py'),
     (Join-Path $filamentPythonRoot 'tests\test_n5_runtime_cache_preflight.py'),
+    (Join-Path $filamentPythonRoot 'tests\test_n5_joint_control_probe.py'),
     (Join-Path $filamentPythonRoot 'tests\test_runner_multipulse_orchestration.py'),
     (Join-Path $filamentPythonRoot 'tests\test_phase8b_raman_diagnostics.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hpc_execution_guardrails.py'),
