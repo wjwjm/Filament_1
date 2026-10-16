@@ -140,10 +140,55 @@ class PairedCampaign:
                  campaign_id: str = "e5_1a_local",
                  admission_identity: Mapping[str, Any] | None = None,
                  formal: bool = False,
+                 storage_lock_timeout_s: float | None = None,
                  require_intents: bool | None = None):
         self.root = Path(root).resolve()
-        self.root.mkdir(parents=True, exist_ok=True)
         self.state_path = self.root / CAMPAIGN_STATE_FILENAME
+        self.formal = bool(formal)
+        self.admission_identity = None if admission_identity is None else dict(admission_identity)
+        if self.admission_identity is not None and str(
+                self.admission_identity.get("execution_mode", "")).upper() != "TEST_FIXTURE_ONLY":
+            self.formal = True
+        saved_state = None
+        if not create and self.state_path.is_file():
+            try:
+                saved_state = json.loads(self.state_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as error:
+                raise ValueError("campaign state is unreadable") from error
+            if not isinstance(saved_state, Mapping):
+                raise ValueError("campaign state must be an object")
+            if bool(saved_state.get("formal", False)):
+                self.formal = True
+                if self.admission_identity is None:
+                    persisted = saved_state.get("admission_identity")
+                    self.admission_identity = dict(persisted) if isinstance(persisted, Mapping) else None
+        if self.formal:
+            from .hr4e5_formal_entry import validate_admission_identity, resolve_storage_lock_timeout_s
+            if self.admission_identity is None and create:
+                raise ValueError("formal campaign requires an immutable admission identity")
+            if self.admission_identity is not None:
+                expected_hash = (saved_state.get("admission_hash")
+                                 if isinstance(saved_state, Mapping) and saved_state.get("formal") else None)
+                self.admission_identity = validate_admission_identity(
+                    self.admission_identity, formal=True, expected_hash=expected_hash,
+                )
+                if str(self.admission_identity.get("campaign_id")) != str(campaign_id):
+                    raise StorageBudgetError("admission campaign identity differs from campaign")
+                self.storage_lock_timeout_s = resolve_storage_lock_timeout_s(
+                    self.admission_identity, explicit=storage_lock_timeout_s,
+                    expected_hash=expected_hash,
+                )
+            else:
+                if storage_lock_timeout_s is not None:
+                    from .hr4e5_formal_entry import validate_storage_lock_timeout_s
+                    validate_storage_lock_timeout_s(storage_lock_timeout_s)
+                    raise ValueError("explicit storage lock timeout requires a formal admission identity")
+                self.storage_lock_timeout_s = 10.0
+        else:
+            if storage_lock_timeout_s is not None:
+                raise ValueError("storage lock timeout requires a formal admission identity")
+            self.storage_lock_timeout_s = 10.0
+        self.root.mkdir(parents=True, exist_ok=True)
         self.n_pulses = int(n_pulses)
         self.block_size = int(block_size)
         self.queue_depth = int(queue_depth)
@@ -152,18 +197,6 @@ class PairedCampaign:
         self.safety_margin_bytes = int(safety_margin_bytes)
         self.require_quota = bool(require_quota)
         self.campaign_id = str(campaign_id)
-        self.formal = bool(formal)
-        if admission_identity is not None and str(admission_identity.get("execution_mode", "")).upper() != "TEST_FIXTURE_ONLY":
-            self.formal = True
-        self.admission_identity = None if admission_identity is None else dict(admission_identity)
-        if self.formal:
-            from .hr4e5_formal_entry import validate_admission_identity
-            if self.admission_identity is None and create:
-                raise ValueError("formal campaign requires an immutable admission identity")
-            if self.admission_identity is not None:
-                self.admission_identity = validate_admission_identity(self.admission_identity, formal=True)
-                if str(self.admission_identity.get("campaign_id")) != self.campaign_id:
-                    raise StorageBudgetError("admission campaign identity differs from campaign")
         if self.n_pulses <= 0 or self.block_size != 8 or self.queue_depth != 16:
             raise ValueError("campaign requires positive N and frozen block8/queue16")
         if self.n_pulses > 1 and self.block_size > 0:
@@ -214,6 +247,7 @@ class PairedCampaign:
             require_intents=self.formal if require_intents is None else bool(require_intents),
             admission_identity=self.admission_identity,
             admission_hash=None if self.admission_identity is None else str(self.admission_identity.get("identity_sha256")),
+            lock_timeout_s=self.storage_lock_timeout_s,
             external_prefix_bytes=(0 if self.admission_identity is None else int(
                 self.admission_identity.get("budget_identity", {}).get("external_prefix_bytes", 0))),
             external_full_source_bytes=(0 if self.admission_identity is None else int(
@@ -899,6 +933,7 @@ class FormalPairedDriver:
         max_campaign_live_bytes: int = HARD_CAP_BYTES,
          final_output_budget_bytes: int = 64 * 1024**3,
          safety_margin_bytes: int = 8 * 1024**3, require_quota: bool = True,
+         storage_lock_timeout_s: float | None = None,
          fixture_only: bool = False,
          takeover: bool = False,
          takeover_receipt: str | Path | Mapping[str, Any] | None = None,
@@ -934,6 +969,7 @@ class FormalPairedDriver:
             final_output_budget_bytes=final_output_budget_bytes,
             safety_margin_bytes=safety_margin_bytes, require_quota=require_quota,
             admission_identity=identity, formal=not self.fixture_only,
+            storage_lock_timeout_s=storage_lock_timeout_s,
             require_intents=not self.fixture_only,
         )
         if self.fixture_only and getattr(runner, "budget", None) is not None:

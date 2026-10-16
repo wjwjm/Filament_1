@@ -12,10 +12,12 @@ from __future__ import annotations
 
 import json
 import hashlib
+import math
 import os
 import time
 import uuid
 from dataclasses import dataclass
+from numbers import Real
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable, Mapping, Sequence
@@ -45,6 +47,9 @@ ROOT_METADATA_SCHEMA = "khz_filament.hr4e5.e5_1a.root_metadata.v1"
 ADMISSION_SCHEMA = "khz_filament.hr4e5.e5_1a.admission.v1"
 BLOCK_SIZE = 8
 QUEUE_DEPTH = 16
+STORAGE_LOCK_TIMEOUT_KEY = "storage_lock_timeout_s"
+LEGACY_STORAGE_LOCK_TIMEOUT_S = 10.0
+MAX_STORAGE_LOCK_TIMEOUT_S = 180.0
 
 
 _ADMISSION_REQUIRED = (
@@ -181,6 +186,44 @@ def validate_admission_identity(identity: Mapping[str, Any], *, formal: bool = T
     if not saved or saved != admission_identity_hash(payload) or (expected_hash is not None and saved != str(expected_hash)):
         raise ValueError("admission identity hash mismatch")
     return payload
+
+
+def validate_storage_lock_timeout_s(value: Any) -> float:
+    """Validate an explicitly admitted storage-ledger wait limit."""
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise ValueError("storage_lock_timeout_s must be a finite numeric value in (0, 180]")
+    try:
+        result = float(value)
+    except (OverflowError, TypeError, ValueError) as error:
+        raise ValueError("storage_lock_timeout_s must be a finite numeric value in (0, 180]") from error
+    if not math.isfinite(result) or not 0 < result <= MAX_STORAGE_LOCK_TIMEOUT_S:
+        raise ValueError("storage_lock_timeout_s must be a finite numeric value in (0, 180]")
+    return result
+
+
+def resolve_storage_lock_timeout_s(
+    identity: Mapping[str, Any], *, explicit: Any = None,
+    expected_hash: str | None = None,
+) -> float:
+    """Resolve the ledger lock wait from a validated admission identity.
+
+    Missing policy keys retain the historical ten-second behavior. An explicit
+    caller value must be present in and equal to the hashed admission policy.
+    """
+    admitted_identity = validate_admission_identity(
+        identity, formal=True, expected_hash=expected_hash,
+    )
+    runtime = admitted_identity.get("runtime_or_compatibility")
+    if not isinstance(runtime, Mapping):
+        raise ValueError("admission runtime compatibility mapping is invalid")
+    has_admitted_value = STORAGE_LOCK_TIMEOUT_KEY in runtime
+    admitted_value = (validate_storage_lock_timeout_s(runtime[STORAGE_LOCK_TIMEOUT_KEY])
+                      if has_admitted_value else None)
+    if explicit is not None:
+        requested = validate_storage_lock_timeout_s(explicit)
+        if not has_admitted_value or requested != admitted_value:
+            raise ValueError("explicit storage lock timeout conflicts with admission identity")
+    return LEGACY_STORAGE_LOCK_TIMEOUT_S if admitted_value is None else admitted_value
 
 
 def persist_admission_identity(path: str | Path, identity: Mapping[str, Any], *, overwrite: bool = False) -> dict[str, Any]:
@@ -1258,6 +1301,7 @@ __all__ = [
     "admission_identity_hash", "build_admission_identity", "build_fixture_admission_identity", "create_admission_identity",
     "build_prefix_schedule", "commit_final_post", "create_formal_pre0_root", "create_formal_successor_root", "create_pre0_root", "create_successor_root",
     "load_admission_identity", "open_successor_root", "persist_admission_identity", "pre0_fields_from_delta_n",
+    "resolve_storage_lock_timeout_s", "validate_storage_lock_timeout_s",
     "resume_final_post", "run_streaming_optical_pulse", "slice_longitudinal_schedule",
     "validate_admission_identity", "validate_final_post", "validate_successor_ready", "verify_admission_identity",
 ]

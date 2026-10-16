@@ -15,7 +15,7 @@ from types import SimpleNamespace
 
 from .confio import load_all
 from .hr4e5_evidence import atomic_json
-from .hr4e5_formal_entry import build_prefix_schedule
+from .hr4e5_formal_entry import build_prefix_schedule, resolve_storage_lock_timeout_s
 from .hr4e5_paired_campaign import PairedCampaign
 from .hr4e5_recovery_identity import capture_implementation_identity, require_same_implementation
 from .hr4e5_storage import process_identity
@@ -44,6 +44,9 @@ def main() -> int:
         raise ValueError("Reference process result must be outside campaign storage")
 
     identity = json.loads((root / "E5_1A_ADMISSION_IDENTITY.json").read_text(encoding="utf-8"))
+    resolve_storage_lock_timeout_s(
+        identity, explicit=spec.storage_lock_timeout_s,
+    )
     implementation = json.loads((root / "E5_1B_IMPLEMENTATION_IDENTITY.json").read_text(encoding="utf-8"))
     require_same_implementation(implementation, capture_implementation_identity())
     if identity.get("campaign_id") != spec.campaign_id or int(identity.get("n_pulses", -1)) != int(spec.n_pulses):
@@ -64,6 +67,7 @@ def main() -> int:
         max_campaign_live_bytes=int(spec.max_campaign_live_bytes),
         final_output_budget_bytes=int(spec.final_output_budget_bytes),
         safety_margin_bytes=int(spec.safety_margin_bytes), require_quota=True,
+        storage_lock_timeout_s=spec.storage_lock_timeout_s,
         admission_identity=identity, formal=True, require_intents=True,
     )
     if spec.admission_level == FORMAL_SITE_ADMISSION:

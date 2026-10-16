@@ -907,6 +907,427 @@ def test_e5a_science_child_timeout_requires_positive_integral(timeout_s):
         _bare_e5a_spec(science_child_timeout_s=timeout_s)
 
 
+@pytest.mark.parametrize("timeout_s", [True, "163", 0, -1, 180.01, float("nan"), float("inf")])
+def test_e5a_storage_lock_timeout_rejects_invalid_values_before_root_creation(tmp_path, timeout_s):
+    root = tmp_path / "must-not-exist"
+    with pytest.raises(ValueError, match="storage_lock_timeout_s"):
+        _bare_e5a_spec(root=root, storage_lock_timeout_s=timeout_s)
+    assert not root.exists()
+
+
+def test_e5a_storage_lock_timeout_is_optional_and_admission_bound(tmp_path):
+    from KHz_filament.hr4e5_formal_entry import (
+        STORAGE_LOCK_TIMEOUT_KEY, resolve_storage_lock_timeout_s,
+    )
+    from KHz_filament.hr4e5_production import _build_admission
+
+    spec = _local_production_spec(tmp_path, campaign_id="storage-lock-identity")
+    legacy_identity, _schedule, _components = _build_admission(spec)
+    legacy_hash = legacy_identity["identity_sha256"]
+    assert spec.storage_lock_timeout_s is None
+    assert STORAGE_LOCK_TIMEOUT_KEY not in legacy_identity["runtime_or_compatibility"]
+    assert resolve_storage_lock_timeout_s(legacy_identity) == 10.0
+    assert legacy_identity["identity_sha256"] == legacy_hash
+
+    admitted_spec = replace(spec, storage_lock_timeout_s=163)
+    admitted_identity, _schedule, _components = _build_admission(admitted_spec)
+    assert admitted_identity["runtime_or_compatibility"][STORAGE_LOCK_TIMEOUT_KEY] == 163.0
+    assert admitted_identity["identity_sha256"] != legacy_hash
+    assert resolve_storage_lock_timeout_s(admitted_identity, explicit=163) == 163.0
+    with pytest.raises(ValueError, match="conflicts with admission"):
+        resolve_storage_lock_timeout_s(admitted_identity, explicit=162)
+
+
+def test_e5a_storage_lock_timeout_reaches_coordinator_and_reopen(tmp_path, monkeypatch):
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+    from KHz_filament.hr4e5_formal_entry import STORAGE_LOCK_TIMEOUT_KEY
+
+    monkeypatch.setenv("HR4E5_STORAGE_LOCK_TIMEOUT_S", "11")
+    spec = replace(
+        _local_production_spec(tmp_path, campaign_id="storage-lock-coordinator"),
+        storage_lock_timeout_s=163,
+    )
+    campaign = open_e5_1a_production_campaign(spec)
+    first_identity = campaign._runner.identity
+    assert first_identity["runtime_or_compatibility"][STORAGE_LOCK_TIMEOUT_KEY] == 163.0
+    assert campaign._driver.campaign.storage.lock_timeout_s == 163.0
+    first_hash = first_identity["identity_sha256"]
+    campaign.close()
+
+    reopened = open_e5_1a_production_campaign(replace(spec, storage_lock_timeout_s=None))
+    assert reopened._runner.spec.storage_lock_timeout_s == 163.0
+    assert reopened._runner.identity["identity_sha256"] == first_hash
+    assert reopened._driver.campaign.storage.lock_timeout_s == 163.0
+    reopened.close()
+
+
+def test_e5a_storage_lock_timeout_state_lock_stays_legacy_and_conflict_has_no_root(tmp_path, monkeypatch):
+    from KHz_filament import hr4e5_paired_campaign as paired, hr4e5_storage as storage
+    from KHz_filament.hr4e5_formal_entry import admission_identity_hash, STORAGE_LOCK_TIMEOUT_KEY
+
+    identity = dict(_formal_identity(campaign_id="storage-lock-state", n_pulses=1))
+    runtime = dict(identity["runtime_or_compatibility"])
+    runtime[STORAGE_LOCK_TIMEOUT_KEY] = 163.0
+    identity["runtime_or_compatibility"] = runtime
+    identity["identity_sha256"] = admission_identity_hash(identity)
+    root = tmp_path / "formal-campaign"
+    campaign = paired.PairedCampaign.create(
+        root, n_pulses=1, campaign_id=identity["campaign_id"],
+        admission_identity=identity, formal=True, require_quota=False,
+        require_intents=True, storage_lock_timeout_s=163,
+    )
+    observed = []
+    original_lock = paired._FileLock
+
+    def capture_lock(path, timeout_s=10.0, **kwargs):
+        observed.append((Path(path).name, timeout_s))
+        return original_lock(path, timeout_s=timeout_s, **kwargs)
+
+    monkeypatch.setattr(paired, "_FileLock", capture_lock)
+    monkeypatch.setattr(storage, "_FileLock", capture_lock)
+    with campaign._locked_state():
+        pass
+    campaign.storage.intents()
+    assert (".E5_1A_CAMPAIGN.lock", 10.0) in observed
+    assert (".storage_budget.lock", 163.0) in observed
+
+    reopened = paired.PairedCampaign.open(
+        root, n_pulses=1, campaign_id=identity["campaign_id"],
+        admission_identity=identity, formal=True, require_quota=False,
+        require_intents=True,
+    )
+    assert reopened.storage.lock_timeout_s == 163.0
+
+    conflicting_root = tmp_path / "conflicting-campaign"
+    with pytest.raises(ValueError, match="conflicts with admission"):
+        paired.PairedCampaign.create(
+            conflicting_root, n_pulses=1, campaign_id=identity["campaign_id"],
+            admission_identity=identity, formal=True, require_quota=False,
+            require_intents=True, storage_lock_timeout_s=162,
+        )
+    assert not conflicting_root.exists()
+
+
+@pytest.mark.parametrize("timeout_s", [True, 180.01, 163.0])
+def test_e5a_storage_lock_timeout_requires_identity_before_root_creation(tmp_path, timeout_s):
+    from KHz_filament.hr4e5_paired_campaign import PairedCampaign
+
+    root = tmp_path / "unbound-campaign"
+    with pytest.raises(ValueError, match=r"storage[_ ]lock[_ ]timeout"):
+        PairedCampaign.open(
+            root, n_pulses=1, campaign_id="unbound-timeout",
+            formal=True, require_quota=False, storage_lock_timeout_s=timeout_s,
+        )
+    assert not root.exists()
+
+
+def _admission_with_storage_lock_timeout(identity, timeout_s=163.0):
+    from KHz_filament.hr4e5_formal_entry import (
+        STORAGE_LOCK_TIMEOUT_KEY, admission_identity_hash, validate_admission_identity,
+    )
+
+    result = dict(identity)
+    runtime = dict(result["runtime_or_compatibility"])
+    runtime[STORAGE_LOCK_TIMEOUT_KEY] = float(timeout_s)
+    result["runtime_or_compatibility"] = runtime
+    result["identity_sha256"] = admission_identity_hash(result)
+    return validate_admission_identity(result, formal=True)
+
+
+def test_e5a_storage_lock_fresh_process_reopens_from_serialized_spec(tmp_path):
+    from dataclasses import asdict
+
+    from KHz_filament.hr4e5_paired_campaign import PairedCampaign
+
+    identity = _admission_with_storage_lock_timeout(
+        _formal_identity(campaign_id="storage-lock-fresh-process", n_pulses=1),
+    )
+    root = tmp_path / "fresh-worker-campaign"
+    PairedCampaign.create(
+        root, n_pulses=1, campaign_id=identity["campaign_id"],
+        admission_identity=identity, formal=True, require_quota=False,
+        require_intents=True,
+    )
+    spec = _bare_e5a_spec(
+        root=root, campaign_id=identity["campaign_id"], n_pulses=1,
+        storage_lock_timeout_s=163,
+    )
+    spec_json = json.dumps(asdict(spec), default=str, sort_keys=True)
+    script = """
+import json, sys
+from pathlib import Path
+from KHz_filament.hr4e5_production import E5AProductionSpec
+from KHz_filament.hr4e5_paired_campaign import PairedCampaign
+spec = E5AProductionSpec(**json.loads(sys.argv[1]))
+root = Path(spec.root)
+identity = json.loads((root / 'E5_1A_ADMISSION_IDENTITY.json').read_text(encoding='utf-8'))
+campaign = PairedCampaign.open(
+    root, n_pulses=spec.n_pulses, campaign_id=spec.campaign_id,
+    max_campaign_live_bytes=spec.max_campaign_live_bytes,
+    final_output_budget_bytes=spec.final_output_budget_bytes,
+    safety_margin_bytes=spec.safety_margin_bytes, require_quota=False,
+    admission_identity=identity, formal=True, require_intents=True,
+    storage_lock_timeout_s=spec.storage_lock_timeout_s,
+)
+print(json.dumps({'timeout': campaign.storage.lock_timeout_s,
+                  'admission_hash': campaign.admission_identity['identity_sha256']}))
+"""
+    child = subprocess.run(
+        [sys.executable, "-s", "-B", "-c", script, spec_json],
+        capture_output=True, text=True, env=os.environ.copy(), timeout=30,
+    )
+    assert child.returncode == 0, child.stderr
+    result = json.loads(child.stdout.strip().splitlines()[-1])
+    assert result == {"timeout": 163.0, "admission_hash": identity["identity_sha256"]}
+
+
+def _reference_worker_probe_environment(tmp_path, monkeypatch):
+    names = ("HOME", "XDG_CACHE_HOME", "CUPY_CACHE_DIR", "TMPDIR", "TMP", "TEMP")
+    values = {}
+    for name in names:
+        path = tmp_path / f"worker-env-{name.lower()}"
+        path.mkdir()
+        values[name] = str(path)
+        monkeypatch.setenv(name, str(path))
+    return values
+
+
+def _run_fresh_reference_worker_boundary(spec, *, trajectory, pulse, result_path, boundary_path):
+    from dataclasses import asdict
+
+    spec_json = json.dumps(asdict(spec), default=str, sort_keys=True)
+    script = textwrap.dedent("""
+        import json, os, sys
+        from pathlib import Path
+        from KHz_filament.hr4e5_production import _E5AProductionRunner
+
+        spec_json, pulse, trajectory, result_path, boundary_path = sys.argv[1:6]
+        env_names = ("HOME", "XDG_CACHE_HOME", "CUPY_CACHE_DIR", "TMPDIR", "TMP", "TEMP")
+        def stop_before_science(self, trajectory, pulse):
+            boundary = {
+                "trajectory": trajectory,
+                "pulse": int(pulse),
+                "storage_lock_timeout_s": self.driver.campaign.storage.lock_timeout_s,
+                "environment": {name: os.environ.get(name) for name in env_names},
+                "worker_pid": os.getpid(),
+                "worker_executable": sys.executable,
+            }
+            Path(boundary_path).write_text(json.dumps(boundary, sort_keys=True), encoding="utf-8")
+            return boundary
+
+        _E5AProductionRunner._run_pulse = stop_before_science
+        from KHz_filament.hr4e5_production_reference_worker import main
+        sys.argv = [
+            "reference-worker", "--spec-json", spec_json,
+            "--pulse", pulse, "--trajectory", trajectory,
+            "--result-path", result_path,
+        ]
+        raise SystemExit(main())
+    """)
+    return subprocess.run(
+        [sys.executable, "-s", "-B", "-c", script, spec_json, str(pulse), trajectory,
+         str(result_path), str(boundary_path)],
+        capture_output=True, text=True, env=os.environ.copy(), timeout=30,
+    )
+
+
+@pytest.mark.parametrize(
+    ("trajectory", "pulse"),
+    [("R", pulse) for pulse in range(5)] + [("C", 4)],
+)
+def test_e5a_storage_lock_reference_worker_main_uses_new_admission_in_fresh_process(
+    tmp_path, monkeypatch, trajectory, pulse,
+):
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+
+    spec = replace(
+        _local_production_spec(
+            tmp_path, campaign_id=f"storage-lock-reference-{trajectory}-{pulse}",
+            n_pulses=5, k=8, candidate_hydro_workers=4,
+        ),
+        storage_lock_timeout_s=163.0,
+    )
+    campaign = open_e5_1a_production_campaign(spec)
+    try:
+        identity = campaign._runner.identity
+        assert identity["runtime_or_compatibility"]["storage_lock_timeout_s"] == 163.0
+
+        expected_environment = _reference_worker_probe_environment(tmp_path, monkeypatch)
+        result_path = tmp_path / "worker-receipts" / f"{trajectory}-{pulse}.json"
+        boundary_path = tmp_path / "worker-receipts" / f"{trajectory}-{pulse}-boundary.json"
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        worker_spec = replace(spec, storage_lock_timeout_s=None)
+        child = _run_fresh_reference_worker_boundary(
+            worker_spec, trajectory=trajectory, pulse=pulse,
+            result_path=result_path, boundary_path=boundary_path,
+        )
+        assert child.returncode == 0, child.stderr
+        assert boundary_path.is_file()
+        assert result_path.is_file()
+        boundary = json.loads(boundary_path.read_text(encoding="utf-8"))
+        receipt = json.loads(result_path.read_text(encoding="utf-8"))
+        assert boundary["storage_lock_timeout_s"] == 163.0
+        assert boundary["environment"] == expected_environment
+        assert boundary["worker_pid"] == receipt["process_identity"]["pid"]
+        assert boundary["worker_pid"] != os.getpid()
+        assert boundary["worker_executable"] == sys.executable
+        assert receipt["trajectory"] == trajectory
+        assert receipt["pulse"] == pulse
+        assert receipt["result"] == boundary
+    finally:
+        campaign.close()
+
+
+def test_e5a_storage_lock_reference_worker_main_keeps_legacy_ten_seconds(tmp_path, monkeypatch):
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+
+    spec = _local_production_spec(
+        tmp_path, campaign_id="storage-lock-reference-legacy", n_pulses=5,
+        k=8, candidate_hydro_workers=4,
+    )
+    campaign = open_e5_1a_production_campaign(spec)
+    try:
+        identity = campaign._runner.identity
+        assert "storage_lock_timeout_s" not in identity["runtime_or_compatibility"]
+
+        expected_environment = _reference_worker_probe_environment(tmp_path, monkeypatch)
+        result_path = tmp_path / "worker-receipts" / "legacy-R-0.json"
+        boundary_path = tmp_path / "worker-receipts" / "legacy-R-0-boundary.json"
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        child = _run_fresh_reference_worker_boundary(
+            spec, trajectory="R", pulse=0, result_path=result_path, boundary_path=boundary_path,
+        )
+        assert child.returncode == 0, child.stderr
+        boundary = json.loads(boundary_path.read_text(encoding="utf-8"))
+        receipt = json.loads(result_path.read_text(encoding="utf-8"))
+        assert boundary["storage_lock_timeout_s"] == 10.0
+        assert boundary["environment"] == expected_environment
+        assert boundary["worker_pid"] == receipt["process_identity"]["pid"]
+        assert boundary["worker_pid"] != os.getpid()
+        assert boundary["worker_executable"] == sys.executable
+        assert receipt["result"] == boundary
+    finally:
+        campaign.close()
+
+
+def test_e5a_storage_lock_reference_worker_main_rejects_conflict_before_science(tmp_path):
+    from KHz_filament.hr4e5_production import open_e5_1a_production_campaign
+
+    spec = replace(
+        _local_production_spec(
+            tmp_path, campaign_id="storage-lock-reference-conflict", n_pulses=5,
+            k=8, candidate_hydro_workers=4,
+        ),
+        storage_lock_timeout_s=163.0,
+    )
+    campaign = open_e5_1a_production_campaign(spec)
+    try:
+        result_path = tmp_path / "worker-receipts" / "conflict-R-0.json"
+        boundary_path = tmp_path / "worker-receipts" / "conflict-R-0-boundary.json"
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        child = _run_fresh_reference_worker_boundary(
+            replace(spec, storage_lock_timeout_s=162.0), trajectory="R", pulse=0,
+            result_path=result_path, boundary_path=boundary_path,
+        )
+        assert child.returncode != 0
+        assert "explicit storage lock timeout conflicts with admission identity" in child.stderr
+        assert not boundary_path.exists()
+        assert not result_path.exists()
+    finally:
+        campaign.close()
+
+
+class _WorkerStorageOpenReached(Exception):
+    pass
+
+
+def _intercept_worker_storage_open(monkeypatch, observed):
+    from KHz_filament.hr4e5_storage import StorageBudget
+
+    def stop_at_open(cls, root, *, campaign_id, admission_identity, lock_timeout_s=10.0):
+        observed.append({
+            "root": Path(root), "campaign_id": campaign_id,
+            "identity_hash": admission_identity["identity_sha256"],
+            "lock_timeout_s": lock_timeout_s,
+        })
+        raise _WorkerStorageOpenReached
+
+    monkeypatch.setattr(StorageBudget, "open_for_worker", classmethod(stop_at_open))
+
+
+@pytest.mark.parametrize("pulse", range(4))
+def test_e5a_storage_lock_optical_worker_p0_to_p3_uses_admission_before_science(
+    tmp_path, monkeypatch, pulse,
+):
+    from KHz_filament import hr4e5_production_optical_worker as worker
+
+    identity = _admission_with_storage_lock_timeout(
+        _formal_identity(campaign_id=f"storage-lock-optical-{pulse}", n_pulses=5),
+    )
+    root = tmp_path / f"optical-{pulse}"
+    root.mkdir()
+    (root / "E5_1A_ADMISSION_IDENTITY.json").write_text(
+        json.dumps(identity), encoding="utf-8",
+    )
+    observed = []
+    _intercept_worker_storage_open(monkeypatch, observed)
+    monkeypatch.setenv("HR4E5_STORAGE_LOCK_TIMEOUT_S", "10")
+    monkeypatch.setattr(sys, "argv", [
+        "optical-worker", "--lifecycle-root", str(root / "state"),
+        "--output-dir", str(root / "output"), "--pulse", str(pulse),
+        "--config-path", str(tmp_path / "config.json"), "--prefix-intervals", "8",
+        "--admission-identity-sha256", identity["identity_sha256"],
+        "--storage-root", str(root), "--intent-id", "intent",
+        "--reservation-id", "reservation", "--writer-id", "writer",
+        "--grant-id", "grant", "--grant-nonce", "nonce",
+        "--scientific-pair-id", f"pair-{pulse}",
+        "--implementation-identity-sha256", "implementation",
+    ])
+    with pytest.raises(_WorkerStorageOpenReached):
+        worker.main()
+    assert observed == [{
+        "root": root.resolve(), "campaign_id": identity["campaign_id"],
+        "identity_hash": identity["identity_sha256"], "lock_timeout_s": 163.0,
+    }]
+    assert not (root / "output").exists()
+
+
+@pytest.mark.parametrize("worker_index", range(4))
+def test_e5a_storage_lock_hydro_worker_h0_to_h3_uses_admission_before_science(
+    tmp_path, monkeypatch, worker_index,
+):
+    from KHz_filament import hr4e5_production_worker as worker
+
+    identity = _admission_with_storage_lock_timeout(
+        _formal_identity(campaign_id=f"storage-lock-hydro-{worker_index}", n_pulses=5),
+    )
+    root = tmp_path / f"hydro-{worker_index}"
+    root.mkdir()
+    (root / "E5_1A_ADMISSION_IDENTITY.json").write_text(
+        json.dumps(identity), encoding="utf-8",
+    )
+    observed = []
+    _intercept_worker_storage_open(monkeypatch, observed)
+    monkeypatch.setattr(sys, "argv", [
+        "hydro-worker", "--lifecycle-root", str(root / "state"), "--pulse", "4",
+        "--worker-index", str(worker_index), "--hydro-workers", "4",
+        "--config-path", str(tmp_path / "config.json"),
+        "--admission-identity-sha256", identity["identity_sha256"],
+        "--storage-root", str(root), "--intent-id", "intent",
+        "--reservation-id", "reservation", "--writer-id", "writer",
+        "--grant-id", "grant", "--grant-nonce", "nonce",
+        "--scientific-pair-id", f"pair-{worker_index}",
+        "--producer-grant-id", "producer",
+        "--implementation-identity-sha256", "implementation",
+    ])
+    with pytest.raises(_WorkerStorageOpenReached):
+        worker.main()
+    assert observed == [{
+        "root": root.resolve(), "campaign_id": identity["campaign_id"],
+        "identity_hash": identity["identity_sha256"], "lock_timeout_s": 163.0,
+    }]
+
+
 def test_e5a_science_child_timeout_override_reaches_reference_candidate_and_hydro(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
@@ -914,7 +1335,7 @@ def test_e5a_science_child_timeout_override_reaches_reference_candidate_and_hydr
 
     spec = _bare_e5a_spec(
         root=tmp_path / "campaign", n_pulses=5, reference_subprocess=True,
-        science_child_timeout_s=7200,
+        science_child_timeout_s=7200, storage_lock_timeout_s=163,
     )
     runner = production._E5AProductionRunner.__new__(production._E5AProductionRunner)
     runner.spec = spec
@@ -939,6 +1360,7 @@ def test_e5a_science_child_timeout_override_reaches_reference_candidate_and_hydr
             trajectory = self.command[self.command.index("--trajectory") + 1]
             result_path = Path(self.command[self.command.index("--result-path") + 1])
             assert spec_json["science_child_timeout_s"] == 7200
+            assert spec_json["storage_lock_timeout_s"] == 163.0
             result_path.write_text(json.dumps({
                 "schema": "khz_filament.hr4e5.reference_process_result.v1",
                 "campaign_id": spec.campaign_id, "trajectory": trajectory, "pulse": pulse,
@@ -952,9 +1374,10 @@ def test_e5a_science_child_timeout_override_reaches_reference_candidate_and_hydr
             return self.returncode
 
     monkeypatch.setattr(production.subprocess, "Popen", SuccessfulChild)
-    assert runner.run_reference(0) == {"trajectory": "R", "pulse": 0}
+    for pulse in range(5):
+        assert runner.run_reference(pulse) == {"trajectory": "R", "pulse": pulse}
     assert runner.run_candidate(4) == {"trajectory": "C", "pulse": 4}
-    assert [child.wait_timeouts for child in launched] == [[7200], [7200]]
+    assert [child.wait_timeouts for child in launched] == [[7200] for _ in range(6)]
 
     class ImmediateWaiter:
         def __init__(self):

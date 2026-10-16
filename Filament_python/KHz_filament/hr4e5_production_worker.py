@@ -17,6 +17,7 @@ from typing import Any, Mapping
 from .confio import load_all
 from .hr4d_pulse_lifecycle import build_interpulse_step_schedule
 from .hr4e5_evidence import atomic_json, sha256_file
+from .hr4e5_formal_entry import resolve_storage_lock_timeout_s
 from .hr4e5s_streaming import StreamingLifecycle
 from .hr4e5_storage import PROCESS_RECEIPT_SCHEMA, StorageBudget, process_identity
 from .hr4e5_recovery_identity import capture_implementation_identity
@@ -194,8 +195,12 @@ def main() -> int:
         pass
 
     admission = json.loads((storage_root / "E5_1A_ADMISSION_IDENTITY.json").read_text(encoding="utf-8"))
+    lock_timeout_s = resolve_storage_lock_timeout_s(
+        admission, expected_hash=args.admission_identity_sha256,
+    )
     budget = StorageBudget.open_for_worker(
         storage_root, campaign_id=str(admission["campaign_id"]), admission_identity=admission,
+        lock_timeout_s=lock_timeout_s,
     )
     grant = budget.writer_grants().get(args.grant_id)
     if not isinstance(grant, Mapping):

@@ -15,7 +15,7 @@ import time
 import sys
 from collections.abc import Mapping as MappingABC
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from numbers import Integral
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -33,7 +33,9 @@ from .hr4e5_evidence import (PAIRED_EXACT_SCHEMA, _file_identity, _load_locator,
 from .hr4e5_formal_entry import (BLOCK_SIZE, QUEUE_DEPTH, build_admission_identity,
                                   build_prefix_schedule, create_pre0_root, create_successor_root,
                                   optical_write_forecast, persist_admission_identity, run_streaming_optical_pulse,
-                                  resume_final_post, validate_final_post)
+                                  resume_final_post, resolve_storage_lock_timeout_s,
+                                  validate_final_post, validate_storage_lock_timeout_s,
+                                  load_admission_identity, STORAGE_LOCK_TIMEOUT_KEY)
 from .hr4e5_paired_campaign import CAMPAIGN_STATE_FILENAME, _open_production_driver
 from .hr4e5_storage import (DEFAULT_FINAL_OUTPUT_BUDGET_BYTES, DEFAULT_SAFETY_MARGIN_BYTES,
                               HARD_CAP_BYTES, INTENT_SCHEMA, PROCESS_RECEIPT_SCHEMA, RECLAIM_PREREQUISITE_SCHEMA,
@@ -111,10 +113,14 @@ class E5AProductionSpec:
     safety_margin_bytes: int = DEFAULT_SAFETY_MARGIN_BYTES
     science_child_timeout_s: int = 900
     lut_staging_receipt_path: str | Path | None = None
+    storage_lock_timeout_s: float | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "science_child_timeout_s",
                            _positive_science_child_timeout(self.science_child_timeout_s))
+        if self.storage_lock_timeout_s is not None:
+            object.__setattr__(self, "storage_lock_timeout_s",
+                               validate_storage_lock_timeout_s(self.storage_lock_timeout_s))
 
 
 class _LocalPolicyCapacityProvider:
@@ -1011,11 +1017,16 @@ def _build_admission(spec: E5AProductionSpec, *,
         if spec.site_resource_manifest_path is not None:
             raise ValueError("local qualification cannot claim site resource evidence")
         resource_evidence = {"scope": _LocalPolicyCapacityProvider.scope}
+    runtime_or_compatibility = {
+        "module": "KHz_filament.hr4e5_production",
+        "runner": "single-production-runner",
+        "science_child_timeout_s": int(spec.science_child_timeout_s),
+    }
+    if spec.storage_lock_timeout_s is not None:
+        runtime_or_compatibility[STORAGE_LOCK_TIMEOUT_KEY] = float(spec.storage_lock_timeout_s)
     identity = build_admission_identity(
         campaign_id=str(spec.campaign_id), execution_mode=level,
-        runtime_or_compatibility={"module": "KHz_filament.hr4e5_production",
-                                  "runner": "single-production-runner",
-                                  "science_child_timeout_s": int(spec.science_child_timeout_s)},
+        runtime_or_compatibility=runtime_or_compatibility,
         config_identity={"path": str(config), "sha256": sha256_file(config),
                          "full_source_config": full_config_identity,
                          "derivation": f"run.Npulses={requested_n_pulses}_only"
@@ -2894,6 +2905,18 @@ def open_e5_1a_production_campaign(spec: E5AProductionSpec) -> E5AProductionCamp
     """The only supported creator/resumer for a production-mode E5-1A run."""
     if not isinstance(spec, E5AProductionSpec):
         raise TypeError("E5AProductionSpec is required")
+    checked_root = _checked_campaign_root(spec.root)
+    persisted_admission_path = checked_root / "E5_1A_ADMISSION_IDENTITY.json"
+    if persisted_admission_path.is_file():
+        persisted_identity = load_admission_identity(persisted_admission_path, formal=True)
+        admitted_timeout = resolve_storage_lock_timeout_s(
+            persisted_identity, explicit=spec.storage_lock_timeout_s,
+        )
+        runtime = persisted_identity["runtime_or_compatibility"]
+        if spec.storage_lock_timeout_s is None and STORAGE_LOCK_TIMEOUT_KEY in runtime:
+            # Reconstructing the identity and child spec must preserve the
+            # policy already bound to this campaign's admission hash.
+            spec = replace(spec, storage_lock_timeout_s=admitted_timeout)
     if spec.require_gpu_backend or spec.admission_level == FORMAL_SITE_ADMISSION:
         if os.environ.get("UPPE_USE_GPU") != "0" or device.USE_GPU:
             raise RuntimeError("formal GPU coordinator must start with UPPE_USE_GPU=0")
@@ -2907,7 +2930,7 @@ def open_e5_1a_production_campaign(spec: E5AProductionSpec) -> E5AProductionCamp
     identity, schedule, components = _build_admission(
         spec, implementation_identity=current_implementation,
     )
-    root = _checked_campaign_root(spec.root); root.mkdir(parents=True, exist_ok=True)
+    root = checked_root; root.mkdir(parents=True, exist_ok=True)
     reopening = (root / CAMPAIGN_STATE_FILENAME).is_file()
     admission_path = root / "E5_1A_ADMISSION_IDENTITY.json"
     implementation_path = root / "E5_1B_IMPLEMENTATION_IDENTITY.json"
@@ -2962,6 +2985,7 @@ def open_e5_1a_production_campaign(spec: E5AProductionSpec) -> E5AProductionCamp
         campaign_id=str(spec.campaign_id), max_campaign_live_bytes=int(spec.max_campaign_live_bytes),
         final_output_budget_bytes=int(spec.final_output_budget_bytes),
         safety_margin_bytes=int(spec.safety_margin_bytes), require_quota=True,
+        storage_lock_timeout_s=spec.storage_lock_timeout_s,
         takeover=reopening,
     )
     runner.driver = driver
