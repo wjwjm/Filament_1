@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import os
 import secrets
 import shutil
@@ -1178,6 +1179,15 @@ class Reservation:
 class StorageBudget:
     """Durable byte ledger and fail-closed whitelist GC coordinator."""
 
+    @staticmethod
+    def _checked_lock_timeout(value: float) -> float:
+        if isinstance(value, bool):
+            raise ValueError("storage lock timeout must be finite and within (0, 180] seconds")
+        result = float(value)
+        if not math.isfinite(result) or not 0 < result <= 180:
+            raise ValueError("storage lock timeout must be finite and within (0, 180] seconds")
+        return result
+
     def __init__(
         self,
         root: str | Path,
@@ -1195,7 +1205,11 @@ class StorageBudget:
         external_full_source_bytes: int = 0,
         frozen_lut_input_bytes: int | None = None,
         planned_final_output_bytes: int | None = None,
+        lock_timeout_s: float = 10.0,
     ):
+        # Only an explicitly bound campaign may opt into a measured finite
+        # wait. This does not alter _FileLock or campaign-state lock defaults.
+        self.lock_timeout_s = self._checked_lock_timeout(lock_timeout_s)
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self.ledger_path = self.root / "storage_ledger.json"
@@ -1250,7 +1264,7 @@ class StorageBudget:
         if not self.ledger_path.exists():
             _atomic_json(self.ledger_path, self._new_ledger(), overwrite=False)
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.__init__",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.__init__",
             campaign_root=self.root,
         ):
             self._validate(self._read())
@@ -1471,7 +1485,7 @@ class StorageBudget:
         # freshly exited process is closing the same ledger.  The lock is held
         # here, so retrying the same durable replacement is safe and bounded.
         with _FileLock(
-            self.lock_path, operation_name=operation_name,
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name=operation_name,
             campaign_root=self.root,
         ):
             data = self._read()
@@ -1540,6 +1554,48 @@ class StorageBudget:
                 total += path.stat().st_size
         return total
 
+    def _capacity_accounting(
+        self, data: Mapping[str, Any], allocation: Sequence[str] = (),
+    ) -> tuple[int, int, int]:
+        """Count root and allocation bytes in one lock-local traversal.
+
+        No state survives this operation and this is not an atomic filesystem
+        snapshot. Existing path/reparse checks and every regular-file size
+        remain authoritative. Intent content hashes stay under the ledger lock.
+        """
+        active = [item for item in data.get("reservations", {}).values()
+                  if item.get("status") == "ACTIVE"]
+        requested = [str(path) for item in active
+                     for path in item.get("allocation_paths", [])] + list(allocation)
+        scopes: dict[str, tuple[Path, bool, bool]] = {}
+        for raw in requested:
+            path, _ = _relative(self.root, raw)
+            scopes[raw] = (path, path.is_dir(), path.is_file())
+        totals = {raw: 0 for raw in scopes}
+        used = 0
+        with _trace_phase("capacity_accounting", campaign_root=self.root,
+                          operation_name="StorageBudget._capacity_accounting",
+                          allocation_scope_count=len(scopes)):
+            for path in _iter_regular_files(
+                self.root, phase_name="root_allocation_scan", campaign_root=self.root,
+            ):
+                try:
+                    size = int(path.stat().st_size)
+                except OSError as error:
+                    raise StorageBudgetError(f"cannot account file {path}") from error
+                used += size
+                _trace_metric_add("accounting_file_count", 1)
+                _trace_metric_add("accounting_logical_bytes", size)
+                for raw, (scope, directory, regular) in scopes.items():
+                    if (directory and path.is_relative_to(scope)) or (regular and path == scope):
+                        totals[raw] += size
+        reserved = 0
+        for item in active:
+            materialized = max(0, sum(totals[str(path)] for path in item.get("allocation_paths", []))
+                               - int(item.get("allocation_start_bytes", 0)))
+            reserved += max(0, int(item["bytes"]) - materialized)
+        return used, reserved, sum(totals[path] for path in allocation)
+
     def _provider_free_bytes(self) -> int | None:
         provider = self.provider
         if provider is None:
@@ -1577,13 +1633,12 @@ class StorageBudget:
         additional = _nonnegative_int(additional_bytes, "additional_bytes")
         peak = _nonnegative_int(peak_bytes, "peak_bytes")
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.check_capacity",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.check_capacity",
             campaign_root=self.root,
         ):
             data = self._read()
             self._validate(data)
-            used = self.actual_bytes()
-            reserved = self._reserved_bytes(data)
+            used, reserved, _ = self._capacity_accounting(data)
             projected = (used + self.external_prefix_bytes + self.external_canonical_source_bytes
                          + reserved + additional + peak + self.safety_margin_bytes)
             free = self._provider_free_bytes()
@@ -1633,8 +1688,17 @@ class StorageBudget:
         rid = str(reservation_id or f"res-{os.getpid()}-{time.time_ns()}")
         owner_name = str(owner or f"pid:{os.getpid()}")
         with self._locked(operation_name="StorageBudget.reserve") as data:
-            used = self.actual_bytes()
-            active = self._reserved_bytes(data)
+            reservations = data["reservations"]
+            # Reject an already-owned scope before any expensive filesystem I/O.
+            for previous in reservations.values():
+                if previous.get('status') == 'ACTIVE':
+                    for left in allocation:
+                        for right in previous.get('allocation_paths', []):
+                            if _relative_paths_overlap(left, right):
+                                raise StorageBudgetError('overlapping allocation ownership')
+            if rid in reservations and reservations[rid].get("status") == "ACTIVE":
+                raise StorageBudgetError(f"reservation already active: {rid}")
+            used, active, allocation_start = self._capacity_accounting(data, allocation)
             free = self._provider_free_bytes()
             quota = self._provider_quota_bytes()
             self._require_quota_if_configured(quota)
@@ -1646,17 +1710,8 @@ class StorageBudget:
                 raise StorageBudgetError("reservation exceeds current filesystem free space")
             if quota is not None and projected > quota:
                 raise StorageBudgetError("reservation exceeds reported quota")
-            reservations = data["reservations"]
-            for previous in reservations.values():
-                if previous.get('status') == 'ACTIVE':
-                    for a in allocation:
-                        for b in previous.get('allocation_paths', []):
-                            if _relative_paths_overlap(a, b):
-                                raise StorageBudgetError('overlapping allocation ownership')
-            if rid in reservations and reservations[rid].get("status") == "ACTIVE":
-                raise StorageBudgetError(f"reservation already active: {rid}")
             item = {"reservation_id": rid, "bytes": amount, "purpose": str(purpose), "owner": owner_name, "created_utc": _utc(), "status": "ACTIVE"}
-            item.update(allocation_paths=allocation, allocation_start_bytes=self._allocation_bytes(allocation))
+            item.update(allocation_paths=allocation, allocation_start_bytes=allocation_start)
             reservations[rid] = item
             data["events"].append({"event": "RESERVE", **item})
         return Reservation(rid, amount, str(purpose), owner_name, item["created_utc"])
@@ -2276,7 +2331,7 @@ class StorageBudget:
     ) -> dict[str, Any]:
         """Check the bound child's role, epoch, process, operation and path scope."""
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.authorize_child_writer_operation",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.authorize_child_writer_operation",
             campaign_root=self.root,
         ):
             data = self._read(); self._validate(data)
@@ -2417,7 +2472,7 @@ class StorageBudget:
 
     def writer_grants(self) -> dict[str, Any]:
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.writer_grants",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.writer_grants",
             campaign_root=self.root,
         ):
             data = self._read(); self._validate(data)
@@ -2427,7 +2482,7 @@ class StorageBudget:
         self, *, coordinator_epoch: str | int | None = None,
     ) -> list[dict[str, Any]]:
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.unresolved_writer_grants",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.unresolved_writer_grants",
             campaign_root=self.root,
         ):
             data = self._read(); self._validate(data)
@@ -2439,7 +2494,7 @@ class StorageBudget:
         self, *, coordinator_epoch: str | int | None = None,
     ) -> list[dict[str, Any]]:
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.pending_writer_grants",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.pending_writer_grants",
             campaign_root=self.root,
         ):
             data = self._read(); self._validate(data)
@@ -2469,7 +2524,7 @@ class StorageBudget:
     def active_writers(self, *, coordinator_epoch: str | int | None = None,
                        include_management: bool = True) -> list[dict[str, Any]]:
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.active_writers",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.active_writers",
             campaign_root=self.root,
         ):
             data = self._read(); self._validate(data)
@@ -2703,7 +2758,7 @@ class StorageBudget:
     def writer_receipt(self, writer_id: str) -> dict[str, Any]:
         """Return one writer registration for a controlled worker entry."""
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.writer_receipt",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.writer_receipt",
             campaign_root=self.root,
         ):
             data = self._read()
@@ -2716,7 +2771,7 @@ class StorageBudget:
     def intent(self, intent_id: str) -> dict[str, Any]:
         """Return one creation intent for a controlled worker entry."""
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.intent",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.intent",
             campaign_root=self.root,
         ):
             data = self._read()
@@ -2734,10 +2789,12 @@ class StorageBudget:
 
     @classmethod
     def open_for_worker(cls, root: str | Path, *, campaign_id: str,
-                        admission_identity: Mapping[str, Any]) -> "StorageBudget":
+                        admission_identity: Mapping[str, Any],
+                        lock_timeout_s: float = 10.0) -> "StorageBudget":
         """Open a worker view that shares the coordinator ledger lock."""
         budget_identity = (admission_identity or {}).get("budget_identity", {})
         instance = cls.__new__(cls)
+        instance.lock_timeout_s = cls._checked_lock_timeout(lock_timeout_s)
         instance.root = Path(root).resolve()
         instance.ledger_path = instance.root / "storage_ledger.json"
         instance.lock_path = instance.root / ".storage_budget.lock"
@@ -2763,7 +2820,7 @@ class StorageBudget:
         instance.admission_hash = str((admission_identity or {}).get("identity_sha256", ""))
         instance.provider = MockQuotaProvider(free_bytes=None, quota_bytes=None)
         with _FileLock(
-            instance.lock_path, operation_name="StorageBudget.open_for_worker",
+            instance.lock_path, timeout_s=instance.lock_timeout_s, operation_name="StorageBudget.open_for_worker",
             campaign_root=instance.root,
         ):
             data = instance._read()
@@ -2774,7 +2831,7 @@ class StorageBudget:
 
     def intents(self) -> dict[str, Any]:
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.intents",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.intents",
             campaign_root=self.root,
         ):
             data = self._read()
@@ -2783,7 +2840,7 @@ class StorageBudget:
 
     def reservations(self) -> dict[str, Any]:
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.reservations",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.reservations",
             campaign_root=self.root,
         ):
             data = self._read(); self._validate(data)
@@ -2794,7 +2851,7 @@ class StorageBudget:
     def validate_intent(self, intent_id: str, *, path: str | Path | None = None,
                         require_completed: bool = False, require_active: bool = False) -> dict[str, Any]:
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.validate_intent",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.validate_intent",
             campaign_root=self.root,
         ):
             data = self._read()
@@ -2893,7 +2950,7 @@ class StorageBudget:
 
     def artifacts(self) -> dict[str, Any]:
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.artifacts",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.artifacts",
             campaign_root=self.root,
         ):
             data = self._read()
@@ -2908,7 +2965,7 @@ class StorageBudget:
         GC and intent transitions cannot mix records from different versions.
         """
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.validate_paired_exact_ownership",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.validate_paired_exact_ownership",
             campaign_root=self.root,
         ):
             data = self._read()
@@ -3150,7 +3207,7 @@ class StorageBudget:
         }
         management = {str(path.resolve()) for path in self._management_paths()}
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.validate_terminal_inventory",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.validate_terminal_inventory",
             campaign_root=self.root,
         ):
             ledger = self._read()
@@ -3705,7 +3762,7 @@ class StorageBudget:
     def reclaim_plan(self, plan_id: str) -> dict[str, Any] | None:
         """Return a snapshot of an existing transaction without creating one."""
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.reclaim_plan",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.reclaim_plan",
             campaign_root=self.root,
         ):
             data = self._read(); self._validate(data)
@@ -3720,7 +3777,7 @@ class StorageBudget:
         if path.exists():
             return False
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.reclaimed_target",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.reclaimed_target",
             campaign_root=self.root,
         ):
             data = self._read(); self._validate(data)
@@ -3936,7 +3993,7 @@ class StorageBudget:
         expected_admission_hash: str | None = None,
     ) -> dict[str, Any]:
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.verify_reclaim",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.verify_reclaim",
             campaign_root=self.root,
         ):
             data = self._read()
@@ -3978,13 +4035,12 @@ class StorageBudget:
 
     def budget_report(self) -> dict[str, Any]:
         with _FileLock(
-            self.lock_path, operation_name="StorageBudget.budget_report",
+            self.lock_path, timeout_s=self.lock_timeout_s, operation_name="StorageBudget.budget_report",
             campaign_root=self.root,
         ):
             data = self._read()
             self._validate(data)
-            used = self.actual_bytes()
-            reserved = self._reserved_bytes(data)
+            used, reserved, _ = self._capacity_accounting(data)
             if (self.root / "E5_1A_TERMINAL_ROLE_CONTRACT.json").is_file():
                 final_bytes = (used + self.external_prefix_bytes
                                + self.external_canonical_source_bytes)
