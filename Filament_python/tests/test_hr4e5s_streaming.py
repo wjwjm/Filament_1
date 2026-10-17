@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import hashlib
+import importlib.util
 import json
+import os
+import subprocess
+import sys
 import threading
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -39,6 +45,193 @@ def _complete(lifecycle):
         _commit(lifecycle, ordinal)
     while lifecycle.run_one_hydro_block(dt_hydro=1.0e-6, n_hydro_steps=1, chi=0.0, nu=0.0, n0=1.00027, gravity_y=0.0):
         pass
+
+
+def test_manifest_lock_default_timeout_exclusion_and_exception_release(tmp_path):
+    import KHz_filament.hr4e5s_streaming as streaming
+
+    assert streaming._ManifestFileLock.__init__.__kwdefaults__["timeout_s"] == 10.0
+    lock_path = tmp_path / "manifest.lock"
+    waiting = threading.Event()
+    acquired = threading.Event()
+
+    def contender():
+        waiting.set()
+        with streaming._ManifestFileLock(lock_path, timeout_s=2.0, operation="contender"):
+            acquired.set()
+
+    thread = threading.Thread(target=contender, daemon=True)
+    with pytest.raises(RuntimeError, match="release lock after failure"):
+        with streaming._ManifestFileLock(lock_path, operation="owner"):
+            thread.start()
+            assert waiting.wait(timeout=1.0)
+            assert not acquired.wait(timeout=0.05)
+            raise RuntimeError("release lock after failure")
+    thread.join(timeout=2.0)
+    assert not thread.is_alive()
+    assert acquired.is_set()
+
+
+def test_timed_phase_keeps_body_error_when_end_timing_emission_fails(monkeypatch):
+    import KHz_filament.hr4e5s_streaming as streaming
+
+    primary = RuntimeError("primary phase failure")
+    emitted = []
+
+    def emit(phase, boundary, **extra):
+        emitted.append((phase, boundary, extra))
+        if boundary == "end":
+            raise OSError("injected phase end emission failure")
+
+    monkeypatch.setattr(streaming, "_timing_emit", emit)
+    with pytest.raises(RuntimeError, match="primary phase failure") as raised:
+        with streaming._timed_phase("MANIFEST_VALIDATE", operation="failure_probe"):
+            raise primary
+
+    assert raised.value is primary
+    assert emitted[0][1] == "begin" and emitted[1][1] == "end"
+    assert any("phase MANIFEST_VALIDATE end timing emission failed" in note
+               and "injected phase end emission failure" in note
+               for note in getattr(primary, "__notes__", []))
+
+
+def test_manifest_lock_keeps_body_error_when_hold_end_emission_fails(tmp_path, monkeypatch):
+    import KHz_filament.hr4e5s_streaming as streaming
+
+    original_emit = streaming._timing_emit
+
+    def emit(phase, boundary, **extra):
+        if phase == "MANIFEST_LOCK_HOLD" and boundary == "end":
+            raise OSError("injected hold-end emission failure")
+        return original_emit(phase, boundary, **extra)
+
+    monkeypatch.setattr(streaming, "_timing_emit", emit)
+    primary = RuntimeError("primary lock-body failure")
+    with pytest.raises(RuntimeError, match="primary lock-body failure") as raised:
+        with streaming._ManifestFileLock(tmp_path / "manifest.lock", operation="failure_probe"):
+            raise primary
+
+    assert raised.value is primary
+    assert any("lock cleanup after primary error failed" in note
+               and "injected hold-end emission failure" in note
+               for note in getattr(primary, "__notes__", []))
+
+
+def test_manifest_lock_timeout_keeps_lifecycle_error_when_timeout_emission_fails(
+    tmp_path, monkeypatch,
+):
+    import KHz_filament.hr4e5s_streaming as streaming
+
+    if os.name == "nt":
+        import msvcrt
+
+        original_locking = msvcrt.locking
+
+        def locked_range(fd, mode, nbytes):
+            if mode == msvcrt.LK_NBLCK:
+                raise OSError(13, "injected manifest lock contention")
+            return original_locking(fd, mode, nbytes)
+
+        monkeypatch.setattr(msvcrt, "locking", locked_range)
+    else:
+        import fcntl
+
+        original_flock = fcntl.flock
+
+        def locked_range(fd, operation):
+            if operation & fcntl.LOCK_EX and operation & fcntl.LOCK_NB:
+                raise OSError(11, "injected manifest lock contention")
+            return original_flock(fd, operation)
+
+        monkeypatch.setattr(fcntl, "flock", locked_range)
+
+    original_emit = streaming._timing_emit
+
+    def emit(phase, boundary, **extra):
+        if phase == "MANIFEST_LOCK_WAIT" and boundary == "end" and extra.get("outcome") == "TIMEOUT":
+            raise OSError("injected timeout emission failure")
+        return original_emit(phase, boundary, **extra)
+
+    monkeypatch.setattr(streaming, "_timing_emit", emit)
+    with pytest.raises(streaming.StreamingLifecycleError, match="timed out acquiring") as raised:
+        with streaming._ManifestFileLock(
+            tmp_path / "timeout.lock", timeout_s=0.0, operation="timeout_failure_probe",
+        ):
+            pytest.fail("the injected lock contention must time out before entering")
+
+    assert any("timeout timing emission failed" in note
+               and "injected timeout emission failure" in note
+               for note in getattr(raised.value, "__notes__", []))
+
+
+def test_manifest_timing_is_opt_in_and_records_operations_timeout_and_overhead(
+    tmp_path, monkeypatch,
+):
+    import KHz_filament.hr4e5s_streaming as streaming
+
+    trace_dir = tmp_path / "timing"
+    monkeypatch.delenv("HR4E5S_TIMING_DIR", raising=False)
+    before_disabled = streaming._timing_diagnostics()
+    with streaming._timed_phase("MANIFEST_JSON_READ", operation="disabled_probe"):
+        pass
+    assert not trace_dir.exists()
+    assert streaming._timing_diagnostics() == before_disabled
+
+    monkeypatch.setenv("HR4E5S_TIMING_DIR", str(trace_dir))
+    lock_path = tmp_path / "manifest.lock"
+    owner = streaming._ManifestFileLock(lock_path, operation="owner_operation")
+    owner.__enter__()
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            original_locking = msvcrt.locking
+
+            def locked_range(fd, mode, nbytes):
+                if mode == msvcrt.LK_NBLCK:
+                    raise OSError(13, "injected manifest lock contention")
+                return original_locking(fd, mode, nbytes)
+
+            monkeypatch.setattr(msvcrt, "locking", locked_range)
+        else:
+            import fcntl
+
+            original_flock = fcntl.flock
+
+            def locked_range(fd, operation):
+                if operation & fcntl.LOCK_EX and operation & fcntl.LOCK_NB:
+                    raise OSError(11, "injected manifest lock contention")
+                return original_flock(fd, operation)
+
+            monkeypatch.setattr(fcntl, "flock", locked_range)
+        with pytest.raises(streaming.StreamingLifecycleError, match="timed out acquiring"):
+            with streaming._ManifestFileLock(
+                lock_path, timeout_s=0.02, operation="timeout_operation",
+            ):
+                pass
+    finally:
+        owner.__exit__(None, None, None)
+
+    with streaming._timed_phase("MANIFEST_VALIDATE", operation="phase_operation"):
+        pass
+    rows = [
+        json.loads(line)
+        for path in trace_dir.glob("*.jsonl")
+        for line in path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert rows
+    assert all(row["pid"] > 0 and row["process_start_token"] for row in rows)
+    assert any(row["operation"] == "owner_operation" and row["boundary"] == "begin"
+               for row in rows)
+    timeout_rows = [row for row in rows if row.get("operation") == "timeout_operation"]
+    assert [(row["boundary"], row.get("outcome")) for row in timeout_rows] == [
+        ("begin", None), ("end", "TIMEOUT"),
+    ]
+    phase_rows = [row for row in rows if row.get("operation") == "phase_operation"]
+    assert [row["boundary"] for row in phase_rows] == ["begin", "end"]
+    after = streaming._timing_diagnostics()
+    assert after["event_count"] - before_disabled["event_count"] == len(rows)
+    assert after["elapsed_s"] >= before_disabled["elapsed_s"]
 
 
 def test_current_post_next_are_distinct_and_post_commit_precedes_enqueue(tmp_path):
@@ -465,3 +658,182 @@ def test_s2_bounded_16_screen_smoke_uses_the_frozen_single_screen_worker(tmp_pat
     reopened = type(lifecycle).open(lifecycle.root)
     assert reopened._authoritative_generation == lifecycle.manifest["next_generation"]
     np.testing.assert_array_equal(reopened.current_fields(0)["delta_n"], lifecycle._artifact_fields(lifecycle.manifest["records"][0]["next"], namespace="NEXT")["delta_n"])
+
+
+def _manifest_probe_source(root):
+    from KHz_filament.hr4e5s_streaming import StreamingLifecycle
+
+    count = 64
+    shape = (count, 3, 4)
+    delta_n = np.arange(np.prod(shape), dtype=np.float64).reshape(shape) * 1.0e-12
+    current = {
+        "delta_n": delta_n,
+        "vx": np.zeros(shape, dtype=np.float64),
+        "vy": np.zeros(shape, dtype=np.float64),
+    }
+    records = [
+        {"ordinal": index, "screen_id": f"probe-{index:05d}", "z_m": index * 1.0e-4}
+        for index in range(count)
+    ]
+    return StreamingLifecycle.create(
+        root=root, current=current, screen_records=records,
+        current_generation=f"probe:{Path(root).name}", dx_m=1.0e-4,
+        dy_m=1.0e-4, queue_depth=64,
+    ).root
+
+
+def _load_manifest_control_probe(path):
+    spec = importlib.util.spec_from_file_location("n5_manifest_control_probe_test", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_external_manifest_control_probe_runs_and_reaps_failed_actors(
+    tmp_path, monkeypatch,
+):
+    probe_path = os.environ.get("N5_MANIFEST_PROBE_PATH")
+    if not probe_path:
+        pytest.skip("set N5_MANIFEST_PROBE_PATH to run the external manifest control probe")
+    probe_path = Path(probe_path)
+    assert probe_path.is_file()
+    probe = _load_manifest_control_probe(probe_path)
+
+    python_root = str(Path(__file__).resolve().parents[1])
+    monkeypatch.setenv("PYTHONPATH", python_root)
+    monkeypatch.setenv("UPPE_USE_GPU", "0")
+    monkeypatch.setenv("OMP_NUM_THREADS", "1")
+    monkeypatch.setenv("MKL_NUM_THREADS", "1")
+    monkeypatch.setenv("OPENBLAS_NUM_THREADS", "1")
+    monkeypatch.delenv("HR4E5S_TIMING_DIR", raising=False)
+    source_r = _manifest_probe_source(tmp_path / "source_R")
+    source_c = _manifest_probe_source(tmp_path / "source_C")
+    source_manifests = {
+        "R": source_r / "streaming_manifest.json",
+        "C": source_c / "streaming_manifest.json",
+    }
+    original_hashes = {
+        side: hashlib.sha256(path.read_bytes()).hexdigest()
+        for side, path in source_manifests.items()
+    }
+
+    stage = tmp_path / "successful_control"
+    stage.mkdir()
+    r_fixture = probe.prepare(source_r, stage / "R", cycles=1)
+    c_fixture = probe.prepare(source_c, stage / "C", cycles=1)
+    mismatch_target = stage / "rejected" / "copy.npz"
+    with pytest.raises(AssertionError):
+        probe.copy_verified(
+            source_c / "current" / "screen_000000.npz", mismatch_target, "0" * 64,
+        )
+    assert not mismatch_target.exists()
+
+    monkeypatch.setenv("HR4E5S_TIMING_DIR", str(stage / "timing"))
+    result = probe.run_cycle(stage, 0, c_fixture, r_fixture)
+    assert result["status"] == "PASS_CONTROL_ONLY"
+    assert len(result["claimed"]) == len(set(result["claimed"])) == 32
+    cycle_receipt = json.loads(
+        (stage / "cycle_0" / "CYCLE_RECEIPT.json").read_text(encoding="utf-8"),
+    )
+    assert cycle_receipt["status"] == "PASS_CONTROL_ONLY"
+    assert {report["role"] for report in cycle_receipt["reports"]} == {
+        "R", "C_OPT", "H0", "H1", "H2", "H3",
+    }
+    assert len({report["pid"] for report in cycle_receipt["reports"]
+                if report["role"].startswith("H")}) == 4
+    assert all(report["status"] == "PASS_CONTROL_ONLY"
+               and report["timing_emission_overhead"]["event_count"] > 0
+               and report["timing_emission_overhead"]["elapsed_s"] >= 0.0
+               for report in cycle_receipt["reports"])
+    timing = probe.summarize_timing(stage / "timing")
+    assert timing["status"] == "PASS_CLOSED_TRACE"
+    assert timing["timeout_events"] == []
+    manifest_phases = [
+        row for row in timing["durations"] if row["phase"].startswith("MANIFEST_")
+    ]
+    assert manifest_phases and all(row["operation"] for row in manifest_phases)
+    assert all(row["thread_id"] is not None for row in manifest_phases)
+    assert any(row["operation"] == "claim_block" for row in manifest_phases)
+
+    for metric in ("wait_s", "hold_s"):
+        invalid_trace = tmp_path / f"negative_{metric}"
+        invalid_trace.mkdir()
+        shared = {
+            "pid": 1, "worker_id": "negative-value-probe",
+            "process_start_token": "test-process-token", "thread_id": 7,
+            "host_identity": "test-host", "phase": "MANIFEST_LOCK_WAIT",
+            "operation": "negative-value-probe", "lock_path": "manifest.lock",
+            "ordinal": None, "artifact": None,
+        }
+        begin = {**shared, "boundary": "begin", "monotonic_s": 1.0}
+        end = {
+            **shared, "boundary": "end", "monotonic_s": 2.0,
+            "outcome": "ACQUIRED", metric: -0.25,
+        }
+        (invalid_trace / "events.jsonl").write_text(
+            json.dumps(begin) + "\n" + json.dumps(end) + "\n", encoding="utf-8",
+        )
+        with pytest.raises(AssertionError, match=metric):
+            probe.summarize_timing(invalid_trace)
+
+    failed_stage = tmp_path / "failed_control"
+    failed_stage.mkdir()
+    failed_r = probe.prepare(source_r, failed_stage / "R", cycles=1)
+    failed_c = probe.prepare(source_c, failed_stage / "C", cycles=1)
+    monkeypatch.setenv("HR4E5S_TIMING_DIR", str(failed_stage / "timing"))
+    real_popen = probe.subprocess.Popen
+    tracked_processes = []
+
+    class TrackedProcess:
+        def __init__(self, process):
+            self.process = process
+            self.wait_calls = []
+
+        @property
+        def pid(self):
+            return self.process.pid
+
+        @property
+        def returncode(self):
+            return self.process.returncode
+
+        def poll(self):
+            return self.process.poll()
+
+        def terminate(self):
+            return self.process.terminate()
+
+        def kill(self):
+            return self.process.kill()
+
+        def wait(self, timeout=None):
+            self.wait_calls.append(timeout)
+            return self.process.wait(timeout=timeout)
+
+    def fail_h0(command, *args, **kwargs):
+        command = list(command)
+        if "--actor" in command and command[command.index("--actor") + 1] == "H0":
+            command = [
+                sys.executable, "-s", "-B", "-c",
+                "import sys; sys.stderr.write('injected H0 fixture failure\\n'); raise SystemExit(23)",
+            ]
+        child = TrackedProcess(real_popen(command, *args, **kwargs))
+        tracked_processes.append(child)
+        return child
+
+    monkeypatch.setattr(probe.subprocess, "Popen", fail_h0)
+    with pytest.raises(RuntimeError, match="actor failed before start barrier|diagnostic actor failure"):
+        probe.run_cycle(failed_stage, 0, failed_c, failed_r)
+    failed_receipt = json.loads(
+        (failed_stage / "cycle_0" / "CYCLE_RECEIPT.json").read_text(encoding="utf-8"),
+    )
+    assert failed_receipt["status"] == "FAIL_STOPPED"
+    assert "cleanup_error" not in failed_receipt
+    assert len(tracked_processes) == 6
+    assert all(process.poll() is not None and process.wait_calls for process in tracked_processes)
+
+    assert {
+        side: hashlib.sha256(path.read_bytes()).hexdigest()
+        for side, path in source_manifests.items()
+    } == original_hashes

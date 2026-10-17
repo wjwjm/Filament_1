@@ -11,7 +11,9 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 import time
+import traceback
 import sys
 from collections.abc import Mapping as MappingABC
 from contextlib import contextmanager
@@ -1107,6 +1109,47 @@ class _E5AProductionRunner:
         self.driver = None
         self.require_gpu_backend = bool(spec.require_gpu_backend or spec.admission_level == FORMAL_SITE_ADMISSION)
         self._gpu_assignment_paths: dict[int, Path] = {}
+        self._pair_cancel_event: threading.Event | None = None
+        self._rc_failure_lock = threading.Lock()
+
+    def set_pair_cancellation_event(self, event: threading.Event | None) -> None:
+        self._pair_cancel_event = event
+
+    def _record_concurrent_rc_failure(
+        self, *, pulse: int, step: str, error: BaseException,
+        details: Mapping[str, Any] | None = None,
+    ) -> str | None:
+        """Persist a small failure receipt outside the storage ledger path."""
+        try:
+            epoch = str(self.driver.campaign.active_coordinator_epoch())
+            folder = self.root.parent / f"{self.root.name}_failure_audit" / f"p{int(pulse)}" / f"epoch_{epoch}"
+            path = folder / "RC_FAILURE.json"
+            payload = {
+                "schema": "khz_filament.hr4e5.rc_failure_audit.v1",
+                "status": "FAIL",
+                "campaign_id": str(self.identity.get("campaign_id", "")),
+                "pulse": int(pulse),
+                "trajectory": "R" if step == "reference" else "C",
+                "step": str(step),
+                "error_type": type(error).__name__,
+                "error": str(error),
+                "traceback": "".join(traceback.format_exception(type(error), error, error.__traceback__)),
+                "details": dict(details or {}),
+                "coordinator_process_identity": process_identity(),
+                "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "monotonic_s": time.monotonic(),
+            }
+            with self._rc_failure_lock:
+                if path.exists():
+                    return str(path)
+                atomic_json(path, payload, overwrite=False)
+            return str(path)
+        except Exception as audit_error:
+            try:
+                error.add_note(f"failure audit could not be persisted: {type(audit_error).__name__}: {audit_error}")
+            except Exception:
+                pass
+            return None
 
     def _validate_frozen_lut_inputs(self, *, require_campaign_cwd: bool) -> dict[str, Any] | None:
         lut_identity = self.identity.get("lut_identity", {})
@@ -1569,6 +1612,9 @@ class _E5AProductionRunner:
         return self._run_pulse("R", pulse)
 
     def _run_reference_subprocess(self, pulse: int, *, trajectory: str = "R") -> dict[str, Any]:
+        pair_cancel_event = getattr(self, "_pair_cancel_event", None)
+        if pair_cancel_event is not None and pair_cancel_event.is_set():
+            raise RuntimeError(f"{trajectory} subprocess cancelled after paired worker failure")
         self._validate_frozen_lut_inputs(require_campaign_cwd=False)
         if trajectory not in {"R", "C"}:
             raise ValueError("independent science process trajectory must be R or C")
@@ -1605,30 +1651,89 @@ class _E5AProductionRunner:
                 command, cwd=str(self.root), env=environment,
                 stdout=stdout_file, stderr=stderr_file, text=True,
             )
-        self._wait_science_child(process, role=role)
-        stderr = stderr_path.read_text(encoding="utf-8")
-        if process.returncode != 0:
-            raise RuntimeError(f"{role} subprocess failed: exit={process.returncode}:stderr={stderr.strip()}")
-        if not result_path.is_file():
-            raise StorageIntegrityError(f"{role} subprocess produced no durable result")
-        result = json.loads(result_path.read_text(encoding="utf-8"))
-        if (result.get("schema") != "khz_filament.hr4e5.reference_process_result.v1"
-                or result.get("campaign_id") != self.identity["campaign_id"]
-                or result.get("trajectory") != trajectory
-                or int(result.get("pulse", -1)) != int(pulse)
-                or result.get("coordinator_epoch") != epoch
-                or int(result.get("process_identity", {}).get("pid", -1)) != process.pid
-                or int(result.get("parent_pid", -1)) != os.getpid()):
-            raise StorageIntegrityError(f"{role} subprocess result identity differs")
-        return result["result"]
+        try:
+            self._wait_science_child(process, role=role)
+            stderr = stderr_path.read_text(encoding="utf-8")
+            if process.returncode != 0:
+                raise RuntimeError(f"{role} subprocess failed: pid={process.pid}:exit={process.returncode}:stderr={stderr.strip()}")
+            if not result_path.is_file():
+                raise StorageIntegrityError(f"{role} subprocess produced no durable result")
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+            if (result.get("schema") != "khz_filament.hr4e5.reference_process_result.v1"
+                    or result.get("campaign_id") != self.identity["campaign_id"]
+                    or result.get("trajectory") != trajectory
+                    or int(result.get("pulse", -1)) != int(pulse)
+                    or result.get("coordinator_epoch") != epoch
+                    or int(result.get("process_identity", {}).get("pid", -1)) != process.pid
+                    or int(result.get("parent_pid", -1)) != os.getpid()):
+                raise StorageIntegrityError(f"{role} subprocess result identity differs")
+            return result["result"]
+        except BaseException as error:
+            self._record_concurrent_rc_failure(
+                pulse=pulse, step="reference" if trajectory == "R" else "candidate",
+                error=error,
+                details={"role": role, "pid": int(process.pid), "stderr_path": str(stderr_path)},
+            )
+            raise
 
     def _wait_science_child(self, process: subprocess.Popen, *, role: str) -> None:
         timeout_s = int(self.spec.science_child_timeout_s)
-        try:
-            process.wait(timeout=timeout_s)
-        except subprocess.TimeoutExpired as exc:
-            process.kill(); process.wait()
-            raise TimeoutError(f"{role} subprocess exceeded {timeout_s} seconds") from exc
+        cancel_event = getattr(self, "_pair_cancel_event", None)
+
+        def stop_child_and_raise(error: BaseException, *, graceful: bool = False,
+                                 cause: BaseException | None = None) -> None:
+            try:
+                needs_kill = not graceful
+                if graceful:
+                    try:
+                        process.terminate()
+                    except ProcessLookupError:
+                        # A natural exit won the race. Let the caller inspect
+                        # its real return code and stderr instead of inventing cancellation.
+                        process.wait(timeout=5)
+                        return
+                    try:
+                        process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        needs_kill = True
+                if needs_kill:
+                    try:
+                        process.kill()
+                    except ProcessLookupError:
+                        pass
+                    process.wait(timeout=5)
+            except BaseException as cleanup_error:
+                error.add_note(
+                    f"owned child cleanup failed: pid={process.pid}: "
+                    f"{type(cleanup_error).__name__}: {cleanup_error}"
+                )
+            raise error from cause
+
+        if cancel_event is None:
+            try:
+                process.wait(timeout=timeout_s)
+            except subprocess.TimeoutExpired as exc:
+                stop_child_and_raise(
+                    TimeoutError(f"{role} subprocess exceeded {timeout_s} seconds"), cause=exc,
+                )
+            return
+        deadline = time.monotonic() + timeout_s
+        while process.poll() is None:
+            if cancel_event.is_set():
+                if process.poll() is not None:
+                    return
+                stop_child_and_raise(
+                    RuntimeError(f"{role} subprocess cancelled after paired worker failure"),
+                    graceful=True,
+                )
+                return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0.0:
+                stop_child_and_raise(TimeoutError(f"{role} subprocess exceeded {timeout_s} seconds"))
+            try:
+                process.wait(timeout=min(0.1, remaining))
+            except subprocess.TimeoutExpired:
+                continue
 
     @staticmethod
     def _gpu_bootstrap_command(command: Sequence[str]) -> list[str]:
@@ -1725,17 +1830,24 @@ class _E5AProductionRunner:
             return
         timeout_s = int(self.spec.science_child_timeout_s)
         failures: list[str] = []
-        for process in processes:
+        for worker_index, process in enumerate(processes):
             try:
                 process.wait(timeout=timeout_s)
             except subprocess.TimeoutExpired:
-                process.kill(); process.wait()
-                failures.append(f"pid={process.pid}:hydro worker timeout after {timeout_s} seconds")
+                failures.append(f"H{worker_index}:pid={process.pid}:hydro worker timeout after {timeout_s} seconds")
+                try:
+                    try:
+                        process.kill()
+                    except ProcessLookupError:
+                        pass
+                    process.wait(timeout=5)
+                except BaseException as cleanup_error:
+                    failures.append(f"H{worker_index}:pid={process.pid}:cleanup failed: {type(cleanup_error).__name__}: {cleanup_error}")
                 continue
             if process.returncode != 0:
                 stderr_path = (stderr_paths or {}).get(process.pid)
                 stderr = stderr_path.read_text(encoding="utf-8") if stderr_path is not None else ""
-                failures.append(f"pid={process.pid}:exit={process.returncode}:stderr={stderr.strip()}")
+                failures.append(f"H{worker_index}:pid={process.pid}:exit={process.returncode}:stderr={stderr.strip()}")
         if failures:
             raise RuntimeError("production hydro worker failed: " + "; ".join(failures))
 
@@ -1771,16 +1883,48 @@ class _E5AProductionRunner:
     def _wait_for_candidate_hydro_workers(
             self, hydro_processes: Sequence[subprocess.Popen], *,
             optical_process: subprocess.Popen | None,
-            optical_stderr_path: Path | None) -> None:
+            optical_stderr_path: Path | None,
+            hydro_stderr_paths: Mapping[int, Path] | None = None,
+            pulse: int | None = None) -> None:
         timeout_s = int(self.spec.science_child_timeout_s)
         deadline = time.monotonic() + timeout_s
         while any(process.poll() is None for process in hydro_processes):
+            for worker_index, process in enumerate(hydro_processes):
+                if process.poll() is not None and process.returncode != 0:
+                    process.wait(timeout=5)
+                    stderr_path = (hydro_stderr_paths or {}).get(process.pid)
+                    stderr = stderr_path.read_text(encoding="utf-8") if stderr_path is not None else ""
+                    error = RuntimeError(
+                        f"Candidate hydro H{worker_index} failed: pid={process.pid} "
+                        f"exit={process.returncode}:stderr={stderr.strip()}"
+                    )
+                    if pulse is not None:
+                        self._record_concurrent_rc_failure(
+                            pulse=pulse, step="candidate", error=error,
+                            details={"role": f"H{worker_index}", "pid": int(process.pid),
+                                     "exit_code": int(process.returncode),
+                                     "stderr_path": None if stderr_path is None else str(stderr_path),
+                                     "stderr": stderr},
+                        )
+                    raise error
             if optical_process is not None and optical_process.poll() is not None and optical_process.returncode != 0:
                 optical_process.wait(timeout=5)
                 stderr = optical_stderr_path.read_text(encoding="utf-8") if optical_stderr_path else ""
-                raise RuntimeError(
+                error = RuntimeError(
                     f"Candidate optical worker failed: exit={optical_process.returncode}:stderr={stderr.strip()}"
                 )
+                if pulse is not None:
+                    self._record_concurrent_rc_failure(
+                        pulse=pulse, step="candidate", error=error,
+                        details={"role": "C_OPT", "pid": int(optical_process.pid),
+                                 "exit_code": int(optical_process.returncode),
+                                 "stderr_path": None if optical_stderr_path is None else str(optical_stderr_path),
+                                 "stderr": stderr},
+                    )
+                raise error
+            cancel_event = getattr(self, "_pair_cancel_event", None)
+            if cancel_event is not None and cancel_event.is_set():
+                raise RuntimeError("Candidate hydro workers cancelled after paired worker failure")
             if time.monotonic() >= deadline:
                 pending_pids = sorted({int(process.pid) for process in hydro_processes
                                        if process.poll() is None})
@@ -2372,16 +2516,30 @@ class _E5AProductionRunner:
             if optical_launch is not None:
                 bind_deadline = time.monotonic() + 30.0
                 while True:
+                    if any(process.poll() is not None for process in hydro_processes):
+                        worker_index, failed = next(
+                            (index, process) for index, process in enumerate(hydro_processes)
+                            if process.poll() is not None
+                        )
+                        failed.wait(timeout=5)
+                        stderr = hydro_stderr_paths[failed.pid].read_text(encoding="utf-8")
+                        failure = StorageIntegrityError(
+                            f"hydro H{worker_index} child exited before grant bind: "
+                            f"pid={failed.pid}:exit={failed.returncode}:stderr={stderr.strip()}"
+                        )
+                        self._record_concurrent_rc_failure(
+                            pulse=pulse, step="candidate", error=failure,
+                            details={"role": f"H{worker_index}", "pid": int(failed.pid),
+                                     "exit_code": failed.returncode,
+                                     "stderr_path": str(hydro_stderr_paths[failed.pid]), "stderr": stderr},
+                        )
+                        raise failure
+                    cancel_event = getattr(self, "_pair_cancel_event", None)
+                    if cancel_event is not None and cancel_event.is_set():
+                        raise RuntimeError("Candidate hydro workers cancelled after paired worker failure")
                     states = self.budget.writer_grants()
                     if all(states.get(grant_id, {}).get("state") == "BOUND_ACTIVE" for grant_id in hydro_grants):
                         break
-                    if any(process.poll() is not None for process in hydro_processes):
-                        failed = next(process for process in hydro_processes if process.poll() is not None)
-                        failed.wait(timeout=5)
-                        stderr = hydro_stderr_paths[failed.pid].read_text(encoding="utf-8")
-                        raise StorageIntegrityError(
-                            f"hydro child exited before grant bind: exit={failed.returncode}:stderr={stderr.strip()}"
-                        )
                     if time.monotonic() >= bind_deadline:
                         raise TimeoutError("hydro child grant bind exceeded 30 seconds")
                     time.sleep(0.01)
@@ -2393,6 +2551,7 @@ class _E5AProductionRunner:
             self._wait_for_candidate_hydro_workers(
                 hydro_processes, optical_process=optical_process,
                 optical_stderr_path=optical_stderr_path,
+                hydro_stderr_paths=hydro_stderr_paths, pulse=pulse,
             )
             self._join_hydro_workers(hydro_processes, hydro_stderr_paths)
             if optical_process is not None:
@@ -2428,24 +2587,45 @@ class _E5AProductionRunner:
             )
         except BaseException as exc:
             error = exc
+            self._record_concurrent_rc_failure(
+                pulse=pulse, step="candidate", error=exc,
+                details={"role": "C", "hydro_pids": [int(process.pid) for process in hydro_processes],
+                         "optical_pid": None if optical_process is None else int(optical_process.pid)},
+            )
+            pair_cancel_event = getattr(self, "_pair_cancel_event", None)
+            if pair_cancel_event is not None:
+                pair_cancel_event.set()
             raise
         finally:
             if error is not None:
+                cleanup_errors: list[BaseException] = []
                 try:
                     self._stop_hydro_workers(hydro_processes)
-                finally:
-                    try:
-                        if optical_process is not None and optical_process.poll() is None:
-                            optical_process.terminate()
-                            try:
-                                optical_process.wait(timeout=10)
-                            except subprocess.TimeoutExpired:
-                                optical_process.kill(); optical_process.wait()
-                    finally:
+                except BaseException as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
+                try:
+                    if optical_process is not None and optical_process.poll() is None:
+                        optical_process.terminate()
                         try:
-                            self.budget.interrupt_intent(intent["intent_id"], reason=str(error))
-                        finally:
-                            self._close_writer(writer, failed=error)
+                            optical_process.wait(timeout=10)
+                        except subprocess.TimeoutExpired:
+                            optical_process.kill(); optical_process.wait(timeout=5)
+                except BaseException as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
+                try:
+                    self.budget.interrupt_intent(intent["intent_id"], reason=str(error))
+                except BaseException as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
+                try:
+                    self._close_writer(writer, failed=error)
+                except BaseException as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
+                if cleanup_errors:
+                    messages = [f"{type(item).__name__}: {item}" for item in cleanup_errors]
+                    try:
+                        error.add_note("cleanup errors after first failure: " + " | ".join(messages))
+                    except Exception:
+                        setattr(error, "cleanup_errors", messages)
             else:
                 self._close_writer(writer, failed=None)
 

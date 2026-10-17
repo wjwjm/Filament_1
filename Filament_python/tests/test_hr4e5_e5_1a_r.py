@@ -8,6 +8,7 @@ import signal
 import subprocess
 import sys
 import textwrap
+import threading
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -1328,6 +1329,105 @@ def test_e5a_storage_lock_hydro_worker_h0_to_h3_uses_admission_before_science(
     }]
 
 
+@pytest.mark.parametrize(
+    ("worker_fails", "grant_close_fails", "expected_message"),
+    [
+        (True, False, "primary hydro failure"),
+        (True, True, "primary hydro failure"),
+        (False, True, "grant close failure"),
+    ],
+    ids=["worker-failure", "first-worker-error-survives-close-failure", "close-failure"],
+)
+def test_hydro_worker_failure_receipt_is_fail_and_preserves_first_error(
+    tmp_path, monkeypatch, worker_fails, grant_close_fails, expected_message,
+):
+    from KHz_filament import hr4e5_production_worker as worker
+
+    root = tmp_path / "hydro-campaign"
+    root.mkdir()
+    lifecycle_root = root / "state"
+    identity = {"campaign_id": "worker-failure-fixture", "identity_sha256": "a" * 64}
+    (root / "E5_1A_ADMISSION_IDENTITY.json").write_text(
+        json.dumps(identity), encoding="utf-8",
+    )
+    implementation = {"identity_sha256": "b" * 64}
+    scope = {
+        "role": "HYDRO", "role_index": 0, "trajectory": "C", "pulse": 0,
+        "scientific_pair_id": "pair-0", "admission_identity_sha256": identity["identity_sha256"],
+        "reservation_id": "reservation-0", "intent_id": "intent-0",
+        "implementation_identity": implementation,
+    }
+    primary_error = RuntimeError("primary hydro failure")
+    close_error = RuntimeError("grant close failure")
+
+    class Budget:
+        def writer_grants(self):
+            return {"grant-0": {"scope": scope}}
+
+        def record_child_writer_launch_candidate(self, *_args, **_kwargs):
+            return None
+
+        def bind_child_writer_grant(self, *_args, **_kwargs):
+            return {"coordinator_epoch": "epoch-0"}
+
+        def authorize_child_writer_operation(self, *_args, **_kwargs):
+            return None
+
+        def close_child_writer_grant(self, *_args, **_kwargs):
+            if grant_close_fails:
+                raise close_error
+            return {"state": "CLOSED"}
+
+    class Lifecycle:
+        manifest = {"queue": [], "recovery_backlog": []}
+
+        def run_one_hydro_block(self, **_kwargs):
+            if worker_fails:
+                raise primary_error
+            return []
+
+    budget = Budget()
+    receipt_calls = []
+    monkeypatch.setattr(worker, "resolve_storage_lock_timeout_s", lambda *_a, **_k: 10.0)
+    monkeypatch.setattr(worker, "StorageBudget", type(
+        "StorageBudgetStub", (), {"open_for_worker": staticmethod(lambda *_a, **_k: budget)},
+    ))
+    monkeypatch.setattr(worker, "capture_implementation_identity", lambda: implementation)
+    monkeypatch.setattr(worker, "process_identity", lambda: {
+        "pid": 12001, "host_identity": "test-host", "process_start_token": "test-start",
+    })
+    monkeypatch.setattr(worker, "_hydro_parameters", lambda _path: {})
+    monkeypatch.setattr(worker.StreamingLifecycle, "open", lambda _path: Lifecycle())
+    monkeypatch.setattr(worker, "_producer_complete", lambda *_a, **_k: True)
+    monkeypatch.setattr(worker, "_gpu_process_receipt_fields", lambda *_a, **_k: None)
+    monkeypatch.setattr(worker, "_receipt", lambda _root, **kwargs: receipt_calls.append(kwargs) or {
+        "exit_status": kwargs["exit_status"],
+    })
+    monkeypatch.setattr(sys, "argv", [
+        "hydro-worker", "--lifecycle-root", str(lifecycle_root),
+        "--pulse", "0", "--worker-index", "0", "--hydro-workers", "2",
+        "--config-path", str(root / "config.json"),
+        "--admission-identity-sha256", identity["identity_sha256"],
+        "--storage-root", str(root), "--intent-id", "intent-0",
+        "--reservation-id", "reservation-0", "--writer-id", "grant-0",
+        "--grant-id", "grant-0", "--grant-nonce", "nonce-0",
+        "--scientific-pair-id", "pair-0", "--producer-grant-id", "producer-0",
+        "--implementation-identity-sha256", implementation["identity_sha256"],
+    ])
+
+    expected_error = primary_error if worker_fails else close_error
+    with pytest.raises(RuntimeError, match=expected_message) as raised:
+        worker.main()
+
+    assert raised.value is expected_error
+    assert len(receipt_calls) == 1
+    assert receipt_calls[0]["exit_status"] == "FAIL"
+    assert receipt_calls[0]["error"] is expected_error
+    if worker_fails and grant_close_fails:
+        assert any("grant close failed after primary error" in note
+                   for note in getattr(expected_error, "__notes__", []))
+
+
 def test_e5a_science_child_timeout_override_reaches_reference_candidate_and_hydro(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
@@ -1410,7 +1510,7 @@ def test_e5a_science_child_timeout_override_reaches_reference_candidate_and_hydr
         )
 
 
-def test_e5a_science_child_timeout_kills_reaps_and_keeps_logs(tmp_path, monkeypatch):
+def test_e5a_science_child_timeout_uses_bounded_kill_wait_and_keeps_logs(tmp_path, monkeypatch):
     import KHz_filament.hr4e5_production as production
 
     spec = _bare_e5a_spec(
@@ -1441,7 +1541,7 @@ def test_e5a_science_child_timeout_kills_reaps_and_keeps_logs(tmp_path, monkeypa
 
         def wait(self, timeout=None):
             self.wait_timeouts.append(timeout)
-            if timeout is not None:
+            if timeout in (7200, 5):
                 raise subprocess.TimeoutExpired(self.command, timeout)
             self.reaped = True
             self.returncode = -9
@@ -1450,10 +1550,12 @@ def test_e5a_science_child_timeout_kills_reaps_and_keeps_logs(tmp_path, monkeypa
         def kill(self): self.killed = True
 
     monkeypatch.setattr(production.subprocess, "Popen", TimedOutChild)
-    with pytest.raises(TimeoutError, match="R subprocess exceeded 7200 seconds"):
+    with pytest.raises(TimeoutError, match="R subprocess exceeded 7200 seconds") as raised:
         runner.run_reference(0)
     child = launched[0]
-    assert child.wait_timeouts == [7200, None] and child.killed and child.reaped
+    assert child.wait_timeouts == [7200, 5] and child.killed and not child.reaped
+    assert any("owned child cleanup failed" in note and "TimeoutExpired" in note
+               for note in getattr(raised.value, "__notes__", []))
     audit = tmp_path / "campaign_reference_process_audit" / "p0" / "epoch_0"
     assert (audit / "R.stdout.txt").read_text(encoding="utf-8") == "stdout remains durable\n"
     assert (audit / "R.stderr.txt").read_text(encoding="utf-8") == "stderr remains durable\n"
@@ -1486,9 +1588,10 @@ def test_e5a_hydro_join_timeout_kills_and_reaps_child():
         def kill(self): self.killed = True
 
     hydro = TimedOutHydro()
-    with pytest.raises(RuntimeError, match="hydro worker timeout after 7200 seconds"):
+    with pytest.raises(RuntimeError, match="hydro worker timeout after 7200 seconds") as raised:
         runner._join_hydro_workers([hydro])
-    assert hydro.wait_timeouts == [7200, None] and hydro.killed and hydro.reaped
+    assert hydro.wait_timeouts == [7200, 5] and hydro.killed and not hydro.reaped
+    assert "cleanup failed: TimeoutExpired" in str(raised.value)
 
 
 def test_e5a_candidate_hydro_poll_timeout_runs_bounded_kill_reap(monkeypatch):
@@ -1541,6 +1644,53 @@ def test_e5a_candidate_hydro_poll_timeout_runs_bounded_kill_reap(monkeypatch):
     assert worker.wait_timeouts[-1] == 5
 
 
+@pytest.mark.parametrize("peer_cancelled", [False, True])
+def test_candidate_hydro_h3_failure_is_reported_while_peer_workers_run(tmp_path, peer_cancelled):
+    import KHz_filament.hr4e5_production as production
+
+    runner = production._E5AProductionRunner.__new__(production._E5AProductionRunner)
+    runner.spec = _bare_e5a_spec(science_child_timeout_s=30)
+    runner._pair_cancel_event = threading.Event()
+    if peer_cancelled:
+        runner._pair_cancel_event.set()
+    observed = []
+
+    class Child:
+        def __init__(self, pid, returncode=None):
+            self.pid = pid
+            self.returncode = returncode
+            self.wait_timeouts = []
+            self.poll_calls = 0
+
+        def poll(self):
+            self.poll_calls += 1
+            return self.returncode
+
+        def wait(self, timeout=None):
+            self.wait_timeouts.append(timeout)
+            return self.returncode
+
+    peers = [Child(7300 + index) for index in range(3)]
+    failed = Child(7303, returncode=17)
+    stderr_path = tmp_path / "H3.stderr.txt"
+    stderr_path.write_text("injected H3 traceback", encoding="utf-8")
+    runner._record_concurrent_rc_failure = lambda **kwargs: observed.append(kwargs)
+
+    with pytest.raises(RuntimeError, match=r"H3 failed: pid=7303 exit=17:stderr=injected H3 traceback") as raised:
+        runner._wait_for_candidate_hydro_workers(
+            [*peers, failed], optical_process=None, optical_stderr_path=None,
+            hydro_stderr_paths={failed.pid: stderr_path}, pulse=0,
+        )
+
+    assert "H3" in str(raised.value) and "pid=7303" in str(raised.value)
+    assert failed.wait_timeouts == [5]
+    assert all(peer.poll_calls > 0 and not peer.wait_timeouts for peer in peers)
+    assert len(observed) == 1
+    assert observed[0]["details"]["role"] == "H3"
+    assert observed[0]["details"]["pid"] == failed.pid
+    assert observed[0]["details"]["stderr"] == "injected H3 traceback"
+
+
 def test_e5a_hydro_stop_reports_unreaped_pids_after_all_attempts(monkeypatch):
     import KHz_filament.hr4e5_production as production
 
@@ -1583,12 +1733,82 @@ def test_e5a_hydro_stop_reports_unreaped_pids_after_all_attempts(monkeypatch):
     assert reaped.wait_timeouts[-1] == 5
 
 
+def test_candidate_grant_bind_preserves_h3_failure_before_peer_cancellation(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    import KHz_filament.hr4e5_production as production
+
+    runner = production._E5AProductionRunner.__new__(production._E5AProductionRunner)
+    runner.root = tmp_path
+    runner.spec = SimpleNamespace(candidate_hydro_workers=4, config_path=tmp_path / "config.json")
+    runner.components = (object(),)
+    runner.schedule = SimpleNamespace(n_intervals=8)
+    runner.identity = {"identity_sha256": "a" * 64}
+    runner.implementation_identity = {"identity_sha256": "b" * 64}
+    runner.require_gpu_backend = False
+    runner._pair_cancel_event = threading.Event()
+    monkeypatch.setattr(production.StreamingLifecycle, "open", lambda _: SimpleNamespace(
+        manifest={"current_generation": "generation-0"}))
+    grants = []
+    children = []
+    observed = []
+    closed = []
+
+    def create_grant(**kwargs):
+        grant = {"grant_id": f"grant-{len(grants)}", "nonce": "nonce"}
+        grants.append(grant)
+        return grant
+
+    class Child:
+        def __init__(self, index):
+            self.pid = 8100 + index
+            self.returncode = 17 if index == 3 else None
+        def poll(self): return self.returncode
+        def terminate(self): self.returncode = -15
+        def kill(self): self.returncode = -9
+        def wait(self, timeout=None): return self.returncode
+
+    def start_child(command, **kwargs):
+        child = Child(len(children));children.append(child)
+        stderr = tmp_path / f"H{len(children)-1}.stderr.txt"
+        stderr.write_text("H3 failed before grant bind", encoding="utf-8")
+        if len(children) == 4:
+            runner._pair_cancel_event.set()  # R cancellation arrives after H3's failure.
+        return child, stderr
+
+    runner.driver = SimpleNamespace(campaign=SimpleNamespace(
+        active_coordinator_epoch=lambda: "0",
+        _pair=lambda _: {"scientific_pair_identity": {"scientific_pair_id": "pair-0"}}))
+    runner.driver.campaign.storage = SimpleNamespace(
+        create_child_writer_grant=create_grant,
+        writer_grants=lambda: {g["grant_id"]: {"state": "PENDING"} for g in grants},
+        interrupt_intent=lambda *a, **k: None)
+    runner._record_concurrent_rc_failure = lambda **kwargs: observed.append(kwargs)
+    runner._hydro_worker_command = lambda *a, **k: ["hydro-child"]
+    runner._start_logged_child = start_child
+    runner._close_writer = lambda writer, failed: closed.append(failed)
+
+    with pytest.raises(production.StorageIntegrityError, match="hydro H3 child exited before grant bind") as raised:
+        runner._run_candidate_multipulse(
+            state=tmp_path / "state", output=tmp_path / "output", pulse=0,
+            reservation=SimpleNamespace(reservation_id="reservation-0"),
+            intent={"intent_id": "intent-0", "expected_bytes": 1, "initial_files": {}},
+            writer={"writer_id": "writer-0"})
+    assert len(children) == 4  # No optical child was launched after the failed grant binding.
+    assert observed[0]["details"]["role"] == "H3"
+    assert observed[0]["details"]["pid"] == 8103
+    assert observed[0]["details"]["exit_code"] == 17
+    assert observed[0]["details"]["stderr"] == "H3 failed before grant bind"
+    assert closed == [raised.value]
+    assert all(child.returncode is not None for child in children)
+
+
 def test_candidate_cleanup_continues_after_hydro_reap_failure(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
     import KHz_filament.hr4e5_production as production
 
     runner = production._E5AProductionRunner.__new__(production._E5AProductionRunner)
+    runner._rc_failure_lock = threading.Lock()
     state, output = tmp_path / "state", tmp_path / "output"
     lifecycle = SimpleNamespace(manifest={"current_generation": "generation-0"})
     monkeypatch.setattr(production.StreamingLifecycle, "open", lambda _state: lifecycle)
@@ -1626,7 +1846,7 @@ def test_candidate_cleanup_continues_after_hydro_reap_failure(tmp_path, monkeypa
             self.wait_timeouts.append(timeout)
             if self.optical and timeout == 10:
                 raise subprocess.TimeoutExpired("optical", timeout)
-            assert self.optical and self.killed and timeout is None
+            assert self.optical and self.killed and timeout == 5
             self.reaped = True
             self.returncode = -9
             return self.returncode
@@ -1669,7 +1889,7 @@ def test_candidate_cleanup_continues_after_hydro_reap_failure(tmp_path, monkeypa
     runner._close_writer = lambda writer, *, failed: close_calls.append((writer, failed))
     original_reason = "candidate science poll timeout pending_pids=[880]"
 
-    with pytest.raises(RuntimeError, match="hydro reap failure") as error_info:
+    with pytest.raises(TimeoutError, match="candidate science poll timeout") as error_info:
         runner._run_candidate_multipulse(
             state=state, output=output, pulse=0,
             reservation=SimpleNamespace(reservation_id="reservation-0"),
@@ -1677,13 +1897,280 @@ def test_candidate_cleanup_continues_after_hydro_reap_failure(tmp_path, monkeypa
             writer={"writer_id": "writer-0"},
         )
 
-    assert isinstance(error_info.value.__context__, TimeoutError)
-    assert str(error_info.value.__context__) == original_reason
+    assert str(error_info.value) == original_reason
+    assert any("hydro reap failure" in note for note in error_info.value.__notes__)
     optical = next(child for child in children if child.optical)
     assert optical.terminated and optical.killed and optical.reaped
-    assert optical.wait_timeouts == [10, None]
+    assert optical.wait_timeouts == [10, 5]
     assert interrupt_calls == [("intent-0", original_reason)]
-    assert close_calls == [({"writer_id": "writer-0"}, error_info.value.__context__)]
+    assert close_calls == [({"writer_id": "writer-0"}, error_info.value)]
+
+
+def test_concurrent_rc_failure_cancels_peer_and_retains_primary_error(tmp_path):
+    from types import SimpleNamespace
+
+    import KHz_filament.hr4e5_production as production
+    from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver
+
+    campaign_root = tmp_path / "campaign"
+    campaign_root.mkdir()
+    pair = {"events": []}
+    step_statuses = []
+
+    class Campaign:
+        root = campaign_root
+
+        def active_coordinator_epoch(self):
+            return "epoch-0"
+
+        def _pair(self, _pulse):
+            return pair
+
+        def _persist(self):
+            return None
+
+        def formal_step(self, pulse, step, *, status, error=None, epoch=None, receipt=None):
+            step_statuses.append((pulse, step, status, error, epoch, receipt))
+
+    campaign = Campaign()
+    runner = production._E5AProductionRunner.__new__(production._E5AProductionRunner)
+    runner.spec = SimpleNamespace(science_child_timeout_s=30)
+    runner.root = campaign_root
+    runner.identity = {"campaign_id": "paired-failure-fixture"}
+    runner.driver = SimpleNamespace(campaign=campaign)
+    runner._rc_failure_lock = threading.Lock()
+
+    record_failure = runner._record_concurrent_rc_failure
+    def delayed_failure_audit(**kwargs):
+        if kwargs["step"] == "candidate":
+            time.sleep(0.03)  # Give a cancelled peer time to race the primary audit.
+        return record_failure(**kwargs)
+    runner._record_concurrent_rc_failure = delayed_failure_audit
+
+    class PendingReference:
+        pid = 9301
+        returncode = None
+
+        def __init__(self):
+            self.terminated = False
+            self.killed = False
+            self.reaped = False
+
+        def poll(self):
+            return self.returncode
+
+        def terminate(self):
+            self.terminated = True
+
+        def kill(self):
+            self.killed = True
+
+        def wait(self, timeout=None):
+            if timeout == 10:
+                raise subprocess.TimeoutExpired("reference-child", timeout)
+            if timeout == 5 and self.killed:
+                self.reaped = True
+                self.returncode = -9
+                return self.returncode
+            raise subprocess.TimeoutExpired("reference-child", timeout)
+
+    reference_process = PendingReference()
+    reference_started = threading.Event()
+    primary_error = RuntimeError("primary Candidate failure")
+
+    def run_reference(_pulse):
+        reference_started.set()
+        runner._wait_science_child(reference_process, role="Reference")
+
+    def run_candidate(_pulse):
+        assert reference_started.wait(timeout=2)
+        raise primary_error
+
+    runner.run_reference = run_reference
+    runner.run_candidate = run_candidate
+    driver = FormalPairedDriver.__new__(FormalPairedDriver)
+    driver.root = campaign_root
+    driver.campaign = campaign
+    driver.runner = runner
+    driver.fixture_only = True
+    driver._saved_receipt = lambda _pulse, _step: None
+    driver._runner_call = lambda step, pulse, *, track=None: (
+        runner.run_reference(pulse) if step == "reference" else runner.run_candidate(pulse)
+    )
+
+    with pytest.raises(RuntimeError, match="primary Candidate failure") as raised:
+        driver._run_concurrent_rc(0)
+
+    assert raised.value is primary_error
+    assert reference_process.terminated and reference_process.killed and reference_process.reaped
+    assert reference_process.returncode == -9
+    assert runner._pair_cancel_event is None
+    assert {row[2] for row in step_statuses} == {"IN_PROGRESS", "INTERRUPTED"}
+    assert not any(row[2] == "COMMITTED" for row in step_statuses)
+    failure_receipt = tmp_path / "campaign_failure_audit" / "p0" / "epoch_epoch-0" / "RC_FAILURE.json"
+    failure = json.loads(failure_receipt.read_text(encoding="utf-8"))
+    assert failure["status"] == "FAIL"
+    assert failure["step"] == "candidate"
+    assert failure["error"] == "primary Candidate failure"
+    events = [event for event in pair["events"] if event.get("status") == "FAIL"]
+    assert {event["failure_origin"] for event in events} == {"INDEPENDENT", "PAIR_CANCELLATION"}
+
+
+@pytest.mark.parametrize("natural_exit_code", [0, 17])
+def test_science_child_preserves_natural_exit_before_cancel_terminate(natural_exit_code):
+    from types import SimpleNamespace
+
+    from KHz_filament.hr4e5_production import _E5AProductionRunner
+
+    runner = _E5AProductionRunner.__new__(_E5AProductionRunner)
+    runner.spec = SimpleNamespace(science_child_timeout_s=30)
+    runner._pair_cancel_event = threading.Event()
+    runner._pair_cancel_event.set()
+
+    class ExitedBetweenPollAndTerminate:
+        pid = 9911
+
+        def __init__(self):
+            self.returncode = None
+            self.poll_calls = 0
+            self.terminate_calls = 0
+            self.wait_timeouts = []
+            self.reaped = False
+            self.killed = False
+
+        def poll(self):
+            self.poll_calls += 1
+            return None if self.poll_calls == 1 else self.returncode
+
+        def terminate(self):
+            self.terminate_calls += 1
+            raise ProcessLookupError("child exited after poll")
+
+        def wait(self, timeout=None):
+            self.wait_timeouts.append(timeout)
+            assert timeout == 5
+            self.reaped = True
+            self.returncode = natural_exit_code
+            return natural_exit_code
+
+        def kill(self):
+            self.killed = True
+
+    child = ExitedBetweenPollAndTerminate()
+    runner._wait_science_child(child, role="Reference")
+
+    assert child.poll_calls == 2 and child.terminate_calls == 1
+    assert child.wait_timeouts == [5] and child.reaped and not child.killed
+    assert child.returncode == natural_exit_code
+
+
+def test_concurrent_rc_second_thread_start_failure_cancels_and_joins_first(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    import KHz_filament.hr4e5_production as production
+    import KHz_filament.hr4e5_paired_campaign as paired_campaign
+    from KHz_filament.hr4e5_paired_campaign import FormalPairedDriver
+
+    campaign_root = tmp_path / "campaign"
+    campaign_root.mkdir()
+    pair = {"events": []}
+    step_statuses = []
+
+    class Campaign:
+        root = campaign_root
+
+        def active_coordinator_epoch(self):
+            return "epoch-0"
+
+        def _pair(self, _pulse):
+            return pair
+
+        def _persist(self):
+            return None
+
+        def formal_step(self, pulse, step, *, status, error=None, epoch=None, receipt=None):
+            step_statuses.append((pulse, step, status, error, epoch, receipt))
+
+    campaign = Campaign()
+    runner = production._E5AProductionRunner.__new__(production._E5AProductionRunner)
+    runner.spec = SimpleNamespace(science_child_timeout_s=30)
+    runner.root = campaign_root
+    runner.identity = {"campaign_id": "paired-launch-failure-fixture"}
+    runner.driver = SimpleNamespace(campaign=campaign)
+    runner._rc_failure_lock = threading.Lock()
+    runner._pair_cancel_event = None
+    runner.set_pair_cancellation_event = lambda event: setattr(runner, "_pair_cancel_event", event)
+    reference_started = threading.Event()
+    reference_finished = threading.Event()
+    run_calls = []
+    failure_callbacks = []
+    launch_error = RuntimeError("injected second R/C thread start failure")
+
+    def run_reference(pulse):
+        run_calls.append(("reference", pulse))
+        reference_started.set()
+        cancel_event = runner._pair_cancel_event
+        assert cancel_event is not None and cancel_event.wait(timeout=2)
+        reference_finished.set()
+        return {"step": "reference", "pulse": pulse}
+
+    def run_candidate(pulse):
+        run_calls.append(("candidate", pulse))
+        return {"step": "candidate", "pulse": pulse}
+
+    runner.run_reference = run_reference
+    runner.run_candidate = run_candidate
+    runner._record_concurrent_rc_failure = lambda **kwargs: failure_callbacks.append(kwargs)
+    driver = FormalPairedDriver.__new__(FormalPairedDriver)
+    driver.root = campaign_root
+    driver.campaign = campaign
+    driver.runner = runner
+    driver.fixture_only = True
+    driver._saved_receipt = lambda _pulse, _step: None
+    driver._validate_receipt = lambda value, *, pulse, step: {
+        "status": "PASS", "pulse": pulse, "step": step, "value": value,
+    }
+    driver._runner_call = lambda step, pulse, *, track=None: (
+        runner.run_reference(pulse) if step == "reference" else runner.run_candidate(pulse)
+    )
+
+    real_thread = threading.Thread
+    threads = []
+
+    class StartFailingThread:
+        def __init__(self, target, *, args, name):
+            self.name = name
+            self.index = len(threads)
+            self._thread = real_thread(target=target, args=args, name=name)
+            threads.append(self)
+
+        def start(self):
+            if self.index == 1:
+                assert reference_started.wait(timeout=2)
+                raise launch_error
+            self._thread.start()
+
+        def join(self, timeout=None):
+            self._thread.join(timeout=timeout)
+
+        def is_alive(self):
+            return self._thread.is_alive()
+
+    monkeypatch.setattr(paired_campaign.threading, "Thread", StartFailingThread)
+    with pytest.raises(RuntimeError, match="injected second R/C thread start failure") as raised:
+        driver._run_concurrent_rc(0)
+
+    assert raised.value is launch_error
+    assert reference_finished.is_set() and not threads[0].is_alive()
+    assert run_calls == [("reference", 0)]
+    assert runner._pair_cancel_event is None
+    assert len(failure_callbacks) == 1
+    assert failure_callbacks[0]["step"] == "candidate"
+    assert {row[2] for row in step_statuses} == {"IN_PROGRESS", "COMMITTED", "INTERRUPTED"}
+    launch_events = [event for event in pair["events"] if event.get("status") == "FAIL"]
+    assert len(launch_events) == 1
+    assert launch_events[0]["failure_origin"] == "THREAD_START"
+    assert launch_events[0]["trajectory"] == "C"
 
 
 def _frozen_lut_test_config(*, n_pulses=1):
@@ -2615,7 +3102,7 @@ def test_production_reference_intents_rebind_and_completed_output_replays_across
         assert completed.returncode == 0, completed.stdout + "\n" + completed.stderr
 
     first = """
-        import sys
+        import sys, threading
         from pathlib import Path
         import KHz_filament.hr4e5_production as production
 
@@ -2626,8 +3113,19 @@ def test_production_reference_intents_rebind_and_completed_output_replays_across
             pre0_delta_n_path=Path(pre0), n_pulses=2, candidate_hydro_workers=2,
             safety_margin_bytes=1024**2,
         )
+        # Exercise recovery of an already completed C, not continuation after R fails.
+        candidate_complete = threading.Event()
+        original_candidate = production._E5AProductionRunner.run_candidate
+        def finish_candidate_before_reference_fault(self, pulse):
+            result = original_candidate(self, pulse)
+            if int(pulse) == 0:
+                candidate_complete.set()
+            return result
+        production._E5AProductionRunner.run_candidate = finish_candidate_before_reference_fault
         def interrupt_reference_optical(**kwargs):
             if kwargs.get("trajectory") == "R" and int(kwargs.get("pulse", -1)) == 0:
+                if not candidate_complete.wait(timeout=60):
+                    raise AssertionError("candidate did not complete before reference recovery fault")
                 failed_output = Path(kwargs["output_dir"])
                 failed_output.mkdir(parents=True, exist_ok=False)
                 (failed_output / "failed_attempt.txt").write_text("retained failed attempt", encoding="utf-8")
@@ -2883,8 +3381,9 @@ def test_production_reference_hydro_promotion_recovers_original_intent_and_reser
         assert completed.returncode == 0, completed.stdout + "\n" + completed.stderr
 
     first = """
-        import sys
+        import sys, threading
         from pathlib import Path
+        import KHz_filament.hr4e5_production as production
         from KHz_filament.hr4e5_storage import StorageBudget
         from KHz_filament.hr4e5_production import E5AProductionSpec, open_e5_1a_production_campaign
 
@@ -2895,6 +3394,21 @@ def test_production_reference_hydro_promotion_recovers_original_intent_and_reser
             pre0_delta_n_path=Path(pre0), n_pulses=2, candidate_hydro_workers=2,
             safety_margin_bytes=1024**2,
         )
+        # These faults must follow a completed C to exercise its cross-epoch reuse.
+        candidate_complete = threading.Event()
+        original_candidate = production._E5AProductionRunner.run_candidate
+        original_reference_hydro = production._E5AProductionRunner._run_reference_hydro
+        def finish_candidate(self, pulse):
+            result = original_candidate(self, pulse)
+            if int(pulse) == 0:
+                candidate_complete.set()
+            return result
+        def reference_hydro_after_candidate(self, **kwargs):
+            if not candidate_complete.wait(timeout=60):
+                raise AssertionError("candidate did not complete before reference promotion fault")
+            return original_reference_hydro(self, **kwargs)
+        production._E5AProductionRunner.run_candidate = finish_candidate
+        production._E5AProductionRunner._run_reference_hydro = reference_hydro_after_candidate
         injected = {"done": False}
         if failure_point in {"before_complete", "after_rebind"}:
             original = StorageBudget.complete_intent

@@ -11,6 +11,7 @@ import argparse
 import json
 import os
 import time
+import traceback
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -136,7 +137,10 @@ def _producer_complete(root: Path, *, scientific_pair_id: str,
 def _receipt(root: Path, *, pulse: int, worker_index: int, lifecycle_root: Path,
              storage_root: Path, admission_hash: str, started: float, ended: float,
              claimed: list[int], created: list[Path], identity: Mapping[str, Any],
+             exit_status: str, error: BaseException | None = None,
              gpu_fields: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    if exit_status not in {"PASS", "FAIL"} or (exit_status == "FAIL" and error is None):
+        raise ValueError("hydro process receipt requires a truthful terminal status")
     path = lifecycle_root / "process_receipts" / f"C_HYDRO_{int(worker_index):03d}.json"
     if path.exists():
         path = lifecycle_root / "process_receipts" / f"C_HYDRO_{int(worker_index):03d}_{identity['grant_id']}.json"
@@ -150,7 +154,7 @@ def _receipt(root: Path, *, pulse: int, worker_index: int, lifecycle_root: Path,
         "admission_identity_sha256": str(admission_hash),
         "lifecycle_root": str(lifecycle_root.resolve()),
         "started_monotonic_s": float(started), "ended_monotonic_s": float(ended),
-        "exit_status": "PASS", "claimed_ordinals": [int(value) for value in claimed],
+        "exit_status": str(exit_status), "claimed_ordinals": [int(value) for value in claimed],
         "created_files": [str(path.resolve()) for path in created],
         "writer_id": str(identity.get("grant_id", "")),
         "intent_id": str(identity.get("intent_id", "")),
@@ -158,8 +162,14 @@ def _receipt(root: Path, *, pulse: int, worker_index: int, lifecycle_root: Path,
         "backend": "numpy/cpu", "physical_gpu_identity": "NOT_APPLICABLE_LOCAL_CPU",
         "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+    if error is not None:
+        payload["error"] = {
+            "type": type(error).__name__, "message": str(error),
+            "traceback": "".join(traceback.format_exception(type(error), error, error.__traceback__)),
+        }
     if gpu_fields is not None:
         payload.update(gpu_fields)
+    payload["exit_status"] = str(exit_status)
     atomic_json(path, payload, overwrite=False)
     return {**payload, "report_path": str(path), "report_sha256": sha256_file(path)}
 
@@ -251,7 +261,6 @@ def main() -> int:
             time.sleep(0.01)
     except BaseException as exc:
         error = exc
-        raise
     finally:
         ended = time.monotonic()
         try:
@@ -261,28 +270,68 @@ def main() -> int:
                 status="INTERRUPTED" if error is not None else "CLOSED",
                 reason=None if error is None else f"{type(error).__name__}: {error}",
             )
-        except Exception:
+        except BaseException as close_error:
             if error is None:
-                raise
+                error = close_error
+            else:
+                try:
+                    error.add_note(
+                        f"grant close failed after primary error: {type(close_error).__name__}: {close_error}"
+                    )
+                except Exception:
+                    pass
         if error is None:
             if not isinstance(grant_close, Mapping) or grant_close.get("state") != "CLOSED":
-                raise RuntimeError("hydro child writer grant did not close successfully")
-        gpu_fields = _gpu_process_receipt_fields(
-            f"H{args.worker_index}",
-            campaign_id=str(admission["campaign_id"]),
-            scientific_pair_id=args.scientific_pair_id,
-            coordinator_epoch=str(identity["coordinator_epoch"]),
-            implementation_identity_sha256=args.implementation_identity_sha256,
-        )
+                error = RuntimeError("hydro child writer grant did not close successfully")
+        gpu_fields = None
+        try:
+            gpu_fields = _gpu_process_receipt_fields(
+                f"H{args.worker_index}",
+                campaign_id=str(admission["campaign_id"]),
+                scientific_pair_id=args.scientific_pair_id,
+                coordinator_epoch=str(identity["coordinator_epoch"]),
+                implementation_identity_sha256=args.implementation_identity_sha256,
+            )
+        except BaseException as receipt_error:
+            if error is None:
+                error = receipt_error
+            else:
+                try:
+                    error.add_note(
+                        f"GPU receipt validation failed after primary error: "
+                        f"{type(receipt_error).__name__}: {receipt_error}"
+                    )
+                except Exception:
+                    pass
         if error is None:
-            _mark_gpu_success(f"H{args.worker_index}")
-        receipt = _receipt(
-            lifecycle_root, pulse=args.pulse, worker_index=args.worker_index,
-            lifecycle_root=lifecycle_root, storage_root=storage_root,
-            admission_hash=args.admission_identity_sha256, started=started,
-            ended=ended, claimed=claimed_ordinals, created=created_files, identity=identity,
-            gpu_fields=gpu_fields,
-        )
+            try:
+                _mark_gpu_success(f"H{args.worker_index}")
+            except BaseException as marker_error:
+                error = marker_error
+        receipt_error = None
+        try:
+            receipt = _receipt(
+                lifecycle_root, pulse=args.pulse, worker_index=args.worker_index,
+                lifecycle_root=lifecycle_root, storage_root=storage_root,
+                admission_hash=args.admission_identity_sha256, started=started,
+                ended=ended, claimed=claimed_ordinals, created=created_files, identity=identity,
+                exit_status="PASS" if error is None else "FAIL", error=error,
+                gpu_fields=gpu_fields,
+            )
+        except BaseException as write_error:
+            receipt_error = write_error
+            if error is None:
+                error = write_error
+            else:
+                try:
+                    error.add_note(
+                        f"failure receipt write failed after primary error: "
+                        f"{type(write_error).__name__}: {write_error}"
+                    )
+                except Exception:
+                    pass
+    if error is not None:
+        raise error
     print(json.dumps(receipt, sort_keys=True))
     return 0
 

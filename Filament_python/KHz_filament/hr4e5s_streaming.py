@@ -9,7 +9,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import socket
 import tempfile
+import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -20,6 +22,7 @@ import numpy as np
 from .device import to_cpu
 from .hr4 import advance_hr4_single_screen
 from .hr4e_timestep import sha256_array, sha256_file
+from .hr4e5_storage import process_identity
 
 
 SCHEMA = "khz_filament.hr4e5s.streaming.v1"
@@ -27,6 +30,9 @@ RECOVERY_ATTEMPT_SCHEMA = "khz_filament.hr4e5s.streaming.recovery_attempt.v1"
 FIELDS = ("delta_n", "vx", "vy")
 DEFAULT_QUEUE_DEPTH = 16
 FROZEN_BLOCK_SIZE = 8
+_TIMING_DIAGNOSTIC_LOCK = threading.Lock()
+_TIMING_DIAGNOSTIC_EVENT_COUNT = 0
+_TIMING_DIAGNOSTIC_ELAPSED_S = 0.0
 
 
 class StreamingLifecycleError(RuntimeError):
@@ -116,10 +122,13 @@ def _s5_fault_config() -> dict[str, Any] | None:
 class _ManifestFileLock:
     """Small cross-platform advisory lock for one lifecycle manifest."""
 
-    def __init__(self, path: Path, *, timeout_s: float = 10.0):
+    def __init__(self, path: Path, *, timeout_s: float = 10.0,
+                 operation: str = "unspecified"):
         self.path = path
         self.timeout_s = float(timeout_s)
+        self.operation = str(operation)
         self._handle = None
+        self._hold_started: float | None = None
 
     def __enter__(self) -> "_ManifestFileLock":
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -129,32 +138,101 @@ class _ManifestFileLock:
             self._handle.write(b"0")
             self._handle.flush()
             os.fsync(self._handle.fileno())
-        _timing_emit("MANIFEST_LOCK_WAIT", "begin", lock_path=str(self.path))
-        deadline = time.monotonic() + self.timeout_s
-        while True:
-            try:
+        wait_started = time.perf_counter()
+        try:
+            _timing_emit(
+                "MANIFEST_LOCK_WAIT", "begin", operation=self.operation,
+                lock_path=str(self.path), timeout_s=self.timeout_s,
+            )
+            deadline = time.monotonic() + self.timeout_s
+            while True:
                 if os.name == "nt":
                     import msvcrt
 
                     self._handle.seek(0)
-                    msvcrt.locking(self._handle.fileno(), msvcrt.LK_NBLCK, 1)
+                    try:
+                        msvcrt.locking(self._handle.fileno(), msvcrt.LK_NBLCK, 1)
+                    except OSError as error:
+                        acquire_error = error
+                    else:
+                        acquire_error = None
                 else:
                     import fcntl
 
-                    fcntl.flock(self._handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                _timing_emit("MANIFEST_LOCK_WAIT", "end", lock_path=str(self.path))
-                _timing_emit("MANIFEST_LOCK_HOLD", "begin", lock_path=str(self.path))
+                    try:
+                        fcntl.flock(self._handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    except OSError as error:
+                        acquire_error = error
+                    else:
+                        acquire_error = None
+                if acquire_error is not None:
+                    if time.monotonic() >= deadline:
+                        elapsed = time.perf_counter() - wait_started
+                        self._handle.close()
+                        self._handle = None
+                        timeout_error = StreamingLifecycleError(
+                            "timed out acquiring lifecycle manifest lock"
+                        )
+                        try:
+                            _timing_emit(
+                                "MANIFEST_LOCK_WAIT", "end", operation=self.operation,
+                                lock_path=str(self.path), wait_s=elapsed,
+                                timeout_s=self.timeout_s, outcome="TIMEOUT",
+                                error_errno=acquire_error.errno,
+                            )
+                        except BaseException as timing_error:
+                            timeout_error.add_note(
+                                f"timeout timing emission failed: {type(timing_error).__name__}: {timing_error}"
+                            )
+                        raise timeout_error from acquire_error
+                    time.sleep(0.01)
+                    continue
+                self._hold_started = time.perf_counter()
+                try:
+                    _timing_emit(
+                        "MANIFEST_LOCK_WAIT", "end", operation=self.operation,
+                        lock_path=str(self.path), wait_s=self._hold_started - wait_started,
+                        outcome="ACQUIRED",
+                    )
+                    _timing_emit(
+                        "MANIFEST_LOCK_HOLD", "begin", operation=self.operation,
+                        lock_path=str(self.path),
+                    )
+                except BaseException as timing_error:
+                    try:
+                        if os.name == "nt":
+                            import msvcrt
+
+                            self._handle.seek(0)
+                            msvcrt.locking(self._handle.fileno(), msvcrt.LK_UNLCK, 1)
+                        else:
+                            import fcntl
+
+                            fcntl.flock(self._handle.fileno(), fcntl.LOCK_UN)
+                    except BaseException as release_error:
+                        try:
+                            timing_error.add_note(
+                                "lock release after timing failure also failed: "
+                                f"{type(release_error).__name__}: {release_error}"
+                            )
+                        except Exception:
+                            pass
+                    finally:
+                        self._handle.close()
+                        self._handle = None
+                        self._hold_started = None
+                    raise
                 return self
-            except OSError as error:
-                if time.monotonic() >= deadline:
-                    self._handle.close()
-                    self._handle = None
-                    raise StreamingLifecycleError("timed out acquiring lifecycle manifest lock") from error
-                time.sleep(0.01)
+        except BaseException:
+            if self._handle is not None and self._hold_started is None:
+                self._handle.close()
+                self._handle = None
+            raise
 
     def __exit__(self, exc_type, exc, traceback) -> None:
         if self._handle is None:
             return
+        release_error = None
         try:
             if os.name == "nt":
                 import msvcrt
@@ -165,10 +243,35 @@ class _ManifestFileLock:
                 import fcntl
 
                 fcntl.flock(self._handle.fileno(), fcntl.LOCK_UN)
+        except BaseException as error:
+            release_error = error
         finally:
-            self._handle.close()
-            self._handle = None
-            _timing_emit("MANIFEST_LOCK_HOLD", "end", lock_path=str(self.path))
+            held_s = None if self._hold_started is None else time.perf_counter() - self._hold_started
+            try:
+                self._handle.close()
+            except BaseException as close_error:
+                if release_error is None:
+                    release_error = close_error
+                else:
+                    release_error.add_note(f"lock handle close failed: {type(close_error).__name__}: {close_error}")
+            finally:
+                self._handle = None
+                self._hold_started = None
+            try:
+                _timing_emit(
+                    "MANIFEST_LOCK_HOLD", "end", operation=self.operation,
+                    lock_path=str(self.path), hold_s=held_s,
+                    outcome="RELEASE_ERROR" if release_error is not None else "RELEASED",
+                )
+            except BaseException as timing_error:
+                if release_error is None:
+                    release_error = timing_error
+                else:
+                    release_error.add_note(f"release timing emission failed: {type(timing_error).__name__}: {timing_error}")
+        if release_error is not None:
+            if exc is None:
+                raise release_error
+            exc.add_note(f"lock cleanup after primary error failed: {type(release_error).__name__}: {release_error}")
 
 
 def _utc() -> str:
@@ -190,24 +293,28 @@ def _fsync_directory(path: Path) -> None:
         return
 
 
-def _atomic_json(path: Path, value: Mapping[str, Any]) -> None:
+def _atomic_json(path: Path, value: Mapping[str, Any], *, operation: str = "unspecified") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
-            json.dump(value, handle, indent=2, sort_keys=True, allow_nan=False)
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
+            with _timed_phase("MANIFEST_JSON_ENCODE", operation=operation, artifact=str(path)):
+                json.dump(value, handle, indent=2, sort_keys=True, allow_nan=False)
+                handle.write("\n")
+            with _timed_phase("MANIFEST_FILE_FSYNC", operation=operation, artifact=str(path)):
+                handle.flush()
+                os.fsync(handle.fileno())
         for attempt in range(20):
             try:
-                os.replace(temporary, path)
+                with _timed_phase("MANIFEST_ATOMIC_REPLACE", operation=operation, artifact=str(path)):
+                    os.replace(temporary, path)
                 break
             except PermissionError:
                 if os.name != "nt" or attempt == 19:
                     raise
                 time.sleep(0.01)
-        _fsync_directory(path.parent)
+        with _timed_phase("MANIFEST_DIRECTORY_FSYNC", operation=operation, artifact=str(path.parent)):
+            _fsync_directory(path.parent)
     except Exception:
         try:
             os.unlink(temporary)
@@ -269,31 +376,67 @@ def _timing_emit(phase: str, boundary: str, **extra: Any) -> None:
     directory = _timing_directory()
     if directory is None:
         return
-    directory.mkdir(parents=True, exist_ok=True)
-    actor = os.environ.get("HR4E5S_WORKER_ID", "coordinator")
-    safe_actor = "".join(character if character.isalnum() or character in "._-" else "_" for character in actor)
-    record = {
-        "schema": "khz_filament.hr4e5s.s4r.timing.v1",
-        "phase": phase,
-        "boundary": boundary,
-        "monotonic_s": time.perf_counter(),
-        "pid": os.getpid(),
-        "worker_id": actor,
-        "gpu_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES", ""),
-        **extra,
-    }
-    path = directory / f"{safe_actor}.{os.getpid()}.jsonl"
-    with path.open("a", encoding="utf-8", newline="\n") as handle:
-        handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
+    started = time.perf_counter()
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        actor = os.environ.get("HR4E5S_WORKER_ID", "coordinator")
+        safe_actor = "".join(character if character.isalnum() or character in "._-" else "_" for character in actor)
+        try:
+            identity = process_identity()
+        except Exception:
+            identity = {
+                "pid": os.getpid(), "host_identity": socket.gethostname(),
+                "process_start_token": "UNKNOWN",
+            }
+        record = {
+            "schema": "khz_filament.hr4e5s.s4r.timing.v1",
+            "phase": phase,
+            "boundary": boundary,
+            "monotonic_s": time.perf_counter(),
+            "pid": os.getpid(),
+            "host_identity": identity["host_identity"],
+            "process_start_token": identity["process_start_token"],
+            "thread_id": threading.get_ident(),
+            "worker_id": actor,
+            "gpu_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES", ""),
+            **extra,
+        }
+        path = directory / f"{safe_actor}.{os.getpid()}.jsonl"
+        with path.open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
+    finally:
+        elapsed = time.perf_counter() - started
+        global _TIMING_DIAGNOSTIC_EVENT_COUNT, _TIMING_DIAGNOSTIC_ELAPSED_S
+        with _TIMING_DIAGNOSTIC_LOCK:
+            _TIMING_DIAGNOSTIC_EVENT_COUNT += 1
+            _TIMING_DIAGNOSTIC_ELAPSED_S += elapsed
+
+
+def _timing_diagnostics() -> dict[str, int | float]:
+    """Return process-local timing-emission overhead accumulated so far."""
+    with _TIMING_DIAGNOSTIC_LOCK:
+        return {
+            "event_count": _TIMING_DIAGNOSTIC_EVENT_COUNT,
+            "elapsed_s": _TIMING_DIAGNOSTIC_ELAPSED_S,
+        }
 
 
 @contextmanager
 def _timed_phase(phase: str, **extra: Any):
     _timing_emit(phase, "begin", **extra)
+    primary_error = None
     try:
         yield
+    except BaseException as error:
+        primary_error = error
+        raise
     finally:
-        _timing_emit(phase, "end", **extra)
+        try:
+            _timing_emit(phase, "end", **extra)
+        except BaseException as timing_error:
+            if primary_error is None:
+                raise
+            primary_error.add_note(f"phase {phase} end timing emission failed: {type(timing_error).__name__}: {timing_error}")
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -347,6 +490,7 @@ class StreamingLifecycle:
         self._normalize_recovery_fields()
         self._authoritative_namespace = "CURRENT"
         self._authoritative_generation = ""
+        self._active_manifest_operation = "unspecified"
         self._s5_fault = _s5_fault_config()
         self._validate_manifest()
         self._validate_s5_fault_target()
@@ -505,8 +649,14 @@ class StreamingLifecycle:
             raise ValueError("CURRENT content provenance hash is invalid")
 
     def _save(self) -> None:
-        self._validate_manifest()
-        _atomic_json(self.manifest_path, self.manifest)
+        with _timed_phase(
+            "MANIFEST_VALIDATE_BEFORE_SAVE", operation=self._active_manifest_operation,
+        ):
+            self._validate_manifest()
+        _atomic_json(
+            self.manifest_path, self.manifest,
+            operation=self._active_manifest_operation,
+        )
 
     def _telemetry_locked(self, event: str, *, actor: str, ordinal: int | None = None, block: Sequence[int] | None = None, **extra: Any) -> dict[str, Any]:
         """Append non-invasive scheduling telemetry while the manifest is owned.
@@ -533,20 +683,31 @@ class StreamingLifecycle:
 
     def record_telemetry(self, event: str, *, actor: str, ordinal: int | None = None, block: Sequence[int] | None = None, **extra: Any) -> dict[str, Any]:
         """Persist one monotonic event without touching scientific arrays."""
-        with self._locked_manifest():
+        with self._locked_manifest("record_telemetry"):
             entry = self._telemetry_locked(event, actor=actor, ordinal=ordinal, block=block, **extra)
             self._save()
             return entry
 
     @contextmanager
-    def _locked_manifest(self):
+    def _locked_manifest(self, operation: str = "unspecified"):
         """Serialize every shared manifest read-modify-write transition."""
-        with _ManifestFileLock(self.root / ".streaming_manifest.lock"):
-            self.manifest = _read_json(self.manifest_path)
-            self._normalize_recovery_fields()
-            self._validate_manifest()
-            self._load_authoritative_pointer()
-            yield
+        previous_operation = self._active_manifest_operation
+        self._active_manifest_operation = str(operation)
+        try:
+            with _ManifestFileLock(
+                self.root / ".streaming_manifest.lock", operation=operation,
+            ):
+                with _timed_phase("MANIFEST_JSON_READ", operation=operation, artifact=str(self.manifest_path)):
+                    self.manifest = _read_json(self.manifest_path)
+                with _timed_phase("MANIFEST_NORMALIZE", operation=operation):
+                    self._normalize_recovery_fields()
+                with _timed_phase("MANIFEST_VALIDATE", operation=operation):
+                    self._validate_manifest()
+                with _timed_phase("MANIFEST_POINTER_VALIDATE", operation=operation):
+                    self._load_authoritative_pointer()
+                yield
+        finally:
+            self._active_manifest_operation = previous_operation
 
     def _load_authoritative_pointer(self) -> None:
         self._authoritative_namespace = "CURRENT"
@@ -650,11 +811,18 @@ class StreamingLifecycle:
 
     def _artifact_fields(self, entry: Mapping[str, Any], *, namespace: str) -> dict[str, np.ndarray]:
         path = self.root / str(entry["artifact"])
-        if not path.is_file() or sha256_file(path) != str(entry["file_sha256"]):
+        with _timed_phase(
+            "ARTIFACT_FILE_SHA256", namespace=namespace, artifact=str(path),
+        ):
+            file_matches = path.is_file() and sha256_file(path) == str(entry["file_sha256"])
+        if not file_matches:
             raise StreamingLifecycleError(f"{namespace} artifact is missing or hash-mismatched")
-        with np.load(path, allow_pickle=False) as loaded:
-            fields = {name: np.asarray(loaded[name]) for name in FIELDS}
-            metadata = json.loads(str(loaded["metadata_json"].item()))
+        with _timed_phase(
+            "ARTIFACT_NPZ_READ", namespace=namespace, artifact=str(path),
+        ):
+            with np.load(path, allow_pickle=False) as loaded:
+                fields = {name: np.asarray(loaded[name]) for name in FIELDS}
+                metadata = json.loads(str(loaded["metadata_json"].item()))
         fields = _validated_fields(fields, shape=self.manifest["shape"], dtype=np.float64)
         if metadata.get("schema") != SCHEMA or metadata.get("namespace") != namespace:
             raise StreamingLifecycleError(f"{namespace} artifact metadata is invalid")
@@ -667,8 +835,11 @@ class StreamingLifecycle:
 
     def _artifact_metadata(self, entry: Mapping[str, Any]) -> dict[str, Any]:
         path = self.root / str(entry["artifact"])
-        with np.load(path, allow_pickle=False) as loaded:
-            return dict(json.loads(str(loaded["metadata_json"].item())))
+        with _timed_phase(
+            "ARTIFACT_METADATA_READ", artifact=str(path),
+        ):
+            with np.load(path, allow_pickle=False) as loaded:
+                return dict(json.loads(str(loaded["metadata_json"].item())))
 
     def _assert_no_staged_or_orphaned_artifacts(self) -> None:
         temporary = sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*.tmp"))
@@ -849,7 +1020,7 @@ class StreamingLifecycle:
 
     def has_authoritative_post(self, ordinal: int) -> bool:
         """Return whether a restart may reuse this screen's validated POST."""
-        with self._locked_manifest():
+        with self._locked_manifest("has_authoritative_post"):
             record = self._record(ordinal)
             if record["post"] is None:
                 return False
@@ -861,7 +1032,7 @@ class StreamingLifecycle:
             return True
 
     def begin_optical(self, ordinal: int, *, actor: str = "optical") -> None:
-        with self._locked_manifest():
+        with self._locked_manifest("begin_optical"):
             record = self._record(ordinal)
             if record["state"] != "CURRENT_READY":
                 raise StreamingLifecycleError("screen is not ready for optical production")
@@ -869,7 +1040,7 @@ class StreamingLifecycle:
             self._save()
 
     def deposition_finalized(self, ordinal: int, *, actor: str = "optical", optical_finalized_s: float | None = None) -> None:
-        with self._locked_manifest():
+        with self._locked_manifest("deposition_finalized"):
             record = self._record(ordinal)
             if record["post"] is not None:
                 self._validate_record_provenance(record, require_post=True, require_next=record["next"] is not None)
@@ -887,7 +1058,7 @@ class StreamingLifecycle:
             self._save()
 
     def commit_post(self, ordinal: int, fields: Mapping[str, Any], *, actor: str = "optical", hr3a_authoritative: bool = True, hr3b_authoritative: bool = True) -> dict[str, Any]:
-        with self._locked_manifest():
+        with self._locked_manifest("commit_post"):
             record = self._record(ordinal)
             if record["state"] != "DEPOSITION_FINALIZED":
                 raise StreamingLifecycleError("POST commit requires DEPOSITION_FINALIZED")
@@ -949,7 +1120,7 @@ class StreamingLifecycle:
         experienced_backpressure = False
         while True:
             queue_full = False
-            with self._locked_manifest():
+            with self._locked_manifest("enqueue_post"):
                 record = self._record(ordinal)
                 if int(ordinal) in self.manifest["queue"]:
                     raise DuplicateCommitError("duplicate queue entry")
@@ -1036,11 +1207,11 @@ class StreamingLifecycle:
 
     def begin_hydro_screen(self, ordinal: int, *, actor: str = "hydro") -> None:
         """Persist the per-screen attempt boundary before invoking HR-4."""
-        with self._locked_manifest():
+        with self._locked_manifest("begin_hydro_screen"):
             self._begin_hydro_attempt_locked(ordinal, actor=actor)
 
     def claim_block(self, *, actor: str = "hydro") -> list[int]:
-        with self._locked_manifest():
+        with self._locked_manifest("claim_block"):
             self._refill_recovery_queue_locked(actor=actor)
             ordered = sorted(int(value) for value in self.manifest["queue"])
             if not ordered or (len(ordered) < FROZEN_BLOCK_SIZE and not self.manifest["recovery_active"]):
@@ -1059,7 +1230,7 @@ class StreamingLifecycle:
             return block
 
     def commit_next(self, ordinal: int, fields: Mapping[str, Any], *, actor: str = "hydro") -> dict[str, Any]:
-        with self._locked_manifest():
+        with self._locked_manifest("commit_next"):
             record = self._record(ordinal)
             if record["state"] != "HYDRO_RUNNING" or record["post"] is None:
                 raise StreamingLifecycleError("NEXT commit requires an owned running POST")
@@ -1139,7 +1310,7 @@ class StreamingLifecycle:
         return block
 
     def reconstruct_queue(self, *, actor: str = "restart") -> list[int]:
-        with self._locked_manifest():
+        with self._locked_manifest("reconstruct_queue"):
             self._discard_restartable_staged_artifacts(actor=actor)
             self._assert_no_staged_or_orphaned_artifacts()
             if self._authoritative_namespace == "NEXT":
@@ -1191,7 +1362,7 @@ class StreamingLifecycle:
 
     def validate_barrier(self, *, actor: str = "barrier") -> dict[str, Any]:
         self.record_telemetry("BARRIER_START", actor=actor)
-        with self._locked_manifest():
+        with self._locked_manifest("validate_barrier"):
             existing = self.manifest.get("barrier")
             if isinstance(existing, Mapping) and existing.get("status") == "PASS":
                 self._assert_no_staged_or_orphaned_artifacts()
@@ -1240,7 +1411,7 @@ class StreamingLifecycle:
             return result
 
     def promote_next_to_current(self, *, actor: str = "barrier") -> dict[str, Any]:
-        with self._locked_manifest():
+        with self._locked_manifest("promote_next_to_current"):
             barrier = self.manifest.get("barrier")
             if not isinstance(barrier, Mapping) or barrier.get("status") != "PASS":
                 raise BarrierError("NEXT cannot become CURRENT before barrier PASS")
@@ -1278,7 +1449,7 @@ class StreamingLifecycle:
 
     def inject_s5_fault(self, fault_id: str, *, ordinal: int, lifecycle_stage: str) -> None:
         """Expose one locked, deterministic S5 test boundary to the runner."""
-        with self._locked_manifest():
+        with self._locked_manifest("inject_s5_fault"):
             self._maybe_inject_s5_fault(
                 fault_id,
                 ordinal=int(ordinal),

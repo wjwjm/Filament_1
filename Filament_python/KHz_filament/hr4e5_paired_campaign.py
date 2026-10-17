@@ -1403,6 +1403,12 @@ class FormalPairedDriver:
             )
         values: dict[str, Any] = {}
         errors: dict[str, BaseException] = {}
+        errors_lock = threading.Lock()
+        failure_candidates: list[tuple[bool, float, str, BaseException]] = []
+        pair_cancel_event = threading.Event()
+        set_pair_cancellation = getattr(self.runner, "set_pair_cancellation_event", None)
+        if callable(set_pair_cancellation):
+            set_pair_cancellation(pair_cancel_event)
         started_monotonic = time.monotonic()
         timing_events: list[dict[str, Any]] = []
         for step, trajectory in (("reference", "R"), ("candidate", "C")):
@@ -1416,30 +1422,91 @@ class FormalPairedDriver:
 
         def execute(step: str, track: str) -> None:
             try:
-                values[step] = self._runner_call(step, pulse, track=track)
-                timing_events.append({
-                    "event": f"{step.upper()}_END", "trajectory": track,
-                    "monotonic_s": time.monotonic(), "timestamp_utc": _utc(),
-                })
+                value = self._runner_call(step, pulse, track=track)
+                with errors_lock:
+                    values[step] = value
+                    timing_events.append({
+                        "event": f"{step.upper()}_END", "trajectory": track,
+                        "monotonic_s": time.monotonic(), "timestamp_utc": _utc(),
+                    })
             except BaseException as exc:  # propagated after both tracks stop
-                errors[step] = exc
-                timing_events.append({
-                    "event": f"{step.upper()}_END", "trajectory": track,
-                    "status": "FAIL", "error": f"{type(exc).__name__}: {exc}",
-                    "monotonic_s": time.monotonic(), "timestamp_utc": _utc(),
-                })
+                occurred_monotonic = time.monotonic()
+                cancellation_error = (
+                    "cancelled after paired worker failure" in str(exc).casefold()
+                )
+                with errors_lock:
+                    errors.setdefault(step, exc)
+                    failure_candidates.append((
+                        not cancellation_error, occurred_monotonic, step, exc,
+                    ))
+                    failure_event = {
+                        "event": f"{step.upper()}_END", "trajectory": track,
+                        "status": "FAIL", "error": f"{type(exc).__name__}: {exc}",
+                        "failure_origin": "PAIR_CANCELLATION" if cancellation_error else "INDEPENDENT",
+                        "monotonic_s": occurred_monotonic, "timestamp_utc": _utc(),
+                    }
+                    timing_events.append(failure_event)
+                record_failure = getattr(self.runner, "_record_concurrent_rc_failure", None)
+                if callable(record_failure) and not cancellation_error:
+                    try:
+                        audit_path = record_failure(
+                            pulse=pulse, step=step, error=exc,
+                            details={"role": track, "thread": threading.current_thread().name},
+                        )
+                        if audit_path:
+                            failure_event["failure_audit_path"] = str(audit_path)
+                    except BaseException as audit_error:
+                        try:
+                            exc.add_note(f"failure audit callback failed: {type(audit_error).__name__}: {audit_error}")
+                        except Exception:
+                            pass
+                pair_cancel_event.set()
 
-        threads = [
-            threading.Thread(target=execute, args=(step, track), name=f"e5-rc-{track.lower()}-{pulse}")
+        pending_tracks = [
+            (step, track)
             for step, track, saved in (
                 ("reference", "R", saved_reference),
                 ("candidate", "C", saved_candidate),
             ) if saved is None
         ]
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join()
+        threads = [
+            threading.Thread(target=execute, args=(step, track), name=f"e5-rc-{track.lower()}-{pulse}")
+            for step, track in pending_tracks
+        ]
+        started_threads: list[threading.Thread] = []
+        launch_error: BaseException | None = None
+        try:
+            for (step, track), thread in zip(pending_tracks, threads):
+                try:
+                    thread.start()
+                except BaseException as exc:
+                    launch_error = exc
+                    with errors_lock:
+                        errors.setdefault(step, exc)
+                        failure_candidates.append((True, time.monotonic(), step, exc))
+                        timing_events.append({
+                            "event": f"{step.upper()}_END", "trajectory": track,
+                            "status": "FAIL", "failure_origin": "THREAD_START",
+                            "error": f"{type(exc).__name__}: {exc}",
+                            "monotonic_s": time.monotonic(), "timestamp_utc": _utc(),
+                        })
+                    record_failure = getattr(self.runner, "_record_concurrent_rc_failure", None)
+                    if callable(record_failure):
+                        try:
+                            record_failure(pulse=pulse, step=step, error=exc,
+                                           details={"role": track, "thread": thread.name})
+                        except BaseException as audit_error:
+                            exc.add_note(f"failure audit callback failed: {type(audit_error).__name__}: {audit_error}")
+                    pair_cancel_event.set()
+                    break
+                started_threads.append(thread)
+        finally:
+            try:
+                for thread in started_threads:
+                    thread.join()
+            finally:
+                if callable(set_pair_cancellation):
+                    set_pair_cancellation(None)
         if not errors:
             validate_gpu_receipts = getattr(self.runner, "validate_gpu_pulse_receipts", None)
             if callable(validate_gpu_receipts):
@@ -1467,7 +1534,13 @@ class FormalPairedDriver:
                     epoch=self.campaign.active_coordinator_epoch(),
                 )
             except BaseException as exc:
-                errors[step] = exc
+                occurred_monotonic = time.monotonic()
+                with errors_lock:
+                    errors.setdefault(step, exc)
+                    failure_candidates.append((True, occurred_monotonic, step, exc))
+                record_failure = getattr(self.runner, "_record_concurrent_rc_failure", None)
+                if callable(record_failure):
+                    record_failure(pulse=pulse, step=step, error=exc)
         if errors:
             for step in ("reference", "candidate"):
                 if step in errors:
@@ -1479,7 +1552,9 @@ class FormalPairedDriver:
                         )
                     except Exception:
                         pass
-            raise errors[next(iter(errors))]
+            independent = [item for item in failure_candidates if item[0]]
+            primary = min(independent or failure_candidates, key=lambda item: item[1])
+            raise launch_error if launch_error is not None else primary[3]
         return (
             self._saved_receipt(pulse, "reference"),
             self._saved_receipt(pulse, "candidate"),
