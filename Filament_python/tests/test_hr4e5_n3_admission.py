@@ -1,5 +1,7 @@
 """Bounded N3 admission tests; no scheduler or scientific allocations."""
 import json
+from pathlib import Path
+import subprocess
 import pytest
 
 from KHz_filament.hr4e5_final_gates import _validate_runtime_budget, require_final_gate_path
@@ -45,6 +47,205 @@ def runtime_fixture(tmp_path):
                 budget_raw_sha256=raw_sha256_file(path),
                 conservative_total_s=budget["conservative_total_s"], allocation_seconds=432000)
     return path, budget, gate
+
+
+def performance_requalification_fixture(tmp_path, package, performance_gate):
+    from KHz_filament.hr4e5_final_gates import (
+        NORMAL_MAX_JOURNAL_BYTES, PERFORMANCE_REQUALIFICATION_TOOLS,
+        TERMINAL_MAX_JOURNAL_BYTES,
+    )
+    from tools.hpc_ops.provenance_v2 import create_manifest
+
+    repo = package.parent
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True, capture_output=True)
+    package.mkdir(parents=True, exist_ok=True)
+    relative_paths = (
+        "Filament_python/KHz_filament/hr4e5_streaming_journal.py",
+        "Filament_python/KHz_filament/hr4e5s_streaming.py",
+    )
+    for index, relative in enumerate(relative_paths):
+        module_relative = relative.removeprefix("Filament_python/")
+        module = package / module_relative
+        module.parent.mkdir(parents=True, exist_ok=True)
+        module.write_bytes(f"# module {index}\n".encode())
+    subprocess.run(["git", "-C", str(repo), "add", "--", *relative_paths],
+                   check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=Codex Fixture",
+                    "-c", "user.email=codex-fixture@example.invalid", "commit", "-m", "fixture"],
+                   check=True, capture_output=True)
+    source_manifest = create_manifest(
+        repo, tmp_path / "fixture_source_provenance.json",
+        tracked_paths=relative_paths, external_paths=(),
+    )
+    source_records = {
+        record["path"]: {key: record[key] for key in (
+            "git_blob_oid", "canonical_lf_sha256", "hash_scope")}
+        for record in source_manifest["records"]
+    }
+
+    gate_value = json.loads(performance_gate.read_text(encoding="utf-8"))
+    gate_sha = raw_sha256_file(performance_gate)
+    normal_time = 0.2766064116731286
+    terminal_time = 0.419
+    site_root = tmp_path / "site"
+    site_root.mkdir()
+    tool_hashes = {}
+    for name in PERFORMANCE_REQUALIFICATION_TOOLS:
+        tool = site_root / name
+        tool.write_bytes(("tool:" + name).encode())
+        tool_hashes[name] = raw_sha256_file(tool)
+    candidate_path = site_root / "source" / "Filament_python" / "KHz_filament" / "hr4e5_streaming_journal.py"
+    candidate_path.parent.mkdir(parents=True, exist_ok=True)
+    candidate_path.write_bytes((package / "KHz_filament" / "hr4e5_streaming_journal.py").read_bytes())
+    baseline_path = site_root / "baseline_journal.py"
+    fixture = dict(
+        schema="n3.journal_performance_requalification_fixture.v2",
+        science_calls=0, formal_submissions=0,
+        normal_max_journal_bytes=NORMAL_MAX_JOURNAL_BYTES,
+        terminal_max_journal_bytes=TERMINAL_MAX_JOURNAL_BYTES,
+        status="PASS_SITE_FIXTURE_ONLY",
+        candidate_module=dict(path=str(candidate_path), raw_sha256=raw_sha256_file(candidate_path)),
+        baseline_module=dict(path=str(baseline_path), raw_sha256=raw_sha256_file(baseline_path)),
+        metadata_authority_cases={
+            "pre_repair": {"status": "PASS_EXPECTED_REJECT"},
+            "repaired": {"status": "PASS_ACCEPT_AND_REHASH"},
+        },
+        same_length_corruption={"status": "PASS_REJECT_SAME_LENGTH_CORRUPTION"},
+        capacity_sized_valid_journal_rechecks=[
+            dict(label="normal_max_C_p0_journal", journal_bytes=NORMAL_MAX_JOURNAL_BYTES,
+                 status="PASS_VALID_SYNTHETIC_AUTHORITY_BOUNDARY",
+                 metadata_refresh_digest_recheck_count=1,
+                 metadata_refresh_elapsed_s=normal_time),
+            dict(label="terminal_max_single_journal", journal_bytes=TERMINAL_MAX_JOURNAL_BYTES,
+                 status="PASS_VALID_SYNTHETIC_AUTHORITY_BOUNDARY",
+                 metadata_refresh_digest_recheck_count=1,
+                 metadata_refresh_elapsed_s=terminal_time),
+        ],
+    )
+    fixture_path = site_root / "SITE_FIXTURE_REQUAL.json"
+    fixture_path.write_text(json.dumps(fixture), encoding="utf-8")
+    receipt = dict(
+        schema="n3.performance_requalification.v1",
+        status="PASS_PERFORMANCE_REQUALIFICATION_ONLY",
+        performance_allocation_only=True, science_calls=0, formal_submissions=0,
+        runtime=dict(slurm_job_id="275219", slurm_cpus_per_task=8,
+                     allocated_gpu_count=1, UPPE_USE_GPU="0"),
+        source_identities=dict(runtime_manifest=dict(
+            head=subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"],
+                                check=True, capture_output=True, text=True).stdout.strip(),
+            journal_and_lifecycle=source_records)),
+        performance_gate=dict(path=str(performance_gate), raw_sha256=gate_sha,
+                              status="PASS", checks=gate_value["checks"],
+                              ratios=gate_value["ratios"]),
+        journal_fixture=dict(path=str(fixture_path), raw_sha256=raw_sha256_file(fixture_path),
+                             status="PASS_SITE_FIXTURE_ONLY",
+                             max_single_recheck_s=max(normal_time, terminal_time)),
+        tool_raw_sha256=tool_hashes,
+    )
+    receipt_path = site_root / "N3_PERFORMANCE_REQUALIFICATION.json"
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    performance = dict(status="PASS", evidence_path=str(performance_gate),
+                       evidence_raw_sha256=gate_sha,
+                       baseline_head="46b6a446754e44b8b126911e759954720fe9438c",
+                       revalidation_path=str(receipt_path),
+                       revalidation_raw_sha256=raw_sha256_file(receipt_path))
+    return performance, receipt_path, receipt
+
+
+def add_runtime_revalidation_budget(budget, gate, receipt_path, *, counts=None,
+                                    normal_max=None, terminal_max=None):
+    normal_max = 0.2766064116731286 if normal_max is None else normal_max
+    terminal_max = 0.419 if terminal_max is None else terminal_max
+    counts = {"base": 233420, "conservative": 249516, "stress": 499032} if counts is None else counts
+    budget["journal_revalidation"] = dict(
+        revalidation_path=str(receipt_path),
+        revalidation_raw_sha256=raw_sha256_file(receipt_path),
+        normal_max_recheck_s=normal_max,
+        terminal_max_recheck_s=terminal_max,
+        scenario_recheck_counts=counts,
+        terminal_recheck_count=6,
+        planning_basis={
+            "base": "One maximum normal-journal recheck per base lifecycle transaction.",
+            "conservative": "One maximum normal-journal recheck per backpressure transaction.",
+            "stress": "Two maximum normal-journal rechecks per backpressure transaction.",
+        },
+    )
+    for row in budget["scenarios"]:
+        name = row["name"]
+        components = row["components_s"]
+        components["journal_revalidation_s"] = counts[name] * normal_max + 6 * terminal_max
+        fraction = row["margin_fraction"]
+        components["margin_s"] = sum(value for key, value in components.items() if key != "margin_s") * fraction
+        row["total_s"] = sum(components.values())
+        row["total_h"] = row["total_s"] / 3600
+    budget["conservative_total_s"] = next(
+        row["total_s"] for row in budget["scenarios"] if row["name"] == "conservative")
+    budget_path = Path(gate["budget_path"])
+    budget_path.write_text(json.dumps(budget), encoding="utf-8")
+    gate["budget_raw_sha256"] = raw_sha256_file(budget_path)
+    gate["conservative_total_s"] = budget["conservative_total_s"]
+
+
+def final_gate_requalification_fixture(tmp_path):
+    from KHz_filament.hr4e5_final_gates import (
+        N3_FORMAL_SCOPE, FINAL_GATES_SCHEMA, PERFORMANCE_CHECKS,
+    )
+
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    _, _, runtime = runtime_fixture(tmp_path)
+    def write(name, value):
+        path = tmp_path / name
+        path.write_text(json.dumps(value), encoding="utf-8")
+        return path
+
+    performance_gate = write("performance_requalified.json", dict(
+        status="PASS", checks=dict.fromkeys(PERFORMANCE_CHECKS, True),
+        ratios=dict(p95_hold_speedup=10, metadata_write_reduction=.99,
+                    matched_serial_throughput_speedup=15),
+        metrics=dict(new_serial=dict(observer_fraction=.01, full_manifest_writes=0),
+                     new_concurrent=dict(observer_fraction=.01, full_manifest_writes=0,
+                                         wait_max_s=2))))
+    package = tmp_path / "source_repo" / "Filament_python"
+    performance, receipt_path, receipt = performance_requalification_fixture(
+        tmp_path, package, performance_gate)
+    budget = json.loads(Path(runtime["budget_path"]).read_text(encoding="utf-8"))
+    add_runtime_revalidation_budget(budget, runtime, receipt_path)
+    from KHz_filament.hr4e5_journal_capacity import build_n3_journal_capacity_bound
+    bound = build_n3_journal_capacity_bound(campaign_root=tmp_path / "run", campaign_id="N3-requal")
+    capacity = write("capacity_requalified.json", dict(status="PASS", bound=bound))
+    inputs = {"config": dict(path="fixture", raw_sha256="a" * 64)}
+    manifest = dict(schema=FINAL_GATES_SCHEMA, campaign_id="N3-requal",
+        scope=N3_FORMAL_SCOPE, implementation_identity_sha256="b" * 64,
+        inputs=inputs, runtime=runtime, performance=performance,
+        storage=dict(status="PASS", bound=bound, capacity_report_path=str(capacity),
+                     capacity_report_raw_sha256=raw_sha256_file(capacity)))
+    manifest_path = write("gates_requalified.json", manifest)
+    args = dict(campaign_root=tmp_path / "run", package_root=package,
+                campaign_id="N3-requal", expected_inputs=inputs,
+                implementation_identity_sha256="b" * 64,
+                journal_capacity_bound=bound)
+    return manifest_path, manifest, args, receipt_path, receipt, package, performance_gate
+
+
+def validate_requalified_fixture(fixture):
+    from KHz_filament.hr4e5_final_gates import validate_final_gate_manifest
+    manifest_path, manifest, args, *_ = fixture
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    return validate_final_gate_manifest(manifest_path, **args)
+
+
+def update_requalification_fixture_artifacts(fixture):
+    _, manifest, _, receipt_path, receipt, *_ = fixture
+    fixture_path = Path(receipt["journal_fixture"]["path"])
+    receipt["journal_fixture"]["raw_sha256"] = raw_sha256_file(fixture_path)
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    manifest["performance"]["revalidation_raw_sha256"] = raw_sha256_file(receipt_path)
+    budget_path = Path(manifest["runtime"]["budget_path"])
+    budget = json.loads(budget_path.read_text(encoding="utf-8"))
+    budget["journal_revalidation"]["revalidation_raw_sha256"] = raw_sha256_file(receipt_path)
+    budget_path.write_text(json.dumps(budget), encoding="utf-8")
+    manifest["runtime"]["budget_raw_sha256"] = raw_sha256_file(budget_path)
 
 
 def test_n3_runtime_budget_recomputed(tmp_path):
@@ -169,6 +370,142 @@ def test_n3_manifest_binds_input_source_and_report(tmp_path):
     capacity.write_text('{}',encoding="utf-8")
     with pytest.raises(ValueError,match="SHA256"):
         validate_final_gate_manifest(path,**args)
+
+
+def test_n3_performance_requalification_and_runtime_overhead_are_bound(tmp_path):
+    fixture = final_gate_requalification_fixture(tmp_path)
+    result = validate_requalified_fixture(fixture)
+    _, _, _, receipt_path, _, _, _ = fixture
+    assert result["performance"]["revalidation"]["raw_sha256"] == raw_sha256_file(receipt_path)
+    journal_revalidation = result["runtime"]["journal_revalidation"]
+    assert journal_revalidation["terminal_recheck_count"] == 6
+    assert journal_revalidation["scenario_overhead_s"]["conservative"] == pytest.approx(
+        249516 * 0.2766064116731286 + 6 * 0.419)
+
+
+def test_n3_performance_requalification_requires_path_and_digest_pair(tmp_path):
+    fixture = final_gate_requalification_fixture(tmp_path)
+    fixture[1]["performance"].pop("revalidation_raw_sha256")
+    with pytest.raises(ValueError, match="supplied together"):
+        validate_requalified_fixture(fixture)
+
+
+def test_n3_performance_requalification_rejects_missing_source_identity(tmp_path):
+    fixture = final_gate_requalification_fixture(tmp_path)
+    _, manifest, _, receipt_path, receipt, *_ = fixture
+    receipt["source_identities"]["runtime_manifest"]["journal_and_lifecycle"].pop(
+        "Filament_python/KHz_filament/hr4e5_streaming_journal.py")
+    update_requalification_fixture_artifacts(fixture)
+    with pytest.raises(ValueError, match="source identities"):
+        validate_requalified_fixture(fixture)
+
+
+def test_n3_performance_requalification_rejects_changed_actual_source(tmp_path):
+    fixture = final_gate_requalification_fixture(tmp_path)
+    package = fixture[5]
+    (package / "KHz_filament" / "hr4e5_streaming_journal.py").write_bytes(b"# changed source\n")
+    with pytest.raises(ValueError, match="differs from the running module"):
+        validate_requalified_fixture(fixture)
+
+
+def test_n3_performance_requalification_binds_hashed_gate_contents(tmp_path):
+    fixture = final_gate_requalification_fixture(tmp_path)
+    _, manifest, _, receipt_path, receipt, *_ = fixture
+    receipt["performance_gate"]["raw_sha256"] = "0" * 64
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    manifest["performance"]["revalidation_raw_sha256"] = raw_sha256_file(receipt_path)
+    with pytest.raises(ValueError, match="hash differs from the hashed gate"):
+        validate_requalified_fixture(fixture)
+
+
+def test_n3_performance_requalification_rejects_changed_tool(tmp_path):
+    fixture = final_gate_requalification_fixture(tmp_path)
+    receipt_path = fixture[3]
+    (receipt_path.parent / "site_control_driver_n3.py").write_bytes(b"changed driver")
+    with pytest.raises(ValueError, match="tool hash mismatch"):
+        validate_requalified_fixture(fixture)
+
+
+def test_n3_performance_requalification_checks_git_blob_with_provenance_authority(tmp_path):
+    fixture = final_gate_requalification_fixture(tmp_path)
+    receipt = fixture[4]
+    record = receipt["source_identities"]["runtime_manifest"]["journal_and_lifecycle"][
+        "Filament_python/KHz_filament/hr4e5_streaming_journal.py"]
+    record["git_blob_oid"] = "0" * 40
+    update_requalification_fixture_artifacts(fixture)
+    with pytest.raises(ValueError, match="Git blob identity differs from the running source"):
+        validate_requalified_fixture(fixture)
+
+
+def test_n3_performance_requalification_binds_fixture_candidate_and_baseline_raw_hashes(tmp_path):
+    fixture = final_gate_requalification_fixture(tmp_path)
+    receipt = fixture[4]
+    fixture_path = Path(receipt["journal_fixture"]["path"])
+    actual = json.loads(fixture_path.read_text(encoding="utf-8"))
+    actual["candidate_module"]["raw_sha256"] = "0" * 64
+    fixture_path.write_text(json.dumps(actual), encoding="utf-8")
+    update_requalification_fixture_artifacts(fixture)
+    with pytest.raises(ValueError, match="candidate raw hash"):
+        validate_requalified_fixture(fixture)
+
+    fixture = final_gate_requalification_fixture(tmp_path / "baseline")
+    receipt = fixture[4]
+    fixture_path = Path(receipt["journal_fixture"]["path"])
+    actual = json.loads(fixture_path.read_text(encoding="utf-8"))
+    actual["baseline_module"]["raw_sha256"] = "0" * 64
+    fixture_path.write_text(json.dumps(actual), encoding="utf-8")
+    update_requalification_fixture_artifacts(fixture)
+    with pytest.raises(ValueError, match="baseline module differs from its hashed baseline tool"):
+        validate_requalified_fixture(fixture)
+
+
+def test_n3_runtime_revalidation_must_match_performance_receipt(tmp_path):
+    fixture = final_gate_requalification_fixture(tmp_path)
+    manifest = fixture[1]
+    budget = json.loads(Path(manifest["runtime"]["budget_path"]).read_text(encoding="utf-8"))
+    budget["journal_revalidation"]["revalidation_raw_sha256"] = "0" * 64
+    budget_path = Path(manifest["runtime"]["budget_path"])
+    budget_path.write_text(json.dumps(budget), encoding="utf-8")
+    manifest["runtime"]["budget_raw_sha256"] = raw_sha256_file(budget_path)
+    with pytest.raises(ValueError, match="receipt hash differs from performance gate"):
+        validate_requalified_fixture(fixture)
+
+
+def test_n3_runtime_revalidation_rejects_counts_below_capacity_budget(tmp_path):
+    fixture = final_gate_requalification_fixture(tmp_path)
+    _, manifest, _, receipt_path, *_ = fixture
+    budget = json.loads(Path(manifest["runtime"]["budget_path"]).read_text(encoding="utf-8"))
+    add_runtime_revalidation_budget(
+        budget, manifest["runtime"], receipt_path,
+        counts={"base": 0, "conservative": 0, "stress": 0})
+    manifest["runtime"]["budget_raw_sha256"] = raw_sha256_file(
+        Path(manifest["runtime"]["budget_path"]))
+    with pytest.raises(ValueError, match="counts understate or differ"):
+        validate_requalified_fixture(fixture)
+
+
+def test_n3_runtime_revalidation_rejects_underestimated_recheck_time(tmp_path):
+    fixture = final_gate_requalification_fixture(tmp_path)
+    _, manifest, _, receipt_path, *_ = fixture
+    budget = json.loads(Path(manifest["runtime"]["budget_path"]).read_text(encoding="utf-8"))
+    add_runtime_revalidation_budget(
+        budget, manifest["runtime"], receipt_path, normal_max=0.2)
+    manifest["runtime"]["budget_raw_sha256"] = raw_sha256_file(
+        Path(manifest["runtime"]["budget_path"]))
+    with pytest.raises(ValueError, match="underestimates the measured maximum"):
+        validate_requalified_fixture(fixture)
+
+
+def test_n3_runtime_revalidation_over_120_hours_fails_closed(tmp_path):
+    fixture = final_gate_requalification_fixture(tmp_path)
+    _, manifest, _, receipt_path, *_ = fixture
+    budget = json.loads(Path(manifest["runtime"]["budget_path"]).read_text(encoding="utf-8"))
+    add_runtime_revalidation_budget(
+        budget, manifest["runtime"], receipt_path, normal_max=2.0)
+    manifest["runtime"]["budget_raw_sha256"] = raw_sha256_file(
+        Path(manifest["runtime"]["budget_path"]))
+    with pytest.raises(ValueError, match="exceeds the 120-hour allocation"):
+        validate_requalified_fixture(fixture)
 
 
 def test_n3_full_k_barrier_promotion_actual_encoder_and_replay(tmp_path, monkeypatch):
