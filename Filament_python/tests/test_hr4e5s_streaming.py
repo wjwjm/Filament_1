@@ -47,6 +47,24 @@ def _complete(lifecycle):
         pass
 
 
+def _legacy_corruption_fixture(lifecycle):
+    """Materialize legacy JSON only in this test's freshly generated root.
+
+    Direct JSON tampering below exercises legacy compatibility. Dedicated
+    journal negatives cover v2's immutable-checkpoint authority boundary.
+    """
+    from KHz_filament.hr4e5s_streaming import StreamingLifecycle
+    snapshot = lifecycle.authority_snapshot()["manifest"]
+    snapshot.pop("persistence_format", None)
+    lifecycle.manifest_path.chmod(0o600)
+    lifecycle.manifest_path.write_text(json.dumps(snapshot), encoding="utf-8")
+    for name in ("streaming_manifest.head.json", "streaming_manifest.journal.jsonl"):
+        (lifecycle.root / name).unlink()
+    legacy = StreamingLifecycle.open(lifecycle.root)
+    assert not legacy.is_journal_backed
+    return legacy
+
+
 def test_manifest_lock_default_timeout_exclusion_and_exception_release(tmp_path):
     import KHz_filament.hr4e5s_streaming as streaming
 
@@ -214,6 +232,7 @@ def test_manifest_timing_is_opt_in_and_records_operations_timeout_and_overhead(
 
     with streaming._timed_phase("MANIFEST_VALIDATE", operation="phase_operation"):
         pass
+    streaming._flush_timing()
     rows = [
         json.loads(line)
         for path in trace_dir.glob("*.jsonl")
@@ -368,6 +387,7 @@ def test_barrier_rejects_missing_and_wrong_generation_then_promotes_atomically(t
         lifecycle.validate_barrier()
     fields = lifecycle._artifact_fields(lifecycle.manifest["records"][7]["post"], namespace="POST")
     lifecycle.commit_next(7, fields)
+    lifecycle = _legacy_corruption_fixture(lifecycle)
     manifest = json.loads(lifecycle.manifest_path.read_text(encoding="utf-8"))
     manifest["current_generation"] = "wrong-generation"
     lifecycle.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
@@ -387,6 +407,7 @@ def test_barrier_rejects_duplicate_next_identity(tmp_path):
 
     lifecycle, _ = _lifecycle(tmp_path, count=8, queue_depth=8)
     _complete(lifecycle)
+    lifecycle = _legacy_corruption_fixture(lifecycle)
     manifest = json.loads(lifecycle.manifest_path.read_text(encoding="utf-8"))
     manifest["records"][1]["next"] = dict(manifest["records"][0]["next"])
     lifecycle.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
@@ -586,6 +607,7 @@ def test_restart_rejects_post_from_another_current_generation(tmp_path):
 
     lifecycle, _ = _lifecycle(tmp_path, count=8, queue_depth=8)
     _commit(lifecycle, 0, enqueue=False)
+    lifecycle = _legacy_corruption_fixture(lifecycle)
     manifest = json.loads(lifecycle.manifest_path.read_text(encoding="utf-8"))
     manifest["current_generation"] = "wrong-generation"
     lifecycle.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")

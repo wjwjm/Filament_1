@@ -244,7 +244,7 @@ def bootstrap_recovery(
         "bootstrap_event_index": event_index,
         "telemetry_event_count": len(telemetry),
         "pre_bootstrap_hydro_claim_count": historical_hydro_claim_count,
-        "manifest_sha256": sha256_file(lifecycle.manifest_path),
+        "manifest_sha256": lifecycle.state_sha256(), "manifest_hash_scope": "authority_revision_v2" if lifecycle.is_journal_backed else "raw_bytes", "checkpoint_sha256": sha256_file(lifecycle.manifest_path),
     }
     _atomic_json(receipt_path, receipt)
     validate_recovery_bootstrap_receipt(
@@ -555,7 +555,7 @@ def finalize_streaming(*, lifecycle_root: str | Path, out_path: str | Path) -> d
         lifecycle_stage="BARRIER_PASS_PRE_PROMOTION",
     )
     promotion = lifecycle.promote_next_to_current(actor="s3_barrier")
-    result = {"schema": S3_SCHEMA, "barrier": barrier, "promotion": promotion, "streaming_manifest_sha256": sha256_file(lifecycle.manifest_path)}
+    result = {"schema": S3_SCHEMA, "barrier": barrier, "promotion": promotion, "streaming_manifest_sha256": lifecycle.state_sha256(), "streaming_hash_scope": "authority_revision_v2" if lifecycle.is_journal_backed else "raw_bytes", "checkpoint_sha256": sha256_file(lifecycle.manifest_path)}
     _atomic_json(Path(out_path), result)
     return result
 

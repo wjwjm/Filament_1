@@ -7,9 +7,12 @@ operator: hydro work invokes the frozen ``advance_hr4_single_screen`` path.
 from __future__ import annotations
 
 import hashlib
+import atexit
 import json
 import os
+import secrets
 import socket
+import stat
 import tempfile
 import threading
 import time
@@ -23,6 +26,7 @@ from .device import to_cpu
 from .hr4 import advance_hr4_single_screen
 from .hr4e_timestep import sha256_array, sha256_file
 from .hr4e5_storage import process_identity
+from .hr4e5_streaming_journal import JournalAuthority, JournalError, JournalHead, TrackedDict, _ChangeSet, _plain as _journal_plain, validate_projection
 
 
 SCHEMA = "khz_filament.hr4e5s.streaming.v1"
@@ -33,6 +37,10 @@ FROZEN_BLOCK_SIZE = 8
 _TIMING_DIAGNOSTIC_LOCK = threading.Lock()
 _TIMING_DIAGNOSTIC_EVENT_COUNT = 0
 _TIMING_DIAGNOSTIC_ELAPSED_S = 0.0
+_TIMING_BUFFER_LOCK = threading.Lock()
+_TIMING_BUFFER: list[dict[str, Any]] = []
+_TIMING_BUFFER_LIMIT = 256
+_TIMING_IDENTITY_CACHE: dict[int, dict[str, Any]] = {}
 
 
 class StreamingLifecycleError(RuntimeError):
@@ -263,6 +271,8 @@ class _ManifestFileLock:
                     lock_path=str(self.path), hold_s=held_s,
                     outcome="RELEASE_ERROR" if release_error is not None else "RELEASED",
                 )
+                if len(_TIMING_BUFFER) >= _TIMING_BUFFER_LIMIT:
+                    _flush_timing()
             except BaseException as timing_error:
                 if release_error is None:
                     release_error = timing_error
@@ -378,11 +388,13 @@ def _timing_emit(phase: str, boundary: str, **extra: Any) -> None:
         return
     started = time.perf_counter()
     try:
-        directory.mkdir(parents=True, exist_ok=True)
         actor = os.environ.get("HR4E5S_WORKER_ID", "coordinator")
         safe_actor = "".join(character if character.isalnum() or character in "._-" else "_" for character in actor)
         try:
-            identity = process_identity()
+            identity = _TIMING_IDENTITY_CACHE.get(os.getpid())
+            if identity is None:
+                identity = process_identity()
+                _TIMING_IDENTITY_CACHE[os.getpid()] = identity
         except Exception:
             identity = {
                 "pid": os.getpid(), "host_identity": socket.gethostname(),
@@ -402,8 +414,8 @@ def _timing_emit(phase: str, boundary: str, **extra: Any) -> None:
             **extra,
         }
         path = directory / f"{safe_actor}.{os.getpid()}.jsonl"
-        with path.open("a", encoding="utf-8", newline="\n") as handle:
-            handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
+        with _TIMING_BUFFER_LOCK:
+            _TIMING_BUFFER.append((path, record))
     finally:
         elapsed = time.perf_counter() - started
         global _TIMING_DIAGNOSTIC_EVENT_COUNT, _TIMING_DIAGNOSTIC_ELAPSED_S
@@ -412,8 +424,38 @@ def _timing_emit(phase: str, boundary: str, **extra: Any) -> None:
             _TIMING_DIAGNOSTIC_ELAPSED_S += elapsed
 
 
+def _flush_timing() -> None:
+    """Batch process-local diagnostics outside lifecycle critical sections."""
+    global _TIMING_DIAGNOSTIC_ELAPSED_S
+    started = time.perf_counter()
+    with _TIMING_BUFFER_LOCK:
+        pending = list(_TIMING_BUFFER)
+        _TIMING_BUFFER.clear()
+    if not pending:
+        return
+    by_path = {}
+    for path, row in pending:
+        by_path.setdefault(path, []).append(row)
+    try:
+        for path, rows in by_path.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8", newline="\n") as handle:
+                handle.writelines(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n" for row in rows)
+    except BaseException:
+        with _TIMING_BUFFER_LOCK:
+            _TIMING_BUFFER[:0] = pending
+        raise
+    finally:
+        with _TIMING_DIAGNOSTIC_LOCK:
+            _TIMING_DIAGNOSTIC_ELAPSED_S += time.perf_counter() - started
+
+
+atexit.register(_flush_timing)
+
+
 def _timing_diagnostics() -> dict[str, int | float]:
     """Return process-local timing-emission overhead accumulated so far."""
+    _flush_timing()
     with _TIMING_DIAGNOSTIC_LOCK:
         return {
             "event_count": _TIMING_DIAGNOSTIC_EVENT_COUNT,
@@ -483,11 +525,30 @@ class StreamingLifecycle:
     copied into this coordinator's process memory.
     """
 
-    def __init__(self, root: str | Path, manifest: Mapping[str, Any]):
+    def __init__(
+        self,
+        root: str | Path,
+        manifest: Mapping[str, Any],
+        *,
+        journal: JournalAuthority | None = None,
+        journal_head: JournalHead | None = None,
+        journal_changes: _ChangeSet | None = None,
+    ):
         self.root = Path(root)
         self.manifest_path = self.root / "streaming_manifest.json"
-        self.manifest = dict(manifest)
-        self._normalize_recovery_fields()
+        self._journal = journal
+        self._journal_head = journal_head
+        self._journal_changes = journal_changes
+        self._poisoned = False
+        self._held_claims: dict[int, dict[str, Any]] = {}
+        self._local_manifest_lock = threading.RLock()
+        if journal is None:
+            self.manifest = dict(manifest)
+            self._normalize_recovery_fields()
+        else:
+            self.manifest = manifest
+            if not isinstance(self.manifest, TrackedDict) or journal_head is None or journal_changes is None:
+                raise TypeError("journal lifecycle requires a tracked authority view and HEAD")
         self._authoritative_namespace = "CURRENT"
         self._authoritative_generation = ""
         self._active_manifest_operation = "unspecified"
@@ -495,6 +556,44 @@ class StreamingLifecycle:
         self._validate_manifest()
         self._validate_s5_fault_target()
         self._load_authoritative_pointer()
+
+    @property
+    def is_journal_backed(self) -> bool:
+        return self._journal is not None
+
+    def authority_identity(self, *, refresh: bool = True) -> dict[str, Any]:
+        """Return a bounded identity for the current durable lifecycle state."""
+        if self._journal is None:
+            return {
+                "schema": SCHEMA,
+                "format": "legacy_manifest_v1",
+                "manifest_sha256": sha256_file(self.manifest_path),
+            }
+        if refresh:
+            with self._locked_manifest("authority_identity"):
+                pass
+        head = self._journal_head
+        if head is None:
+            raise StreamingLifecycleError("journal HEAD is unavailable")
+        return head.public()
+
+    def authority_snapshot(self) -> dict[str, Any]:
+        """Return one fresh, revision-bound full view at an explicit audit point."""
+        with self._locked_manifest("authority_snapshot"):
+            snapshot = _journal_plain(self.manifest, raw_backlog=False)
+            if "recovery_backlog_cursor" in snapshot:
+                snapshot["recovery_backlog_cursor"] = 0
+            identity = self.authority_identity(refresh=False)
+            canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+            identity = {**identity, "view_sha256": hashlib.sha256(canonical).hexdigest()}
+            return {"manifest": snapshot, "authority": identity}
+
+    def state_sha256(self) -> str:
+        """Live-state identity; legacy bytes or canonical v2 authority revision."""
+        if self._journal is None:
+            return sha256_file(self.manifest_path)
+        return hashlib.sha256(json.dumps(self.authority_identity(), sort_keys=True,
+            separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
 
     @classmethod
     def create(
@@ -547,7 +646,7 @@ class StreamingLifecycle:
         for entry in current_records:
             lifecycle_records.append({
                 "ordinal": entry["ordinal"], "screen_id": entry["screen_id"], "z_m": entry["z_m"],
-                "state": "CURRENT_READY", "retry_count": 0, "hydro_attempt_started": False,
+                "state": "CURRENT_READY", "retry_count": 0, "hydro_attempt_started": False, "hydro_owner": None,
                 "current": entry, "post": None, "next": None,
                 "transitions": [{"state": "CURRENT_READY", "status": "PASS", "timestamp_utc": _utc(), "actor": actor, "ordinal": entry["ordinal"], "screen_id": entry["screen_id"], "current_generation": str(current_generation), "next_generation": str(current_generation) + ":next", "retry_count": 0, "current_content_sha256": current_content_sha, "source_file_sha256": entry["file_sha256"], "output_file_sha256": entry["file_sha256"]}],
             })
@@ -556,17 +655,75 @@ class StreamingLifecycle:
             "next_generation": str(current_generation) + ":next",
             "shape": list(shape), "dtype": "float64", "dx_m": float(dx_m), "dy_m": float(dy_m), "expected_screen_count": count,
             "queue_depth": int(queue_depth), "block_size": FROZEN_BLOCK_SIZE,
-            "queue": [], "recovery_active": False, "recovery_backlog": [], "recovery_attempts": [], "records": lifecycle_records,
+            "queue": [], "recovery_active": False, "recovery_backlog": [], "recovery_backlog_cursor": 0,
+            "recovery_attempts": [], "records": lifecycle_records,
             "hydro_worker": {"qualification": "HR-4E-5P/P5", "screen_solver": "advance_hr4_single_screen", "block_size": FROZEN_BLOCK_SIZE},
             "barrier": None, "promotion": None, "rate_events": [], "telemetry_events": [], "created_utc": _utc(),
         }
-        _atomic_json(base / "streaming_manifest.json", manifest)
-        return cls(base, manifest)
+        return cls._install_journal_root(base, manifest)
+
+    @classmethod
+    def _install_journal_root(cls, root: Path, manifest: Mapping[str, Any]) -> "StreamingLifecycle":
+        checkpoint = root / "streaming_manifest.json"
+        if checkpoint.exists() or checkpoint.is_symlink():
+            raise FileExistsError("new journal root checkpoint already exists")
+        initial = _journal_plain(manifest)
+        for history in ("recovery_attempts", "rate_events", "telemetry_events", "s5_recovery_events"):
+            initial.setdefault(history, [])
+        initial["persistence_format"] = "journal_v2"
+        initial.setdefault("recovery_backlog_cursor", 0)
+        for record in initial.get("records", []):
+            record.setdefault("hydro_owner", None)
+        _atomic_json(checkpoint, initial)
+        try:
+            journal = JournalAuthority.initialize(root, checkpoint.read_bytes())
+            with _ManifestFileLock(root / ".streaming_manifest.lock", operation="journal_initialize"):
+                changes = _ChangeSet()
+                tracked, head, _ = journal.load(changes=changes)
+            lifecycle = cls(root, tracked, journal=journal, journal_head=head, journal_changes=changes)
+            lifecycle._validate_manifest()
+            return lifecycle
+        except JournalError as error:
+            raise StreamingLifecycleError(str(error)) from error
+
+    @classmethod
+    def create_from_manifest(cls, *, root: str | Path, manifest: Mapping[str, Any]) -> "StreamingLifecycle":
+        """Explicitly create a fresh v2 root from supplied manifest data.
+
+        This does not open, migrate, mutate, or copy any source lifecycle root.
+        Artifact paths remain relative and must be valid under the new root
+        before the result is used for scientific work.
+        """
+        base = Path(root)
+        if base.exists() or base.is_symlink():
+            raise FileExistsError("streaming root must not already exist")
+        base.mkdir(parents=True)
+        return cls._install_journal_root(base, manifest)
 
     @classmethod
     def open(cls, root: str | Path) -> "StreamingLifecycle":
         base = Path(root)
-        return cls(base, _read_json(base / "streaming_manifest.json"))
+        head_path = base / "streaming_manifest.head.json"
+        journal_path = base / "streaming_manifest.journal.jsonl"
+        has_head = head_path.exists() or head_path.is_symlink()
+        has_journal = journal_path.exists() or journal_path.is_symlink()
+        if has_head != has_journal:
+            raise StreamingLifecycleError("partial journal authority detected; refusing legacy fallback")
+        if not has_head:
+            manifest = _read_json(base / "streaming_manifest.json")
+            if manifest.get("persistence_format") == "journal_v2":
+                raise StreamingLifecycleError("journal authority is missing; legacy downgrade refused")
+            return cls(base, manifest)
+        try:
+            journal = JournalAuthority(base)
+            with _ManifestFileLock(base / ".streaming_manifest.lock", operation="journal_open"):
+                changes = _ChangeSet()
+                manifest, head, _ = journal.load(changes=changes)
+            lifecycle = cls(base, manifest, journal=journal, journal_head=head, journal_changes=changes)
+            lifecycle._validate_manifest()
+            return lifecycle
+        except JournalError as error:
+            raise StreamingLifecycleError(str(error)) from error
 
     def _normalize_recovery_fields(self) -> None:
         """Supply empty recovery fields when opening a pre-repair clean root.
@@ -625,6 +782,9 @@ class StreamingLifecycle:
             record = records[ordinal]
             if record.get("state") != "HYDRO_QUEUED" or record.get("post") is None or record.get("next") is not None:
                 raise ValueError("streaming queue record is not a queued POST")
+        queued_set = set(queued)
+        if any(record.get("state") == "HYDRO_QUEUED" and i not in queued_set for i, record in enumerate(records)):
+            raise ValueError("streaming queued POST is missing from the durable queue")
         for ordinal in deferred:
             record = records[ordinal]
             if record.get("state") != "POST_COMMITTED" or record.get("post") is None or record.get("next") is not None:
@@ -649,6 +809,28 @@ class StreamingLifecycle:
             raise ValueError("CURRENT content provenance hash is invalid")
 
     def _save(self) -> None:
+        if self._journal is not None:
+            if self._poisoned or self._active_manifest_operation == "unspecified":
+                raise StreamingLifecycleError("journal save requires an owned, valid transaction")
+            changes = self._journal_changes
+            assert changes is not None and self._journal_head is not None
+            with _timed_phase("MANIFEST_VALIDATE_DELTA", operation=self._active_manifest_operation):
+                self._validate_delta(changes.ops)
+                validate_projection(self.manifest, changes.ops)
+            actors = {op["value"]["actor"] for op in changes.ops
+                      if len(op["path"]) == 3 and op["path"][0] == "records" and op["path"][2] == "transitions"}
+            if len(actors) > 1:
+                raise StreamingLifecycleError("transaction contains conflicting transition actors")
+            with _timed_phase("JOURNAL_DURABLE_COMMIT", operation=self._active_manifest_operation):
+                head, stats = self._journal.commit(changes.ops, previous=self._journal_head,
+                    operation=self._active_manifest_operation,
+                    actor=next(iter(actors), os.environ.get("HR4E5S_WORKER_ID", "coordinator")), process=process_identity())
+            self._journal_head = head
+            changes.ops.clear()
+            self._journal_io = getattr(self, "_journal_io", {})
+            for key, value in stats.items():
+                self._journal_io[key] = self._journal_io.get(key, 0) + value
+            return
         with _timed_phase(
             "MANIFEST_VALIDATE_BEFORE_SAVE", operation=self._active_manifest_operation,
         ):
@@ -657,6 +839,46 @@ class StreamingLifecycle:
             self.manifest_path, self.manifest,
             operation=self._active_manifest_operation,
         )
+
+    def _validate_delta(self, operations) -> None:
+        """Validate only touched records and bounded queue; full audits stay explicit."""
+        queue = self.manifest["queue"]
+        count = int(self.manifest["expected_screen_count"])
+        if (not isinstance(queue, list) or len(queue) > int(self.manifest["queue_depth"])
+                or any(type(i) is not int or not 0 <= i < count for i in queue)
+                or len(queue) != len(set(queue)) or list(queue) != sorted(queue)
+                or type(self.manifest["recovery_active"]) is not bool):
+            raise StreamingLifecycleError("invalid incremental queue state")
+        touched = set(queue)
+        for op in operations:
+            path = op["path"]
+            if path[0] == "records":
+                touched.add(int(path[1]))
+        allowed = {"CURRENT_READY", "OPTICAL_IN_PROGRESS", "DEPOSITION_FINALIZED", "POST_COMMITTED",
+                   "HYDRO_QUEUED", "HYDRO_RUNNING", "NEXT_COMMITTED", "BARRIER_VALIDATED"}
+        for i in touched:
+            record = self.manifest["records"][i]
+            if (record["ordinal"] != i or record["state"] not in allowed
+                    or type(record["retry_count"]) is not int or record["retry_count"] < 0
+                    or type(record["hydro_attempt_started"]) is not bool):
+                raise StreamingLifecycleError("invalid incremental record state")
+            if i in queue and (record["state"] != "HYDRO_QUEUED" or record["post"] is None or record["next"] is not None):
+                raise StreamingLifecycleError("incremental queue record is inconsistent")
+            if record["state"] in {"POST_COMMITTED", "HYDRO_QUEUED", "HYDRO_RUNNING", "NEXT_COMMITTED", "BARRIER_VALIDATED"} and record["post"] is None:
+                raise StreamingLifecycleError("committed record lacks POST")
+            if record["state"] in {"NEXT_COMMITTED", "BARRIER_VALIDATED"} and record["next"] is None:
+                raise StreamingLifecycleError("committed record lacks NEXT")
+            for namespace in ("post", "next"):
+                entry = record[namespace]
+                if entry is None:
+                    continue
+                rel = Path(str(entry.get("artifact", "")))
+                meta = entry.get("metadata", {})
+                if (rel.is_absolute() or rel.as_posix() != f"{namespace}/screen_{i:06d}.npz"
+                        or meta.get("ordinal") != i or meta.get("screen_id") != record["screen_id"]
+                        or meta.get("current_generation") != self.manifest["current_generation"]
+                        or meta.get("current_content_sha256") != self.manifest["current_content_sha256"]):
+                    raise StreamingLifecycleError("incremental artifact identity is invalid")
 
     def _telemetry_locked(self, event: str, *, actor: str, ordinal: int | None = None, block: Sequence[int] | None = None, **extra: Any) -> dict[str, Any]:
         """Append non-invasive scheduling telemetry while the manifest is owned.
@@ -690,6 +912,14 @@ class StreamingLifecycle:
 
     @contextmanager
     def _locked_manifest(self, operation: str = "unspecified"):
+        # The durable file lock excludes processes. This lock also protects a
+        # shared object's cache/active-operation metadata from sibling threads.
+        with self._local_manifest_lock:
+            with self._locked_manifest_transaction(operation):
+                yield
+
+    @contextmanager
+    def _locked_manifest_transaction(self, operation: str = "unspecified"):
         """Serialize every shared manifest read-modify-write transition."""
         previous_operation = self._active_manifest_operation
         self._active_manifest_operation = str(operation)
@@ -697,6 +927,32 @@ class StreamingLifecycle:
             with _ManifestFileLock(
                 self.root / ".streaming_manifest.lock", operation=operation,
             ):
+                if self._journal is not None:
+                    if self._poisoned:
+                        raise StreamingLifecycleError("journal view is poisoned; reopen from durable authority")
+                    assert self._journal_changes is not None and self._journal_head is not None
+                    if self._journal_changes.ops:
+                        self._poisoned = True
+                        raise StreamingLifecycleError("uncommitted mutation outside lifecycle transaction")
+                    ready = False
+                    try:
+                        with _timed_phase("JOURNAL_REFRESH", operation=operation):
+                            self._journal_head, _ = self._journal.refresh(self.manifest, self._journal_head, self._journal_changes)
+                        self._load_authoritative_pointer()
+                        if operation in {"reconstruct_queue", "validate_barrier", "promote_next_to_current", "authority_snapshot"}:
+                            self._validate_manifest()
+                        ready = True
+                        yield
+                        if self._journal_changes.ops:
+                            raise StreamingLifecycleError("transaction left unpublished lifecycle mutations")
+                    except BaseException as error:
+                        # Earlier _save boundaries remain durable. Never reuse a
+                        # partially replayed or unsaved local cache after failure.
+                        self._poisoned = not ready or bool(self._journal_changes.ops)
+                        if isinstance(error, JournalError):
+                            raise StreamingLifecycleError(str(error)) from error
+                        raise
+                    return
                 with _timed_phase("MANIFEST_JSON_READ", operation=operation, artifact=str(self.manifest_path)):
                     self.manifest = _read_json(self.manifest_path)
                 with _timed_phase("MANIFEST_NORMALIZE", operation=operation):
@@ -714,7 +970,11 @@ class StreamingLifecycle:
         self._authoritative_generation = str(self.manifest["current_generation"])
         pointer_path = self.root / "authoritative_generation.json"
         if not pointer_path.is_file():
+            if self.manifest.get("promotion") is not None:
+                raise StreamingLifecycleError("manifest promotion lacks its authoritative pointer")
             return
+        if pointer_path.is_symlink() or pointer_path.stat().st_nlink != 1:
+            raise StreamingLifecycleError("authoritative pointer is not a private regular file")
         pointer = _read_json(pointer_path)
         if (
             pointer.get("schema") != SCHEMA
@@ -811,6 +1071,11 @@ class StreamingLifecycle:
 
     def _artifact_fields(self, entry: Mapping[str, Any], *, namespace: str) -> dict[str, np.ndarray]:
         path = self.root / str(entry["artifact"])
+        if (path.parent.resolve() != (self.root / namespace.lower()).resolve()
+                or (self.root / namespace.lower()).is_symlink()
+                or path.resolve().parent != self.root.resolve() / namespace.lower()
+                or path.is_symlink() or (path.exists() and path.stat().st_nlink != 1)):
+            raise StreamingLifecycleError("artifact path/ownership is invalid")
         with _timed_phase(
             "ARTIFACT_FILE_SHA256", namespace=namespace, artifact=str(path),
         ):
@@ -1011,6 +1276,21 @@ class StreamingLifecycle:
             raise StreamingLifecycleError("NEXT provenance is invalid")
 
     def current_fields(self, ordinal: int) -> dict[str, np.ndarray]:
+        if self._journal is not None:
+            with self._locked_manifest("current_fields"):
+                return self._current_fields(ordinal)
+        return self._current_fields(ordinal)
+
+    def bound_current_fields(self, ordinal: int, *, generation: str, content_sha256: str) -> dict[str, np.ndarray]:
+        """Check a PRE view's generation and read its fields in one transaction."""
+        with self._locked_manifest("bound_current_fields"):
+            if self._authoritative_namespace != "CURRENT" or (self.root / "authoritative_generation.json").exists():
+                raise StreamingLifecycleError("CURRENT was promoted while optical PRE view was active")
+            if self.manifest["current_generation"] != generation or self.manifest["current_content_sha256"] != content_sha256:
+                raise StreamingLifecycleError("CURRENT identity changed while optical PRE view was active")
+            return self._current_fields(ordinal)
+
+    def _current_fields(self, ordinal: int) -> dict[str, np.ndarray]:
         record = self._record(ordinal)
         if self._authoritative_namespace == "NEXT":
             if record["next"] is None:
@@ -1161,9 +1441,12 @@ class StreamingLifecycle:
         if capacity <= 0 or not self.manifest["recovery_backlog"]:
             return []
         queued = {int(value) for value in self.manifest["queue"]}
-        ordered = sorted(int(value) for value in self.manifest["recovery_backlog"])
-        selected = ordered[:capacity]
-        remainder = ordered[capacity:]
+        if self._journal is not None:
+            selected = self.manifest["recovery_backlog"][:capacity]
+        else:
+            ordered = sorted(int(value) for value in self.manifest["recovery_backlog"])
+            selected = ordered[:capacity]
+            remainder = ordered[capacity:]
         for ordinal in selected:
             record = self._record(ordinal)
             if (
@@ -1184,7 +1467,10 @@ class StreamingLifecycle:
                 recovered_backlog_refill=True,
             )
         self.manifest["queue"].sort()
-        self.manifest["recovery_backlog"] = remainder
+        if self._journal is not None:
+            self.manifest["recovery_backlog_cursor"] += len(selected)
+        else:
+            self.manifest["recovery_backlog"] = remainder
         self._telemetry_locked("RECOVERY_BACKLOG_REFILL", actor=actor, block=selected)
         return selected
 
@@ -1193,6 +1479,12 @@ class StreamingLifecycle:
         record = self._record(ordinal)
         if record["state"] != "HYDRO_RUNNING" or record["post"] is None:
             raise StreamingLifecycleError("hydro attempt requires an owned running POST")
+        if self._journal is not None:
+            owner = record.get("hydro_owner")
+            if (not isinstance(owner, dict) or owner.get("actor") != actor
+                    or owner.get("process") != process_identity()
+                    or owner != self._held_claims.get(int(ordinal))):
+                raise StreamingLifecycleError("hydro owner does not match this process's durable claim")
         if record["hydro_attempt_started"]:
             return
         record["hydro_attempt_started"] = True
@@ -1222,6 +1514,10 @@ class StreamingLifecycle:
                 if record["state"] != "HYDRO_QUEUED":
                     raise StreamingLifecycleError("queue lifecycle state is inconsistent")
                 record["hydro_attempt_started"] = False
+                if self._journal is not None:
+                    claim = {"actor": actor, "process": process_identity(), "claim_token": secrets.token_hex(16)}
+                    record["hydro_owner"] = claim
+                    self._held_claims[int(ordinal)] = claim
                 self._transition(record, "HYDRO_RUNNING", actor=actor, source_file_sha256=record["post"]["file_sha256"])
             self.manifest["queue"] = [value for value in self.manifest["queue"] if int(value) not in set(block)]
             self._refill_recovery_queue_locked(actor=actor)
@@ -1270,8 +1566,11 @@ class StreamingLifecycle:
                 self._artifact_fields(entry, namespace="NEXT")
             record["next"] = entry
             record["hydro_attempt_started"] = False
+            if self._journal is not None:
+                record["hydro_owner"] = None
             self._transition(record, "NEXT_COMMITTED", actor=actor, source_file_sha256=record["post"]["file_sha256"], output_file_sha256=file_hash)
             self._save()
+            self._held_claims.pop(int(ordinal), None)
             self._maybe_inject_s5_fault(
                 "F05_NEXT_COMMITTED_PRE_BARRIER",
                 ordinal=int(ordinal),
@@ -1324,6 +1623,8 @@ class StreamingLifecycle:
                 raise StreamingLifecycleError("restart found an unknown lifecycle state")
             self.manifest["queue"] = []
             self.manifest["recovery_backlog"] = []
+            if self._journal is not None:
+                self.manifest["recovery_backlog_cursor"] = 0
             candidates = []
             for record in self.manifest["records"]:
                 if record["next"] is not None:
@@ -1353,6 +1654,8 @@ class StreamingLifecycle:
                         "recorded_utc": _utc(),
                     })
                 record["hydro_attempt_started"] = False
+                if self._journal is not None:
+                    record["hydro_owner"] = None
                 self._transition(record, "POST_COMMITTED", actor=actor, source_file_sha256=record["post"]["file_sha256"], reconstructed=True)
             self.manifest["recovery_active"] = bool(candidates)
             self.manifest["recovery_backlog"] = sorted(candidates)

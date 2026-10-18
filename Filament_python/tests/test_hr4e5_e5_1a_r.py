@@ -17,6 +17,12 @@ import numpy as np
 import pytest
 
 
+def _streaming_authority_manifest(manifest_path):
+    from KHz_filament.hr4e5s_streaming import StreamingLifecycle
+
+    return StreamingLifecycle.open(Path(manifest_path).parent).authority_snapshot()["manifest"]
+
+
 def _formal_identity(campaign_id: str = "formal-r", *, n_pulses: int = 1):
     from KHz_filament.hr4e5_formal_entry import build_admission_identity
 
@@ -2649,7 +2655,9 @@ def test_production_n2_k16_multiblock_overlap_happy_path(tmp_path):
     exact1 = json.loads((tmp_path / "campaign" / "exact" / "p1.json").read_text(encoding="utf-8"))
     assert exact0["screen_count"] == 15 * 16
     assert exact1["screen_count"] == 12 * 16
-    state0 = json.loads((tmp_path / "campaign" / "C" / "p0" / "state" / "streaming_manifest.json").read_text(encoding="utf-8"))
+    state0 = _streaming_authority_manifest(
+        tmp_path / "campaign" / "C" / "p0" / "state" / "streaming_manifest.json"
+    )
     assert state0["barrier"]["status"] == "PASS"
     assert state0["promotion"]["authoritative_namespace"] == "NEXT"
     assert len(state0["records"]) == 16
@@ -2712,8 +2720,9 @@ def test_production_n2_k64_four_hydro_workers_matches_single_worker(tmp_path):
     single_keys, single_values = exact_signature(single_spec.root)
     assert multi_keys == single_keys and multi_values == single_values
 
-    manifest = json.loads((Path(multi_spec.root) / "C" / "p0" / "state" /
-                           "streaming_manifest.json").read_text(encoding="utf-8"))
+    manifest = _streaming_authority_manifest(
+        Path(multi_spec.root) / "C" / "p0" / "state" / "streaming_manifest.json"
+    )
     hydro_receipts = [json.loads((Path(multi_spec.root) / "C" / "p0" / "state" /
                                   "process_receipts" / f"C_HYDRO_{index:03d}.json").read_text(encoding="utf-8"))
                       for index in range(4)]
@@ -2762,8 +2771,9 @@ def test_production_n2_k64_h2_fallback_multiprocess(tmp_path):
     for pulse in range(2):
         exact = json.loads((Path(spec.root) / "exact" / f"p{pulse}.json").read_text(encoding="utf-8"))
         assert exact["status"] == "PASS" and exact["mismatch_count"] == 0
-    manifest = json.loads((Path(spec.root) / "C" / "p0" / "state" /
-                           "streaming_manifest.json").read_text(encoding="utf-8"))
+    manifest = _streaming_authority_manifest(
+        Path(spec.root) / "C" / "p0" / "state" / "streaming_manifest.json"
+    )
     assert manifest["barrier"]["status"] == "PASS"
     assert manifest["promotion"]["authoritative_namespace"] == "NEXT"
     assert not manifest["queue"] and not manifest["recovery_backlog"]
@@ -2891,7 +2901,7 @@ def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(
             assert probe_process_identity(worker_identity)["status"] == "LIVE"
 
             lifecycle_root = Path(marker["lifecycle_root"])
-            manifest = json.loads((lifecycle_root / "streaming_manifest.json").read_text(encoding="utf-8"))
+            manifest = _streaming_authority_manifest(lifecycle_root / "streaming_manifest.json")
             claimed = [int(value) for value in marker["block"]]
             claim_events = [event for event in manifest["telemetry_events"]
                             if event.get("event") == "HYDRO_CLAIM" and event.get("actor") == marker["actor"]]
@@ -3074,8 +3084,9 @@ def test_production_n2_k64_h4_dead_hydro_worker_fresh_coordinator_recovery(
     assert lineage["cross_epoch"] is True
     assert lineage["trajectories"]["R"]["trajectory_commit_epoch"] != lineage["trajectories"]["C"]["trajectory_commit_epoch"]
     assert lineage["trajectories"]["C"]["trajectory_commit_epoch"] == ("2" if extra_takeover else "1")
-    manifest = json.loads((root / "C" / "p0" / "state" /
-                           "streaming_manifest.json").read_text(encoding="utf-8"))
+    manifest = _streaming_authority_manifest(
+        root / "C" / "p0" / "state" / "streaming_manifest.json"
+    )
     assert manifest["barrier"]["status"] == "PASS"
     assert manifest["promotion"]["authoritative_namespace"] == "NEXT"
     assert not manifest["queue"] and not manifest["recovery_backlog"]
@@ -3264,7 +3275,9 @@ def test_production_reference_intents_rebind_and_completed_output_replays_across
     old_hr4c_files = sorted(batch_dir.glob("store.hr4c_*"))
     assert old_hr4c_files
     old_hr4c_hashes = {path.name: sha256_file(path) for path in old_hr4c_files}
-    incomplete_lifecycle = json.loads((root / "R" / "p0" / "state" / "streaming_manifest.json").read_text(encoding="utf-8"))
+    incomplete_lifecycle = _streaming_authority_manifest(
+        root / "R" / "p0" / "state" / "streaming_manifest.json"
+    )
     assert incomplete_lifecycle.get("promotion") is None
     assert all(row.get("next") is None for row in incomplete_lifecycle["records"])
 
@@ -3468,7 +3481,7 @@ def test_production_reference_hydro_promotion_recovers_original_intent_and_reser
     root = Path(spec.root)
     state_path = root / "E5_1A_CAMPAIGN_STATE.json"
     lifecycle_path = root / "R" / "p0" / "state" / "streaming_manifest.json"
-    lifecycle = json.loads(lifecycle_path.read_text(encoding="utf-8"))
+    lifecycle = _streaming_authority_manifest(lifecycle_path)
     assert lifecycle["barrier"]["status"] == "PASS"
     pointer_path = root / "R" / "p0" / "state" / "authoritative_generation.json"
     if failure_point == "f08":
@@ -3564,7 +3577,7 @@ def test_production_reference_hydro_promotion_recovers_original_intent_and_reser
     assert sum(item.get("role") == "REFERENCE_HYDRO" and item.get("trajectory") == "R"
                and int(item.get("pulse", -1)) == 0 for item in ledger["intents"].values()) == 1
     if failure_point == "f08":
-        recovered_lifecycle = json.loads(lifecycle_path.read_text(encoding="utf-8"))
+        recovered_lifecycle = _streaming_authority_manifest(lifecycle_path)
         assert recovered_lifecycle["promotion"] == json.loads(pointer_path.read_text(encoding="utf-8"))
         assert sha256_file(pointer_path) == pointer_sha256
     exact = json.loads((root / "exact" / "p0.json").read_text(encoding="utf-8"))
@@ -3587,8 +3600,9 @@ def test_production_rc_and_candidate_internal_overlap_evidence(tmp_path):
         rows = {item["event"]: float(item["monotonic_s"]) for item in events}
         assert set(rows) == {"R_START", "REFERENCE_END", "C_START", "CANDIDATE_END"}
         assert max(rows["R_START"], rows["C_START"]) < min(rows["REFERENCE_END"], rows["CANDIDATE_END"])
-    manifest = json.loads((Path(spec.root) / "C" / "p0" / "state" /
-                           "streaming_manifest.json").read_text(encoding="utf-8"))
+    manifest = _streaming_authority_manifest(
+        Path(spec.root) / "C" / "p0" / "state" / "streaming_manifest.json"
+    )
     first_hydro = min(float(item["monotonic_s"]) for item in manifest["telemetry_events"]
                       if item.get("event") == "HYDRO_BLOCK_START")
     optical_end = max(float(item["monotonic_s"]) for item in manifest["telemetry_events"]

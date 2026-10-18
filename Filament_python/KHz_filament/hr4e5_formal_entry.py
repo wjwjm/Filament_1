@@ -361,6 +361,7 @@ class StreamingPulseReadView:
         self.root = Path(lifecycle.root if isinstance(lifecycle, StreamingLifecycle) else lifecycle).resolve()
         self._closed = False
         initial = StreamingLifecycle.open(self.root)
+        self._lifecycle = initial
         if initial._authoritative_namespace != "CURRENT" or (self.root / "authoritative_generation.json").exists():
             raise StreamingLifecycleError("optical PRE view requires an unpromoted CURRENT generation")
         self.current_generation = str(expected_generation or initial.manifest["current_generation"])
@@ -392,7 +393,11 @@ class StreamingPulseReadView:
 
     def _open_current(self) -> StreamingLifecycle:
         self._assert_open()
-        lifecycle = StreamingLifecycle.open(self.root)
+        lifecycle = self._lifecycle
+        if lifecycle.is_journal_backed:
+            lifecycle.authority_identity()
+        else:
+            lifecycle = StreamingLifecycle.open(self.root)
         if lifecycle._authoritative_namespace != "CURRENT" or (self.root / "authoritative_generation.json").exists():
             raise StreamingLifecycleError("CURRENT was promoted while optical PRE view was active")
         if str(lifecycle.manifest["current_generation"]) != self.current_generation or str(lifecycle.manifest["current_content_sha256"]) != self.current_content_sha256:
@@ -400,13 +405,14 @@ class StreamingPulseReadView:
         return lifecycle
 
     def read_interval(self, interval_index: int) -> np.ndarray:
-        lifecycle = self._open_current()
+        self._assert_open()
         index = int(interval_index)
         if index < 0 or index >= len(self.source_indices):
             raise IndexError("Streaming PRE interval is outside the current generation")
         if index in self._read:
             raise ValueError("Streaming PRE interval may be read only once")
-        fields = _field_copy(lifecycle.current_fields(index))
+        fields = _field_copy(self._lifecycle.bound_current_fields(index,
+            generation=self.current_generation, content_sha256=self.current_content_sha256))
         self._read[index] = fields
         return fields["delta_n"].copy()
 

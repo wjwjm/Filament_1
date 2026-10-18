@@ -2117,9 +2117,10 @@ class _E5AProductionRunner:
         if not isinstance(initial, Mapping):
             raise StorageIntegrityError("Reference hydro intent lacks its initial file snapshot")
         state_rel = state.relative_to(self.root).as_posix()
-        mutable_manifest = f"{state_rel}/streaming_manifest.json"
+        mutable_manifests = ({f"{state_rel}/streaming_manifest.head.json", f"{state_rel}/streaming_manifest.journal.jsonl"}
+                             if lifecycle.is_journal_backed else {f"{state_rel}/streaming_manifest.json"})
         for relative, snapshot in initial.items():
-            if relative == mutable_manifest:
+            if relative in mutable_manifests:
                 if not (self.root / relative).is_file():
                     raise StorageIntegrityError("Reference hydro initial Streaming manifest is missing")
                 continue
@@ -2629,7 +2630,7 @@ class _E5AProductionRunner:
             else:
                 self._close_writer(writer, failed=None)
 
-    def _object_descriptor(self, side: str, pulse: int, key: str) -> dict[str, Any]:
+    def _object_descriptor(self, side: str, pulse: int, key: str, *, lifecycle=None) -> dict[str, Any]:
         state = self._track(side, pulse) / "state"
         pair = self.driver.campaign._pair(pulse).get("scientific_pair_identity")
         if not isinstance(pair, Mapping):
@@ -2640,7 +2641,7 @@ class _E5AProductionRunner:
             implementation_identity_sha256=self.implementation_identity["identity_sha256"],
         )
         output = Path(active["output_dir"])
-        lifecycle = StreamingLifecycle.open(state)
+        lifecycle = lifecycle if lifecycle is not None else StreamingLifecycle.open(state)
         parts = key.split(":"); locator: dict[str, Any] = {}
         if parts[0] == "screen":
             namespace, index, name = parts[1], int(parts[2]), parts[3]
@@ -2691,8 +2692,10 @@ class _E5AProductionRunner:
         keys = sorted(_paired_exact_keys(k=self.schedule.n_intervals,
                                          n_pulses=int(self.spec.n_pulses), pulse=int(pulse)))
         rows = []
+        lifecycle_views = {side: StreamingLifecycle.open(self._track(side, pulse) / "state") for side in ("R", "C")}
         for key in keys:
-            left, right = self._object_descriptor("R", pulse, key), self._object_descriptor("C", pulse, key)
+            left = self._object_descriptor("R", pulse, key, lifecycle=lifecycle_views["R"])
+            right = self._object_descriptor("C", pulse, key, lifecycle=lifecycle_views["C"])
             la = {"path": self.root/left["relative_path"], **left["locator"]}
             ra = {"path": self.root/right["relative_path"], **right["locator"]}
             left_array = _load_locator(la)[0]; right_array = _load_locator(ra)[0]

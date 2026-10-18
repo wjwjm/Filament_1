@@ -42,6 +42,23 @@ def _post_fields(lifecycle: StreamingLifecycle, ordinal: int) -> dict[str, np.nd
     return lifecycle._artifact_fields(lifecycle.manifest["records"][ordinal]["post"], namespace="POST")
 
 
+def _legacy_corruption_fixture(lifecycle):
+    """Explicit legacy-only mutation in generated tmp_path fixtures.
+
+    Normal S5 crash/recovery remains on v2. Journal negatives separately
+    require rejection of direct state writes and rehashed corrupt events.
+    """
+    snapshot = lifecycle.authority_snapshot()["manifest"]
+    snapshot.pop("persistence_format", None)
+    lifecycle.manifest_path.chmod(0o600)
+    lifecycle.manifest_path.write_text(json.dumps(snapshot), encoding="utf-8")
+    for name in ("streaming_manifest.head.json", "streaming_manifest.journal.jsonl"):
+        (lifecycle.root / name).unlink()
+    legacy = StreamingLifecycle.open(lifecycle.root)
+    assert not legacy.is_journal_backed
+    return legacy
+
+
 def _commit_post(lifecycle: StreamingLifecycle, ordinal: int) -> None:
     lifecycle.deposition_finalized(ordinal, actor="s5_test")
     lifecycle.commit_post_from_delta_n(ordinal, lifecycle.current_fields(ordinal)["delta_n"] - 1.0e-8, actor="s5_test")
@@ -177,6 +194,7 @@ def _contract_failure(tmp_path, monkeypatch, fault_id: str, mutate) -> None:
     monkeypatch.delenv("HR4_S5_FAULT_ID", raising=False)
     monkeypatch.delenv("HR4_S5_FAULT_SCREEN", raising=False)
     monkeypatch.delenv("HR4_S5_FAULT_ONCE", raising=False)
+    _legacy_corruption_fixture(StreamingLifecycle.open(root))
     mutate(root)
     result = validate_fault_contract(lifecycle_root=root, fault_id=fault_id, target_screen=target)
     assert result["status"] == "FAIL", result
@@ -432,6 +450,7 @@ def test_recovery_provenance_rejects_unrelated_or_wrong_retry_count(tmp_path, mo
     recovered = StreamingLifecycle.open(lifecycle.root)
     recovered.reconstruct_queue(actor="provenance")
     finished = _finish(recovered)
+    finished = _legacy_corruption_fixture(finished)
     finished.manifest["records"][1]["retry_count"] = 1
     finished._save()
     unrelated = validate_recovery_provenance(
@@ -461,6 +480,7 @@ def test_recovery_provenance_rejects_retry_for_zero_retry_faults(tmp_path, monke
     monkeypatch.delenv("HR4_S5_FAULT_ID", raising=False)
     clean = _clean_reference(tmp_path / "reference")
     candidate = _clean_reference(tmp_path / "candidate")
+    candidate = _legacy_corruption_fixture(candidate)
     candidate.manifest["records"][0]["retry_count"] = 1
     candidate._save()
     result = validate_recovery_provenance(

@@ -51,7 +51,11 @@ def _utc() -> str:
 
 
 def _read_json(path: Path) -> dict[str, Any]:
-    return dict(json.loads(path.read_text(encoding="utf-8")))
+    value = dict(json.loads(path.read_text(encoding="utf-8")))
+    if path.name == "streaming_manifest.json" and value.get("persistence_format") == "journal_v2":
+        from KHz_filament.hr4e5s_streaming import StreamingLifecycle
+        return StreamingLifecycle.open(path.parent).authority_snapshot()["manifest"]
+    return value
 
 
 def _atomic_json(path: Path, value: Mapping[str, Any]) -> None:

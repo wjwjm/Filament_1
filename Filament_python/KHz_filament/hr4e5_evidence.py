@@ -1002,7 +1002,8 @@ def validate_ready_receipt(
     current_manifest = _safe_child_path(base, "streaming_manifest.json", label="successor streaming manifest")
     if not current_manifest.is_file():
         raise ValueError("successor streaming manifest is missing")
-    manifest = json.loads(current_manifest.read_text(encoding="utf-8"))
+    from .hr4e5s_streaming import StreamingLifecycle
+    manifest = StreamingLifecycle.open(base).authority_snapshot()["manifest"]
     if manifest.get('block_size') != 8 or manifest.get('queue_depth') != 16 or manifest.get('recovery_active', False):
         raise ValueError('successor READY requires fixed block8/queue16 and no active recovery')
     if manifest.get("current_generation") != receipt.get("child_generation") or manifest.get("current_content_sha256") != receipt.get("child_content_sha256"):

@@ -185,7 +185,7 @@ def inspect_lifecycle(*, lifecycle_root: str | Path, out_path: str | Path | None
     result = {
         "schema": S5_SCHEMA,
         "lifecycle_root": str(root),
-        "manifest_sha256": sha256_file(lifecycle.manifest_path),
+        "manifest_sha256": lifecycle.state_sha256(), "manifest_hash_scope": "authority_revision_v2" if lifecycle.is_journal_backed else "raw_bytes", "checkpoint_sha256": sha256_file(lifecycle.manifest_path),
         "records": records,
         "queue": [int(value) for value in lifecycle.manifest["queue"]],
         "recovery_active": bool(lifecycle.manifest.get("recovery_active", False)),

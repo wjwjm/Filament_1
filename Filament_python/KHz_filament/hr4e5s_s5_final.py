@@ -96,7 +96,7 @@ def snapshot_interrupted_state(*, lifecycle_root: str | Path, out_path: str | Pa
     lifecycle = StreamingLifecycle.open(lifecycle_root)
     base.update({
         "schema": S5_FINAL_SCHEMA, "kind": "interrupted_state_inventory",
-        "manifest_sha256": sha256_file(lifecycle.manifest_path),
+        "manifest_sha256": lifecycle.state_sha256(), "manifest_hash_scope": "authority_revision_v2" if lifecycle.is_journal_backed else "raw_bytes", "checkpoint_sha256": sha256_file(lifecycle.manifest_path),
         "active_hydro_claims": _hydro_claims(lifecycle.manifest),
         "active_hydro_actors": sorted({item["actor"] for item in _hydro_claims(lifecycle.manifest)}),
     })
@@ -109,7 +109,7 @@ def freeze_expected_recovery_effects(*, lifecycle_root: str | Path, inventory_pa
     """Freeze all permitted stale retries before recovery changes state."""
     inventory = _read(inventory_path)
     lifecycle = StreamingLifecycle.open(lifecycle_root)
-    manifest_sha = sha256_file(lifecycle.manifest_path)
+    manifest_sha = lifecycle.state_sha256()
     if inventory.get("schema") != S5_FINAL_SCHEMA or inventory.get("kind") != "interrupted_state_inventory":
         raise ValueError("interrupted-state inventory schema is invalid")
     if inventory.get("manifest_sha256") != manifest_sha:
@@ -154,7 +154,7 @@ def bootstrap_recovery(*, lifecycle_root: str | Path, effects_path: str | Path, 
     lifecycle = StreamingLifecycle.open(lifecycle_root)
     if any(item.get("event") == "S5_FINAL_RESTART_RECONSTRUCTED" for item in lifecycle.manifest.get("telemetry_events", [])):
         raise ValueError("S5-FINAL bootstrap was already recorded")
-    if effects.get("interrupted_manifest_sha256") != sha256_file(lifecycle.manifest_path):
+    if effects.get("interrupted_manifest_sha256") != lifecycle.state_sha256():
         raise ValueError("interrupted lifecycle changed after effects were frozen")
     queue = lifecycle.reconstruct_queue(actor="s5_final_restart")
     lifecycle = StreamingLifecycle.open(lifecycle_root)
@@ -173,7 +173,7 @@ def bootstrap_recovery(*, lifecycle_root: str | Path, effects_path: str | Path, 
         "expected_effects_sha256": sha256_file(effects_path), "bootstrap_event": "S5_FINAL_RESTART_RECONSTRUCTED",
         "telemetry_event_index": index, "telemetry_event_count": len(events),
         "queue_ordinals": list(lifecycle.manifest["queue"]), "backlog_ordinals": list(lifecycle.manifest.get("recovery_backlog", [])),
-        "queue_depth": int(lifecycle.manifest["queue_depth"]), "manifest_sha256": sha256_file(lifecycle.manifest_path),
+        "queue_depth": int(lifecycle.manifest["queue_depth"]), "manifest_sha256": lifecycle.state_sha256(), "manifest_hash_scope": "authority_revision_v2" if lifecycle.is_journal_backed else "raw_bytes", "checkpoint_sha256": sha256_file(lifecycle.manifest_path),
     }
     _atomic_json(receipt_path, result)
     validate_bootstrap_receipt(receipt_path=receipt_path, lifecycle_root=lifecycle_root, runtime_sha=runtime_sha)
