@@ -132,7 +132,8 @@ def budget_object_table(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
                         canonical_source_artifact_bytes: int = 0,
                         canonical_source_manifest_allowance_bytes: int = 0,
                         canonical_source_write_temporary_bytes: int = 0,
-                        frozen_lut_input_bytes: int = 0) -> dict[str, Any]:
+                        frozen_lut_input_bytes: int = 0,
+                        journal_capacity_objects: Mapping[str, int] | None = None) -> dict[str, Any]:
     """Scalar, versioned objects used by every E5 campaign budget projection."""
     values = (n_pulses, k, ny, nx, nt)
     if any(isinstance(v, bool) or not isinstance(v, int) or v <= 0 for v in values):
@@ -257,6 +258,17 @@ def budget_object_table(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
             add(stage, "frozen_lut_inputs_and_staging_receipt", 1, frozen_lut_inputs,
                 owner="input_materialization", lifetime="retained_through_review",
                 kind="preexisting_immutable_campaign_input")
+    if journal_capacity_objects is not None:
+        if not journal_capacity_objects or (n_pulses, k) != (3, 8048):
+            raise StorageBudgetError("journal capacity objects require the fixed N3/K8048 scope")
+        for name, amount in journal_capacity_objects.items():
+            size = _nonnegative_int(amount, f"journal capacity {name}")
+            if not isinstance(name, str) or not name.startswith("n3_"):
+                raise StorageBudgetError("invalid N3 journal capacity object name")
+            for stage in stages:
+                if stage != "canonical_source_materialization":
+                    add(stage, name, 1, size, owner="N3_journal_and_references",
+                        lifetime="conservative_coexisting_peak_through_review", kind="allowance")
     totals = {stage: sum(row["bytes"] for row in rows) for stage, rows in stages.items()}
     peak_stage = max((stage for stage in stages if stage != "final_retention"), key=totals.__getitem__)
     return {
@@ -350,7 +362,8 @@ def plan_campaign_budget(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
                          canonical_source_artifact_bytes: int = 0,
                          canonical_source_manifest_allowance_bytes: int = 0,
                          canonical_source_write_temporary_bytes: int = 0,
-                         frozen_lut_input_bytes: int = 0) -> dict[str, Any]:
+                         frozen_lut_input_bytes: int = 0,
+                         journal_capacity_objects: Mapping[str, int] | None = None) -> dict[str, Any]:
     """Apply the unchanged policy caps to the shared object table."""
     cap = _nonnegative_int(max_campaign_live_bytes, "max_campaign_live_bytes")
     final_cap = _nonnegative_int(final_output_budget_bytes, "final_output_budget_bytes")
@@ -366,6 +379,7 @@ def plan_campaign_budget(*, n_pulses: int, k: int, ny: int, nx: int, nt: int,
         canonical_source_manifest_allowance_bytes=canonical_source_manifest_allowance_bytes,
         canonical_source_write_temporary_bytes=canonical_source_write_temporary_bytes,
         frozen_lut_input_bytes=frozen_lut_input_bytes,
+        journal_capacity_objects=journal_capacity_objects,
     )
     peak, final_bytes = objects["peak_bytes"], objects["final_output_bytes"]
     if peak > cap:

@@ -1434,14 +1434,15 @@ def test_hydro_worker_failure_receipt_is_fail_and_preserves_first_error(
                    for note in getattr(expected_error, "__notes__", []))
 
 
-def test_e5a_science_child_timeout_override_reaches_reference_candidate_and_hydro(tmp_path, monkeypatch):
+@pytest.mark.parametrize("pulses, timeout_s", [(5, 7200), (3, 432000)])
+def test_e5a_science_child_timeout_override_reaches_reference_candidate_and_hydro(tmp_path, monkeypatch, pulses, timeout_s):
     from types import SimpleNamespace
 
     import KHz_filament.hr4e5_production as production
 
     spec = _bare_e5a_spec(
-        root=tmp_path / "campaign", n_pulses=5, reference_subprocess=True,
-        science_child_timeout_s=7200, storage_lock_timeout_s=163,
+        root=tmp_path / "campaign", n_pulses=pulses, reference_subprocess=True,
+        science_child_timeout_s=timeout_s, storage_lock_timeout_s=163,
     )
     runner = production._E5AProductionRunner.__new__(production._E5AProductionRunner)
     runner.spec = spec
@@ -1465,7 +1466,7 @@ def test_e5a_science_child_timeout_override_reaches_reference_candidate_and_hydr
             pulse = int(self.command[self.command.index("--pulse") + 1])
             trajectory = self.command[self.command.index("--trajectory") + 1]
             result_path = Path(self.command[self.command.index("--result-path") + 1])
-            assert spec_json["science_child_timeout_s"] == 7200
+            assert spec_json["science_child_timeout_s"] == timeout_s
             assert spec_json["storage_lock_timeout_s"] == 163.0
             result_path.write_text(json.dumps({
                 "schema": "khz_filament.hr4e5.reference_process_result.v1",
@@ -1480,10 +1481,10 @@ def test_e5a_science_child_timeout_override_reaches_reference_candidate_and_hydr
             return self.returncode
 
     monkeypatch.setattr(production.subprocess, "Popen", SuccessfulChild)
-    for pulse in range(5):
+    for pulse in range(pulses):
         assert runner.run_reference(pulse) == {"trajectory": "R", "pulse": pulse}
-    assert runner.run_candidate(4) == {"trajectory": "C", "pulse": 4}
-    assert [child.wait_timeouts for child in launched] == [[7200] for _ in range(6)]
+    assert runner.run_candidate(pulses-1) == {"trajectory": "C", "pulse": pulses-1}
+    assert [child.wait_timeouts for child in launched] == [[timeout_s] for _ in range(pulses+1)]
 
     class ImmediateWaiter:
         def __init__(self):
@@ -1496,21 +1497,21 @@ def test_e5a_science_child_timeout_override_reaches_reference_candidate_and_hydr
 
     hydro = ImmediateWaiter()
     runner._join_hydro_workers([hydro])
-    assert hydro.wait_timeouts == [7200]
+    assert hydro.wait_timeouts == [timeout_s]
 
     optical = ImmediateWaiter()
     runner._wait_science_child(optical, role="Candidate optical worker")
-    assert optical.wait_timeouts == [7200]
+    assert optical.wait_timeouts == [timeout_s]
 
     class RunningHydro:
         pid = 7207
 
         def poll(self): return None
 
-    clock_values = iter([20.0, 7220.0])
+    clock_values = iter([20.0, 20.0 + timeout_s])
     monkeypatch.setattr(production.time, "monotonic", lambda: next(clock_values))
     monkeypatch.setattr(production.time, "sleep", lambda _seconds: None)
-    with pytest.raises(TimeoutError, match="Candidate hydro workers exceeded 7200 seconds"):
+    with pytest.raises(TimeoutError, match=f"Candidate hydro workers exceeded {timeout_s} seconds"):
         runner._wait_for_candidate_hydro_workers(
             [RunningHydro()], optical_process=None, optical_stderr_path=None,
         )

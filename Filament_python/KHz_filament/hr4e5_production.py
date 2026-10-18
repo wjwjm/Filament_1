@@ -116,6 +116,7 @@ class E5AProductionSpec:
     science_child_timeout_s: int = 900
     lut_staging_receipt_path: str | Path | None = None
     storage_lock_timeout_s: float | None = None
+    final_gate_manifest_path: str | Path | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "science_child_timeout_s",
@@ -956,6 +957,48 @@ def _build_admission(spec: E5AProductionSpec, *,
         )
     elif level == FORMAL_SITE_ADMISSION or schedule.n_intervals != full_schedule.n_intervals:
         raise ValueError("formal or shortened prefix requires bound full slow source")
+    journal_capacity_bound = None
+    if spec.final_gate_manifest_path is not None:
+        from .hr4e5_final_gates import N3_FORMAL_SCOPE
+        from .hr4e5_journal_capacity import (
+            build_n3_journal_capacity_bound, validate_n3_journal_entry_strings,
+        )
+        actual_scope = {
+            "n_pulses": requested_n_pulses, "k": schedule.n_intervals,
+            "hydro_workers": int(spec.candidate_hydro_workers),
+            "allocation_seconds": 432000,
+            "science_child_timeout_s": spec.science_child_timeout_s,
+            "storage_lock_timeout_s": spec.storage_lock_timeout_s,
+            "lifecycle_lock_timeout_s": 10,
+            "max_campaign_live_bytes": spec.max_campaign_live_bytes,
+            "final_output_budget_bytes": spec.final_output_budget_bytes,
+            "safety_margin_bytes": spec.safety_margin_bytes,
+        }
+        if (actual_scope != N3_FORMAL_SCOPE or level != FORMAL_SITE_ADMISSION
+                or not spec.require_gpu_backend or not spec.reference_subprocess
+                or (grid.Ny, grid.Nx, grid.Nt) != (351, 301, 384)):
+            raise ValueError("final gate spec differs from the fixed N3 formal scope")
+        if implementation_identity is None:
+            raise ValueError("N3 final admission requires actual implementation identity")
+        cuda = os.environ.get("CUDA_VISIBLE_DEVICES", "")
+        if os.environ.get("SLURM_JOB_ID") and not cuda:
+            raise ValueError("N3 allocation lacks CUDA_VISIBLE_DEVICES")
+        # The login-node check uses only a prospective bounded token shape;
+        # actual allocation identity is verified again by the batch entry.
+        validate_n3_journal_entry_strings(
+            campaign_root=spec.root, campaign_id=spec.campaign_id,
+            paths={"config": config, "source": source_path, "lut": lut_path},
+            actor="coordinator", event="OPTICAL_START",
+            worker_id=os.environ.get("HR4E5S_WORKER_ID", "coordinator"),
+            cuda_visible_devices=cuda if os.environ.get("SLURM_JOB_ID") else None,
+            prospective_cuda_tokens=[str(i) for i in range(6)], process_identity=process_identity(),
+            screen_ids=[f"source_index_{i:06d}" for i in range(schedule.n_intervals)],
+            current_generation="R:p0:PRE0:next:next",
+            next_generation="R:p0:PRE0:next:next:next",
+        )
+        journal_capacity_bound = build_n3_journal_capacity_bound(
+            campaign_root=spec.root, campaign_id=spec.campaign_id,
+        )
     budget_plan = plan_campaign_budget(
         n_pulses=requested_n_pulses, k=schedule.n_intervals,
         ny=int(grid.Ny), nx=int(grid.Nx), nt=int(grid.Nt),
@@ -974,6 +1017,8 @@ def _build_admission(spec: E5AProductionSpec, *,
                 CANONICAL_SOURCE_MANIFEST_ALLOWANCE_BYTES)
             if isinstance(canonical_source, Mapping) else 0),
         frozen_lut_input_bytes=frozen_lut_input_bytes,
+        journal_capacity_objects=(journal_capacity_bound["disk_objects"]
+                                  if journal_capacity_bound is not None else None),
     )
     if level == FORMAL_SITE_ADMISSION:
         if spec.site_resource_manifest_path is None:
@@ -1026,6 +1071,22 @@ def _build_admission(spec: E5AProductionSpec, *,
     }
     if spec.storage_lock_timeout_s is not None:
         runtime_or_compatibility[STORAGE_LOCK_TIMEOUT_KEY] = float(spec.storage_lock_timeout_s)
+    if spec.final_gate_manifest_path is not None:
+        from .hr4e5_final_gates import validate_final_gate_manifest
+        bound_paths = {
+            "config": config, "full_config": full_config,
+            "source_manifest": source_path, "lut_manifest": lut_path, "pre0": pre0_path,
+            "slow_source_manifest": Path(spec.slow_source_manifest_path).resolve(strict=True),
+        }
+        runtime_or_compatibility["final_gate_identity"] = validate_final_gate_manifest(
+            spec.final_gate_manifest_path, campaign_root=spec.root,
+            package_root=Path(__file__).resolve().parent.parent,
+            campaign_id=spec.campaign_id,
+            expected_inputs={key: {"path": str(path), "raw_sha256": sha256_file(path)}
+                             for key, path in bound_paths.items()},
+            implementation_identity_sha256=str(implementation_identity["identity_sha256"]),
+            journal_capacity_bound=journal_capacity_bound,
+        )
     identity = build_admission_identity(
         campaign_id=str(spec.campaign_id), execution_mode=level,
         runtime_or_compatibility=runtime_or_compatibility,
