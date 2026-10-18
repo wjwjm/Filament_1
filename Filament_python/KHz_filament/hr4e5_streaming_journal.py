@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import secrets
 import stat
@@ -28,10 +29,19 @@ MAX_TRANSACTION_BYTES = 64 * 1024 * 1024
 _MUTABLE_RECORD_FIELDS = frozenset({"state", "retry_count", "hydro_attempt_started", "post", "next", "transitions", "hydro_owner"})
 _APPEND_ONLY_TOP_LISTS = frozenset({"recovery_attempts", "rate_events", "telemetry_events", "s5_recovery_events"})
 _SETTABLE_TOP_FIELDS = frozenset({"queue", "recovery_active", "recovery_backlog", "recovery_backlog_cursor", "barrier", "promotion"})
+_LOGGER = logging.getLogger(__name__)
 
 
 class JournalError(RuntimeError):
     """A durable lifecycle root cannot be read or committed safely."""
+
+    def __init__(self, message: str, *, details: Mapping[str, Any] | None = None):
+        self.details = dict(details or {})
+        self.category = self.details.get("category")
+        if self.details:
+            context = json.dumps(self.details, sort_keys=True, separators=(",", ":"), allow_nan=False)
+            message = f"{message} [context={context}]"
+        super().__init__(message)
 
 
 class _Cursor:
@@ -355,6 +365,68 @@ def _strict_head(path: Path, root: Path) -> tuple[JournalHead, os.stat_result, i
     return JournalHead(lineage, checkpoint, sequence, offset, tx_hash), info, len(raw)
 
 
+def _journal_stat_tuple(info: os.stat_result) -> tuple[int, int, int, int, int]:
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def _journal_identity_size(info: os.stat_result) -> tuple[int, int, int]:
+    return (info.st_dev, info.st_ino, info.st_size)
+
+
+def _journal_stat_context(info: os.stat_result | None) -> dict[str, int] | None:
+    if info is None:
+        return None
+    return {
+        "device": int(info.st_dev),
+        "inode": int(info.st_ino),
+        "size": int(info.st_size),
+        "mtime_ns": int(info.st_mtime_ns),
+        "ctime_ns": int(info.st_ctime_ns),
+    }
+
+
+def _journal_stat_tuple_context(value: tuple[int, int, int, int, int] | None) -> dict[str, int] | None:
+    if value is None:
+        return None
+    return {
+        "device": value[0],
+        "inode": value[1],
+        "size": value[2],
+        "mtime_ns": value[3],
+        "ctime_ns": value[4],
+    }
+
+
+def _head_context(head: JournalHead | None) -> dict[str, Any] | None:
+    return head.public() if head is not None else None
+
+
+def _stream_journal_prefix(path: Path, root: Path, length: int) -> tuple[Any, os.stat_result, os.stat_result, os.stat_result]:
+    """Hash exactly ``length`` raw journal bytes without buffering the file."""
+    before = _safe_regular(path, expected_parent=root, label="manifest journal")
+    if length < 0 or before.st_size < length:
+        raise JournalError("journal is shorter than the requested verified prefix")
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(str(path), flags)
+    try:
+        opened = os.fstat(descriptor)
+        if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
+            raise JournalError("journal inode changed before digest verification")
+        digest = hashlib.sha256()
+        remaining = length
+        while remaining:
+            chunk = os.read(descriptor, min(1024 * 1024, remaining))
+            if not chunk:
+                raise JournalError("journal ended during digest verification")
+            digest.update(chunk)
+            remaining -= len(chunk)
+        fd_after = os.fstat(descriptor)
+    finally:
+        os.close(descriptor)
+    path_after = _safe_regular(path, expected_parent=root, label="manifest journal")
+    return digest, before, fd_after, path_after
+
+
 def _validate_path_op(op: Mapping[str, Any], record_count: int, *, operation: str, allow_backlog_rebuild: bool) -> None:
     kind = op.get("op")
     path = op.get("path")
@@ -586,6 +658,11 @@ class JournalAuthority:
         self._checkpoint_stat: tuple[int, int, int, int] | None = None
         self._journal_identity: tuple[int, int] | None = None
         self._journal_stat: tuple[int, int, int, int, int] | None = None
+        self._journal_digest: Any | None = None
+        self._journal_digest_offset: int | None = None
+        self._journal_verified_head: JournalHead | None = None
+        self.journal_digest_recheck_count = 0
+        self.journal_digest_recheck_elapsed_s = 0.0
         self._record_count: int | None = None
 
     @classmethod
@@ -614,6 +691,9 @@ class JournalAuthority:
             pass
         authority._capture_checkpoint_stat()
         authority._capture_journal_stat()
+        authority._journal_digest = hashlib.sha256()
+        authority._journal_digest_offset = 0
+        authority._journal_verified_head = initial
         return authority
 
     def _capture_checkpoint_stat(self) -> None:
@@ -623,8 +703,177 @@ class JournalAuthority:
     def _capture_journal_stat(self) -> os.stat_result:
         info = _safe_regular(self.journal_path, expected_parent=self.root, label="manifest journal")
         self._journal_identity = (info.st_dev, info.st_ino)
-        self._journal_stat = (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+        self._journal_stat = _journal_stat_tuple(info)
         return info
+
+    def _verify_cached_prefix(
+        self,
+        expected_head: JournalHead,
+        *,
+        prefix_length: int,
+        expected_size: int,
+        expected_digest: str,
+        category: str,
+        expected_identity: tuple[int, int] | None = None,
+    ) -> tuple[Any, os.stat_result, float]:
+        """Rehash a verified prefix under the caller's lifecycle lock.
+
+        The file and HEAD are sampled on both sides of each bounded streaming
+        pass.  A changing snapshot gets one retry; a stable digest mismatch is
+        corruption and is never retried or repaired.
+        """
+        identity = expected_identity if expected_identity is not None else self._journal_identity
+        last_context: dict[str, Any] = {}
+        started = time.perf_counter()
+        for attempt in (1, 2):
+            head_before: JournalHead | None = None
+            head_after: JournalHead | None = None
+            stat_before: os.stat_result | None = None
+            fd_after: os.stat_result | None = None
+            path_after: os.stat_result | None = None
+            try:
+                head_before, _, _ = _strict_head(self.head_path, self.root)
+                stat_before = _safe_regular(self.journal_path, expected_parent=self.root, label="manifest journal")
+                if identity != (stat_before.st_dev, stat_before.st_ino):
+                    raise JournalError(
+                        "manifest journal inode changed during digest verification",
+                        details={
+                            "category": "journal_inode_changed_during_digest",
+                            "expected_identity": identity,
+                            "observed_identity": (stat_before.st_dev, stat_before.st_ino),
+                            "expected_head": _head_context(expected_head),
+                            "head_before": _head_context(head_before),
+                            "cached_stat": _journal_stat_tuple_context(self._journal_stat),
+                            "expected_sha256": expected_digest,
+                            "stat_before": _journal_stat_context(stat_before),
+                        },
+                    )
+                if stat_before.st_size != expected_size:
+                    raise JournalError("journal size differs from verified HEAD offset; preserving evidence")
+                digest, stream_before, fd_after, path_after = _stream_journal_prefix(
+                    self.journal_path, self.root, prefix_length
+                )
+                head_after, _, _ = _strict_head(self.head_path, self.root)
+                final_path_info = _safe_regular(self.journal_path, expected_parent=self.root, label="manifest journal")
+                stable_file = (
+                    _journal_stat_tuple(stat_before)
+                    == _journal_stat_tuple(stream_before)
+                    == _journal_stat_tuple(path_after)
+                    == _journal_stat_tuple(final_path_info)
+                    and _journal_identity_size(stat_before) == _journal_identity_size(fd_after)
+                )
+                stable_head = head_before == expected_head == head_after
+                last_context = {
+                    "category": category,
+                    "attempt": attempt,
+                    "attempt_limit": 2,
+                    "expected_head": _head_context(expected_head),
+                    "head_before": _head_context(head_before),
+                    "head_after": _head_context(head_after),
+                    "cached_stat": _journal_stat_tuple_context(self._journal_stat),
+                    "expected_sha256": expected_digest,
+                    "actual_sha256": digest.hexdigest(),
+                    "stat_before": _journal_stat_context(stat_before),
+                    "stat_fd_after": _journal_stat_context(fd_after),
+                    "stat_path_after": _journal_stat_context(path_after),
+                    "stat_final": _journal_stat_context(final_path_info),
+                }
+                if not stable_file or not stable_head:
+                    if attempt == 1:
+                        continue
+                    last_context["category"] = "journal_snapshot_unstable"
+                    last_context["reason"] = category
+                    raise JournalError("journal or HEAD changed during bounded digest verification", details=last_context)
+                if digest.hexdigest() != expected_digest:
+                    last_context["category"] = "journal_digest_mismatch"
+                    last_context["reason"] = category
+                    raise JournalError("journal bytes differ from the previously verified committed prefix", details=last_context)
+                return digest, final_path_info, time.perf_counter() - started
+            except JournalError as error:
+                if error.details:
+                    raise
+                # An inode race between the path check and open is a snapshot
+                # instability.  Retry it once; other validation failures are
+                # authoritative and fail closed immediately.
+                if "inode changed before digest verification" not in str(error) or attempt == 2:
+                    details = {
+                        "category": "journal_digest_verification_failed",
+                        "reason": category,
+                        "attempt": attempt,
+                        "attempt_limit": 2,
+                        "expected_head": _head_context(expected_head),
+                        "head_before": _head_context(head_before),
+                        "head_after": _head_context(head_after),
+                        "cached_stat": _journal_stat_tuple_context(self._journal_stat),
+                        "expected_sha256": expected_digest,
+                        "stat_before": _journal_stat_context(stat_before),
+                        "stat_fd_after": _journal_stat_context(fd_after),
+                        "stat_path_after": _journal_stat_context(path_after),
+                        "cause": str(error),
+                    }
+                    raise JournalError("journal digest verification failed closed", details=details) from error
+            except OSError as error:
+                details = {
+                    "category": "journal_digest_io_error",
+                    "reason": category,
+                    "attempt": attempt,
+                    "attempt_limit": 2,
+                    "expected_head": _head_context(expected_head),
+                    "head_before": _head_context(head_before),
+                    "head_after": _head_context(head_after),
+                    "cached_stat": _journal_stat_tuple_context(self._journal_stat),
+                    "expected_sha256": expected_digest,
+                    "stat_before": _journal_stat_context(stat_before),
+                    "stat_fd_after": _journal_stat_context(fd_after),
+                    "stat_path_after": _journal_stat_context(path_after),
+                    "cause": str(error),
+                }
+                raise JournalError("journal digest verification I/O failed closed", details=details) from error
+        last_context["category"] = "journal_snapshot_unstable"
+        last_context["reason"] = category
+        raise JournalError("journal or HEAD changed during bounded digest verification", details=last_context)
+
+    def _require_cached_digest(self, head: JournalHead) -> Any:
+        if (
+            self._journal_digest is None
+            or self._journal_digest_offset != head.committed_offset
+            or self._journal_verified_head != head
+        ):
+            raise JournalError(
+                "journal authority lacks a raw digest bound to the requested verified HEAD",
+                details={
+                    "category": "journal_digest_state_missing",
+                    "requested_head": _head_context(head),
+                    "verified_head": _head_context(self._journal_verified_head),
+                    "digest_offset": self._journal_digest_offset,
+                },
+            )
+        return self._journal_digest
+
+    def _publish_verified_digest(self, digest: Any, head: JournalHead, info: os.stat_result) -> None:
+        """Publish digest state only after the caller has validated its snapshot."""
+        self._journal_digest = digest.copy()
+        self._journal_digest_offset = head.committed_offset
+        self._journal_verified_head = head
+        self._journal_identity = (info.st_dev, info.st_ino)
+        self._journal_stat = _journal_stat_tuple(info)
+
+    def _record_digest_recheck(self, head: JournalHead, *, reason: str, elapsed: float) -> None:
+        self.journal_digest_recheck_count += 1
+        self.journal_digest_recheck_elapsed_s += elapsed
+        payload = {
+            "pid": os.getpid(),
+            "verified_sequence": head.sequence,
+            "verified_offset": head.committed_offset,
+            "reason": reason,
+            "count": self.journal_digest_recheck_count,
+            "elapsed_s": elapsed,
+            "total_elapsed_s": self.journal_digest_recheck_elapsed_s,
+        }
+        _LOGGER.warning(
+            "JOURNAL_METADATA_RECHECK %s",
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False),
+        )
 
     def check_cached_checkpoint(self) -> None:
         info = _safe_regular(self.checkpoint_path, expected_parent=self.root, label="manifest checkpoint")
@@ -662,6 +911,7 @@ class JournalAuthority:
         sequence = 0
         previous = checkpoint_sha
         replayed_bytes = 0
+        journal_digest = hashlib.sha256()
         with self.journal_path.open("rb") as handle:
             while offset < head.committed_offset:
                 line = handle.readline(MAX_TRANSACTION_BYTES + 1)
@@ -675,10 +925,39 @@ class JournalAuthority:
                 previous = tx["transaction_sha256"]
                 offset += len(line)
                 replayed_bytes += len(line)
+                journal_digest.update(line)
         if offset != head.committed_offset or sequence != head.sequence or previous != head.transaction_sha256:
             raise JournalError("journal replay does not terminate at the committed HEAD")
+        head_after, _, _ = _strict_head(self.head_path, self.root)
+        journal_info_after = _safe_regular(self.journal_path, expected_parent=self.root, label="manifest journal")
+        if (
+            head_after != head
+            or _journal_identity_size(journal_info_after) != _journal_identity_size(journal_info)
+        ):
+            raise JournalError(
+                "journal or HEAD changed during initial replay",
+                details={
+                    "category": "journal_snapshot_unstable_during_load",
+                    "head_before": _head_context(head),
+                    "head_after": _head_context(head_after),
+                    "stat_before": _journal_stat_context(journal_info),
+                    "stat_after": _journal_stat_context(journal_info_after),
+                    "expected_sha256": journal_digest.hexdigest(),
+                },
+            )
+        if _journal_stat_tuple(journal_info_after) != _journal_stat_tuple(journal_info):
+            checked_digest, journal_info_after, elapsed = self._verify_cached_prefix(
+                head,
+                prefix_length=head.committed_offset,
+                expected_size=head.committed_offset,
+                expected_digest=journal_digest.hexdigest(),
+                category="metadata_changed_during_load",
+                expected_identity=(journal_info.st_dev, journal_info.st_ino),
+            )
+            journal_digest = checked_digest
+            self._record_digest_recheck(head, reason="metadata_changed_during_load", elapsed=elapsed)
         self._checkpoint_stat = (checkpoint_info.st_dev, checkpoint_info.st_ino, checkpoint_info.st_size, checkpoint_info.st_mtime_ns, checkpoint_info.st_ctime_ns)
-        self._capture_journal_stat()
+        self._publish_verified_digest(journal_digest, head, journal_info_after)
         self._record_count = int(raw.get("expected_screen_count", -1))
         return document, head, {"checkpoint_bytes_read": len(checkpoint_bytes), "journal_bytes_replayed": replayed_bytes, "head_bytes_read": head_bytes}
 
@@ -694,13 +973,28 @@ class JournalAuthority:
             raise JournalError("journal size differs from committed HEAD offset; preserving uncommitted or truncated bytes")
         if head.sequence < current.sequence or head.committed_offset < current.committed_offset:
             raise JournalError("journal HEAD moved backwards")
+        cached_digest = self._require_cached_digest(current)
         if head.sequence == current.sequence:
             if head.transaction_sha256 != current.transaction_sha256 or head.committed_offset != current.committed_offset:
                 raise JournalError("journal HEAD changed without a sequence advance")
-            observed = (journal_info.st_dev, journal_info.st_ino, journal_info.st_size, journal_info.st_mtime_ns, journal_info.st_ctime_ns)
-            if self._journal_stat is not None and observed != self._journal_stat:
-                raise JournalError("journal bytes changed without a committed HEAD advance")
+            observed = _journal_stat_tuple(journal_info)
+            if self._journal_stat is None:
+                raise JournalError("journal authority has no cached stat for its verified digest")
+            if observed != self._journal_stat:
+                checked_digest, checked_info, elapsed = self._verify_cached_prefix(
+                    head,
+                    prefix_length=head.committed_offset,
+                    expected_size=head.committed_offset,
+                    expected_digest=cached_digest.hexdigest(),
+                    category="metadata_changed_without_HEAD_advance",
+                )
+                self._publish_verified_digest(checked_digest, head, checked_info)
+                self._record_digest_recheck(head, reason="metadata_changed_without_HEAD_advance", elapsed=elapsed)
             return head, {"head_bytes_read": head_bytes, "journal_bytes_replayed": 0}
+
+        # The lifecycle lock and append-only commit boundary bind the cached
+        # prefix. Extend its raw digest only with transactions validated below.
+        candidate_digest = cached_digest.copy()
         offset = current.committed_offset
         sequence = current.sequence
         previous = current.transaction_sha256
@@ -719,9 +1013,35 @@ class JournalAuthority:
                 previous = tx["transaction_sha256"]
                 offset += len(line)
                 replayed_bytes += len(line)
+                candidate_digest.update(line)
         if offset != head.committed_offset or sequence != head.sequence or previous != head.transaction_sha256:
             raise JournalError("journal delta does not terminate at the committed HEAD")
-        self._capture_journal_stat()
+        head_after, _, _ = _strict_head(self.head_path, self.root)
+        journal_info_after = _safe_regular(self.journal_path, expected_parent=self.root, label="manifest journal")
+        if head_after != head or _journal_identity_size(journal_info_after) != _journal_identity_size(journal_info):
+            raise JournalError(
+                "journal or HEAD changed during delta replay",
+                details={
+                    "category": "journal_snapshot_unstable_during_refresh",
+                    "head_before": _head_context(head),
+                    "head_after": _head_context(head_after),
+                    "stat_before_delta": _journal_stat_context(journal_info),
+                    "stat_after_delta": _journal_stat_context(journal_info_after),
+                    "expected_prefix_sha256": cached_digest.hexdigest(),
+                    "candidate_sha256": candidate_digest.hexdigest(),
+                },
+            )
+        if _journal_stat_tuple(journal_info_after) != _journal_stat_tuple(journal_info):
+            checked_digest, journal_info_after, elapsed = self._verify_cached_prefix(
+                head,
+                prefix_length=head.committed_offset,
+                expected_size=head.committed_offset,
+                expected_digest=candidate_digest.hexdigest(),
+                category="metadata_changed_during_delta_refresh",
+            )
+            candidate_digest = checked_digest
+            self._record_digest_recheck(head, reason="metadata_changed_during_delta_refresh", elapsed=elapsed)
+        self._publish_verified_digest(candidate_digest, head, journal_info_after)
         return head, {"head_bytes_read": head_bytes, "journal_bytes_replayed": replayed_bytes}
 
     def _decode_transaction(self, data: bytes, expected_sequence: int, expected_previous: str, lineage_id: str, document: Mapping[str, Any]) -> dict[str, Any]:
@@ -776,13 +1096,29 @@ class JournalAuthority:
         head, _, _ = _strict_head(self.head_path, self.root)
         if head != previous:
             raise JournalError("commit attempted from a stale lifecycle HEAD")
-        _safe_regular(self.journal_path, expected_parent=self.root, label="manifest journal")
+        journal_info = _safe_regular(self.journal_path, expected_parent=self.root, label="manifest journal")
         try:
-            size = self.journal_path.stat().st_size
+            size = journal_info.st_size
         except OSError as error:
             raise JournalError(f"cannot stat lifecycle journal: {error}") from error
         if size != previous.committed_offset:
             raise JournalError("journal has uncommitted bytes before append; preserving evidence")
+        if (journal_info.st_dev, journal_info.st_ino) != self._journal_identity:
+            raise JournalError("manifest journal inode changed before commit")
+        cached_digest = self._require_cached_digest(previous)
+        if self._journal_stat is None:
+            raise JournalError("journal authority has no cached stat for its verified digest")
+        if _journal_stat_tuple(journal_info) != self._journal_stat:
+            checked_digest, checked_info, elapsed = self._verify_cached_prefix(
+                previous,
+                prefix_length=previous.committed_offset,
+                expected_size=previous.committed_offset,
+                expected_digest=cached_digest.hexdigest(),
+                category="metadata_changed_before_commit",
+            )
+            self._publish_verified_digest(checked_digest, previous, checked_info)
+            self._record_digest_recheck(previous, reason="metadata_changed_before_commit", elapsed=elapsed)
+            cached_digest = self._require_cached_digest(previous)
         record_count = self._record_count
         if record_count is None or record_count <= 0:
             raise JournalError("journal authority has no validated screen count")
@@ -805,6 +1141,8 @@ class JournalAuthority:
         line = _canonical(body) + b"\n"
         if len(line) > MAX_TRANSACTION_BYTES:
             raise JournalError("lifecycle transaction exceeds journal record size limit")
+        candidate_digest = cached_digest.copy()
+        candidate_digest.update(line)
         append_started = time.perf_counter()
         flags = os.O_WRONLY | os.O_APPEND | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
         try:
@@ -832,7 +1170,21 @@ class JournalAuthority:
         head_started = time.perf_counter()
         head_bytes = _atomic_head(self.head_path, new_head.public())
         head_elapsed = time.perf_counter() - head_started
-        self._capture_journal_stat()
+        journal_info_after = _safe_regular(self.journal_path, expected_parent=self.root, label="manifest journal")
+        if (
+            journal_info_after.st_size != new_head.committed_offset
+            or (journal_info_after.st_dev, journal_info_after.st_ino) != self._journal_identity
+        ):
+            raise JournalError(
+                "journal changed after durable commit publication",
+                details={
+                    "category": "journal_snapshot_unstable_after_commit",
+                    "expected_head": _head_context(new_head),
+                    "expected_sha256": candidate_digest.hexdigest(),
+                    "stat_after": _journal_stat_context(journal_info_after),
+                },
+            )
+        self._publish_verified_digest(candidate_digest, new_head, journal_info_after)
         return new_head, {
             "journal_bytes_written": len(line),
             "head_bytes_written": head_bytes,
