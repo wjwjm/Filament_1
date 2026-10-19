@@ -1,3 +1,10 @@
+## 2026-10-19：GPU 开发统一入口
+
+后续 GPU / E5_1C / E5_2 开发使用 **codex/gpu-optimization**。
+分支整合记录见 [GPU_BRANCH_CONSOLIDATION_20261019.md](../GPU_BRANCH_CONSOLIDATION_20261019.md)。
+正式作业275230已FAILED / 1:0（2026-10-19 07:14:57 +08:00），H2在commit_next获取lifecycle manifest lock超时；
+三对actual exact未完成，E5_1C/E5_2保持OPEN，n3监测已暂停。此合并不解决该锁超时，也不构成新的HPC执行授权。
+以下较早日期的状态均是历史快照。
 # HR-4 status: isobaric transverse slow flow
 ## 2026-09-17：E5-1A 本地实施部分交付
 
@@ -13,7 +20,28 @@ E5-0 继续 `CLOSED / STREAMING_PREPARATION_CONTRACT_ACCEPTED`。用户在固定
 `resource_execution_gate=NOT_RELEASED`。S5 未实时刷新，B/C 未执行，formal E5、HR-4E 未关闭。
 以下 2026-09-16 的实施未授权字段保留为当时快照，由本节的 scoped A 授权覆盖。
 
-## 2026-09-16：当前阶段状态（E5-0 人工收口）
+## 2026-09-23：S5 科学收口后的当前状态
+
+```text
+HR-4E                       ACTIVE / NOT CLOSED
+  E1–E4                     CLOSED
+  E5-P                      CLOSED
+  E5-S S1–S4R               CLOSED
+  E5-S S5                   CLOSED / RESTART_RECOVERY_EXACT_PASS
+  formal E5                 READY_FOR_DESIGN / NOT_STARTED
+HR-5                        NOT STARTED
+HR-4F                       NOT STARTED
+```
+
+S5 科学资格为 `PASS / RESTART_RECOVERY_EXACT_QUALIFIED`：`249485` 真实
+worker-loss 与 fresh-process recovery、`252545` clean 科学产物、补充审计 34/34、
+传输/复核 178/178 与 339/339、strict exact 432/432 且 `mismatch_count=0`。
+历史作业 `252545` 仍为 `FAILED / 1:0`（post-run audit script defect），
+记录为 `AUTOMATION_CLOSEOUT_WARNING_RETAINED`，不改写 Slurm 终态。
+[S5 最终收口](S5_FINAL_CLOSEOUT.md)与[证据索引](S5_EVIDENCE_INDEX.json)记录分层结论。
+formal E5 未启动；其设计、输入绑定、资源与存储准入仍需独立办理。
+
+## 2026-09-16：历史阶段状态（E5-0 人工收口时）
 
 ```text
 HR-4E                       ACTIVE / NOT CLOSED

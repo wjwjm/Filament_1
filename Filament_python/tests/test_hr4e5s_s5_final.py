@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import json
 import importlib.util
+import os
+import shutil
+import subprocess
+import sys
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -10,11 +15,17 @@ import pytest
 from KHz_filament.hr4e5s_s5_final import (
     S5_FINAL_SCHEMA,
     bootstrap_recovery,
+    compare_scientific_input_identities,
+    consume_final_streaming,
     freeze_expected_recovery_effects,
     snapshot_interrupted_state,
+    validate_bootstrap_ready_receipt,
     validate_bootstrap_receipt,
+    validate_reference_for_comparison,
     validate_recovery_provenance,
+    write_bootstrap_ready_receipt,
 )
+import KHz_filament.hr4e5s_s5_final as s5_final
 from KHz_filament.hr4e5s_streaming import StreamingLifecycle
 
 
@@ -27,8 +38,7 @@ def _monitor_module():
     return module
 
 
-def _lifecycle(tmp_path: Path, name: str) -> StreamingLifecycle:
-    count = 16
+def _lifecycle(tmp_path: Path, name: str, *, count: int = 16) -> StreamingLifecycle:
     current = {
         "delta_n": np.full((count, 8, 8), -1.0e-6, dtype=np.float64),
         "vx": np.zeros((count, 8, 8), dtype=np.float64),
@@ -40,11 +50,26 @@ def _lifecycle(tmp_path: Path, name: str) -> StreamingLifecycle:
                                      queue_depth=16, actor="test")
 
 
+def _legacy_lifecycle(lifecycle: StreamingLifecycle) -> StreamingLifecycle:
+    """Materialize legacy raw-manifest persistence in this temporary fixture."""
+    snapshot = lifecycle.authority_snapshot()["manifest"]
+    snapshot.pop("persistence_format", None)
+    lifecycle.manifest_path.chmod(0o600)
+    lifecycle.manifest_path.write_text(json.dumps(snapshot), encoding="utf-8")
+    for name in ("streaming_manifest.head.json", "streaming_manifest.journal.jsonl"):
+        (lifecycle.root / name).unlink()
+    return StreamingLifecycle.open(lifecycle.root)
+
+
 def _prepare_posts(lifecycle: StreamingLifecycle) -> None:
-    for ordinal in range(16):
+    for ordinal in range(int(lifecycle.manifest["expected_screen_count"])):
         lifecycle.deposition_finalized(ordinal, actor="optical")
         lifecycle.commit_post_from_delta_n(ordinal, lifecycle.current_fields(ordinal)["delta_n"] - 1.0e-8, actor="optical")
-        lifecycle.enqueue_post(ordinal, actor="optical")
+        # A real producer leaves post-commit records outside the bounded queue
+        # until capacity becomes available.  Recovery projects those records
+        # into its durable backlog rather than overflowing the queue.
+        if len(lifecycle.manifest["queue"]) < int(lifecycle.manifest["queue_depth"]):
+            lifecycle.enqueue_post(ordinal, actor="optical")
 
 
 def _finish(lifecycle: StreamingLifecycle) -> None:
@@ -57,6 +82,97 @@ def _finish(lifecycle: StreamingLifecycle) -> None:
             lifecycle.commit_next(ordinal, fields, actor="hydro_consumer_0")
     assert lifecycle.validate_barrier(actor="barrier")["status"] == "PASS"
     assert lifecycle.promote_next_to_current(actor="barrier")["authoritative_namespace"] == "NEXT"
+
+
+def _recovery_lifecycle(tmp_path: Path, name: str = "recovery-live-queue", *, legacy: bool = False) -> tuple[StreamingLifecycle, Path, Path]:
+    """Create the 249184 shape: 16 queued items plus a 3-item recovery backlog."""
+    lifecycle = _lifecycle(tmp_path, name, count=19)
+    if legacy:
+        lifecycle = _legacy_lifecycle(lifecycle)
+    _prepare_posts(lifecycle)
+    assert lifecycle.claim_block(actor="hydro_consumer_0") == list(range(8))
+    assert lifecycle.claim_block(actor="hydro_consumer_1") == list(range(8, 16))
+    lifecycle.begin_hydro_screen(0, actor="hydro_consumer_0")
+    lifecycle.begin_hydro_screen(8, actor="hydro_consumer_1")
+    inventory, effects = tmp_path / f"{name}-inventory.json", tmp_path / f"{name}-effects.json"
+    bootstrap = tmp_path / f"{name}-bootstrap.json"
+    snapshot_interrupted_state(lifecycle_root=lifecycle.root, out_path=inventory)
+    freeze_expected_recovery_effects(lifecycle_root=lifecycle.root, inventory_path=inventory, out_path=effects)
+    bootstrap_recovery(lifecycle_root=lifecycle.root, effects_path=effects, out_path=bootstrap, runtime_sha="a" * 40)
+    reconstructed = StreamingLifecycle.open(lifecycle.root)
+    assert reconstructed.manifest["queue"] == list(range(16))
+    assert reconstructed.manifest["recovery_backlog"] == [16, 17, 18]
+    return reconstructed, bootstrap, effects
+
+
+def _commit_claimed_block(lifecycle: StreamingLifecycle, block: list[int], *, actor: str) -> None:
+    for ordinal in block:
+        post = lifecycle.manifest["records"][ordinal]["post"]
+        assert post is not None
+        lifecycle.commit_next(ordinal, lifecycle._artifact_fields(post, namespace="POST"), actor=actor)
+
+
+def _write_reference_optical(root: Path, count: int, *, input_manifest_sha256: str) -> None:
+    optical = root / "optical"
+    optical.mkdir()
+    np.save(optical / "final_optical_field.npy", np.zeros((2, 2), dtype=np.complex128))
+    np.savez(optical / "scientific_ledger.npz", z=np.arange(count, dtype=np.float64))
+    for field in ("ion", "ib", "raman"):
+        np.save(optical / f"s3_optical.hr3a_q{field}_samples.npy", np.zeros((count, 2, 2), dtype=np.float64))
+    (optical / "optical_run.json").write_text(json.dumps({
+        "final_optical_field": "final_optical_field.npy",
+        "ledger": "scientific_ledger.npz",
+        "input_manifest_sha256": input_manifest_sha256,
+    }), encoding="utf-8")
+
+
+def _reference_input(tmp_path: Path, lifecycle: StreamingLifecycle) -> Path:
+    manifest = StreamingLifecycle.open(lifecycle.root).manifest
+    path = tmp_path / f"{lifecycle.root.parent.name}-{lifecycle.root.name}-input.json"
+    path.write_text(json.dumps({
+        "config": "/immutable/config.json", "config_sha256": "c" * 64, "current_generation": manifest["current_generation"],
+        "dtype": manifest["dtype"], "dx_m": manifest["dx_m"], "dy_m": manifest["dy_m"], "frozen_at_utc": "2026-09-22T00:00:00Z",
+        "hydro": {"block_size": manifest["block_size"], "cfl_limit": 0.5, "chi": 1.0, "dt_hydro": 1.0e-6,
+                  "gravity_x": 0.0, "gravity_y": 0.0, "n0": 1.0, "n_hydro_steps": 1, "nu": 0.0,
+                  "queue_depth": manifest["queue_depth"]},
+        "peak_source_index": 8022, "pulse_source_identity": "frozen-pulse", "schema": "khz_filament.hr4e5s.s5_final_input.v1",
+        "screen_indices": list(range(len(manifest["records"]))),
+        "screen_records": [{"current_delta_n_sha256": f"{record['ordinal']:064x}", "current_velocity_initialization": "zero",
+                            "ordinal": record["ordinal"], "screen_id": record["screen_id"], "source_index": record["ordinal"], "z_m": record["z_m"]} for record in manifest["records"]],
+        "shape": [8, 8], "source_manifest": "/immutable/source-manifest.json", "source_manifest_sha256": "m" * 64,
+        "source_state": "/immutable/source-state.npy", "source_state_array_sha256": "a" * 64,
+        "source_state_file_sha256": "f" * 64, "stage": "S5", "window_selection_rule": "frozen-window",
+    }, sort_keys=True), encoding="utf-8")
+    return path
+
+
+def _reference_preflight(tmp_path: Path, lifecycle: StreamingLifecycle, input_path: Path, *, lut_sha: str = "l" * 64,
+                         lut_scientific_sha: str | None = None) -> Path:
+    payload = json.loads(input_path.read_text(encoding="utf-8"))
+    path = tmp_path / f"{lifecycle.root.parent.name}-{lifecycle.root.name}-preflight.json"
+    value = {
+        "fault_injection_default": "DISABLED", "git_sha": "a" * 40, "input_manifest": str(input_path),
+        "input_manifest_sha256": s5_final.sha256_file(input_path), "lut_workspace": "/immutable/lut", "lut_workspace_sha256": lut_sha,
+        "resources": {"optical_gpus": 1, "hydro_gpus": 2}, "run_root": "/metadata/run-root", "schema": "preflight.v1",
+        "screen_indices": payload["screen_indices"], "source_config": payload["config"], "source_config_sha256": payload["config_sha256"],
+        "source_manifest": payload["source_manifest"], "source_manifest_sha256": payload["source_manifest_sha256"],
+        "source_state": payload["source_state"], "source_state_array_sha256": payload["source_state_array_sha256"],
+        "source_state_file_sha256": payload["source_state_file_sha256"], "status": "PASS",
+    }
+    if lut_scientific_sha is not None:
+        value["lut_scientific_identity_sha256"] = lut_scientific_sha
+    path.write_text(json.dumps(value, sort_keys=True), encoding="utf-8")
+    return path
+
+
+def _complete_reference(tmp_path: Path, name: str) -> tuple[StreamingLifecycle, Path, Path]:
+    case_root = tmp_path / name
+    lifecycle = _lifecycle(case_root, "lifecycle")
+    _prepare_posts(lifecycle)
+    _finish(lifecycle)
+    input_path = _reference_input(tmp_path, lifecycle)
+    _write_reference_optical(case_root, 16, input_manifest_sha256=s5_final.sha256_file(input_path))
+    return lifecycle, input_path, _reference_preflight(tmp_path, lifecycle, input_path)
 
 
 def test_s5_final_freezes_two_claims_before_single_bootstrap_and_checks_retry_history(tmp_path):
@@ -96,6 +212,367 @@ def test_s5_final_rejects_effect_freeze_without_two_live_actors(tmp_path):
     snapshot_interrupted_state(lifecycle_root=lifecycle.root, out_path=inventory)
     with pytest.raises(ValueError, match="two distinct active"):
         freeze_expected_recovery_effects(lifecycle_root=lifecycle.root, inventory_path=inventory, out_path=tmp_path / "effects.json")
+
+
+def test_s5_final_recovery_bootstrap_ready_is_one_time_and_precedes_hydro_claim(tmp_path):
+    lifecycle = _lifecycle(tmp_path, "candidate")
+    _prepare_posts(lifecycle)
+    assert lifecycle.claim_block(actor="hydro_consumer_0") == list(range(8))
+    assert lifecycle.claim_block(actor="hydro_consumer_1") == list(range(8, 16))
+    lifecycle.begin_hydro_screen(0, actor="hydro_consumer_0")
+    lifecycle.begin_hydro_screen(8, actor="hydro_consumer_1")
+    inventory, effects = tmp_path / "inventory.json", tmp_path / "effects.json"
+    bootstrap, ready = tmp_path / "bootstrap.json", tmp_path / "bootstrap_ready.json"
+    snapshot_interrupted_state(lifecycle_root=lifecycle.root, out_path=inventory)
+    freeze_expected_recovery_effects(lifecycle_root=lifecycle.root, inventory_path=inventory, out_path=effects)
+    bootstrap_recovery(lifecycle_root=lifecycle.root, effects_path=effects, out_path=bootstrap, runtime_sha="a" * 40)
+
+    result = write_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap,
+                                           lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+    assert result["status"] == "PASS"
+    assert result["actor"] == "optical_producer"
+    assert result["execution_epoch"] == "recovery"
+    assert result["lifecycle_manifest_sha256"] == json.loads(bootstrap.read_text(encoding="utf-8"))["manifest_sha256"]
+    assert result["lifecycle_manifest_hash_scope"] == "authority_revision_v2"
+    validate_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap,
+                                     lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+    assert StreamingLifecycle.open(lifecycle.root).claim_block(actor="hydro_consumer_0")
+    with pytest.raises(FileExistsError):
+        write_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap,
+                                      lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+
+
+def test_s5_final_recovery_bootstrap_ready_preserves_legacy_raw_scope(tmp_path):
+    lifecycle, bootstrap, _effects = _recovery_lifecycle(tmp_path, "legacy-ready", legacy=True)
+    ready = tmp_path / "legacy-ready.json"
+    result = write_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap,
+                                           lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+    assert result["lifecycle_manifest_hash_scope"] == "raw_bytes"
+    validate_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap,
+                                     lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+
+
+def test_s5_final_bootstrap_ready_rejects_tampered_bootstrap_hash_scope(tmp_path):
+    lifecycle, bootstrap, _effects = _recovery_lifecycle(tmp_path, "tampered-scope")
+    ready = tmp_path / "tampered-scope-ready.json"
+    write_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap,
+                                  lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+    receipt = json.loads(bootstrap.read_text(encoding="utf-8"))
+    receipt["manifest_hash_scope"] = "raw_bytes"
+    bootstrap.write_text(json.dumps(receipt), encoding="utf-8")
+    ready_payload = json.loads(ready.read_text(encoding="utf-8"))
+    ready_payload["bootstrap_receipt_sha256"] = s5_final.sha256_file(bootstrap)
+    ready.write_text(json.dumps(ready_payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="bootstrap receipt hash scope mismatch"):
+        validate_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap,
+                                         lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+
+
+def test_s5_final_recovery_consumer_cannot_claim_without_valid_bootstrap_ready(tmp_path):
+    lifecycle = _lifecycle(tmp_path, "candidate")
+    _prepare_posts(lifecycle)
+    queue_before = list(StreamingLifecycle.open(lifecycle.root).manifest["queue"])
+    with pytest.raises(ValueError, match="requires bootstrap-ready"):
+        consume_final_streaming(lifecycle_root=lifecycle.root, hydro={}, producer_complete=tmp_path / "complete",
+                                actor="hydro_consumer_0", execution_epoch="recovery")
+    invalid = tmp_path / "invalid_ready.json"
+    invalid.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
+    with pytest.raises(ValueError, match="bootstrap-ready receipt is invalid"):
+        consume_final_streaming(lifecycle_root=lifecycle.root, hydro={}, producer_complete=tmp_path / "complete",
+                                actor="hydro_consumer_0", execution_epoch="recovery", bootstrap_ready_path=invalid)
+    assert StreamingLifecycle.open(lifecycle.root).manifest["queue"] == queue_before
+
+
+def test_s5_final_reference_qualification_fails_when_manifest_is_missing(tmp_path):
+    expected, input_path, preflight_path = _complete_reference(tmp_path, "expected")
+    result = validate_reference_for_comparison(reference_root=tmp_path / "missing", expected_lifecycle_root=expected.root,
+                                               input_manifest_path=input_path, candidate_preflight_path=preflight_path,
+                                               reference_input_manifest_path=input_path, reference_preflight_path=preflight_path)
+    assert result["status"] == "FAIL"
+    assert next(item for item in result["checks"] if item["name"] == "streaming_manifest_exists")["pass"] is False
+
+
+def test_s5_final_reference_qualification_fails_when_manifest_is_corrupt(tmp_path):
+    expected, input_path, preflight_path = _complete_reference(tmp_path, "expected")
+    reference = tmp_path / "corrupt" / "lifecycle"
+    reference.mkdir(parents=True)
+    (reference / "streaming_manifest.json").write_text("not-json", encoding="utf-8")
+    result = validate_reference_for_comparison(reference_root=reference.parent, expected_lifecycle_root=expected.root,
+                                               input_manifest_path=input_path, candidate_preflight_path=preflight_path,
+                                               reference_input_manifest_path=input_path, reference_preflight_path=preflight_path)
+    assert result["status"] == "FAIL"
+    assert next(item for item in result["checks"] if item["name"] == "streaming_manifest_json_parseable")["pass"] is False
+
+
+def test_s5_final_reference_qualification_fails_when_authoritative_field_is_missing(tmp_path):
+    expected, input_path, preflight_path = _complete_reference(tmp_path, "expected")
+    reference, reference_input, reference_preflight = _complete_reference(tmp_path, "complete")
+    broken = tmp_path / "broken"
+    shutil.copytree(reference.root.parent, broken)
+    _legacy_lifecycle(StreamingLifecycle.open(broken / "lifecycle"))
+    manifest_path = broken / "lifecycle" / "streaming_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["records"][0]["post"] = None
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    result = validate_reference_for_comparison(reference_root=broken, expected_lifecycle_root=expected.root,
+                                               input_manifest_path=input_path, candidate_preflight_path=preflight_path,
+                                               reference_input_manifest_path=reference_input, reference_preflight_path=reference_preflight)
+    assert result["status"] == "FAIL"
+    assert any(not item["pass"] for item in result["checks"])
+
+
+def test_s5_final_reference_qualification_fails_when_identity_differs(tmp_path):
+    expected, input_path, preflight_path = _complete_reference(tmp_path, "expected")
+    reference, reference_input, reference_preflight = _complete_reference(tmp_path, "reference")
+    input_payload = json.loads(reference_input.read_text(encoding="utf-8"))
+    input_payload["dx_m"] = 2.0e-4
+    reference_input.write_text(json.dumps(input_payload), encoding="utf-8")
+    reference_preflight = _reference_preflight(tmp_path, reference, reference_input)
+    result = validate_reference_for_comparison(reference_root=reference.root.parent, expected_lifecycle_root=expected.root,
+                                               input_manifest_path=input_path, candidate_preflight_path=preflight_path,
+                                               reference_input_manifest_path=reference_input, reference_preflight_path=reference_preflight)
+    assert result["status"] == "FAIL"
+    assert next(item for item in result["checks"] if item["name"] == "scientific_input_identity_matches")["pass"] is False
+
+
+def test_s5_final_reference_qualification_fails_when_optical_input_hash_differs(tmp_path):
+    expected, input_path, preflight_path = _complete_reference(tmp_path, "expected")
+    reference, reference_input, reference_preflight = _complete_reference(tmp_path, "reference")
+    optical_run_path = reference.root.parent / "optical" / "optical_run.json"
+    optical_run = json.loads(optical_run_path.read_text(encoding="utf-8"))
+    optical_run["input_manifest_sha256"] = "0" * 64
+    optical_run_path.write_text(json.dumps(optical_run), encoding="utf-8")
+    result = validate_reference_for_comparison(reference_root=reference.root.parent, expected_lifecycle_root=expected.root,
+                                               input_manifest_path=input_path, candidate_preflight_path=preflight_path,
+                                               reference_input_manifest_path=reference_input, reference_preflight_path=reference_preflight)
+    assert result["status"] == "FAIL"
+    assert next(item for item in result["checks"] if item["name"] == "reference_input_manifest_sha256_matches")["pass"] is False
+
+
+def test_s5_final_reference_qualification_accepts_complete_matching_reference(tmp_path):
+    expected, input_path, preflight_path = _complete_reference(tmp_path, "expected")
+    reference, reference_input, reference_preflight = _complete_reference(tmp_path, "reference")
+    result = validate_reference_for_comparison(reference_root=reference.root.parent, expected_lifecycle_root=expected.root,
+                                               input_manifest_path=input_path, candidate_preflight_path=preflight_path,
+                                               reference_input_manifest_path=reference_input, reference_preflight_path=reference_preflight)
+    assert result["status"] == "PASS", [item for item in result["checks"] if not item["pass"]]
+
+
+def test_s5_final_scientific_identity_ignores_only_packaging_metadata(tmp_path):
+    candidate, candidate_input, candidate_preflight = _complete_reference(tmp_path, "candidate")
+    reference, reference_input, reference_preflight = _complete_reference(tmp_path, "reference")
+    source = json.loads(reference_input.read_text(encoding="utf-8"))
+    source["frozen_at_utc"] = "2030-01-01T00:00:00Z"
+    source["config"] = "/relocated/config.json"
+    reference_input.write_text(json.dumps(source, sort_keys=True), encoding="utf-8")
+    gate = json.loads(reference_preflight.read_text(encoding="utf-8"))
+    gate.update({"git_sha": "b" * 40, "input_manifest": "/relocated/input.json", "lut_workspace": "/relocated/lut",
+                 "run_root": "/relocated/run", "resources": {"optical_gpus": 9, "hydro_gpus": 9},
+                 "input_manifest_sha256": s5_final.sha256_file(reference_input)})
+    reference_preflight.write_text(json.dumps(gate, sort_keys=True), encoding="utf-8")
+    result = compare_scientific_input_identities(candidate_input_manifest_path=candidate_input,
+                                                 candidate_preflight_path=candidate_preflight,
+                                                 reference_input_manifest_path=reference_input,
+                                                 reference_preflight_path=reference_preflight)
+    assert result["scientific_identity_match"] is True
+    assert result["metadata_only_raw_input_difference"] is True
+    assert candidate.root != reference.root
+
+
+def test_s5_final_scientific_identity_rejects_lut_or_authoritative_input_difference(tmp_path):
+    _candidate, candidate_input, candidate_preflight = _complete_reference(tmp_path, "candidate")
+    reference, reference_input, reference_preflight = _complete_reference(tmp_path, "reference")
+    gate = json.loads(reference_preflight.read_text(encoding="utf-8")); gate["lut_workspace_sha256"] = "z" * 64
+    reference_preflight.write_text(json.dumps(gate, sort_keys=True), encoding="utf-8")
+    result = compare_scientific_input_identities(candidate_input_manifest_path=candidate_input,
+                                                 candidate_preflight_path=candidate_preflight,
+                                                 reference_input_manifest_path=reference_input,
+                                                 reference_preflight_path=reference_preflight)
+    assert result["scientific_identity_match"] is False
+    assert next(item for item in result["fields"] if item["field"] == "lut_scientific_identity_sha256")["match"] is False
+    source = json.loads(reference_input.read_text(encoding="utf-8")); source["screen_records"][0]["current_delta_n_sha256"] = "d" * 64
+    reference_input.write_text(json.dumps(source, sort_keys=True), encoding="utf-8")
+    _reference_preflight(tmp_path, reference, reference_input, lut_sha="z" * 64)
+    result = compare_scientific_input_identities(candidate_input_manifest_path=candidate_input,
+                                                 candidate_preflight_path=candidate_preflight,
+                                                 reference_input_manifest_path=reference_input,
+                                                 reference_preflight_path=reference_preflight)
+    assert result["scientific_identity_match"] is False
+    assert next(item for item in result["fields"] if item["field"] == "screen_records[0].current_delta_n_sha256")["match"] is False
+
+
+def test_s5_final_scientific_identity_uses_lut_content_not_npz_container_hash(tmp_path):
+    candidate, candidate_input, _ = _complete_reference(tmp_path, "candidate")
+    reference, reference_input, _ = _complete_reference(tmp_path, "reference")
+    candidate_preflight = _reference_preflight(tmp_path, candidate, candidate_input, lut_sha="a" * 64,
+                                               lut_scientific_sha="c" * 64)
+    reference_preflight = _reference_preflight(tmp_path, reference, reference_input, lut_sha="b" * 64,
+                                               lut_scientific_sha="c" * 64)
+    result = compare_scientific_input_identities(candidate_input_manifest_path=candidate_input,
+                                                 candidate_preflight_path=candidate_preflight,
+                                                 reference_input_manifest_path=reference_input,
+                                                 reference_preflight_path=reference_preflight)
+    assert result["scientific_identity_match"] is True
+    assert all(item["match"] for item in result["fields"] if item["classification"] == "SCIENTIFIC")
+
+
+def test_s5_final_reference_qualification_fails_when_lifecycle_json_cannot_open(tmp_path):
+    expected, input_path, preflight_path = _complete_reference(tmp_path, "expected")
+    reference, reference_input, reference_preflight = _complete_reference(tmp_path, "reference")
+    _legacy_lifecycle(reference)
+    manifest_path = reference.root / "streaming_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")); manifest.pop("records")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    result = validate_reference_for_comparison(reference_root=reference.root.parent, expected_lifecycle_root=expected.root,
+                                               input_manifest_path=input_path, candidate_preflight_path=preflight_path,
+                                               reference_input_manifest_path=reference_input, reference_preflight_path=reference_preflight)
+    assert result["status"] == "FAIL"
+    assert next(item for item in result["checks"] if item["name"] == "streaming_lifecycle_open")["pass"] is False
+
+
+def test_s5_final_live_queue_recovery_rejects_claim_before_ready_without_side_effects(tmp_path):
+    """A: recovery consumers are fail-closed before the optical-owned receipt exists."""
+    lifecycle, bootstrap, _effects = _recovery_lifecycle(tmp_path, "before-ready")
+    before = StreamingLifecycle.open(lifecycle.root).authority_snapshot()["manifest"]
+    with pytest.raises(ValueError, match="requires bootstrap-ready"):
+        consume_final_streaming(
+            lifecycle_root=lifecycle.root, hydro={}, producer_complete=tmp_path / "producer-complete",
+            actor="hydro_consumer_0", execution_epoch="recovery",
+        )
+    after = StreamingLifecycle.open(lifecycle.root).authority_snapshot()["manifest"]
+    assert after == before
+    assert after["queue"] == list(range(16))
+    assert after["recovery_backlog"] == [16, 17, 18]
+    assert [record["retry_count"] for record in after["records"]] == [record["retry_count"] for record in before["records"]]
+    assert all(record["next"] is None for record in after["records"])
+    assert not (tmp_path / "producer-complete").exists()
+    assert bootstrap.is_file()
+
+
+def test_s5_final_live_queue_is_mutable_only_after_optical_ready_and_legacy_semantics_fail(tmp_path, monkeypatch):
+    """B/C/D/F: event-ordered recovery permits legal queue progress, not old equality."""
+    lifecycle, bootstrap, _effects = _recovery_lifecycle(tmp_path, "concurrent-live-queue")
+    ready = tmp_path / "concurrent-live-queue-ready.json"
+    ready_written, queue_mutated = threading.Event(), threading.Event()
+    hydro_errors: list[BaseException] = []
+    consumed: list[int] = []
+
+    def hydro_consumer() -> None:
+        try:
+            assert ready_written.wait(timeout=2.0)
+            validate_bootstrap_ready_receipt(
+                ready_path=ready, receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40,
+            )
+            local = StreamingLifecycle.open(lifecycle.root)
+            while True:
+                block = local.claim_block(actor="hydro_consumer_0")
+                if not block:
+                    break
+                consumed.extend(block)
+                _commit_claimed_block(local, block, actor="hydro_consumer_0")
+            queue_mutated.set()
+        except BaseException as error:  # surfaced in the controlling test thread
+            hydro_errors.append(error)
+            queue_mutated.set()
+
+    worker = threading.Thread(target=hydro_consumer, name="deterministic-recovery-hydro")
+
+    def fake_optical_path(**kwargs):
+        # This is the real production callback, reached before the simulated
+        # optical continuation; no GPU/Slurm/physics path is involved here.
+        kwargs["bootstrap_receipt_validator"](
+            receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40,
+            require_current_telemetry_count=False,
+        )
+        ready_written.set()
+        assert queue_mutated.wait(timeout=2.0)
+        assert not hydro_errors
+        return {"status": "PASS", "continuation": "after_live_queue_mutation"}
+
+    monkeypatch.setattr(s5_final, "run_optical_path", fake_optical_path)
+    monkeypatch.setenv("EXPECTED_GIT_SHA", "a" * 40)
+    worker.start()
+    result = s5_final.run_recovery_optical(
+        input_manifest_path=tmp_path / "unused-input.json", lifecycle_root=lifecycle.root,
+        out_dir=tmp_path / "unused-optical", bootstrap_receipt_path=bootstrap, bootstrap_ready_path=ready,
+    )
+    worker.join(timeout=2.0)
+    assert not worker.is_alive() and not hydro_errors
+    assert result["status"] == "PASS"
+    final = StreamingLifecycle.open(lifecycle.root).manifest
+    assert consumed == list(range(19))
+    assert len(consumed) == len(set(consumed)) == 19
+    assert final["queue"] == [] and final["recovery_backlog"] == []
+    assert all(record["next"] is not None for record in final["records"])
+    assert all(record["state"] == "NEXT_COMMITTED" for record in final["records"])
+    # This is the prior 249184 semantic: treating the bootstrap queue snapshot
+    # as perpetually immutable makes the deterministic live queue progression fail.
+    with pytest.raises(ValueError, match="bootstrap queue does not match lifecycle"):
+        validate_bootstrap_receipt(
+            receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40,
+            require_current_telemetry_count=False,
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        (lambda ready: ready.__setitem__("bootstrap_receipt_sha256", "0" * 64), "identity mismatch"),
+        (lambda ready: ready.__setitem__("lifecycle_manifest_sha256", "0" * 64), "lifecycle fingerprint"),
+        (lambda ready: ready.__setitem__("lifecycle_manifest_hash_scope", "raw_bytes"), "lifecycle hash scope mismatch"),
+        (lambda ready: ready.__setitem__("actor", "hydro_consumer_0"), "invalid"),
+        (lambda ready: ready.__setitem__("execution_epoch", "initial"), "invalid"),
+    ],
+)
+def test_s5_final_bootstrap_ready_immutable_provenance_rejects_tampering(tmp_path, mutation, error):
+    """E: receipt identity is immutable even though the subsequent live queue is not."""
+    lifecycle, bootstrap, _effects = _recovery_lifecycle(tmp_path, "ready-provenance")
+    ready = tmp_path / "ready-provenance.json"
+    write_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+    payload = json.loads(ready.read_text(encoding="utf-8"))
+    mutation(payload)
+    ready.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match=error):
+        validate_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+
+
+def test_s5_final_bootstrap_ready_rejects_missing_or_corrupt_receipt(tmp_path):
+    lifecycle, bootstrap, _effects = _recovery_lifecycle(tmp_path, "ready-missing-corrupt")
+    missing = tmp_path / "not-present.json"
+    with pytest.raises(FileNotFoundError):
+        validate_bootstrap_ready_receipt(ready_path=missing, receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+    corrupt = tmp_path / "corrupt.json"
+    corrupt.write_text("not-json", encoding="utf-8")
+    with pytest.raises(json.JSONDecodeError):
+        validate_bootstrap_ready_receipt(ready_path=corrupt, receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+
+
+def test_s5_final_live_queue_does_not_retry_or_reenqueue_existing_next(tmp_path):
+    """G: a pre-existing authoritative NEXT stays excluded from recovery work."""
+    lifecycle = _lifecycle(tmp_path, "already-next", count=19)
+    _prepare_posts(lifecycle)
+    first = lifecycle.claim_block(actor="hydro_consumer_0")
+    assert first == list(range(8))
+    _commit_claimed_block(lifecycle, [0], actor="hydro_consumer_0")
+    second = lifecycle.claim_block(actor="hydro_consumer_1")
+    assert second == list(range(8, 16))
+    lifecycle.begin_hydro_screen(1, actor="hydro_consumer_0")
+    lifecycle.begin_hydro_screen(8, actor="hydro_consumer_1")
+    inventory, effects, bootstrap = tmp_path / "next-inventory.json", tmp_path / "next-effects.json", tmp_path / "next-bootstrap.json"
+    snapshot_interrupted_state(lifecycle_root=lifecycle.root, out_path=inventory)
+    freeze_expected_recovery_effects(lifecycle_root=lifecycle.root, inventory_path=inventory, out_path=effects)
+    bootstrap_recovery(lifecycle_root=lifecycle.root, effects_path=effects, out_path=bootstrap, runtime_sha="a" * 40)
+    ready = tmp_path / "next-ready.json"
+    write_bootstrap_ready_receipt(ready_path=ready, receipt_path=bootstrap, lifecycle_root=lifecycle.root, runtime_sha="a" * 40)
+    recovered = StreamingLifecycle.open(lifecycle.root)
+    target = recovered.manifest["records"][0]
+    retry_before, next_before = target["retry_count"], dict(target["next"])
+    while block := recovered.claim_block(actor="hydro_consumer_0"):
+        assert 0 not in block
+        _commit_claimed_block(recovered, block, actor="hydro_consumer_0")
+    target_after = StreamingLifecycle.open(lifecycle.root).manifest["records"][0]
+    assert target_after["retry_count"] == retry_before
+    assert target_after["next"] == next_before
 
 
 def test_s5_final_batch_has_separate_worker_identity_and_faults_off_contract():
@@ -175,3 +652,320 @@ def test_s5_final_provenance_rejects_retry_for_already_committed_next(tmp_path):
     result = validate_recovery_provenance(reference_lifecycle_root=reference.root, candidate_lifecycle_root=reference.root, effects_path=effects)
     assert result["status"] == "FAIL"
     assert any(item["name"] == "retry_count_delta_exact" and not item["pass"] for item in result["checks"])
+
+
+def test_s5_final_single_allocation_controller_arms_both_workers_before_one_step_signal(tmp_path, monkeypatch):
+    monitor = _monitor_module()
+    root, case = tmp_path / "run", tmp_path / "run" / "scenario"
+    (case / "initial" / "identities").mkdir(parents=True)
+    (case / "initial" / "arming").mkdir(parents=True)
+    manifest = root / "single.json"
+    manifest.write_text(json.dumps({"execution_mode": monitor.SINGLE_ALLOCATION_MODE, "repo": str(tmp_path), "run_root": str(root), "expected_sha": "a" * 40, "reference_case_root": str(root / "reference"), "allocation_id": "700", "target_actor": "hydro_consumer_1"}), encoding="utf-8")
+    identities = {}
+    for actor, step, pid in (("optical_producer", "0", 101), ("hydro_consumer_0", "1", 102), ("hydro_consumer_1", "2", 103)):
+        value = {"status": "READY", "actor": actor, "job_id": "700", "step_id": step, "worker_pid": pid, "node": "node-a", "execution_epoch": "initial"}
+        identities[actor] = value
+        (case / "initial" / "identities" / f"{actor}.json").write_text(json.dumps(value), encoding="utf-8")
+    calls = []
+    monkeypatch.setattr(monitor, "_single_listpids", lambda identity, cwd: (True, {"returncode": 0, "target_pid": identity["worker_pid"]}))
+    monkeypatch.setattr(monitor, "_run", lambda args, cwd: (calls.append(list(args)) or subprocess.CompletedProcess(args, 0, "", "")))
+    waiting = monitor.advance_single_allocation(manifest)
+    assert waiting["status"] == "WAIT_FOR_DUAL_ARMING"
+    assert not calls
+    for actor in ("hydro_consumer_0", "hydro_consumer_1"):
+        identity = identities[actor]
+        (case / "initial" / "arming" / f"{actor}.json").write_text(json.dumps({"status": "ARMED", "actor": actor, "execution_epoch": "initial", "worker_pid": identity["worker_pid"], "node": "node-a", "block": [0]}), encoding="utf-8")
+    advanced = monitor.advance_single_allocation(manifest)
+    assert advanced["status"] == "WAIT_FOR_INITIAL_QUIESCENCE"
+    assert advanced["signal_sent"] is True
+    assert calls == [["scancel", "--signal=KILL", "700.2"]]
+    assert (case / "initial" / "worker_loss_intent.json").is_file()
+    assert (case / "initial" / "worker_loss_receipt.json").is_file()
+
+
+def test_s5_final_production_controller_local_flow_uses_real_processes_and_orders_recovery_gate(tmp_path, monkeypatch):
+    """L4 control-flow regression; physics and comparison are explicit local stubs."""
+    monitor = _monitor_module()
+    root, case = tmp_path / "run", tmp_path / "run" / "scenario"
+    (case / "initial" / "identities").mkdir(parents=True)
+    (case / "initial" / "arming").mkdir(parents=True)
+    manifest = root / "single.json"
+    manifest.write_text(json.dumps({"execution_mode": monitor.SINGLE_ALLOCATION_MODE, "repo": str(tmp_path), "run_root": str(root), "expected_sha": "a" * 40, "reference_case_root": str(root / "reference"), "allocation_id": "700", "target_actor": "hydro_consumer_1"}), encoding="utf-8")
+    workers = [subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"]) for _ in range(3)]
+    trace: list[str] = []
+    try:
+        for (actor, step), worker in zip((("optical_producer", "0"), ("hydro_consumer_0", "1"), ("hydro_consumer_1", "2")), workers):
+            identity = {"status": "READY", "actor": actor, "job_id": "700", "step_id": step, "worker_pid": worker.pid, "node": "local-node", "execution_epoch": "initial"}
+            (case / "initial" / "identities" / f"{actor}.json").write_text(json.dumps(identity), encoding="utf-8")
+            if actor.startswith("hydro_"):
+                (case / "initial" / "arming" / f"{actor}.json").write_text(json.dumps({"status": "ARMED", "actor": actor, "execution_epoch": "initial", "worker_pid": worker.pid, "node": "local-node", "block": [int(step)]}), encoding="utf-8")
+
+        def local_listpids(identity, _cwd):
+            pid = int(identity["worker_pid"])
+            live = next(item for item in workers if item.pid == pid).poll() is None
+            return live, {"returncode": 0, "target_pid": pid, "stdout": str(pid) if live else ""}
+
+        def local_run(args, _cwd):
+            if args[:2] == ["scancel", "--signal=KILL"]:
+                os.kill(workers[2].pid, 9); trace.append("worker_loss")
+            elif args[-1].endswith("interrupted_state_inventory.json"):
+                Path(args[-1]).write_text("{}", encoding="utf-8"); trace.append("snapshot")
+            elif args[-1].endswith("expected_recovery_effects.json"):
+                Path(args[-1]).write_text("{}", encoding="utf-8"); trace.append("freeze")
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        monkeypatch.setattr(monitor, "_single_listpids", local_listpids)
+        monkeypatch.setattr(monitor, "_run", local_run)
+        assert monitor.advance_single_allocation(manifest)["status"] == "WAIT_FOR_INITIAL_QUIESCENCE"
+        workers[2].wait(timeout=5)
+        for worker in workers[:2]:
+            worker.terminate(); worker.wait(timeout=5)
+        (case / "initial" / "initial_workers_stopped.json").write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
+        assert monitor.advance_single_allocation(manifest)["status"] == "WAIT_FOR_FINAL_AUDIT"
+        assert trace == ["worker_loss", "snapshot", "freeze"]
+        (case / "recovery").mkdir()
+        (case / "recovery" / "restart_reconstructed.json").write_text(json.dumps({"bootstrap_event": "S5_FINAL_RESTART_RECONSTRUCTED", "local_test": True}), encoding="utf-8")
+        (case / "comparison").mkdir()
+        (case / "comparison" / "exact_comparison.json").write_text(json.dumps({"status": "PASS", "expected_field_comparisons": 432, "completed_field_comparisons": 432, "mismatch_count": 0, "recovery_provenance": {"status": "PASS"}, "local_test": True}), encoding="utf-8")
+        assert monitor.advance_single_allocation(manifest)["status"] == "PASS"
+    finally:
+        for worker in workers:
+            if worker.poll() is None:
+                worker.kill(); worker.wait(timeout=5)
+
+
+def test_s5_final_single_allocation_batch_is_explicit_and_preserves_the_legacy_batch():
+    root = Path(__file__).resolve().parents[1]
+    single = (root / "tools" / "hr4e5s_s5_final_single_allocation.sbatch").read_text(encoding="utf-8")
+    submit = (root / "tools" / "hpc_ops" / "submit_hr4e5s_s5_final.sh").read_text(encoding="utf-8")
+    assert 'test "$CASE_MODE" = single_allocation' in single
+    assert '"$PYTHON" "$MONITOR" --manifest "$MONITOR_MANIFEST" --single-allocation --resume --poll-seconds 5' in single
+    assert '--arming-dir "$CASE_ROOT/initial/arming" --execution-epoch initial' in single
+    assert 'recovery_is_new_allocation' in (root / "tools" / "monitor_hr4e5s_s5_final.py").read_text(encoding="utf-8")
+    assert 'single_allocation) BATCH="$SINGLE_ALLOCATION_BATCH"' in submit
+    assert (root / "tools" / "hr4e5s_s5_final.sbatch").is_file()
+
+
+def test_s5_final_single_allocation_recovery_waits_for_optical_bootstrap_ready_before_hydro_launch():
+    root = Path(__file__).resolve().parents[1]
+    batch = (root / "tools" / "hr4e5s_s5_final_single_allocation.sbatch").read_text(encoding="utf-8")
+    optical = 'launch_worker optical_producer recovery'
+    wait_ready = 'wait_for_file_or_worker_exit "$BOOTSTRAP_READY" "$recovery_optical" 300'
+    validate_ready = 'validate-bootstrap-ready --stream-root "$CASE_ROOT/lifecycle"'
+    hydro_0, hydro_1 = 'launch_worker hydro_consumer_0 recovery', 'launch_worker hydro_consumer_1 recovery'
+    assert "readonly BOOTSTRAP_READY=" in batch
+    assert batch.index(optical) < batch.index(wait_ready) < batch.index(validate_ready) < batch.index(hydro_0) < batch.index(hydro_1)
+    assert batch.count('--bootstrap-ready "$BOOTSTRAP_READY"') == 3
+    assert batch.index('initial_workers_stopped.json') < batch.index('wait_for_file_or_defect "$CASE_ROOT/recovery_ready.json" 300')
+    source = (root / "KHz_filament" / "hr4e5s_s5_final.py").read_text(encoding="utf-8")
+    assert source.index("validate_bootstrap_receipt(**kwargs)") < source.index("_write_bootstrap_ready_receipt(ready_path=bootstrap_ready_path")
+
+
+def test_s5_final_submission_and_batch_entry_qualify_clean_reference_before_workers():
+    root = Path(__file__).resolve().parents[1]
+    submit = (root / "tools" / "hpc_ops" / "submit_hr4e5s_s5_final.sh").read_text(encoding="utf-8")
+    batch = (root / "tools" / "hr4e5s_s5_final_single_allocation.sbatch").read_text(encoding="utf-8")
+    gate = 'validate-reference --reference-root "$REFERENCE_CASE_ROOT" --input "$INPUT_MANIFEST" --candidate-preflight "$RUN_ROOT/s5_final_preflight.json" --reference-input "$REFERENCE_INPUT_MANIFEST" --reference-preflight "$REFERENCE_PREFLIGHT"'
+    assert 'validate-reference --reference-root "$REFERENCE_CASE_ROOT" --input "$RUN_ROOT/s5_final_input_manifest.json" --candidate-preflight "$PREFLIGHT" --reference-input "$REFERENCE_INPUT_MANIFEST" --reference-preflight "$REFERENCE_PREFLIGHT"' in submit
+    assert gate in batch
+    assert batch.index(gate) < batch.index('launch_worker optical_producer initial')
+
+
+def test_s5_final_site_observability_probe_is_cpu_only_and_step_scoped():
+    batch = (Path(__file__).resolve().parents[1] / "tools" / "hr4e5s_s5_final_observability_probe.sbatch").read_text(encoding="utf-8")
+    assert "#SBATCH --partition=gpu" in batch
+    assert "--gpus-per-task" not in batch
+    assert "--gres=gpu" not in batch
+    assert 'scancel --signal=TERM "$target_step"' in batch
+    assert 'scontrol listpids "$step"' in batch
+    assert "SIGNAL_SCOPE_TOO_BROAD" in batch
+    assert "TARGET_PID_NOT_PROVEN" in batch
+
+
+def _phase0_identity(actor: str, step: str, pid: int, hostname: str = "node-a") -> dict:
+    return {"actor": actor, "job_id": "700", "step_id": step, "pid": pid, "hostname": hostname}
+
+
+def _phase0_listpids(pid: int, *, live: bool = True) -> dict:
+    return {"returncode": 0, "stdout": f"{pid} probe" if live else ""}
+
+
+def test_s5_final_phase0_rejects_unproven_or_ended_target_before_signal():
+    monitor = _monitor_module()
+    target, survivor = _phase0_identity("probe_target", "2", 103), _phase0_identity("probe_survivor", "1", 102)
+    result = monitor.phase0_pre_signal_gate(
+        target=target, survivor=survivor, controller_hostname="node-a",
+        target_listpids=_phase0_listpids(103, live=False), survivor_listpids=_phase0_listpids(102),
+        target_heartbeat_live=True, survivor_heartbeat_live=True, signal_intent_exists=False,
+        signal_command=["scancel", "--signal=TERM", "700.2"],
+    )
+    assert result["status"] == "FAIL"
+    assert not next(item for item in result["checks"] if item["name"] == "target_pid_currently_proven")["pass"]
+
+
+def test_s5_final_phase0_rejects_duplicate_intent_identity_collision_wrong_host_and_broad_scope():
+    monitor = _monitor_module()
+    target, survivor = _phase0_identity("probe_target", "2", 103), _phase0_identity("probe_survivor", "2", 103, "node-b")
+    result = monitor.phase0_pre_signal_gate(
+        target=target, survivor=survivor, controller_hostname="node-a",
+        target_listpids=_phase0_listpids(103), survivor_listpids=_phase0_listpids(103),
+        target_heartbeat_live=True, survivor_heartbeat_live=True, signal_intent_exists=True,
+        signal_command=["scancel", "--signal=TERM", "700"],
+    )
+    assert result["status"] == "FAIL"
+    failed = {item["name"] for item in result["checks"] if not item["pass"]}
+    assert {"steps_are_distinct", "pids_are_distinct", "controller_on_survivor_compute_node", "signal_intent_unused", "signal_scope_is_exact_target_step"} <= failed
+
+
+def test_s5_final_phase0_post_signal_requires_target_quiescence_and_survivor_liveness():
+    monitor = _monitor_module()
+    failed = monitor.phase0_post_signal_gate(
+        target_pid=103, target_wait_nonzero=False, target_still_live=True,
+        survivor_still_live=True, target_listpids_after=_phase0_listpids(103),
+    )
+    assert failed["status"] == "FAIL"
+    passed = monitor.phase0_post_signal_gate(
+        target_pid=103, target_wait_nonzero=True, target_still_live=False,
+        survivor_still_live=True, target_listpids_after=_phase0_listpids(103, live=False),
+    )
+    assert passed["status"] == "PASS"
+
+
+def test_s5_final_single_allocation_phase0_precedes_cuda_and_science_start():
+    root = Path(__file__).resolve().parents[1]
+    batch = (root / "tools" / "hr4e5s_s5_final_single_allocation.sbatch").read_text(encoding="utf-8")
+    phase0 = (root / "tools" / "hr4e5s_s5_phase0.sh").read_text(encoding="utf-8")
+    phase0_pass = 'phase0_observability_result.json" "status=PASS"'
+    cuda_enable = "export UPPE_USE_GPU=1"
+    initialize = '"$PYTHON" "$S3_RUNNER" initialize-stream'
+    assert "--exact --exclusive --ntasks=1 --cpus-per-task=1 --gres=none" in phase0
+    assert "--gpus-per-task=0" not in phase0
+    assert 'bash "$PHASE0_LAUNCHER"' in batch
+    assert "env -u CUDA_VISIBLE_DEVICES -u UPPE_USE_GPU" in phase0
+    assert 'capture listpids_before "$SLURM_JOB_ID"' in phase0
+    assert 'scancel --signal=TERM "$TARGET_STEP"' in phase0
+    assert phase0_pass in phase0
+    assert batch.index('bash "$PHASE0_LAUNCHER"') < batch.index(cuda_enable) < batch.index(initialize)
+    assert "READY_FOR_S5_FINAL_DEFECT_REVIEW" in phase0
+    assert "slurm_step_gpus" in phase0 and "slurm_step_gres" in phase0
+
+
+def test_s5_final_clean_launcher_exports_runner_to_real_child_shells(tmp_path: Path):
+    """Exercise the external clean launcher function across the srun/Bash boundary."""
+    if shutil.which("wsl.exe") is None:
+        pytest.skip("Windows WSL Bash is required for the clean launcher regression")
+
+    def wsl_path(path: Path) -> str:
+        resolved = path.resolve()
+        drive = resolved.drive.rstrip(":").lower()
+        assert drive and resolved.is_absolute()
+        return "/mnt/" + drive + "/" + "/".join(resolved.parts[1:])
+
+    batch = Path(__file__).resolve().parents[2] / "artifacts/hr4e5s_s5_final/same_runtime_clean_closeout/hr4e5s_s5_final_clean.sbatch"
+    content = batch.read_text(encoding="utf-8")
+    export_line = "export FINAL_RUNNER S3_RUNNER"
+    assert export_line in content
+    assert content.index("readonly FINAL_RUNNER=") < content.index(export_line) < content.index("launch_worker() {")
+
+    script = tmp_path / "clean_launcher_child_shell_test.sh"
+    script.write_text(
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+work={wsl_path(tmp_path)!r}
+batch={wsl_path(batch)!r}
+mkdir -p "$work/mock"
+cat >"$work/mock/srun" <<'SRUN'
+#!/usr/bin/env bash
+set -euo pipefail
+while (($#)); do
+  case "$1" in
+    --exclusive|--ntasks=*|--gpus-per-task=*|--cpus-per-task=*) shift ;;
+    *) break ;;
+  esac
+done
+export SLURM_STEP_ID=1 SLURMD_NODENAME=mock-node
+exec "$@"
+SRUN
+cat >"$work/mock/python" <<'RUNNER'
+#!/usr/bin/env bash
+set -euo pipefail
+case "$2" in
+  write-identity)
+    test "$1" = "$FINAL_RUNNER"
+    shift 2
+    while (($#)); do
+      case "$1" in --out) out="$2"; shift 2 ;; *) shift ;; esac
+    done
+    printf '%s\\n' "$HR4E5S_WORKER_ID" >"$out"
+    ;;
+  mock-work)
+    printf '%s\\n' "$HR4E5S_WORKER_ID" >"$3"
+    ;;
+  *) exit 91 ;;
+esac
+RUNNER
+chmod 700 "$work/mock/srun" "$work/mock/python"
+export PATH="$work/mock:$PATH" PYTHON="$work/mock/python" SLURM_JOB_ID=700
+SLURM_CPUS_PER_TASK=8
+readonly FINAL_RUNNER="$work/final_runner.py"
+readonly S3_RUNNER="$work/s3_runner.py"
+source <(sed -n '/^export FINAL_RUNNER S3_RUNNER$/p' "$batch")
+source <(sed -n '/^launch_worker() {{/,/^}}/p' "$batch")
+children=()
+for actor in optical_producer hydro_consumer_0 hydro_consumer_1; do
+  runner="$FINAL_RUNNER"
+  if [[ "$actor" = optical_producer ]]; then runner="$S3_RUNNER"; fi
+  launch_worker "$actor" "$work/$actor.identity" "$work/$actor.out" "$work/$actor.err" \\
+    "$PYTHON" "$runner" mock-work "$work/$actor.done"
+done
+for child in "${{children[@]}}"; do wait "$child"; done
+for actor in optical_producer hydro_consumer_0 hydro_consumer_1; do
+  test "$(cat "$work/$actor.identity")" = "$actor"
+  test "$(cat "$work/$actor.done")" = "$actor"
+  test ! -s "$work/$actor.err"
+done
+
+# The pre-fix semantics fail deterministically when the child does not inherit FINAL_RUNNER.
+export -n FINAL_RUNNER
+launch_worker missing_export "$work/bad.identity" "$work/bad.out" "$work/bad.err" \\
+  "$PYTHON" "$FINAL_RUNNER" mock-work "$work/bad.done"
+set +e
+wait "${{children[-1]}}"
+bad_status=$?
+set -e
+test "$bad_status" -ne 0
+test ! -e "$work/bad.identity"
+test ! -e "$work/bad.done"
+grep -F 'FINAL_RUNNER: unbound variable' "$work/bad.err"
+""",
+        encoding="utf-8",
+        newline="\n",
+    )
+    result = subprocess.run(["wsl.exe", "--", "bash", wsl_path(script)], text=True, capture_output=True, timeout=90, check=False)
+    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+
+
+def test_s5_final_clean_launcher_uses_real_identity_cli_contract(tmp_path: Path):
+    root = Path(__file__).resolve().parents[2]
+    batch = (root / "artifacts/hr4e5s_s5_final/same_runtime_clean_closeout/hr4e5s_s5_final_clean.sbatch").read_text(encoding="utf-8")
+    assert "--phase clean" in batch
+    assert "--execution-epoch clean" not in batch
+
+    runner = root / "Filament_python/tools/run_hr4e5s_s5_final.py"
+    receipt = tmp_path / "clean_worker_identity.json"
+    command = [sys.executable, "-s", "-B", str(runner), "write-identity",
+               "--out", str(receipt), "--actor", "optical_producer", "--pid", str(os.getpid()),
+               "--step-id", "1", "--job-id", "700", "--node", "mock-node", "--phase", "clean"]
+    result = subprocess.run(command, text=True, capture_output=True, timeout=30, check=False)
+    assert result.returncode == 0, result.stderr
+    identity = json.loads(receipt.read_text(encoding="utf-8"))
+    assert identity["phase"] == "clean" and identity["actor"] == "optical_producer"
+    assert "execution_epoch" not in identity
+
+    rejected = tmp_path / "rejected_identity.json"
+    invalid_command = command.copy()
+    invalid_command[invalid_command.index(str(receipt))] = str(rejected)
+    invalid_command.extend(["--execution-epoch", "clean"])
+    negative = subprocess.run(invalid_command, text=True, capture_output=True, timeout=30, check=False)
+    assert negative.returncode != 0 and "S5-FINAL execution epoch is invalid" in negative.stderr
+    assert not rejected.exists()

@@ -1,0 +1,13 @@
+{
+  "schema": "khz_filament.hr4e5s.s5_final.regression_results.v1",
+  "status": "PASS_WITH_SITE_OBSERVABILITY_NOT_RUN",
+  "environment": "C:\\Users\\wangj\\.conda\\envs\\filament-local-test\\python.exe",
+  "checks": [
+    {"name": "backend", "status": "PASS", "detail": "complex128 backend probe"},
+    {"name": "sanity", "status": "PASS", "detail": "1 passed"},
+    {"name": "targeted_s5_final", "status": "PASS", "detail": "10 passed, 330 deselected"},
+    {"name": "compileall", "status": "PASS", "detail": "KHz_filament and tools"},
+    {"name": "single_allocation_batch_entry_audit", "status": "PASS", "detail": "bash syntax 0; no bare Python before activation"},
+    {"name": "site_slurm_observability", "status": "NOT_RUN", "detail": "No CPU or GPU Slurm submission was authorized in this repair phase"}
+  ]
+}

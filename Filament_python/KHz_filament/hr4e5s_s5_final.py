@@ -10,12 +10,16 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import tempfile
 import time
+import hashlib
 from pathlib import Path
 from typing import Any, Mapping
 
-from .hr4e5s_s3 import consume_streaming, finalize_streaming, run_optical_path
+import numpy as np
+
+from .hr4e5s_s3 import finalize_streaming, run_optical_path
 from .hr4e5s_s5 import (
     _artifact_inventory,
     _authoritative_lifecycle,
@@ -37,10 +41,138 @@ def _read(path: str | Path) -> dict[str, Any]:
     return dict(json.loads(Path(path).read_text(encoding="utf-8")))
 
 
+def _canonical_sha256(value: Any) -> str:
+    """Hash a JSON value independent of whitespace and key insertion order."""
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+_INPUT_REQUIRED = frozenset({
+    "config", "config_sha256", "current_generation", "dtype", "dx_m", "dy_m", "frozen_at_utc", "hydro",
+    "peak_source_index", "pulse_source_identity", "schema", "screen_indices", "screen_records", "shape",
+    "source_manifest", "source_manifest_sha256", "source_state", "source_state_array_sha256",
+    "source_state_file_sha256", "stage", "window_selection_rule",
+})
+_HYDRO_REQUIRED = frozenset({"block_size", "cfl_limit", "chi", "dt_hydro", "gravity_x", "gravity_y", "n0", "n_hydro_steps", "nu", "queue_depth"})
+_SCREEN_REQUIRED = frozenset({"current_delta_n_sha256", "current_velocity_initialization", "ordinal", "screen_id", "source_index", "z_m"})
+_PREFLIGHT_REQUIRED = frozenset({
+    "fault_injection_default", "git_sha", "input_manifest", "input_manifest_sha256", "lut_workspace",
+    "lut_workspace_sha256", "resources", "run_root", "schema", "screen_indices", "source_config",
+    "source_config_sha256", "source_manifest", "source_manifest_sha256", "source_state",
+    "source_state_array_sha256", "source_state_file_sha256", "status",
+})
+_PREFLIGHT_ALLOWED = frozenset((_PREFLIGHT_REQUIRED, _PREFLIGHT_REQUIRED | {"case_id"},
+                                _PREFLIGHT_REQUIRED | {"lut_scientific_identity_sha256"},
+                                _PREFLIGHT_REQUIRED | {"case_id", "lut_scientific_identity_sha256"}))
+
+
+def scientific_input_identity(*, input_manifest_path: str | Path, preflight_path: str | Path) -> dict[str, Any]:
+    """Return the immutable scientific identity of a S5 input/preflight pair.
+
+    Paths, timestamps, job metadata and Git/runtime packaging are deliberately
+    excluded.  Numerical input, authoritative current-state hashes and the
+    LUT workspace fingerprint are fail-closed scientific fields.
+    """
+    input_path, preflight = map(Path, (input_manifest_path, preflight_path))
+    source, gate = _read(input_path), _read(preflight)
+    if set(source) != _INPUT_REQUIRED:
+        raise ValueError("S5-FINAL input manifest schema is unknown or incomplete")
+    hydro = source.get("hydro")
+    records = source.get("screen_records")
+    if not isinstance(hydro, Mapping) or set(hydro) != _HYDRO_REQUIRED:
+        raise ValueError("S5-FINAL input hydro identity is unknown or incomplete")
+    if not isinstance(records, list) or not records or any(not isinstance(record, Mapping) or set(record) != _SCREEN_REQUIRED for record in records):
+        raise ValueError("S5-FINAL input screen identity is unknown or incomplete")
+    if frozenset(gate) not in _PREFLIGHT_ALLOWED:
+        raise ValueError("S5-FINAL preflight schema is unknown or incomplete")
+    raw_input_sha256 = sha256_file(input_path)
+    if gate.get("status") != "PASS" or gate.get("fault_injection_default") != "DISABLED":
+        raise ValueError("S5-FINAL preflight is not production fault-off PASS")
+    if gate.get("input_manifest_sha256") != raw_input_sha256:
+        raise ValueError("S5-FINAL preflight input manifest SHA mismatch")
+    cross_checks = {
+        "source_config_sha256": source["config_sha256"],
+        "source_manifest_sha256": source["source_manifest_sha256"],
+        "source_state_array_sha256": source["source_state_array_sha256"],
+        "source_state_file_sha256": source["source_state_file_sha256"],
+    }
+    if any(gate.get(key) != value for key, value in cross_checks.items()):
+        raise ValueError("S5-FINAL preflight source identity mismatch")
+    scientific = {
+        "config_sha256": source["config_sha256"], "current_generation": source["current_generation"],
+        "dtype": source["dtype"], "dx_m": source["dx_m"], "dy_m": source["dy_m"], "hydro": dict(hydro),
+        "peak_source_index": source["peak_source_index"], "pulse_source_identity": source["pulse_source_identity"],
+        "schema": source["schema"], "screen_indices": list(source["screen_indices"]),
+        "screen_records": [dict(record) for record in records], "shape": list(source["shape"]),
+        "source_manifest_sha256": source["source_manifest_sha256"],
+        "source_state_array_sha256": source["source_state_array_sha256"],
+        "source_state_file_sha256": source["source_state_file_sha256"], "stage": source["stage"],
+        "window_selection_rule": source["window_selection_rule"],
+        # The raw workspace digest includes NPZ container build timestamps and
+        # paths.  A preflight that supplies the canonical field-content digest
+        # is authoritative; old preflights deliberately remain conservative.
+        "lut_scientific_identity_sha256": gate.get("lut_scientific_identity_sha256", gate["lut_workspace_sha256"]),
+    }
+    metadata = {
+        "input_manifest_path": str(input_path.resolve()), "input_manifest_sha256": raw_input_sha256,
+        "preflight_path": str(preflight.resolve()), "preflight_sha256": sha256_file(preflight),
+        "excluded_input_metadata": {key: source[key] for key in ("config", "frozen_at_utc", "source_manifest", "source_state")},
+        "excluded_preflight_metadata": {key: gate[key] for key in ("git_sha", "input_manifest", "lut_workspace", "resources", "run_root", "schema", "source_config", "source_manifest", "source_state")},
+    }
+    return {"schema": S5_FINAL_SCHEMA, "scientific": scientific, "scientific_identity_sha256": _canonical_sha256(scientific), **metadata}
+
+
+def _flatten_identity(value: Any, prefix: str = "") -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        result: dict[str, Any] = {}
+        for key in sorted(value):
+            result.update(_flatten_identity(value[key], f"{prefix}.{key}" if prefix else str(key)))
+        return result
+    if isinstance(value, list):
+        result: dict[str, Any] = {}
+        for index, item in enumerate(value):
+            result.update(_flatten_identity(item, f"{prefix}[{index}]"))
+        return result
+    return {prefix: value}
+
+
+def compare_scientific_input_identities(*, candidate_input_manifest_path: str | Path, candidate_preflight_path: str | Path,
+                                        reference_input_manifest_path: str | Path, reference_preflight_path: str | Path) -> dict[str, Any]:
+    """Make scientific and metadata differences explicit before exact comparison."""
+    candidate = scientific_input_identity(input_manifest_path=candidate_input_manifest_path, preflight_path=candidate_preflight_path)
+    reference = scientific_input_identity(input_manifest_path=reference_input_manifest_path, preflight_path=reference_preflight_path)
+    left, right = _flatten_identity(candidate["scientific"]), _flatten_identity(reference["scientific"])
+    scientific_fields = [{"field": key, "classification": "SCIENTIFIC", "candidate": left.get(key), "reference": right.get(key), "match": left.get(key) == right.get(key)} for key in sorted(set(left) | set(right))]
+    candidate_metadata = _flatten_identity({"input": candidate["excluded_input_metadata"], "preflight": candidate["excluded_preflight_metadata"]})
+    reference_metadata = _flatten_identity({"input": reference["excluded_input_metadata"], "preflight": reference["excluded_preflight_metadata"]})
+    metadata_fields = [{"field": key, "classification": "EXECUTION_METADATA", "candidate": candidate_metadata.get(key), "reference": reference_metadata.get(key), "match": candidate_metadata.get(key) == reference_metadata.get(key)} for key in sorted(set(candidate_metadata) | set(reference_metadata))]
+    fields = scientific_fields + metadata_fields
+    return {"schema": S5_FINAL_SCHEMA, "candidate": candidate, "reference": reference, "fields": fields,
+            "scientific_identity_match": candidate["scientific_identity_sha256"] == reference["scientific_identity_sha256"],
+            "metadata_only_raw_input_difference": candidate["input_manifest_sha256"] != reference["input_manifest_sha256"] and all(item["match"] for item in scientific_fields),
+            "unknown_field_count": 0}
+
+
 def _require_sha(value: object, name: str) -> str:
     if not isinstance(value, str) or len(value) != 40 or any(c not in "0123456789abcdef" for c in value.lower()):
         raise ValueError(f"{name} must be a 40-character commit SHA")
     return value
+
+
+def _lifecycle_hash_scope(lifecycle: StreamingLifecycle) -> str:
+    """Return the durable identity scope for one lifecycle representation."""
+    return "authority_revision_v2" if lifecycle.is_journal_backed else "raw_bytes"
+
+
+def _validate_lifecycle_hash_scope(payload: Mapping[str, Any], lifecycle: StreamingLifecycle, *, label: str) -> str:
+    """Accept legacy raw receipts while binding journal receipts to HEAD identity."""
+    expected = _lifecycle_hash_scope(lifecycle)
+    observed = payload.get("manifest_hash_scope")
+    if observed is None and expected == "raw_bytes":
+        return expected
+    if observed != expected:
+        raise ValueError(f"{label} hash scope mismatch")
+    return expected
 
 
 def _hydro_claims(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -64,7 +196,8 @@ def _hydro_claims(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
 
 
 def write_worker_identity(*, out_path: str | Path, actor: str, worker_pid: int,
-                          step_id: str, job_id: str, node: str, phase: str) -> dict[str, Any]:
+                          step_id: str, job_id: str, node: str, phase: str,
+                          execution_epoch: str | None = None) -> dict[str, Any]:
     """Write a launcher-owned identity receipt before replacing its shell.
 
     ``worker_pid`` is intentionally supplied by the ``exec``-ing shell: after
@@ -86,8 +219,77 @@ def write_worker_identity(*, out_path: str | Path, actor: str, worker_pid: int,
         "worker_id": os.environ.get("HR4E5S_WORKER_ID", actor),
         "written_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+    if execution_epoch is not None:
+        if execution_epoch not in {"initial", "recovery"}:
+            raise ValueError("S5-FINAL execution epoch is invalid")
+        result["execution_epoch"] = execution_epoch
     _atomic_json(Path(out_path), result)
     return result
+
+
+def consume_final_streaming(*, lifecycle_root: str | Path, hydro: Mapping[str, Any],
+                            producer_complete: str | Path, actor: str,
+                            arming_dir: str | Path | None = None,
+                            execution_epoch: str | None = None,
+                            bootstrap_ready_path: str | Path | None = None,
+                            arm_timeout_s: float = 120.0) -> dict[str, Any]:
+    """S5-FINAL consumer with an optional, non-scientific arming rendezvous."""
+    if execution_epoch == "recovery":
+        if bootstrap_ready_path is None:
+            raise ValueError("S5-FINAL recovery consumer requires bootstrap-ready receipt")
+        ready = _read(bootstrap_ready_path)
+        if (ready.get("schema") != S5_FINAL_SCHEMA or ready.get("kind") != "bootstrap_ready_receipt"
+                or ready.get("status") != "PASS" or ready.get("actor") != "optical_producer"
+                or ready.get("execution_epoch") != "recovery"):
+            raise ValueError("S5-FINAL recovery bootstrap-ready receipt is invalid")
+    if arming_dir is None:
+        from .hr4e5s_s3 import consume_streaming
+        return consume_streaming(lifecycle_root=lifecycle_root, hydro=hydro,
+                                 producer_complete=producer_complete, actor=actor)
+    if execution_epoch != "initial":
+        raise ValueError("arming is only valid for the initial S5-FINAL epoch")
+    root = Path(arming_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    receipt_path, release_path = root / f"{actor}.json", root / f"{actor}.release.json"
+    lifecycle, completed, marker, idle = StreamingLifecycle.open(lifecycle_root), [], Path(producer_complete), False
+
+    def arm(block: list[int]) -> None:
+        if receipt_path.exists():
+            raise FileExistsError("S5-FINAL arming receipt already exists")
+        _atomic_json(receipt_path, {
+            "schema": S5_FINAL_SCHEMA, "kind": "arming_receipt", "status": "ARMED",
+            "actor": actor, "execution_epoch": execution_epoch, "worker_pid": os.getpid(),
+            "node": os.environ.get("SLURMD_NODENAME", socket.gethostname()), "block": list(block),
+            "armed_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        })
+        deadline = time.monotonic() + float(arm_timeout_s)
+        while not release_path.is_file():
+            if time.monotonic() >= deadline:
+                raise TimeoutError("S5-FINAL controller arming timeout")
+            time.sleep(0.05)
+
+    while True:
+        block = lifecycle.run_one_hydro_block(
+            dt_hydro=float(hydro["dt_hydro"]), n_hydro_steps=int(hydro["n_hydro_steps"]),
+            chi=float(hydro["chi"]), nu=float(hydro["nu"]), n0=float(hydro["n0"]),
+            gravity_x=float(hydro["gravity_x"]), gravity_y=float(hydro["gravity_y"]),
+            cfl_limit=float(hydro["cfl_limit"]), actor=actor, before_hydro_block=arm,
+        )
+        if block:
+            if idle:
+                lifecycle.record_telemetry("CONSUMER_IDLE_END", actor=actor)
+                idle = False
+            completed.append(block)
+            continue
+        lifecycle = StreamingLifecycle.open(lifecycle_root)
+        if marker.is_file() and not lifecycle.manifest["queue"]:
+            if not [item for item in lifecycle.manifest["records"] if item["next"] is None]:
+                lifecycle.record_telemetry("CONSUMER_COMPLETE", actor=actor)
+                return {"completed_blocks": completed, "status": "PASS", "actor": actor}
+        if not idle:
+            lifecycle.record_telemetry("CONSUMER_IDLE_BEGIN", actor=actor)
+            idle = True
+        time.sleep(0.05)
 
 
 def snapshot_interrupted_state(*, lifecycle_root: str | Path, out_path: str | Path) -> dict[str, Any]:
@@ -96,7 +298,7 @@ def snapshot_interrupted_state(*, lifecycle_root: str | Path, out_path: str | Pa
     lifecycle = StreamingLifecycle.open(lifecycle_root)
     base.update({
         "schema": S5_FINAL_SCHEMA, "kind": "interrupted_state_inventory",
-        "manifest_sha256": lifecycle.state_sha256(), "manifest_hash_scope": "authority_revision_v2" if lifecycle.is_journal_backed else "raw_bytes", "checkpoint_sha256": sha256_file(lifecycle.manifest_path),
+        "manifest_sha256": lifecycle.state_sha256(), "manifest_hash_scope": _lifecycle_hash_scope(lifecycle), "checkpoint_sha256": sha256_file(lifecycle.manifest_path),
         "active_hydro_claims": _hydro_claims(lifecycle.manifest),
         "active_hydro_actors": sorted({item["actor"] for item in _hydro_claims(lifecycle.manifest)}),
     })
@@ -173,7 +375,7 @@ def bootstrap_recovery(*, lifecycle_root: str | Path, effects_path: str | Path, 
         "expected_effects_sha256": sha256_file(effects_path), "bootstrap_event": "S5_FINAL_RESTART_RECONSTRUCTED",
         "telemetry_event_index": index, "telemetry_event_count": len(events),
         "queue_ordinals": list(lifecycle.manifest["queue"]), "backlog_ordinals": list(lifecycle.manifest.get("recovery_backlog", [])),
-        "queue_depth": int(lifecycle.manifest["queue_depth"]), "manifest_sha256": lifecycle.state_sha256(), "manifest_hash_scope": "authority_revision_v2" if lifecycle.is_journal_backed else "raw_bytes", "checkpoint_sha256": sha256_file(lifecycle.manifest_path),
+        "queue_depth": int(lifecycle.manifest["queue_depth"]), "manifest_sha256": lifecycle.state_sha256(), "manifest_hash_scope": _lifecycle_hash_scope(lifecycle), "checkpoint_sha256": sha256_file(lifecycle.manifest_path),
     }
     _atomic_json(receipt_path, result)
     validate_bootstrap_receipt(receipt_path=receipt_path, lifecycle_root=lifecycle_root, runtime_sha=runtime_sha)
@@ -188,6 +390,7 @@ def validate_bootstrap_receipt(*, receipt_path: str | Path, lifecycle_root: str 
         raise ValueError("S5-FINAL bootstrap receipt is invalid")
     if receipt.get("lifecycle_root") != str(Path(lifecycle_root).resolve()) or receipt.get("runtime_sha") != runtime_sha:
         raise ValueError("S5-FINAL bootstrap receipt identity mismatch")
+    _validate_lifecycle_hash_scope(receipt, lifecycle, label="S5-FINAL bootstrap receipt")
     events, index = list(lifecycle.manifest.get("telemetry_events", [])), receipt.get("telemetry_event_index")
     if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < len(events):
         raise ValueError("S5-FINAL bootstrap event index is invalid")
@@ -202,6 +405,205 @@ def validate_bootstrap_receipt(*, receipt_path: str | Path, lifecycle_root: str 
         raise ValueError("S5-FINAL bootstrap queue does not match lifecycle")
     if int(receipt.get("queue_depth", -1)) != int(lifecycle.manifest["queue_depth"]):
         raise ValueError("S5-FINAL bootstrap queue depth is invalid")
+
+
+def _write_bootstrap_ready_receipt(*, ready_path: str | Path, receipt_path: str | Path,
+                                   lifecycle_root: str | Path, runtime_sha: str) -> dict[str, Any]:
+    """Atomically persist the optical-owned recovery launch boundary.
+
+    This private helper deliberately does not revalidate the bootstrap.  Its
+    sole caller in ``run_recovery_optical`` invokes it immediately *after* the
+    internal validator returns; the public helper below validates first.
+    """
+    _require_sha(runtime_sha, "runtime SHA")
+    destination, receipt, root = Path(ready_path), Path(receipt_path), Path(lifecycle_root)
+    lifecycle = StreamingLifecycle.open(root)
+    result = {
+        "schema": S5_FINAL_SCHEMA, "kind": "bootstrap_ready_receipt", "status": "PASS",
+        "actor": "optical_producer", "execution_epoch": "recovery",
+        "lifecycle_root": str(root.resolve()), "runtime_sha": runtime_sha,
+        "bootstrap_receipt": str(receipt.resolve()), "bootstrap_receipt_sha256": sha256_file(receipt),
+        "lifecycle_manifest_sha256": lifecycle.state_sha256(),
+        "lifecycle_manifest_hash_scope": _validate_lifecycle_hash_scope(_read(receipt), lifecycle, label="S5-FINAL bootstrap receipt"),
+        "queue_ordinals": list(lifecycle.manifest["queue"]),
+        "backlog_ordinals": list(lifecycle.manifest.get("recovery_backlog", [])),
+        "ready_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    _atomic_json(destination, result)
+    return result
+
+
+def write_bootstrap_ready_receipt(*, ready_path: str | Path, receipt_path: str | Path,
+                                  lifecycle_root: str | Path, runtime_sha: str) -> dict[str, Any]:
+    """Validate a bootstrap boundary, then create its one-time ready receipt."""
+    if Path(ready_path).exists():
+        raise FileExistsError(ready_path)
+    validate_bootstrap_receipt(receipt_path=receipt_path, lifecycle_root=lifecycle_root, runtime_sha=runtime_sha,
+                               require_current_telemetry_count=False)
+    return _write_bootstrap_ready_receipt(ready_path=ready_path, receipt_path=receipt_path,
+                                          lifecycle_root=lifecycle_root, runtime_sha=runtime_sha)
+
+
+def validate_bootstrap_ready_receipt(*, ready_path: str | Path, receipt_path: str | Path,
+                                     lifecycle_root: str | Path, runtime_sha: str) -> None:
+    """Reject hydro launch unless the optical validator created this receipt."""
+    ready, receipt, root = _read(ready_path), Path(receipt_path), Path(lifecycle_root)
+    lifecycle, bootstrap = StreamingLifecycle.open(root), _read(receipt)
+    if (ready.get("schema") != S5_FINAL_SCHEMA or ready.get("kind") != "bootstrap_ready_receipt"
+            or ready.get("status") != "PASS" or ready.get("actor") != "optical_producer"
+            or ready.get("execution_epoch") != "recovery"):
+        raise ValueError("S5-FINAL bootstrap-ready receipt is invalid")
+    if (ready.get("lifecycle_root") != str(root.resolve()) or ready.get("runtime_sha") != runtime_sha
+            or ready.get("bootstrap_receipt") != str(receipt.resolve())
+            or ready.get("bootstrap_receipt_sha256") != sha256_file(receipt)):
+        raise ValueError("S5-FINAL bootstrap-ready receipt identity mismatch")
+    fingerprint = ready.get("lifecycle_manifest_sha256")
+    if not isinstance(fingerprint, str) or len(fingerprint) != 64:
+        raise ValueError("S5-FINAL bootstrap-ready lifecycle fingerprint is invalid")
+    expected_scope = _validate_lifecycle_hash_scope(bootstrap, lifecycle, label="S5-FINAL bootstrap receipt")
+    ready_scope = ready.get("lifecycle_manifest_hash_scope")
+    if ready_scope is None and expected_scope == "raw_bytes":
+        ready_scope = expected_scope
+    if ready_scope != expected_scope:
+        raise ValueError("S5-FINAL bootstrap-ready lifecycle hash scope mismatch")
+    # The ready receipt captures the immutable bootstrap manifest identity.  It
+    # must match the receipt's frozen boundary, not the current live manifest:
+    # hydro is allowed to mutate queue/backlog after ready has been persisted.
+    if fingerprint != bootstrap.get("manifest_sha256"):
+        raise ValueError("S5-FINAL bootstrap-ready lifecycle fingerprint mismatch")
+    validate_bootstrap_receipt(receipt_path=receipt, lifecycle_root=root, runtime_sha=runtime_sha,
+                               require_current_telemetry_count=False)
+
+
+def validate_reference_for_comparison(*, reference_root: str | Path,
+                                      expected_lifecycle_root: str | Path | None,
+                                      input_manifest_path: str | Path,
+                                      candidate_preflight_path: str | Path,
+                                      reference_input_manifest_path: str | Path,
+                                      reference_preflight_path: str | Path) -> dict[str, Any]:
+    """Fail closed before S5-FINAL comparison accepts a clean-reference path.
+
+    The comparison itself remains the frozen exact comparator.  This gate only
+    proves that its reference inputs are complete, readable, and statically
+    compatible with the candidate contract before a long allocation reaches
+    final comparison startup.
+    """
+    reference_root, input_path, candidate_preflight, reference_input, reference_preflight = map(
+        Path, (reference_root, input_manifest_path, candidate_preflight_path, reference_input_manifest_path, reference_preflight_path))
+    expected_root = None if expected_lifecycle_root is None else Path(expected_lifecycle_root)
+    checks: list[dict[str, Any]] = []
+
+    def check(name: str, passed: bool, **detail: Any) -> None:
+        checks.append({"name": name, "pass": bool(passed), **detail})
+
+    manifest_path = reference_root / "lifecycle" / "streaming_manifest.json"
+    check("streaming_manifest_exists", manifest_path.is_file())
+    try:
+        _read(manifest_path)
+        check("streaming_manifest_json_parseable", True)
+    except Exception as error:
+        check("streaming_manifest_json_parseable", False, error=f"{type(error).__name__}: {error}")
+    try:
+        reference = StreamingLifecycle.open(reference_root / "lifecycle")
+        check("streaming_lifecycle_open", True)
+    except Exception as error:
+        check("streaming_lifecycle_open", False, error=f"{type(error).__name__}: {error}")
+        return {"schema": S5_FINAL_SCHEMA, "status": "FAIL", "checks": checks}
+    expected = None
+    if expected_root is not None:
+        try:
+            expected = StreamingLifecycle.open(expected_root)
+            check("expected_lifecycle_open", True)
+        except Exception as error:
+            check("expected_lifecycle_open", False, error=f"{type(error).__name__}: {error}")
+            return {"schema": S5_FINAL_SCHEMA, "status": "FAIL", "checks": checks}
+    try:
+        input_manifest = _read(input_path)
+        check("input_manifest_parseable", True)
+    except Exception as error:
+        check("input_manifest_parseable", False, error=f"{type(error).__name__}: {error}")
+        return {"schema": S5_FINAL_SCHEMA, "status": "FAIL", "checks": checks}
+    try:
+        identity = compare_scientific_input_identities(
+            candidate_input_manifest_path=input_path, candidate_preflight_path=candidate_preflight,
+            reference_input_manifest_path=reference_input, reference_preflight_path=reference_preflight,
+        )
+        check("scientific_input_identity_matches", bool(identity["scientific_identity_match"]),
+              candidate=identity["candidate"]["scientific_identity_sha256"],
+              reference=identity["reference"]["scientific_identity_sha256"])
+    except Exception as error:
+        identity = None
+        check("scientific_input_identity_matches", False, error=f"{type(error).__name__}: {error}")
+
+    ref_manifest = reference.manifest
+    if expected is not None:
+        expected_manifest = expected.manifest
+        for key in ("expected_screen_count", "queue_depth", "block_size", "dx_m", "dy_m", "shape", "dtype",
+                    "current_generation", "next_generation"):
+            check(f"identity_{key}", ref_manifest.get(key) == expected_manifest.get(key),
+                  reference=ref_manifest.get(key), expected=expected_manifest.get(key))
+    expected_count = (int(expected.manifest.get("expected_screen_count", -1)) if expected is not None else 48)
+    check("frozen_screen_count", expected_count == 48 if expected is None else True, expected=expected_count)
+    records = list(ref_manifest.get("records", []))
+    input_records = list(input_manifest.get("screen_records", []))
+    check("input_screen_count", len(input_records) == expected_count, observed=len(input_records), expected=expected_count)
+    identity = [(record.get("ordinal"), record.get("screen_id"), record.get("z_m")) for record in records]
+    expected_identity = [(record.get("ordinal"), record.get("screen_id"), record.get("z_m")) for record in input_records]
+    check("screen_identity_matches_input", identity == expected_identity)
+    hydro = dict(input_manifest.get("hydro", {}))
+    check("input_queue_depth_matches", int(ref_manifest.get("queue_depth", -1)) == int(hydro.get("queue_depth", -2)))
+    check("input_block_size_matches", int(ref_manifest.get("block_size", -1)) == int(hydro.get("block_size", -2)))
+    check("input_dx_matches", float(ref_manifest.get("dx_m", 0.0)) == float(input_manifest.get("dx_m", -1.0)))
+    check("input_dy_matches", float(ref_manifest.get("dy_m", 0.0)) == float(input_manifest.get("dy_m", -1.0)))
+    readable = {"POST": 0, "NEXT": 0}
+    for record in records:
+        for namespace in ("POST", "NEXT"):
+            try:
+                entry = record.get(namespace.lower())
+                if entry is None:
+                    raise ValueError("entry missing")
+                fields = reference._artifact_fields(entry, namespace=namespace)
+                if set(fields) != {"delta_n", "vx", "vy"}:
+                    raise ValueError("three authoritative fields are incomplete")
+                readable[namespace] += 1
+            except Exception as error:
+                check(f"{namespace.lower()}_screen_{record.get('ordinal')}_readable", False,
+                      error=f"{type(error).__name__}: {error}")
+    check("post_arrays_complete", readable["POST"] == expected_count, readable=readable["POST"], expected=expected_count)
+    check("next_arrays_complete", readable["NEXT"] == expected_count, readable=readable["NEXT"], expected=expected_count)
+    optical = reference_root / "optical"
+    required = ["optical_run.json", "final_optical_field.npy", "scientific_ledger.npz",
+                "s3_optical.hr3a_qion_samples.npy", "s3_optical.hr3a_qib_samples.npy",
+                "s3_optical.hr3a_qraman_samples.npy"]
+    for name in required:
+        check(f"optical_{name}_exists", (optical / name).is_file())
+    try:
+        reference_optical_run = _read(optical / "optical_run.json")
+        expected_input_sha256 = sha256_file(reference_input)
+        observed_input_sha256 = reference_optical_run.get("input_manifest_sha256")
+        check("reference_input_manifest_sha256_matches", observed_input_sha256 == expected_input_sha256,
+              reference=observed_input_sha256, expected=expected_input_sha256)
+    except Exception as error:
+        check("reference_input_manifest_sha256_matches", False, error=f"{type(error).__name__}: {error}")
+    for name in required[1:]:
+        path = optical / name
+        try:
+            if path.suffix == ".npz":
+                with np.load(path, allow_pickle=False) as values:
+                    check(f"optical_{name}_readable", bool(values.files), fields=sorted(values.files))
+            else:
+                values = np.load(path, mmap_mode="r", allow_pickle=False)
+                count_ok = name == "final_optical_field.npy" or values.shape[0] == expected_count
+                check(f"optical_{name}_readable", bool(count_ok), shape=list(values.shape), dtype=str(values.dtype))
+        except Exception as error:
+            check(f"optical_{name}_readable", False, error=f"{type(error).__name__}: {error}")
+    result = {"schema": S5_FINAL_SCHEMA, "reference_root": str(reference_root.resolve()),
+              "expected_lifecycle_root": None if expected_root is None else str(expected_root.resolve()), "input_manifest": str(input_path.resolve()),
+              "checks": checks}
+    if identity is not None:
+        result["scientific_identity"] = identity
+    result["status"] = "PASS" if all(item["pass"] for item in checks) else "FAIL"
+    return result
 
 
 def validate_recovery_provenance(*, reference_lifecycle_root: str | Path, candidate_lifecycle_root: str | Path,
@@ -251,10 +653,20 @@ def compare_exact(*, reference_lifecycle_root: str | Path, reference_optical_dir
 
 
 def run_recovery_optical(*, input_manifest_path: str | Path, out_dir: str | Path,
-                         lifecycle_root: str | Path, bootstrap_receipt_path: str | Path) -> dict[str, Any]:
+                         lifecycle_root: str | Path, bootstrap_receipt_path: str | Path,
+                         bootstrap_ready_path: str | Path) -> dict[str, Any]:
+    runtime_sha = os.environ.get("EXPECTED_GIT_SHA")
+
+    def validated_bootstrap_boundary(**kwargs: Any) -> None:
+        validate_bootstrap_receipt(**kwargs)
+        _write_bootstrap_ready_receipt(ready_path=bootstrap_ready_path,
+                                       receipt_path=bootstrap_receipt_path,
+                                       lifecycle_root=lifecycle_root,
+                                       runtime_sha=_require_sha(runtime_sha, "runtime SHA"))
+
     return run_optical_path(input_manifest_path=input_manifest_path, out_dir=out_dir, streaming_root=lifecycle_root,
                             resume=True, bootstrap_receipt_path=bootstrap_receipt_path,
-                            bootstrap_receipt_validator=validate_bootstrap_receipt)
+                            bootstrap_receipt_validator=validated_bootstrap_boundary)
 
 
-__all__ = ["S5_FINAL_CASE_ID", "S5_FINAL_SCHEMA", "bootstrap_recovery", "compare_exact", "consume_streaming", "finalize_streaming", "freeze_expected_recovery_effects", "run_recovery_optical", "snapshot_interrupted_state", "validate_bootstrap_receipt", "validate_recovery_provenance", "write_worker_identity"]
+__all__ = ["S5_FINAL_CASE_ID", "S5_FINAL_SCHEMA", "bootstrap_recovery", "compare_exact", "compare_scientific_input_identities", "consume_final_streaming", "finalize_streaming", "freeze_expected_recovery_effects", "run_recovery_optical", "scientific_input_identity", "snapshot_interrupted_state", "validate_bootstrap_ready_receipt", "validate_bootstrap_receipt", "validate_reference_for_comparison", "validate_recovery_provenance", "write_bootstrap_ready_receipt", "write_worker_identity"]

@@ -1,0 +1,141 @@
+{
+  "schema": "khz_filament.hr4e5s.s5_final.evidence_index.v1",
+  "stage": "HR-4E-5S-S5",
+  "scientific_status": "PASS",
+  "closure_status": "CLOSED / RESTART_RECOVERY_EXACT_PASS / AUTOMATION_CLOSEOUT_WARNING_RETAINED",
+  "historical_clean_job_status": "252545 FAILED / 1:0",
+  "hash_scope": "raw_file_bytes_sha256",
+  "path_scope": "local_workspace_repo_relative; historical science bundles are not all Git-tracked",
+  "entries": [
+    {
+      "artifact": "worker_loss_receipt.json",
+      "role": "controlled worker-loss signal evidence",
+      "source_job": 249485,
+      "path": "artifacts/hr4e5s_s5_final/249485_comparison_closeout/comparison_bundle/provenance/initial/worker_loss_receipt.json",
+      "sha256": "1cde70e062b56f4fa8378d12af113d78fb54aa0e3bef7d9221ee432700ad5e05",
+      "status": "SENT",
+      "authoritative": true,
+      "notes": "Signal receipt; not by itself a recovery or exact-comparison PASS."
+    },
+    {
+      "artifact": "initial_workers_stopped.json",
+      "role": "old-writer quiescence",
+      "source_job": 249485,
+      "path": "artifacts/hr4e5s_s5_final/249485_comparison_closeout/comparison_bundle/provenance/initial/initial_workers_stopped.json",
+      "sha256": "c7af8033a5f8e09fee543f7cce4e045e6b0cbd2f2fcda624c6ebec365c921abb",
+      "status": "PASS",
+      "authoritative": true,
+      "notes": "Initial writer-stop receipt."
+    },
+    {
+      "artifact": "bootstrap_ready.json",
+      "role": "fresh-process recovery optical bootstrap gate",
+      "source_job": 249485,
+      "path": "artifacts/hr4e5s_s5_final/249485_comparison_closeout/comparison_bundle/candidate/recovery/bootstrap_ready.json",
+      "sha256": "2e0a3e93819a75ddb8b56443351ae7598bb869f829042bf7ec4a93dfbd62dae4",
+      "status": "PASS",
+      "authoritative": true,
+      "notes": "Receipt precedes hydro claim and binds recovery epoch."
+    },
+    {
+      "artifact": "final_lifecycle_audit.json",
+      "role": "recovered candidate terminal lifecycle",
+      "source_job": 249485,
+      "path": "artifacts/hr4e5s_s5_final/249485_comparison_closeout/comparison_bundle/candidate/recovery/final_lifecycle_audit.json",
+      "sha256": "2262ca7a38a836a9fd3a682d5127b659be8ef89bba4c52143af7b4bc669929a7",
+      "status": "QUALIFIED_BY_COMPARISON",
+      "authoritative": true,
+      "notes": "Final authoritative lifecycle snapshot."
+    },
+    {
+      "artifact": "recovery_receipt_audit.json",
+      "role": "worker-loss to recovery receipt chain",
+      "source_job": 249485,
+      "path": "artifacts/hr4e5s_s5_final/249485_comparison_closeout/recovery_receipt_audit.json",
+      "sha256": "ded727abab718a6646573859a713c204f2d8280c4e4013f27dd1887044c6365a",
+      "status": "PASS",
+      "authoritative": true,
+      "notes": "Identity, bootstrap and final receipt audit."
+    },
+    {
+      "artifact": "supplemental_audit_r2_report.json",
+      "role": "independent clean artifact qualification",
+      "source_job": 252545,
+      "path": "artifacts/hr4e5s_s5_final/252545_terminal_diagnosis/supplemental_audit_r2_report.json",
+      "sha256": "021d3cf22e9181ec847569e956430d3b9c5929fbb407e403035eb80ce0da308b",
+      "status": "PASS_34_OF_34",
+      "authoritative": true,
+      "notes": "Correct canonical array hash; explicitly retains original Slurm FAILED/1:0."
+    },
+    {
+      "artifact": "local_final_audit_r2.json",
+      "role": "repaired local post-run audit against existing clean files",
+      "source_job": 252545,
+      "path": "artifacts/hr4e5s_s5_final/final_closeout/local_final_audit_r2.json",
+      "sha256": "a8c47b27da5defc6229da0194c53c77add6779712e07b4ef085bbe986e726c26",
+      "status": "PASS",
+      "authoritative": true,
+      "notes": "Read-only artifact audit; not a replacement for the failed batch receipt."
+    },
+    {
+      "artifact": "reference_freeze_manifest.csv",
+      "role": "clean reference raw-byte transfer identity",
+      "source_job": 252545,
+      "path": "artifacts/hr4e5s_s5_final/252545_comparison_closeout_r1/reference_freeze_manifest.csv",
+      "sha256": "e494a069d7da83336fe0bc732290142b0c188063911d9bb0a56754763ccaecdd",
+      "status": "PASS_178_FILES",
+      "authoritative": true,
+      "notes": "Raw file hashes, not canonical array hashes."
+    },
+    {
+      "artifact": "reference_transfer_verification.json",
+      "role": "local clean reference transfer verification",
+      "source_job": 252545,
+      "path": "artifacts/hr4e5s_s5_final/252545_comparison_closeout_r1/reference_transfer_verification.json",
+      "sha256": "c95c582848893b37b4844fbdeafaa44dfc4aa3e0a9d54edf16089093bad4c9b2",
+      "status": "PASS_178_OF_178",
+      "authoritative": true,
+      "notes": "No extra files; comparison used this new clean reference."
+    },
+    {
+      "artifact": "candidate_bundle_reverification.json",
+      "role": "existing recovered candidate transfer reverification",
+      "source_job": 249485,
+      "path": "artifacts/hr4e5s_s5_final/252545_comparison_closeout_r1/candidate_bundle_reverification.json",
+      "sha256": "a22520640f0fd1b85c48e08d6b795d61d988851f332fef19e603187354ac9a43",
+      "status": "PASS_339_OF_339",
+      "authoritative": true,
+      "notes": "Only candidate component used; old bundled reference was rejected."
+    },
+    {
+      "artifact": "exact_comparison.json",
+      "role": "strict clean versus recovery scientific exact comparison",
+      "source_job": "252545_clean_vs_249485_candidate",
+      "path": "artifacts/hr4e5s_s5_final/252545_comparison_closeout_r1/exact_comparison/exact_comparison.json",
+      "sha256": "80a74891bb66a0324195176fa02493eb19a39393ff2af41a5e32823629a21600",
+      "status": "PASS_432_OF_432_ZERO_MISMATCH",
+      "authoritative": true,
+      "notes": "Final optical, 9 ledger fields, lifecycle, ownership, barrier and promotion exact."
+    },
+    {
+      "artifact": "recovery_provenance.json",
+      "role": "strict frozen recovery-effects provenance comparison",
+      "source_job": 249485,
+      "path": "artifacts/hr4e5s_s5_final/252545_comparison_closeout_r1/exact_comparison/recovery_provenance.json",
+      "sha256": "27fca702f515aa4de774a23835ec8cc4e2d8802c10b602dc011195c1f44b91f8",
+      "status": "PASS_4_OF_4",
+      "authoritative": true,
+      "notes": "Queue/backlog empty; retry deltas and attempts match frozen expected effects."
+    },
+    {
+      "artifact": "slurm-252545.out",
+      "role": "historical automation defect evidence",
+      "source_job": 252545,
+      "path": "artifacts/hr4e5s_s5_final/252545_terminal_diagnosis/slurm-252545.out",
+      "sha256": "83801bc6b08bc71b6a434ce89ac4a22f506145cfa3e31819439499bd95fca4ac",
+      "status": "FAILED_1_0",
+      "authoritative": true,
+      "notes": "Post-run audit AttributeError; does not become COMPLETED retroactively."
+    }
+  ]
+}

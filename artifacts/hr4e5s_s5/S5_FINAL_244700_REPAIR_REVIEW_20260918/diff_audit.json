@@ -1,0 +1,19 @@
+{
+  "schema": "khz_filament.hr4e5s.s5_final.diff_audit.v1",
+  "audited_execution_sha": "cd456ff8413cbc041d2d60b9b64007a1554028a1",
+  "repair_scope": [
+    "Filament_python/tools/monitor_hr4e5s_s5_final.py",
+    "Filament_python/tools/hr4e5s_s5_final_single_allocation.sbatch",
+    "Filament_python/tools/hpc_ops/submit_hr4e5s_s5_final.sh",
+    "Filament_python/tools/run_hr4e5s_s5_final.py",
+    "Filament_python/KHz_filament/hr4e5s_s5_final.py",
+    "Filament_python/KHz_filament/hr4e5s_streaming.py",
+    "Filament_python/tests/test_hr4e5s_s5_final.py"
+  ],
+  "scientific_operator_files_changed": false,
+  "advance_hr4_single_screen_changed": false,
+  "frozen_parameters_changed": false,
+  "fault_default_changed": false,
+  "exact_comparison_criteria_changed": false,
+  "note": "The StreamingLifecycle change is an optional callback after durable claim and before the existing solver call. Its default is None, so normal paths retain their prior call sequence."
+}

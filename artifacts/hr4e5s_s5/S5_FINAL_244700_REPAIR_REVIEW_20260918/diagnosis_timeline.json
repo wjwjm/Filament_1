@@ -1,0 +1,19 @@
+{
+  "schema": "khz_filament.hr4e5s.s5_final.repair_timeline.v1",
+  "status": "RECONSTRUCTED_FROM_DURABLE_EVIDENCE",
+  "subject_job_id": "244700",
+  "confirmed": [
+    {"event": "initial_job_start", "value": "2026-09-17T15:37:34+08:00"},
+    {"event": "identity_receipts", "value": "three READY receipts: steps 0, 1, 2; distinct PIDs"},
+    {"event": "scientific_steps", "value": "244700.0/.1/.2 all COMPLETED 0:0"},
+    {"event": "scenario_coverage", "value": "FAIL: worker_loss_not_triggered"},
+    {"event": "controller_terminal", "value": "READY_FOR_S5_FINAL_DEFECT_REVIEW: TARGET_STEP_PID_UNPROVEN for hydro_consumer_1 / 244700.2"},
+    {"event": "initial_job_end", "value": "2026-09-17T18:38:57+08:00, FAILED 41:0"}
+  ],
+  "unknown": [
+    "first dual-claim observation time",
+    "per-call scontrol listpids hostname, stdout, stderr and return code",
+    "whether the original controller ran on the allocation node at each observation"
+  ],
+  "not_run": ["old-job quiescence", "effects freeze", "recovery", "exact comparison", "recovery provenance"]
+}
