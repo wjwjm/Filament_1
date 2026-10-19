@@ -1,3 +1,9 @@
+> 2026-10-19 后续清理已完成：本项目 D:/Filament_1 现在直接使用 codex/gpu-optimization，无需新项目。
+> GPU独立worktree已解除分支占用；统一分支已推送并跟踪origin。
+> 已删除24个本地、54个远端已合并分支；保留CPU/main、含未提交改动的WP1及5个未合并远端分支。
+> 历史worktree目录/证据均保留。恢复清单与已验证Git bundle：
+> D:/Filament_1/review_evidence/GPU_BRANCH_CLEANUP_20261019T101733901/
+> 下文是清理前的整合记录，其中旧分支名/SHA用于历史追溯。
 # GPU 开发分支整合（2026-10-19）
 
 统一分支：codex/gpu-optimization
