@@ -1,0 +1,122 @@
+{
+  "hash_scope": "raw_bytes",
+  "source_root": "D:\\Filament_1\\.worktrees\\cpu_s4",
+  "snapshot": [
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/__init__.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "92025a6fdd71dabe0363bf25b3b284891477b0124a2a40982980285133e520d8",
+      "bytes": 330
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/admission.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "53618a83fb1ad9d9e90749c9e3354c0c376796e81b495597f34f6ca589f57df1",
+      "bytes": 38437
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/launcher.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "9128c18c8d6cd3a88998a5ad23b215cc481db4eb728731d4e1b0552011f99012",
+      "bytes": 10283
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/memory_limits.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "cca7fabc1429947ef9765b3b692b0b58e35e08ae31b5f606863968c25e071be9",
+      "bytes": 15930
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/output_inventory.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "168f66db44e26397b5db486373f22d02b150f825ca4f7bb874cc17f724b3a372",
+      "bytes": 30462
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/profile.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "958f1c57cb6fb2eab0ab036c5267f79f2ad23bc7d836394fd9c3a33a0fae1ea0",
+      "bytes": 71805
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/runtime_gate.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "14e95bbef7fe32755c818a281ddb2a19082e694dc0eeefccc5fb0914fdf28c53",
+      "bytes": 19041
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/storage_budget.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "379377ad5a3353c7d04d015fc40439dc0ce37d157bdf0a6f9b823965290ea96f",
+      "bytes": 7882
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/supervisor.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "e96ae5c2cde613cb24d72c9113bcf53e9eecda35034937fd28d09876f1be34b6",
+      "bytes": 52948
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/test_cpu_s4_profile.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "c8ce2f243849311e957adec19280ed02a877ebe87be2be7e5b3bf3dab38e6a53",
+      "bytes": 6769
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/test_s4_admission.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "373d49cded05ffd628e00f5902f4402a772361cd8b1a34c12bd89852a4f6f6e3",
+      "bytes": 12102
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/test_s4_git_context.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "431410e2ad4016a0ceabdcf2a113e4f30a8e22a1f478c282656e2e4d81f2826b",
+      "bytes": 10391
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/test_s4_raman_timing.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "ff17b7c6690d2cc5c1775085b1567c1e428df683a003ac1f0b605db38c7e0378",
+      "bytes": 14807
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/test_s4_real_entry.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "7b23d21b8a5673afe10a2052f15482fd5cacafcaaceb870f23081eb2e9b696c4",
+      "bytes": 7036
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/test_s4_runtime_layout.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "55f60965d2827753f6daa1e80dba78d0487c2c228e1574b473330e311676ea25",
+      "bytes": 7312
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/test_s4_two_gates.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "5633d67c3eb164516ab70323d3b7049d945786998b7754f8d597132d5608a143",
+      "bytes": 11599
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/timing_instrumentation.py",
+      "hash_scope": "raw_bytes",
+      "sha256": "a3b5957c9190c114eaf73337626c72ba8423d8f5dd55ee5127bd7059dfdec629",
+      "bytes": 16950
+    }
+  ],
+  "contained_branches": [
+    "codex/cpu-o1-contract-local-prototype-20261014",
+    "codex/cpu-o1-ir-joint-local-20261014",
+    "codex/cpu-optimization",
+    "codex/cpu-p1-real-bench-20261013",
+    "codex/cpu-p1r-targeted-retest-20261013",
+    "codex/cpu-p1r2-optical-parallel-20261014",
+    "codex/cpu-q1-t0-real8-20261014",
+    "codex/cpu-q2-repeat-bi-20261015",
+    "codex/cpu-q3-bi-two-pulse-reload-20261015",
+    "codex/cpu-s4-profile-experimental"
+  ],
+  "base_head": "66801ad435d6ec1967338cee4eb82af2a152389c",
+  "science_unchanged": true
+}
