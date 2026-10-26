@@ -92,12 +92,14 @@ def _owned_source_identity() -> dict[str, Any]:
             "hash_scope": "raw_bytes",
             "classification": "external",
         }
-    composite_input = "".join(
+    producer_module_identity = controlled_callsite.__name__
+    composite_input = ("producer_module:" + producer_module_identity + "\n" + "".join(
         f"{name}:{records[name]['raw_sha256']}\n" for name in sorted(records)
-    ).encode("utf-8")
+    )).encode("utf-8")
     return {
         "schema": "filament.cpu_s4_3g3_smallgrid.owned_sources.v1",
         "files": records,
+        "producer_module_identity": producer_module_identity,
         "composite_raw_sha256": pv.raw_sha256(composite_input),
     }
 
