@@ -1,0 +1,13 @@
+{
+  "scope": "CPU_RESEARCH_CHECKPOINT",
+  "environment": {"python":"3.12.8","numpy":"2.2.5","scipy":"1.15.2","numba":"0.61.2","llvmlite":"0.44.0","psutil":"7.0.0","threadpoolctl":"3.6.0","CPU":"generic","threading_layer":"workqueue","BLAS_threads":1},
+  "local_engineering_workers":1,
+  "HPC_fixed_workers":{"Numba_outer":24,"G_Raman_kernel":48,"FFT_temporal_max":48,"FFT_spatial_max":24},
+  "cache_policy":"External per-checkout/per-role cache; no serial/parallel cache mixing",
+  "qualifications":{"historical_G3_smallgrid":"QUALIFIED_ORIGINAL_R14_RECORDS_AUDITED","checkpoint_clean_restore":"PENDING_RECORDED_RECEIPT","fullsize_new_candidate":"NOT_RUN"},
+  "default":"I0",
+  "full_distance":"NOT_QUALIFIED",
+  "multipulse":"NOT_QUALIFIED",
+  "production":false,
+  "review_gate":"MANUAL_REVIEW_PENDING"
+}

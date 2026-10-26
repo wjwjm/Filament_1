@@ -1,0 +1,36 @@
+{
+  "status": "PASS_LOCAL_ORIGINAL_R14_PACKAGE_AND_RECORD_AUDIT",
+  "archive": {
+    "hash_scope": "raw_bytes",
+    "raw_sha256": "6251b7a3f91bda2736462fa35b87d71f51e7fd641e74c96e0133deb58255f992",
+    "size_bytes": 924591491,
+    "members": 24702,
+    "CRC": "PASS",
+    "manifest_coverage": "EXACT"
+  },
+  "original_report": {
+    "expected_chat_raw_sha256": "ac81f4509c5b2d0ee1046d46e89f608ae73e3c80dca0b5c799afa1d7adfcf299",
+    "expected_chat_size_bytes": 4143,
+    "actual_archived_raw_sha256": "ac81f4509c5b2d0ee1046d46e89f608ae73e3c80dca0b5c799afa1d7adfcf299",
+    "actual_archived_size_bytes": 4143,
+    "same_as_chat_identity": true
+  },
+  "numeric_rows_replayed": 11923,
+  "cases": 12,
+  "paired_incremental": [
+    0.06752167243503437,
+    0.07603582566470142,
+    0.05868288922829308
+  ],
+  "paired_total": [
+    0.12386269296933626,
+    0.14426938925588845,
+    0.1321487942998294
+  ],
+  "allocated_core_hours": 24.56,
+  "scope": "Original same-grid records audited; not new fullsize execution",
+  "original_evidence_location": "Protected G3-1 R14 archive. Obtain exact archive bytes from custodian; not uploaded with this source checkpoint.",
+  "default": "I0",
+  "review_gate": "MANUAL_REVIEW_PENDING",
+  "production_qualified": false
+}

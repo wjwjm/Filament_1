@@ -1,0 +1,8 @@
+*.zip
+*.tar
+*.tar.gz
+*.npy
+*.npz
+cache/
+venv/
+private/

@@ -1,0 +1,186 @@
+{
+  "status": "PASS_SMALLGRID_CURRENT_I0_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS",
+  "comparison_logs": [
+    {
+      "path": "HPC_EVIDENCE/runs/A01/B1_G2_SMALL/work/formal/TERMINAL_EXACT.jsonl",
+      "rows": 1120,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "METADATA_EXACT": 90,
+        "TIMING_EXCLUDED": 4
+      },
+      "raw_sha256": "6d625b0e5b9a224d952c4c44076a5feb20a053005ea3567af8a1dd83114d1612",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "HPC_EVIDENCE/runs/A01/B1_G3_SMALL/work/formal/TERMINAL_EXACT.jsonl",
+      "rows": 1120,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "METADATA_EXACT": 90,
+        "TIMING_EXCLUDED": 4
+      },
+      "raw_sha256": "1c03776db4045688e8497dd901db906eca6474e8c161b44c3bf4f5d909eb9fad",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "HPC_EVIDENCE/runs/A01/B1_I0_SMALL/work/formal/TERMINAL_EXACT.jsonl",
+      "rows": 1120,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "METADATA_EXACT": 90,
+        "TIMING_EXCLUDED": 4
+      },
+      "raw_sha256": "6f9bb4d6a72f6db6f0814fd9e3289e385bad8b9c4ac11042797a4bef1521237d",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "HPC_EVIDENCE/runs/A01/B2_G2_SMALL/work/formal/TERMINAL_EXACT.jsonl",
+      "rows": 1120,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "METADATA_EXACT": 90,
+        "TIMING_EXCLUDED": 4
+      },
+      "raw_sha256": "ab04e2c52ddcf6fa08ed80b9fae4e02bb905bfbb6f64084ed55664a040f3c495",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "HPC_EVIDENCE/runs/A01/B2_G3_SMALL/work/formal/TERMINAL_EXACT.jsonl",
+      "rows": 1120,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "METADATA_EXACT": 90,
+        "TIMING_EXCLUDED": 4
+      },
+      "raw_sha256": "6d1afa5acf3cd4047bb059cd8f4d637befeb64e48efc4adc54bc3b634d4a4f0b",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "HPC_EVIDENCE/runs/A01/B2_I0_SMALL/work/formal/TERMINAL_EXACT.jsonl",
+      "rows": 1120,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "METADATA_EXACT": 90,
+        "TIMING_EXCLUDED": 4
+      },
+      "raw_sha256": "e4964dcac061cfbafffa1b5e472591307307ebbac621bf606c767c4765688cb0",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "HPC_EVIDENCE/runs/A01/B3_G2_SMALL/work/formal/TERMINAL_EXACT.jsonl",
+      "rows": 1120,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "METADATA_EXACT": 90,
+        "TIMING_EXCLUDED": 4
+      },
+      "raw_sha256": "00376a3fb89ec093d62343697a0fb3c92ad970b4b758710256d7d6554a2e7b56",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "HPC_EVIDENCE/runs/A01/B3_G3_SMALL/work/formal/TERMINAL_EXACT.jsonl",
+      "rows": 1120,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "METADATA_EXACT": 90,
+        "TIMING_EXCLUDED": 4
+      },
+      "raw_sha256": "ed9c346a0b4fa53b1636e1316327eee28e03f05ae710b4fbaf4a4ca13e0ed344",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "HPC_EVIDENCE/runs/A01/B3_I0_SMALL/work/formal/TERMINAL_EXACT.jsonl",
+      "rows": 1120,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "METADATA_EXACT": 90,
+        "TIMING_EXCLUDED": 4
+      },
+      "raw_sha256": "68d13e772d35f24bf0817c3fa8019438640d92ff1706a3240573bda76cda27ab",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "HPC_EVIDENCE/runs/A01/NODE_MASK_CONTRACT/work/RECOVERY_EXACT.jsonl",
+      "rows": 413,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 333,
+        "METADATA_EXACT": 76,
+        "TIMING_EXCLUDED": 4
+      },
+      "raw_sha256": "0f669df400d14dc86995cf6627304583b3f235909c4bcb5a0c381f58c8336da2",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "HPC_EVIDENCE/runs/A01/QUALIFY_G2_SMALL/work/formal/BOUNDARY_EXACT.jsonl",
+      "rows": 112,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 108,
+        "TIMING_EXCLUDED": 4
+      },
+      "raw_sha256": "6a0dc98fac56802058f402239609e8fc65259b500a78d9a94f1f716510fde8d4",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "HPC_EVIDENCE/runs/A01/QUALIFY_G2_SMALL/work/formal/TERMINAL_EXACT.jsonl",
+      "rows": 1120,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "METADATA_EXACT": 90,
+        "TIMING_EXCLUDED": 4
+      },
+      "raw_sha256": "d47c3580aaef777e196cb15b2ef303bb2d03165a8272f3fc8bdcce8a0fa9eff5",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "HPC_EVIDENCE/runs/A01/QUALIFY_G3_SMALL/work/formal/BOUNDARY_EXACT.jsonl",
+      "rows": 112,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 108,
+        "TIMING_EXCLUDED": 4
+      },
+      "raw_sha256": "6383a11873c215083b41d8a855ae395fa47d1b18441394bef93f7a16d3a8547f",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "HPC_EVIDENCE/runs/A01/QUALIFY_G3_SMALL/work/formal/STAGES_EXACT.jsonl",
+      "rows": 32,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 32
+      },
+      "raw_sha256": "8eb65247daf4026c3486bbcaaac638f026c350a91f45f0cfea786024fcff9c99",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "HPC_EVIDENCE/runs/A01/QUALIFY_G3_SMALL/work/formal/TERMINAL_EXACT.jsonl",
+      "rows": 1120,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "METADATA_EXACT": 90,
+        "TIMING_EXCLUDED": 4
+      },
+      "raw_sha256": "610060bc1aad35567c67957b80c1ef77cdad3e3211638700e36323c5485d05ca",
+      "hash_scope": "raw_bytes"
+    }
+  ],
+  "alias_logs": [
+    "HPC_EVIDENCE/runs/A01/B1_G2_SMALL/work/formal/TERMINAL_EXACT.ALIASES.json",
+    "HPC_EVIDENCE/runs/A01/B1_G3_SMALL/work/formal/TERMINAL_EXACT.ALIASES.json",
+    "HPC_EVIDENCE/runs/A01/B1_I0_SMALL/work/formal/TERMINAL_EXACT.ALIASES.json",
+    "HPC_EVIDENCE/runs/A01/B2_G2_SMALL/work/formal/TERMINAL_EXACT.ALIASES.json",
+    "HPC_EVIDENCE/runs/A01/B2_G3_SMALL/work/formal/TERMINAL_EXACT.ALIASES.json",
+    "HPC_EVIDENCE/runs/A01/B2_I0_SMALL/work/formal/TERMINAL_EXACT.ALIASES.json",
+    "HPC_EVIDENCE/runs/A01/B3_G2_SMALL/work/formal/TERMINAL_EXACT.ALIASES.json",
+    "HPC_EVIDENCE/runs/A01/B3_G3_SMALL/work/formal/TERMINAL_EXACT.ALIASES.json",
+    "HPC_EVIDENCE/runs/A01/B3_I0_SMALL/work/formal/TERMINAL_EXACT.ALIASES.json",
+    "HPC_EVIDENCE/runs/A01/NODE_MASK_CONTRACT/work/RECOVERY_EXACT.ALIASES.json",
+    "HPC_EVIDENCE/runs/A01/QUALIFY_G2_SMALL/work/formal/BOUNDARY_EXACT.ALIASES.json",
+    "HPC_EVIDENCE/runs/A01/QUALIFY_G2_SMALL/work/formal/TERMINAL_EXACT.ALIASES.json",
+    "HPC_EVIDENCE/runs/A01/QUALIFY_G3_SMALL/work/formal/BOUNDARY_EXACT.ALIASES.json",
+    "HPC_EVIDENCE/runs/A01/QUALIFY_G3_SMALL/work/formal/STAGES_EXACT.ALIASES.json",
+    "HPC_EVIDENCE/runs/A01/QUALIFY_G3_SMALL/work/formal/TERMINAL_EXACT.ALIASES.json"
+  ],
+  "oracle": "HPC_EVIDENCE/runs/A01/QUALIFY_I0_SMALL/work/formal/OUTPUT",
+  "scope": "Current same-grid I0 only. No historical fullsize oracle/storage bridge used.",
+  "local_evidence": "Windows/Linux final directed R11 (30 tests each), final entry R12 (2 tests each), micro 2/8 and Nt384-space-micro; raw logs and sources retained."
+}

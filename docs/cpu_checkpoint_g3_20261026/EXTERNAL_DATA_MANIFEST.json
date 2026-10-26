@@ -1,0 +1,35 @@
+{
+  "hash_scope": "raw_bytes",
+  "records": [
+    {
+      "relative_path": "inputs/LUT_MANIFEST.json",
+      "classification": "EXTERNAL_DATA_WITH_HASH",
+      "hash_scope": "raw_bytes",
+      "size_bytes": 1935,
+      "raw_sha256": "00d341f6e1cc49b56a38ce24771119a6a28665497068521140ab07dbb13b2ee5",
+      "obtain": "Existing frozen optical input archive/custodian; explicit --source-lut-root, no automatic network retrieval",
+      "missing_behavior": "Reject before materializing data root"
+    },
+    {
+      "relative_path": "inputs/cache/rate_tables/ionlut_N2_76585af6514cdd04.npz",
+      "classification": "EXTERNAL_DATA_WITH_HASH",
+      "hash_scope": "raw_bytes",
+      "size_bytes": 49064,
+      "raw_sha256": "1f70691ab004c410123f5e06a0dbfa626beecf4059c09b715a8052feeb4e128e",
+      "obtain": "Existing frozen optical input archive/custodian; explicit --source-lut-root, no automatic network retrieval",
+      "missing_behavior": "Reject before materializing data root"
+    },
+    {
+      "relative_path": "inputs/cache/rate_tables/ionlut_O2_1446bb99e8f9fd80.npz",
+      "classification": "EXTERNAL_DATA_WITH_HASH",
+      "hash_scope": "raw_bytes",
+      "size_bytes": 49013,
+      "raw_sha256": "57617bc72acbb794ae2c939241beaa57fa313eaa27a3d2981882f1fbe68d6cf8",
+      "obtain": "Existing frozen optical input archive/custodian; explicit --source-lut-root, no automatic network retrieval",
+      "missing_behavior": "Reject before materializing data root"
+    }
+  ],
+  "generated_layout": "prepare_data.py copies tracked config and emits the small LUT manifest at the explicit new external data root",
+  "large_oracles": "External G3-1 R14 and original G2 fullsize input/output archive; no large arrays in Git",
+  "fullsize_input_status": "Exact remote locations and hashes validated in protected task receipts, source checkpoint has no private account path"
+}
