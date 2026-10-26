@@ -1,0 +1,47 @@
+{
+  "status": "CHECKPOINT_RESTORE_PASS",
+  "source_checkpoint": "98194d2e07991ac60a1cfb24f002b7cdfe8ab388",
+  "restore_checkout": "Independent detached checkout at source_checkpoint",
+  "source_clean_after_tests": true,
+  "science_tree": "821fec5bdacd832b0347e1f2e84285cb54172e57",
+  "tests": {
+    "windows": {
+      "passed": 47,
+      "failed": 0,
+      "elapsed_s": 463.987,
+      "python": "3.12.8 | packaged by Anaconda, Inc. | (main, Dec 11 2024, 16:48:34) [MSC v.1929 64 bit (AMD64)]",
+      "modules": {
+        "numpy": "2.2.5",
+        "scipy": "1.15.2",
+        "numba": "0.61.2",
+        "llvmlite": "0.44.0",
+        "psutil": "7.0.0",
+        "threadpoolctl": "3.6.0"
+      },
+      "source_scope": "Same committed source in a real independent clean checkout; actual separate Windows/Linux interpreters and caches",
+      "local_pool": 1
+    },
+    "linux": {
+      "passed": 47,
+      "failed": 0,
+      "elapsed_s": 907.444,
+      "python": "3.12.8 (main, Jan 14 2025, 22:49:14) [Clang 19.1.6 ]",
+      "modules": {
+        "numpy": "2.2.5",
+        "scipy": "1.15.2",
+        "numba": "0.61.2",
+        "llvmlite": "0.44.0",
+        "psutil": "7.0.0",
+        "threadpoolctl": "3.6.0"
+      },
+      "source_scope": "Same committed source in a real independent clean checkout; actual separate Windows/Linux interpreters and caches",
+      "local_pool": 1
+    }
+  },
+  "coverage": "Original 30+2 gates plus 3 migration/capture checks and 12 existing lightweight tests selected by checkpoint filter; no full historical collection or smallgrid HPC performance rerun",
+  "external_data": "Explicit materialization from 3 exact LUT files and tracked config; no unique code read from reports",
+  "default": "I0",
+  "fullsize_new_candidate": "NOT_RUN",
+  "production_qualified": false,
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}
