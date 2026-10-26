@@ -19,3 +19,7 @@ Filament_python/results/isaacs_complete_eq27/submission_manifest.json text eol=c
 Filament_python/results/isaacs_complete_eq27/provenance_221822/SUBMISSION_LOCK text eol=lf
 Filament_python/results/isaacs_complete_eq27/provenance_221822/submission_record.txt text eol=lf
 Filament_python/results/density_translation_width/density_translation_width_20260715_002/paper_pycap_120fs.csv text eol=crlf
+
+# The frozen 112-field map has an existing CRLF raw-byte identity guard.
+# Keep its canonical Git text and reproduce those checkout bytes on all hosts.
+Filament_python/tools/inputs/HISTORICAL_BOUNDARY_FIELD_MAP_112.csv text eol=crlf
