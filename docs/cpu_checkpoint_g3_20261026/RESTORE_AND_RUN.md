@@ -1,6 +1,6 @@
 # CPU G3 research checkpoint
 
-State: `G3_SMALLGRID_QUALIFIED / FULLSIZE_NOT_YET_CONFIRMED / PRODUCTION_FALSE`.
+State: `G3_SMALLGRID_QUALIFIED / FULLSIZE_BOUNDARY_SCHEMA_BLOCKED / PRODUCTION_FALSE`.
 Default remains I0. This branch is not merged into main and does not qualify
 full-distance propagation, focus-region behavior, multiple pulses or Hydro.
 
@@ -68,3 +68,32 @@ The small-grid report, original full-precision timing CSVs and exact index are
 small copies here. Full original comparison records/arrays stay in the frozen
 R14 archive, whose size/hash is in `SMALLGRID_EVIDENCE_SUMMARY.json`.
 Scientific exactness and a Git push are separate qualifications.
+
+## Fullsize confirmation boundary (2026-10-26)
+
+Read `FULLSIZE_CONFIRMATION_20261026.md` and
+`FULLSIZE_CLOSEOUT_RECEIPT_PUBLIC.json`. G2 completed real8 and its recorded
+terminal comparison, but historical boundary JSON key order blocked qualification.
+G3 fullsize propagation and all three performance batches were not run.
+The two permitted JobIDs are exhausted; this checkpoint does not authorize another job.
+
+The fullsize entry is `tools.cpu_s4_fullsize_confirmation.entry`; its actual
+execution commit is `0349f82f8600cbbc16a8b16dea7d84c13574181d`.
+Its private scheduler plan, sealed fullsize inputs and original G2 reference
+remain external and hash-bound. A Git checkout alone does not authorize execution.
+The runner must set `S43G2_SOURCE_ROOT` and `S43F_SOURCE_ROOT` to that real
+checkout, and use the audited explicit interpreter, plan and node gates.
+The historical boundary CSV must retain raw SHA256
+`26d7de0ab58861d083ffa0e1ab0e06edc29c00db8dd184b102651c2a246f5c90` (21,160 bytes).
+Its path-scoped `text eol=crlf` attribute preserves this existing raw guard.
+When switching an already populated checkout across the attribute commit, use
+real Git `checkout HEAD -- Filament_python/tools/inputs/HISTORICAL_BOUNDARY_FIELD_MAP_112.csv`
+in the new unstarted staging and recheck the raw identity before any job.
+
+`CHECKPOINT_DEPENDENCIES.json` records the initial S1 migration mapping at
+`98194d2e07991ac60a1cfb24f002b7cdfe8ab388`. Its initial `new_raw_sha256` and
+`new_git_blob_oid` values are historical migration metadata. Later execution
+identities come from the actual committed Git blobs and the execution-specific
+`CHECKPOINT_SOURCE_MANIFEST.json`, not those initial values. The G3 producer
+module name was subsequently added only to the private implementation cache key;
+the frozen mathematical kernels and controlled lifecycle callsite are unchanged.

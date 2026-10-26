@@ -1,0 +1,4 @@
+batch,order,G2_FULL_application_service_s,G3_FULL_application_service_s,g_incremental,status,scope
+B1,G2_FULL -> G3_FULL,,,,NOT_RUN,FULLSIZE_ENTRY_EIGHT_ONLY; no current I0 or cumulative gain
+B2,G3_FULL -> G2_FULL,,,,NOT_RUN,FULLSIZE_ENTRY_EIGHT_ONLY; no current I0 or cumulative gain
+B3,G2_FULL -> G3_FULL,,,,NOT_RUN,FULLSIZE_ENTRY_EIGHT_ONLY; no current I0 or cumulative gain

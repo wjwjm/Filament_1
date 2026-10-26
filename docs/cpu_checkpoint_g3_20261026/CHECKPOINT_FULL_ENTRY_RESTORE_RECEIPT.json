@@ -1,0 +1,33 @@
+{
+  "status": "CHECKPOINT_FULL_ENTRY_RESTORE_PASS",
+  "execution_commit": "a17215bfa56771a8f39f66f5510363b19077920d",
+  "science_tree": "821fec5bdacd832b0347e1f2e84285cb54172e57",
+  "clean_checkout": true,
+  "tests": {
+    "windows": {
+      "tests": 50,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "elapsed_s": 502.346,
+      "receipt": "raw/windows_complete_migration_R5.json",
+      "xml": "raw/windows_complete_migration_R5.xml",
+      "local_pool": 1
+    },
+    "linux": {
+      "tests": 50,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "elapsed_s": 1090.849,
+      "receipt": "raw/linux_complete_migration_R5.json",
+      "xml": "raw/linux_complete_migration_R5.xml",
+      "local_pool": 1
+    }
+  },
+  "coverage": "Original affected 30+2 gates, migration checks, real micro2/8/Nt384, full-entry micro, actual system Git compatibility. No fullsize/W48 qualification inferred.",
+  "source_checkpoint": "98194d2e07991ac60a1cfb24f002b7cdfe8ab388",
+  "independent_readonly_review": "Previous fixed-Git P1 closed; alias-cache module identity fix has no numerical body changes",
+  "default": "I0",
+  "production_qualified": false
+}

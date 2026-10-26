@@ -23,12 +23,23 @@
   "qualifications": {
     "historical_G3_smallgrid": "QUALIFIED_ORIGINAL_R14_RECORDS_AUDITED",
     "checkpoint_clean_restore": "CHECKPOINT_RESTORE_PASS",
-    "fullsize_new_candidate": "NOT_RUN"
+    "fullsize_new_candidate": "NOT_RUN",
+    "checkpoint_full_entry_restore": "CHECKPOINT_FULL_ENTRY_RESTORE_PASS_WINDOWS50_LINUX50",
+    "fullsize_G2": "REAL8_TERMINAL_RECORDS_PASS_BOUNDARY_SCHEMA_BLOCKED",
+    "fullsize_G3": "NOT_RUN",
+    "fullsize_qualification": "NOT_ESTABLISHED_BOUNDARY_SCHEMA_BLOCKED",
+    "fullsize_incremental_gain": "PERFORMANCE_NOT_COMPLETED"
   },
   "default": "I0",
   "full_distance": "NOT_QUALIFIED",
   "multipulse": "NOT_QUALIFIED",
   "production": false,
   "review_gate": "MANUAL_REVIEW_PENDING",
-  "source_checkpoint": "98194d2e07991ac60a1cfb24f002b7cdfe8ab388"
+  "source_checkpoint": "98194d2e07991ac60a1cfb24f002b7cdfe8ab388",
+  "execution_source_commit": "0349f82f8600cbbc16a8b16dea7d84c13574181d",
+  "new_jobids": [
+    "8851763",
+    "8851774"
+  ],
+  "actual_allocated_core_hours": 14.72
 }
