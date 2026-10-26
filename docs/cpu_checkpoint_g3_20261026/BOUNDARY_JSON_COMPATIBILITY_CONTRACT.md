@@ -34,7 +34,7 @@ turning that behavior into a new exact rule.
 
 `inspect_boundary_metadata(..., require_members=False)` is reserved for historical receipt-only review when archived NPY files are unavailable. It reports `scientific_comparison_status=NOT_RUN_METADATA_ONLY`; this status cannot satisfy a scientific boundary or full-size qualification gate. `load_boundary_capture()` always requires all members and is the only path used by `compare_current_boundary_pair()`.
 
-The focused regression covers sorted and insertion/reversed JSON order, duplicate-key rejection, metadata failure before `numpy.load`, and metadata-only historical receipts. It uses tiny temporary arrays solely to exercise the disk round trip; it is not a propagation or full-size qualification test.
+The JSON fixture regression covers sorted and insertion/reversed JSON order, duplicate-key rejection, metadata failure before `numpy.load`, and metadata-only historical receipts. It uses tiny temporary arrays to exercise the disk round trip. The separate real micro regression exercises local propagation, collector retirement, disk reload, and the original comparisons; it does not establish full-size or HPC qualification.
 
 The formal parent runner should register the three new test files through
 `PYTEST_ADDOPTS` after its backend/import/sanity gates. The repository wrapper
@@ -80,12 +80,13 @@ try {
 }
 ```
 
-The real micro case is a local-pool-1 engineering check at `Nt=384` and
+The real micro case is a local-pool-1 propagation/control-flow check at `Nt=384` and
 transverse shape `[17,19]`; it is not a full-size or HPC qualification gate.
 
 The R1 controller has a separate lifecycle schema and task identity. Its node gate performs the strict reference boundary metadata/header check after source, sealed-input, and runtime gates and before creating a run directory or launching propagation. The lifecycle default remains `I0`, and review remains `MANUAL_REVIEW_PENDING`.
 
-The controller accepts only the R1 task/schema. Its budget fields are explicit:
+The controller accepts only the R1 task/schema. Both `ordinal` and `r1_ordinal`
+are required integers in the allowed range and must be equal. Its budget fields are explicit:
 `prior_allocated_core_hours=14.72`, `additional_allocated_core_hours`,
 `inflight_reserved_core_hours`, `next_submission_reserved_core_hours`, and
 `additional_allocated_core_hours_limit=129.28`; both the additional cap and the

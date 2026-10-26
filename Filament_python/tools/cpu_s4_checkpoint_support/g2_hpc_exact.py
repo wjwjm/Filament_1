@@ -542,16 +542,26 @@ def _inspect_boundary_metadata(
                 and not isinstance(layout["pointer"], bool)
                 and layout["pointer"] >= 0,
                 "BOUNDARY_LINEAR_RESULT_POINTER", key)
-    require(isinstance(linear_result["container_length"], int)
-            and not isinstance(linear_result["container_length"], bool), "BOUNDARY_LINEAR_RESULT_LENGTH")
-    require(isinstance(linear_result["container_type"], str)
-            and isinstance(linear_result["expected_container_kind"], str), "BOUNDARY_LINEAR_RESULT_CONTAINER")
-    require(isinstance(linear_result["element0_index"], int)
-            and not isinstance(linear_result["element0_index"], bool), "BOUNDARY_LINEAR_RESULT_INDEX")
     for key in ("element0_is_E", "element0_shares_memory_E", "need_energy", "need_profile"):
         require(isinstance(linear_result[key], bool), "BOUNDARY_LINEAR_RESULT_BOOL", key)
-    require(isinstance(linear_result["expected_container_length"], int)
-            and not isinstance(linear_result["expected_container_length"], bool), "BOUNDARY_LINEAR_RESULT_EXPECTED_LENGTH")
+    # Mirror the frozen writer's four return forms. An ndarray has no tuple
+    # length or element index; JSON preserves those three members as null.
+    tuple_result = linear_result["need_energy"] or linear_result["need_profile"]
+    expected_kind = "tuple" if tuple_result else "ndarray"
+    expected_length = (3 if linear_result["need_energy"] and linear_result["need_profile"] else 2) if tuple_result else None
+    require(linear_result["container_type"] == expected_kind
+            and linear_result["expected_container_kind"] == expected_kind, "BOUNDARY_LINEAR_RESULT_CONTAINER")
+    if tuple_result:
+        require(type(linear_result["container_length"]) is int
+                and linear_result["container_length"] == expected_length, "BOUNDARY_LINEAR_RESULT_LENGTH")
+        require(type(linear_result["element0_index"]) is int
+                and linear_result["element0_index"] == 0, "BOUNDARY_LINEAR_RESULT_INDEX")
+        require(type(linear_result["expected_container_length"]) is int
+                and linear_result["expected_container_length"] == expected_length, "BOUNDARY_LINEAR_RESULT_EXPECTED_LENGTH")
+    else:
+        require(linear_result["container_length"] is None, "BOUNDARY_LINEAR_RESULT_LENGTH")
+        require(linear_result["element0_index"] is None, "BOUNDARY_LINEAR_RESULT_INDEX")
+        require(linear_result["expected_container_length"] is None, "BOUNDARY_LINEAR_RESULT_EXPECTED_LENGTH")
     for key in ("retained_live_bytes", "retained_live_refs"):
         require(isinstance(linear_result[key], int)
                 and not isinstance(linear_result[key], bool)

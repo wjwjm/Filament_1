@@ -292,6 +292,32 @@ def test_native_and_alias_metadata_types_fail_before_header_reads(tmp_path: Path
     assert exact.inspect_boundary_metadata(baseline_path)["status"] == "PASS_BOUNDARY_JSON_METADATA_COMPATIBILITY"
 
 
+@pytest.mark.parametrize("energy,profile", ((False, False), (True, False), (False, True), (True, True)))
+def test_boundary_json_preserves_frozen_four_return_forms(tmp_path: Path, energy: bool, profile: bool):
+    baseline = _receipt(tmp_path / "snapshot")
+    field = np.asarray([1.0], dtype=np.float64)
+    result = (field, 1.0, field.copy()) if energy and profile else ((field, 1.0) if energy or profile else field)
+    writer = importlib.import_module("g2_boundary")
+    baseline["aliases"]["linear_result"] = writer._linear_result_metadata(
+        result, field, need_energy=energy, need_profile=profile)
+    path = tmp_path / "baseline.json"
+    _write_receipt(path, baseline, sort_keys=True)
+    assert exact.inspect_boundary_metadata(path)["status"] == "PASS_BOUNDARY_JSON_METADATA_COMPATIBILITY"
+    for key, invalid, reason in (
+        ("container_type", "unknown", "BOUNDARY_LINEAR_RESULT_CONTAINER"),
+        ("container_length", False, "BOUNDARY_LINEAR_RESULT_LENGTH"),
+        ("element0_index", False, "BOUNDARY_LINEAR_RESULT_INDEX"),
+        ("expected_container_length", False, "BOUNDARY_LINEAR_RESULT_EXPECTED_LENGTH"),
+    ):
+        faulty = copy.deepcopy(baseline)
+        faulty["aliases"]["linear_result"][key] = invalid
+        faulty_path = tmp_path / f"{key}.json"
+        _write_receipt(faulty_path, faulty, sort_keys=True)
+        with pytest.raises(RuntimeError, match=reason):
+            exact.inspect_boundary_metadata(faulty_path)
+        assert exact.inspect_boundary_metadata(path)["status"] == "PASS_BOUNDARY_JSON_METADATA_COMPATIBILITY"
+
+
 def test_invalid_scalar_metadata_is_rejected_before_np_load(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     receipt = _receipt(tmp_path / "snapshot")
     baseline_path = tmp_path / "baseline.json"
