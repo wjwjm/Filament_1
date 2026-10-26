@@ -33,6 +33,8 @@ def verify_execution(report):
     require(pv.raw_sha256_file(Path(report)/"FULLSIZE_CONFIRMATION_PLAN.json")==os.environ.get("CPU_G3_FULL_PLAN_SHA256"),"FULL_PLAN_RAW_IDENTITY")
     node=sg.read(Path(report)/"NODE_GATE.json")
     require(node["status"]=="PASS_FULLSIZE_NODE_SOURCE_AND_INPUT_GATES" and node["job_id"]==os.environ["SLURM_JOB_ID"],"ACTUAL_FULLSIZE_NODE_GATE_REQUIRED")
+    from tools.cpu_s4_checkpoint_support.git_readonly_compat import verify_runtime_query_tool
+    verify_runtime_query_tool(plan)
     repo=Path(__file__).resolve().parents[3]
     require(pv._git(repo,"rev-parse","HEAD")==plan["execution_commit"],"REAL_CHECKPOINT_HEAD")
     require(pv._git(repo,"rev-parse","HEAD:Filament_python/KHz_filament")=="821fec5bdacd832b0347e1f2e84285cb54172e57","FROZEN_SCIENCE_TREE")

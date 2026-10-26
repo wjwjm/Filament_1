@@ -118,8 +118,10 @@ def node_gate(report: str | Path, plan: dict[str, Any] | None = None) -> dict[st
     report = _path(report); plan = _plan(report) if plan is None else plan
     expected = os.environ.get("CPU_G3_FULL_PLAN_SHA256")
     require(expected and pv.raw_sha256_file(report / "FULLSIZE_CONFIRMATION_PLAN.json") == expected, "FULL_PLAN_RAW_IDENTITY")
+    from tools.cpu_s4_checkpoint_support.git_readonly_compat import verify_runtime_query_tool
+    query_identity=verify_runtime_query_tool(plan)
     source, inputs, runtime = _source_gate(plan), _sealed_inputs(plan), _runtime_gate(plan)
-    result = {"schema": SCHEMA + ".node_gate.v1", "status": "PASS_FULLSIZE_NODE_SOURCE_AND_INPUT_GATES", "job_id": runtime["job_id"], "source": source, "sealed_inputs": inputs, "runtime": runtime, "fullsize_arrays_created": 0, "Hydro_called": False}
+    result = {"schema": SCHEMA + ".node_gate.v1", "status": "PASS_FULLSIZE_NODE_SOURCE_AND_INPUT_GATES", "job_id": runtime["job_id"], "source": source, "sealed_inputs": inputs, "runtime": runtime, "git_query_identity":query_identity,"fullsize_arrays_created": 0, "Hydro_called": False}
     sg.write(report / "NODE_GATE.json", result); return result
 
 def _tree_rss(process: Any) -> int:

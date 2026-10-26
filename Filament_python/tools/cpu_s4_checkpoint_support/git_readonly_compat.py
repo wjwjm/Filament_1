@@ -6,8 +6,32 @@ including HEAD and --version, is produced by the configured real executable.
 """
 import argparse
 import os
+import shlex
+import shutil
 from pathlib import Path
 import subprocess
+
+def launcher_source(python, helper, system_git):
+    return "#!/bin/sh\nexec "+shlex.quote(str(python))+" -s -B "+shlex.quote(str(helper))+" --system-git "+shlex.quote(str(system_git))+" -- \"$@\"\n"
+
+def verify_runtime_query_tool(plan):
+    """Bind all inherited bare-git queries to the exact real-Git launcher."""
+    system=Path(plan["system_git"]).resolve(strict=True)
+    launcher=Path(plan["query_git_launcher"]).resolve(strict=True)
+    helper=Path(__file__).resolve(strict=True)
+    found=shutil.which("git")
+    if found is None or Path(found).resolve()!=launcher or system==launcher:
+        raise RuntimeError("FIXED_RUNTIME_GIT_LAUNCHER_NOT_SELECTED")
+    expected=launcher_source(plan["python"],helper,system).encode("utf-8")
+    if launcher.read_bytes()!=expected or not os.access(launcher,os.X_OK):
+        raise RuntimeError("FIXED_RUNTIME_GIT_LAUNCHER_BYTES")
+    direct=subprocess.run([str(system),"--version"],capture_output=True,check=True)
+    wrapped=subprocess.run([str(launcher),"--version"],capture_output=True,check=True)
+    actual=subprocess.run([str(system),"rev-parse","HEAD"],cwd=plan["source_root"],capture_output=True,text=True,check=True)
+    through=subprocess.run([str(launcher),"-C",plan["source_root"],"rev-parse","HEAD"],capture_output=True,text=True,check=True)
+    if direct.stdout!=wrapped.stdout or actual.stdout!=through.stdout or actual.stdout.strip()!=plan["execution_commit"]:
+        raise RuntimeError("SYSTEM_GIT_IDENTITY_NOT_PRESERVED")
+    return dict(system_git=str(system),query_launcher=str(launcher),version=direct.stdout.decode().strip(),actual_head=actual.stdout.strip(),management_uses_system_git_directly=True)
 
 def query(system_git, arguments):
     binary=Path(system_git).resolve(strict=True)
