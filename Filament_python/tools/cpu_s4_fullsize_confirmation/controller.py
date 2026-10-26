@@ -6,7 +6,10 @@ from typing import Any
 from tools.cpu_s4_3g3_smallgrid import benchmark as sg
 from tools.hpc_ops import provenance_v2 as pv
 
-SCHEMA = "filament.cpu_s4.fullsize_confirmation.controller.v1"
+SCHEMA = "filament.cpu_s4.fullsize_confirmation.controller.r1.v1"
+R1_TASK = "CPU-S4-3G3-2-R1-BOUNDARY-JSON-COMPAT-20261026"
+R1_PRIOR_CORE_HOURS = 14.72
+R1_ADDITIONAL_CORE_HOURS = 129.28
 FULL_SHAPE = (384, 351, 301)
 FORMAL_ORDER = {"B1": ("G2_FULL", "G3_FULL"), "B2": ("G3_FULL", "G2_FULL"), "B3": ("G2_FULL", "G3_FULL")}
 VERSIONS = {"numpy": "2.2.5", "scipy": "1.15.2", "numba": "0.61.2", "llvmlite": "0.44.0", "psutil": "7.0.0", "threadpoolctl": "3.6.0"}
@@ -28,15 +31,100 @@ def _path(value: str | Path, base: Path | None = None) -> Path:
 def _plan(report: Path) -> dict[str, Any]:
     require(sys.flags.optimize==0 and not os.environ.get("PYTHONOPTIMIZE"),"FULL_OPTIMIZATION_FORBIDDEN")
     plan = sg.read(report / "FULLSIZE_CONFIRMATION_PLAN.json")
-    require(plan.get("task")=="CPU-S4-3G3-2-CHECKPOINT-FULLSIZE-20261026","FULL_TASK_AUTHORITY")
     require(isinstance(plan, dict), "FULL_PLAN_OBJECT")
+    require(plan.get("task") == R1_TASK, "R1_TASK_AUTHORITY")
+    require(plan.get("controller_schema") == SCHEMA, "R1_CONTROLLER_SCHEMA")
     require(plan.get("execution_domain") == "FULLSIZE_CONFIRMATION" and plan.get("shape") == list(FULL_SHAPE) and plan.get("intervals") == 8, "EXPLICIT_FULLSIZE_ENTRY8_ONLY")
     require(plan.get("warmup_intervals_per_formal_case") == 0, "PREREGISTERED_SYMMETRIC_NO_EXTRA_WARMUP")
     budget = tuple(plan.get(key) for key in ("max_submissions", "allocated_core_hours_limit", "physical_cpus", "nodes", "gpus", "memory_GiB"))
-    spent, wall = float(plan["spent_core_hours"]), int(plan["walltime_s"])
-    require(budget == (2, 144, 96, 1, 0, 320) and plan.get("ordinal") in (1,2) and math.isfinite(spent) and spent >= 0 and 60 < wall <= 4500 and spent+96*wall/3600 <= 144, "FULL_BUDGET_CONTRACT")
+    required_budget_fields = (
+        "prior_allocated_core_hours",
+        "additional_allocated_core_hours",
+        "inflight_reserved_core_hours",
+        "additional_allocated_core_hours_limit",
+        "next_submission_reserved_core_hours",
+        "r1_ordinal",
+        "ordinal",
+    )
+    require(all(key in plan for key in required_budget_fields), "R1_BUDGET_FIELDS_REQUIRED")
+    numeric_budget_fields = (
+        "prior_allocated_core_hours",
+        "additional_allocated_core_hours",
+        "inflight_reserved_core_hours",
+        "additional_allocated_core_hours_limit",
+        "next_submission_reserved_core_hours",
+    )
+    require(all(isinstance(plan[key], (int, float)) and not isinstance(plan[key], bool)
+                and math.isfinite(float(plan[key])) and float(plan[key]) >= 0
+                for key in numeric_budget_fields), "R1_BUDGET_NUMBER_TYPES")
+    prior = float(plan["prior_allocated_core_hours"])
+    additional = float(plan["additional_allocated_core_hours"])
+    inflight = float(plan["inflight_reserved_core_hours"])
+    additional_limit = float(plan["additional_allocated_core_hours_limit"])
+    next_reserved = float(plan["next_submission_reserved_core_hours"])
+    wall = plan["walltime_s"]
+    require(isinstance(wall, int) and not isinstance(wall, bool), "R1_WALLTIME_INTEGER")
+    ordinal = plan["r1_ordinal"]
+    legacy_ordinal = plan["ordinal"]
+    require(isinstance(ordinal, int) and not isinstance(ordinal, bool) and ordinal in (1, 2)
+            and isinstance(legacy_ordinal, int) and not isinstance(legacy_ordinal, bool)
+            and legacy_ordinal == ordinal, "R1_ORDINAL_REQUIRED")
+    computed_next_reserved = 96 * wall / 3600
+    require(
+        budget == (2, 144, 96, 1, 0, 320)
+        and prior == R1_PRIOR_CORE_HOURS
+        and all(math.isfinite(value) and value >= 0 for value in (prior, additional, inflight, next_reserved))
+        and additional_limit == R1_ADDITIONAL_CORE_HOURS
+        and additional + inflight + next_reserved <= additional_limit
+        and prior + additional + inflight + next_reserved <= 144
+        and next_reserved == computed_next_reserved
+        and 60 < wall <= 4500
+        and additional + inflight + computed_next_reserved <= additional_limit
+        and prior + additional + inflight + computed_next_reserved <= 144,
+        "R1_BUDGET_CONTRACT",
+    )
+    _require_r1_reference_identity(plan)
     require(plan.get("formal_order") == {key: list(value) for key, value in FORMAL_ORDER.items()}, "FULL_FORMAL_ORDER")
     return plan
+
+
+def _require_r1_reference_identity(plan: dict[str, Any]) -> dict[str, Any]:
+    """Bind the R1 reference receipt to its explicit plan identity record."""
+    reference_boundary = plan.get("reference_boundary")
+    raw_sha256 = plan.get("reference_boundary_raw_sha256")
+    size_bytes = plan.get("reference_boundary_size_bytes")
+    require(isinstance(reference_boundary, str) and reference_boundary != "", "R1_REFERENCE_BOUNDARY_PATH_REQUIRED")
+    require(Path(reference_boundary).is_absolute(), "R1_REFERENCE_BOUNDARY_PATH_ABSOLUTE")
+    require(isinstance(raw_sha256, str) and len(raw_sha256) == 64
+            and all(character in "0123456789abcdefABCDEF" for character in raw_sha256),
+            "R1_REFERENCE_BOUNDARY_RAW_SHA256_REQUIRED")
+    require(isinstance(size_bytes, int) and not isinstance(size_bytes, bool) and size_bytes >= 0,
+            "R1_REFERENCE_BOUNDARY_SIZE_REQUIRED")
+    records = plan.get("reference_records")
+    require(isinstance(records, list), "FULL_REFERENCE_RECORDS_OBJECT")
+    expected_path = Path(reference_boundary).resolve(strict=False)
+    matches = []
+    for record in records:
+        require(isinstance(record, dict), "FULL_REFERENCE_RECORD_OBJECT")
+        path = record.get("path")
+        require(isinstance(path, str) and Path(path).is_absolute(), "FULL_REFERENCE_PATH_ABSOLUTE")
+        if Path(path).resolve(strict=False) == expected_path:
+            matches.append(record)
+    require(len(matches) == 1, "R1_REFERENCE_BOUNDARY_RECORD", str(expected_path))
+    match = matches[0]
+    require(isinstance(match.get("raw_sha256"), str)
+            and isinstance(match.get("size_bytes"), int)
+            and not isinstance(match.get("size_bytes"), bool),
+            "R1_REFERENCE_BOUNDARY_RECORD_TYPES")
+    require(match.get("raw_sha256") == raw_sha256 and match.get("size_bytes") == size_bytes,
+            "R1_REFERENCE_BOUNDARY_IDENTITY", {
+                "path": str(expected_path),
+                "plan_raw_sha256": raw_sha256,
+                "record_raw_sha256": match.get("raw_sha256"),
+                "plan_size_bytes": size_bytes,
+                "record_size_bytes": match.get("size_bytes"),
+            })
+    return match
 
 def _hash_record(row: dict[str, Any], base: Path | None = None) -> dict[str, Any]:
     path = _path(row["path"], base)
@@ -116,12 +204,23 @@ def _runtime_gate(plan: dict[str, Any]) -> dict[str, Any]:
 
 def node_gate(report: str | Path, plan: dict[str, Any] | None = None) -> dict[str, Any]:
     report = _path(report); plan = _plan(report) if plan is None else plan
+    require(isinstance(plan, dict), "FULL_PLAN_OBJECT")
+    _require_r1_reference_identity(plan)
     expected = os.environ.get("CPU_G3_FULL_PLAN_SHA256")
     require(expected and pv.raw_sha256_file(report / "FULLSIZE_CONFIRMATION_PLAN.json") == expected, "FULL_PLAN_RAW_IDENTITY")
     from tools.cpu_s4_checkpoint_support.git_readonly_compat import verify_runtime_query_tool
     query_identity=verify_runtime_query_tool(plan)
     source, inputs, runtime = _source_gate(plan), _sealed_inputs(plan), _runtime_gate(plan)
-    result = {"schema": SCHEMA + ".node_gate.v1", "status": "PASS_FULLSIZE_NODE_SOURCE_AND_INPUT_GATES", "job_id": runtime["job_id"], "source": source, "sealed_inputs": inputs, "runtime": runtime, "git_query_identity":query_identity,"fullsize_arrays_created": 0, "Hydro_called": False}
+    from tools.cpu_s4_checkpoint_support.g2_hpc_exact import inspect_boundary_metadata
+    reference_boundary_metadata = inspect_boundary_metadata(
+        plan["reference_boundary"],
+        require_members=True,
+        header_only=True,
+        expected_receipt_path=plan["reference_boundary"],
+        expected_raw_sha256=plan["reference_boundary_raw_sha256"],
+        expected_size_bytes=plan["reference_boundary_size_bytes"],
+    )
+    result = {"schema": SCHEMA + ".node_gate.v1", "status": "PASS_FULLSIZE_NODE_SOURCE_INPUT_AND_REFERENCE_METADATA_GATES", "job_id": runtime["job_id"], "source": source, "sealed_inputs": inputs, "runtime": runtime, "git_query_identity":query_identity,"reference_boundary_metadata": reference_boundary_metadata,"fullsize_arrays_created": 0, "Hydro_called": False}
     sg.write(report / "NODE_GATE.json", result); return result
 
 def _tree_rss(process: Any) -> int:

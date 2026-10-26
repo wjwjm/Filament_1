@@ -25,6 +25,12 @@ PRE_SHA={"delta_n":"66ec96c2babba7c9e277bd5e19bb5657fe7945f56062f077cc1853bd39c2
 def require(ok,why):
     if not ok:raise RuntimeError(why)
 
+def verify_node_gate_receipt(node, job_id):
+    """Validate the R1 node receipt without changing execution or science."""
+    require(isinstance(node, dict)
+            and node.get("status")=="PASS_FULLSIZE_NODE_SOURCE_INPUT_AND_REFERENCE_METADATA_GATES"
+            and node.get("job_id")==job_id,"ACTUAL_FULLSIZE_NODE_GATE_REQUIRED")
+
 def verify_execution(report):
     unoptimized()
     require(os.environ.get("SLURM_JOB_ID","").isdigit(),"FULLSIZE_REQUIRES_ACTUAL_SLURM")
@@ -32,7 +38,7 @@ def verify_execution(report):
     require(plan["execution_domain"]=="FULLSIZE_CONFIRMATION" and plan["shape"]==list(FULL_SHAPE) and plan["intervals"]==8,"EXPLICIT_FULLSIZE_ENTRY8_ONLY")
     require(pv.raw_sha256_file(Path(report)/"FULLSIZE_CONFIRMATION_PLAN.json")==os.environ.get("CPU_G3_FULL_PLAN_SHA256"),"FULL_PLAN_RAW_IDENTITY")
     node=sg.read(Path(report)/"NODE_GATE.json")
-    require(node["status"]=="PASS_FULLSIZE_NODE_SOURCE_AND_INPUT_GATES" and node["job_id"]==os.environ["SLURM_JOB_ID"],"ACTUAL_FULLSIZE_NODE_GATE_REQUIRED")
+    verify_node_gate_receipt(node,os.environ["SLURM_JOB_ID"])
     from tools.cpu_s4_checkpoint_support.git_readonly_compat import verify_runtime_query_tool
     verify_runtime_query_tool(plan)
     repo=Path(__file__).resolve().parents[3]
