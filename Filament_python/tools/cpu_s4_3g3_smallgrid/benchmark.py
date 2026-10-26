@@ -199,10 +199,13 @@ def _run_window(args, built, *, label, intervals, capture, application_started=N
         del selected
     require(capture or lease is None, "PURE_OFF_MUST_NOT_CAPTURE")
     raw_index = extended.save_file_index(work / "OUTPUT_RAW_INDEX.json", {"OUTPUT": output, "PROPAGATION": work / "PROPAGATION", "SCIENTIFIC_QACC": ordinary["scientific_Qacc"], "SCIENTIFIC_SCALARS": ordinary["scientific_scalar_diagnostics"]})
-    status = "EXECUTED_WARMUP_NOT_ACCEPTANCE" if label == "warmup" else ("PASS_SMALLGRID_WINDOW_EXACT" if args.reference_output else "I0_SMALL_ORACLE_GENERATED")
+    full_confirmation = getattr(args, "execution_domain", "SMALLGRID_BENCHMARK") == "FULLSIZE_CONFIRMATION"
+    if full_confirmation:
+        require(not args.local_engineering and selected_shape == (384, 351, 301), "EXPLICIT_FULLSIZE_METADATA_SCOPE")
+    status = "EXECUTED_WARMUP_NOT_ACCEPTANCE" if label == "warmup" else (("PASS_FULLSIZE_WINDOW_EXACT" if full_confirmation else "PASS_SMALLGRID_WINDOW_EXACT") if args.reference_output else "I0_SMALL_ORACLE_GENERATED")
     receipt = dict(status=status,
-        role=args.role, mode=args.mode, label=label, shape=list(selected_shape), intervals=intervals,
-        scope="LOCAL_ENGINEERING_ONLY" if args.local_engineering else "SMALLGRID_ENGINEERING_ONLY",
+        role=getattr(args, "reported_role", args.role), mode=args.mode, label=label, shape=list(selected_shape), intervals=intervals,
+        scope="LOCAL_ENGINEERING_ONLY" if args.local_engineering else ("FULLSIZE_ENTRY_EIGHT_ONLY" if full_confirmation else "SMALLGRID_ENGINEERING_ONLY"),
         optical_compute_window_s=compute_finished-compute_started,
         optical_application_window_s=application_finished-application_started,
         necessary_input_hashes=dict(before=ingress, after=after_inputs, current_PRE=current_before),
@@ -211,7 +214,7 @@ def _run_window(args, built, *, label, intervals, capture, application_started=N
         comparisons=comparisons, route=actual_route, binding=binding,
         output_raw_index=str(work / "OUTPUT_RAW_INDEX.json"),
         FFT_transform_counts=map_delta(fft_before, dispatch.report().get("transform_counts", {})),
-        fullsize_new_candidate="NOT_RUN", Hydro_called=False, default="I0", production_qualified=False)
+        fullsize_new_candidate="EXECUTED_ENTRY8" if full_confirmation else "NOT_RUN", Hydro_called=False, default="I0", production_qualified=False)
     write(work / "WINDOW_RECEIPT.json", receipt)
     return receipt
 
