@@ -161,6 +161,9 @@ def run(args):
     raw_index=array_raw_index(work,result)
     result.update(schema=SCHEMA+'.case.v1',status=('PASS_S44B_MICRO_EXACT' if args.local_engineering else 'PASS_S44B_FULLSIZE_WINDOW_EXACT') if args.reference_output else 'CURRENT_G3_REFERENCE_GENERATED',execution_commit=identity['execution_commit'],execution_domain='S44B_LOCAL_MICRO_ENGINEERING' if args.local_engineering else 'S44B_FULLSIZE_LINEAR_CACHE',role=args.role,application_service_s=result['optical_application_window_s'],initialization_within_application_s=initialized-started,research_service_s=time.perf_counter()-started,propagation_walltime_s=pacing['propagation_walltime_s'],normal_output_writer_s=timings['normal_output_writer_s'],cache=cache,cache_capacity=capacity,L1_executed=args.role=='L1_CACHE_FULLSIZE',cache_fallback=0,warmup_intervals=0,boundary_path=str(boundary) if capture else None,actual_entry_path=str(Path(__file__).resolve()),actual_factory_binding=built[3],default='I0',production_qualified=False,review_gate='MANUAL_REVIEW_PENDING')
     result['all_array_raw_index']=str(raw_index)
+    result['mode']=args.mode
+    result['requested_mode']=args.mode
+    result['internal_legacy_mode']=mode
     result['fullsize_new_candidate']='LOCAL_MICRO_ONLY' if args.local_engineering else ('L1_CACHE_EXECUTED_ENTRY8' if args.role=='L1_CACHE_FULLSIZE' else 'G3_REFERENCE_ENTRY8')
     sg.write(work/'CASE_RECEIPT.json',result);return result
 

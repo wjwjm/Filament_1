@@ -168,7 +168,7 @@ def _replace_empty_cache(
     state._cpu_s4_4a_ensure_cached(state._g_linear_function)
     linear = state.linear_binding()
     expected_source = ":".join((linear["original_guard_producer"]["source"]["canonical_lf_sha256"], linear["transformed_ast_sha256"], pv.canonical_lf_sha256(Path(frozen_adapter.__file__).read_bytes())))
-    if old_source_version != expected_source or old_cache.algorithm_source_identity != ALGORITHM_ID:
+    if old_source_version != expected_source or old_cache.algorithm_source_identity != f"{ALGORITHM_ID}:{expected_source}":
         raise SourceBindingError("CPU_S4_4A_SOURCE_VERSION_OR_ALGORITHM_MISMATCH")
     new_source_version = policy_source_version(old_source_version)
     scope = contract.LOCAL_ENGINEERING_SCOPE if local_engineering else contract.FULLSIZE_SCOPE
