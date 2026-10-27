@@ -32,6 +32,7 @@ from .adapter import (
     make_recorder_pair,
 )
 from .instrument import (
+    _same_fixed_backend_callable,
     EQ10_HELPER_NAMES,
     INSTRUMENT_SCHEMA,
     InstrumentationBindingError,
@@ -310,6 +311,7 @@ def _install_eq10_stage(state: Any, recorder: TimingRecorder) -> dict[str, Any]:
     state._cpu_s45b_eq10_helpers = b_helpers
     state._cpu_s45b_eq10_backend_registry = dict(registry)
     state._cpu_s45b_eq10_backend_seals = backend_seals
+    state._cpu_s45b_backend_matcher_seal = seal_callable(_same_fixed_backend_callable)
     state._cpu_s45b_eq10_callable_seals = {
         name: seal_callable(function) for name, function in b_helpers.items()
     }
@@ -357,6 +359,10 @@ def verify_bindings(dispatch: Any) -> dict[str, Any]:
     state = getattr(dispatch, "cpu_s4_5b_state", None)
     if state is None:
         raise SourceBindingError("S45B_STATE_MISSING")
+    try:
+        verify_callable_seal(state._cpu_s45b_backend_matcher_seal)
+    except InstrumentationBindingError as exc:
+        raise SourceBindingError("S45B_EQ10_FIXED_MATCHER_CHANGED") from exc
     if (
         getattr(pair.b, "_companion_recorder", None) is not pair.s45a
         or getattr(pair.b, "_companion_identity", None) != pair.identity_token

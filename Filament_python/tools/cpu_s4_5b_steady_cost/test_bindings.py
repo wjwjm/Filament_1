@@ -12,7 +12,20 @@ from .instrument import (
     instrument_eq10_stage,
     instrument_propagation_ast,
     strip_generated_nodes,
+    _same_fixed_backend_callable,
 )
+
+
+def test_fixed_fresh_closure_identity_and_rejection() -> None:
+    fixed = object()
+    def make(value):
+        def function():return value
+        return function
+    first,second=make(fixed),make(fixed)
+    assert first is not second and _same_fixed_backend_callable(first,second)
+    assert not _same_fixed_backend_callable(first,make(object()))
+    second.__code__=second.__code__.replace(co_name='wrong_backend')
+    assert not _same_fixed_backend_callable(first,second)
 
 
 def _propagation_fixture() -> ast.FunctionDef:

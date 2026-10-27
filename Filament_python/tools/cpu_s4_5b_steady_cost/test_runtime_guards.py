@@ -53,6 +53,18 @@ def test_s45b_real_factory_negative_binding_triplets(tmp_path):
     check();assert numba.get_num_threads()==1
     timing=pair.s45a.snapshot();assert not timing['incomplete_scopes'] and sum(row['failed'] for row in timing['records'])==1
     records.append(dict(test='inherited_kernel_exception_mask_and_array_lifetime',normal='PASS',rejection='S45B_FIXED_INHERITED_KERNEL_FAILURE',restored='PASS',mask_after=1,arrays_collected=True))
+    # The real accepted FFT proxy materializes a new closure on each lookup.
+    # Exercise the forwarding API before any full propagation is admitted.
+    xp=state._internal_stage_inner.__globals__['xp'];first=xp.fft.fft;second=xp.fft.fft
+    from .instrument import _same_fixed_backend_callable
+    assert first is not second and _same_fixed_backend_callable(first,second)
+    values=np.arange(32,dtype=np.float64).reshape(8,2,2)
+    expected=first(values,axis=0)
+    with pair.b.interval_scope('INTERVAL_BODY',0):
+        with pair.s45a.scope('RAMAN_ENERGY',pair.s45a.context(0,'pre','stage1')):
+            actual=state._cpu_s45b_eq10_helpers['__cpu_s45b_eq10_fft__'](second,(values,),{'axis':0},'REAL_PROXY_TEST')
+    assert np.array_equal(actual,expected)
+    records.append(dict(test='actual_fft_fresh_proxy_closure_forward_once',normal='PASS',callable_object_equal=False,fixed_code_globals_captures_equal=True,output_exact=True))
     sg.write(tmp_path/'BINDING_NEGATIVE_TRIPLETS.json',dict(status='PASS_REAL_FACTORY_NEGATIVE_TRIPLETS',records=records,scientific_propagation_calls=0,inherited_math_calls=3,raw_failed_scope_preserved=timing))
 
 def test_s45b_scope_negative_triplets():

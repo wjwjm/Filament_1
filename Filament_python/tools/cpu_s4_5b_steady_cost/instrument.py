@@ -15,7 +15,7 @@ import copy
 import hashlib
 import marshal
 from pathlib import Path
-from types import CodeType, FunctionType
+from types import CodeType, FunctionType, MethodType
 from typing import Any, Callable, Mapping
 
 from .timing import (
@@ -879,6 +879,27 @@ def make_marker_helper(recorder: TimingRecorder) -> Callable[..., Any]:
     return marker
 
 
+def _same_fixed_backend_callable(actual: Any, expected: Any) -> bool:
+    """Match only a fixed callable or its freshly materialized proxy closure.
+
+    The accepted SciPy dispatch creates a new call closure per attribute access.
+    Code/globals and every closed capture must still be the registered objects;
+    this does not accept another implementation by name or shape.
+    """
+    if actual is expected:
+        return True
+    if type(actual) is MethodType and type(expected) is MethodType:
+        return actual.__func__ is expected.__func__ and actual.__self__ is expected.__self__
+    if type(actual) is not FunctionType or type(expected) is not FunctionType:
+        return False
+    if actual.__code__ is not expected.__code__ or actual.__globals__ is not expected.__globals__:
+        return False
+    if actual.__defaults__ is not expected.__defaults__ or actual.__kwdefaults__ is not expected.__kwdefaults__:
+        return False
+    left,right=actual.__closure__ or (),expected.__closure__ or ()
+    return len(left)==len(right) and all(a.cell_contents is b.cell_contents for a,b in zip(left,right))
+
+
 def make_eq10_call_helpers(
     recorder: TimingRecorder,
     registry: Mapping[str, Callable[..., Any]],
@@ -899,6 +920,7 @@ def make_eq10_call_helpers(
 
     def make(label: str, helper_name: str) -> Callable[..., Any]:
         expected = registry[label]
+        fixed_matcher = _same_fixed_backend_callable
 
         def call(
             function: Callable[..., Any],
@@ -906,7 +928,7 @@ def make_eq10_call_helpers(
             kwargs: dict[str, Any],
             source_site: str = "",
         ) -> Any:
-            if function is not expected:
+            if not fixed_matcher(function, expected):
                 raise InstrumentationBindingError(f"EQ10_CALLABLE_BINDING_CHANGED:{label}")
             if not isinstance(args, tuple) or not isinstance(kwargs, dict):
                 raise InstrumentationBindingError(f"EQ10_CALL_ARGUMENT_CONTAINER_INVALID:{label}")
@@ -917,7 +939,7 @@ def make_eq10_call_helpers(
                     source_site=str(source_site),
                 ),
             ):
-                return expected(*args, **kwargs)
+                return function(*args, **kwargs)
 
         call.__name__ = helper_name
         call.__cpu_s45b_kind__ = "FIXED_EQ10_CALL_HELPER"
