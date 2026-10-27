@@ -11,6 +11,7 @@ from __future__ import annotations
 import ast
 import copy
 import functools
+import dis
 from pathlib import Path
 from types import FunctionType
 from typing import Any, Callable, Mapping
@@ -428,7 +429,7 @@ def install_propagation_wrappers(propagator: Callable[..., Any], state: Any) -> 
     namespace=propagator.__globals__
     labels={
         "inten_ion":"NONLINEAR_ARRAYS", "field_amplitude_from_intensity":"NONLINEAR_ARRAYS",
-        "make_Wfunc":"ION_RATE", "evolve_rho_time":"ION_RECURSION", "ib_alpha":"NONLINEAR_ARRAYS",
+        "make_Wfunc":"ION_SETUP", "evolve_rho_time":"ION_RECURSION", "ib_alpha":"NONLINEAR_ARRAYS",
         "operator_correct_scalar":"NONLINEAR_ARRAYS", "kerr_phase_from_deltan":"NONLINEAR_ARRAYS", "plasma_phase":"NONLINEAR_ARRAYS",
     }
     originals={}
@@ -449,6 +450,19 @@ def bind_active_propagation(wrapped: Callable[..., Any], state: Any) -> None:
     state._cpu_s45a_active_propagation_namespace=active.__globals__
     state._cpu_s45a_active_propagation_function=active
     state._cpu_s45a_active_propagation_code=active.__code__
+    seal_fixed_callables(state)
+
+
+def seal_fixed_callables(state: Any) -> None:
+    """Register the fixed inserted function/code/closure slots, without call values."""
+    namespace=state._cpu_s45a_private_namespace
+    functions={name:namespace[name] for name in _RAMAN_REQUIRED}
+    functions['__cpu_s45a_scope__']=namespace['__cpu_s45a_scope__']
+    active=state._cpu_s45a_active_propagation_namespace
+    functions.update({'propagation.'+name:active[name] for name in state._cpu_s45a_propagation_originals})
+    state._cpu_s45a_callable_slots={name:(function,function.__code__,function.__globals__,function.__closure__,
+        tuple(cell.cell_contents for cell in (function.__closure__ or ()))) for name,function in functions.items()}
+    state._cpu_s45a_global_code_slots={name:_code_identity(value) for name,value in state._cpu_s45a_global_slots.items() if isinstance(value,FunctionType)}
 
 
 def _install_internal_wrappers(state: Any, recorder: TimingRecorder) -> dict[str, Any]:
@@ -611,6 +625,14 @@ def _install_internal_wrappers(state: Any, recorder: TimingRecorder) -> dict[str
     state._cpu_s45a_bindings = bindings
     state._cpu_s45a_original_stage = original_stage
     state._cpu_s45a_original_apply = original_apply
+    # Register actual loaded global objects, including NumPy/FFT aliases and
+    # the fresh stage2 dispatcher.  These are existing namespace dependencies,
+    # never per-call field/response/result values.
+    names={instruction.argval for function in (instrumented_stage,state._internal_apply_inner)
+           for instruction in dis.get_instructions(function) if instruction.opname=='LOAD_GLOBAL'}
+    names.update(('xp','_time','c0','eps0','isaacs_raman_stage','__cpu_s45a_scope__'))
+    state._cpu_s45a_global_slots={name:namespace[name] for name in names if name in namespace}
+    bindings['registered_global_dependencies']=sorted(state._cpu_s45a_global_slots)
     return bindings
 
 
@@ -660,13 +682,17 @@ def make_instrumented_state_class(
         def _g_controlled_substep(self, *args: Any, **kwargs: Any) -> Any:
             if not self._cpu_s45a_profile:
                 return super()._g_controlled_substep(*args, **kwargs)
-            with self._cpu_s45a_recorder.scope("RAMAN_HALF", context=_metadata(self)):
+            metadata=_metadata(self)
+            phase=str(getattr(getattr(self,"_g_pending_cap",None),"_scope","none"))
+            metadata=context(metadata.interval,phase if phase in ('pre','post') else 'none',metadata.stage)
+            with self._cpu_s45a_recorder.scope("RAMAN_HALF", context=metadata):
                 return super()._g_controlled_substep(*args, **kwargs)
 
         def _g_linear_call(self, site: int, original: Callable[..., Any], args: tuple[Any, ...], kwargs: Mapping[str, Any]) -> Any:
             if not self._cpu_s45a_profile:
                 return super()._g_linear_call(site, original, args, kwargs)
-            with self._cpu_s45a_recorder.scope("LINEAR", context=_metadata(self)):
+            metadata=context(max(0,int(self._g_segment_index)-(1 if site==1 else 0)),"pre" if site==0 else "post")
+            with self._cpu_s45a_recorder.scope("LINEAR", context=metadata):
                 return super()._g_linear_call(site, original, args, kwargs)
 
         def _g_nonlinear_call(self, original: Callable[..., Any], args: tuple[Any, ...], kwargs: Mapping[str, Any]) -> Any:
@@ -768,6 +794,17 @@ def verify_bindings(state: Any) -> dict[str, Any]:
         raise InstrumentationBindingError("INSTRUMENT_RAMAN_NAMESPACE_REUSED")
     if getattr(state, "_candidate_namespace", None) is namespace:
         raise InstrumentationBindingError("INSTRUMENT_CANDIDATE_NAMESPACE_REUSED")
+    for name,expected in state._cpu_s45a_global_slots.items():
+        if namespace.get(name) is not expected:
+            raise InstrumentationBindingError("INSTRUMENT_GLOBAL_ALIAS_CHANGED:"+name)
+        code_hash=state.__dict__.get('_cpu_s45a_global_code_slots',{}).get(name)
+        if code_hash is not None and _code_identity(expected)!=code_hash:
+            raise InstrumentationBindingError("INSTRUMENT_GLOBAL_CODE_CHANGED:"+name)
+    for name,(function,code,globals_dict,closure,contents) in state.__dict__.get('_cpu_s45a_callable_slots',{}).items():
+        if function.__code__ is not code or function.__globals__ is not globals_dict or function.__closure__ is not closure:
+            raise InstrumentationBindingError("INSTRUMENT_FIXED_CALLABLE_CHANGED:"+name)
+        if any(cell.cell_contents is not expected for cell,expected in zip(closure or (),contents)):
+            raise InstrumentationBindingError("INSTRUMENT_FIXED_CLOSURE_CHANGED:"+name)
     active_namespace=getattr(state,"_cpu_s45a_active_propagation_namespace",None)
     if active_namespace is not None:
         active=state._cpu_s45a_active_propagation_function

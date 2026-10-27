@@ -29,6 +29,28 @@ if profile:
         else:raise RuntimeError('CHANGED_ACTUAL_CODE_WAS_ACCEPTED')
     finally:state._internal_stage_inner.__code__=original
     verify_bindings(state)
+    namespace=state._cpu_s45a_private_namespace
+    original_xp=namespace['xp']
+    try:
+        namespace['xp']=object()
+        try:verify_bindings(state)
+        except RuntimeError as error:
+            if 'INSTRUMENT_GLOBAL_ALIAS_CHANGED:xp' not in str(error):raise
+            negative.append('INSTRUMENT_GLOBAL_ALIAS_CHANGED:xp')
+        else:raise RuntimeError('CHANGED_NUMPY_ALIAS_WAS_ACCEPTED')
+    finally:namespace['xp']=original_xp
+    verify_bindings(state)
+    helper=namespace['_s43c_product'];cells=dict(zip(helper.__code__.co_freevars,helper.__closure__))
+    original_call=cells['original'].cell_contents
+    try:
+        cells['original'].cell_contents=lambda *args,**kwargs:None
+        try:verify_bindings(state)
+        except RuntimeError as error:
+            if 'INSTRUMENT_FIXED_CLOSURE_CHANGED:_s43c_product' not in str(error):raise
+            negative.append('INSTRUMENT_FIXED_CLOSURE_CHANGED:_s43c_product')
+        else:raise RuntimeError('FOREIGN_INNER_CALLBACK_WAS_ACCEPTED')
+    finally:cells['original'].cell_contents=original_call
+    verify_bindings(state)
     old=state._cpu_s45a_private_namespace['__cpu_s45a_scope__']
     # Actual registered monitoring tools remain forbidden by the inherited G gate.
     tool=5
@@ -42,6 +64,18 @@ if profile:
         else:raise RuntimeError('MONITORING_TOOL_WAS_ACCEPTED')
     finally:sys.monitoring.free_tool_id(tool)
     verify_bindings(state)
+    from tools.cpu_s4_4a_linear_cache import candidate as parent
+    from tools.cpu_s4_5a_l1_residual.candidate import _clone_make_factory
+    original_factory=parent.make_factory
+    try:
+        parent.make_factory=lambda:None
+        try:_clone_make_factory(profile=True,recorder=built[1].cpu_s45a_recorder)
+        except RuntimeError as error:
+            if 'S44A_PARENT_FACTORY_PATH_OR_GLOBALS_MISMATCH' not in str(error):raise
+            negative.append('S44A_PARENT_FACTORY_PATH_OR_GLOBALS_MISMATCH')
+        else:raise RuntimeError('FOREIGN_PARENT_FACTORY_WAS_ACCEPTED')
+    finally:parent.make_factory=original_factory
+    _clone_make_factory(profile=True,recorder=built[1].cpu_s45a_recorder)
 print(json.dumps(dict(status='PASS_ACTUAL_L1_FACTORY_BINDINGS_AND_RECOVERY',profile=profile,gate=gate,negative_reasons=negative,cache=stats,science_executed=False)))
 '''
 
@@ -53,4 +87,4 @@ def test_s45a_actual_fresh_factory_binding_and_negative_recovery(role,tmp_path):
     assert result.returncode==0,result.stderr
     record=json.loads(result.stdout.strip().splitlines()[-1])
     assert record['status']=='PASS_ACTUAL_L1_FACTORY_BINDINGS_AND_RECOVERY' and record['profile']==(role=='PROFILE')
-    assert record['negative_reasons']==(['INSTRUMENT_STAGE_CODE_CHANGED','UNKNOWN_SYS_MONITORING_TOOL'] if role=='PROFILE' else [])
+    assert record['negative_reasons']==(['INSTRUMENT_STAGE_CODE_CHANGED','INSTRUMENT_GLOBAL_ALIAS_CHANGED:xp','INSTRUMENT_FIXED_CLOSURE_CHANGED:_s43c_product','UNKNOWN_SYS_MONITORING_TOOL','S44A_PARENT_FACTORY_PATH_OR_GLOBALS_MISMATCH'] if role=='PROFILE' else [])

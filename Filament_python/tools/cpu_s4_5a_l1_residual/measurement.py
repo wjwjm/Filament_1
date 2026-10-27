@@ -57,7 +57,8 @@ def run_window(args,built,*,timer,application_token,**kwargs):
     binding=dict(schema='filament.cpu_s4_5a.harness_binding.v1',source_file=original.__code__.co_filename,
         source_canonical_lf_sha256=pv.canonical_lf_sha256(source.encode('utf-8')),original_ast_sha256=pv.raw_sha256(before.encode('utf-8')),
         timed_ast_sha256=pv.raw_sha256(_dump(transformed).encode('utf-8')),stripped_AST_exact=True,
-        actual_code_sha256=pv.raw_sha256(marshal.dumps(inner.__code__)),anchors=adder.counts,
+        actual_code_sha256=pv.raw_sha256(marshal.dumps(inner.__code__)),static_AST_assignment_anchors=adder.counts,
+        additional_existing_function_forward_scopes=dict(context=1,fingerprints=2),
         scientific_expression_changes=0,propagate_AST_rebuilt=False)
     wrapped=FunctionType(sg.run_window.__code__,namespace,sg.run_window.__name__,sg.run_window.__defaults__,sg.run_window.__closure__)
     wrapped.__kwdefaults__=sg.run_window.__kwdefaults__

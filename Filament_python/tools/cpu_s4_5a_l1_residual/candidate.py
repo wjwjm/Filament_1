@@ -108,6 +108,14 @@ def _clone_make_factory(*, profile: bool, recorder: TimingRecorder | None) -> Ca
     source = getattr(source_module, "make_factory", None)
     if not callable(source):
         raise SourceBindingError("S44A_MAKE_FACTORY_MISSING")
+    path=(_repo_root()/'Filament_python/tools/cpu_s4_4a_linear_cache/candidate.py').resolve(strict=True)
+    if Path(str(source_module.__file__)).resolve()!=path or source.__globals__ is not vars(source_module):
+        raise SourceBindingError("S44A_PARENT_FACTORY_PATH_OR_GLOBALS_MISMATCH")
+    from tools.cpu_s4_checkpoint_support import load_g2_adapter
+    parent_binding=load_g2_adapter()._method_binding(source)
+    relative=path.relative_to(_repo_root()).as_posix()
+    if pv._git(_repo_root(),'rev-parse','HEAD:'+relative)!=pv._git(_repo_root(),'rev-parse','c2644d21f7f8fd201b5264d0245c7b4a37643899:'+relative):
+        raise SourceBindingError("S44A_PARENT_FACTORY_FROZEN_BLOB_MISMATCH")
     namespace = dict(getattr(source, "__globals__", {}))
     if not namespace:
         raise SourceBindingError("S44A_MAKE_FACTORY_GLOBALS_MISSING")
@@ -139,6 +147,7 @@ def _clone_make_factory(*, profile: bool, recorder: TimingRecorder | None) -> Ca
     clone.__annotations__ = source.__annotations__
     clone.__module__ = __name__
     clone.__qualname__ = "make_factory"
+    clone.cpu_s45a_parent_factory_binding=parent_binding
     return clone
 
 
@@ -181,6 +190,7 @@ def make_factory(
     factory.cpu_s4_5a_recorder = recorder
     factory.cpu_s4_5a_instrumentation_schema = INSTRUMENT_SCHEMA
     factory.cpu_s4_5a_owned_source_identity = copy.deepcopy(_owned_source_identity())
+    factory.cpu_s45a_parent_factory_binding=copy.deepcopy(cloned.cpu_s45a_parent_factory_binding)
     factory.candidate_schema = CANDIDATE_SCHEMA
     factory.source_identity = {
         "schema": CANDIDATE_SCHEMA,
@@ -275,6 +285,7 @@ def build_role(
         "scientific_qualification": False,
         "cache_algorithm": "UNCHANGED_S44A_LINEAR_FACTOR_CACHE",
         "binding_check": copy.deepcopy(binding_check),
+        "actual_parent_factory_binding":copy.deepcopy(factory.cpu_s45a_parent_factory_binding),
         "instrumentation_bindings": copy.deepcopy(getattr(state, "_cpu_s45a_bindings", {})),
     }
     from tools.cpu_s4_3g3_smallgrid.runtime_adapter import attach

@@ -35,7 +35,7 @@ SCOPE_LABELS = (
     "FFT",
     "MATH_KERNELS",
     "NONLINEAR",
-    "ION_RATE",
+    "ION_SETUP",
     "ION_RECURSION",
     "NONLINEAR_ARRAYS",
     "DIAGNOSTICS",
@@ -159,6 +159,7 @@ class TimingRecorder:
         "_started_scopes",
         "_next_token",
         "events_dropped",
+        "_incomplete",
     )
 
     def __init__(self, enabled: bool = True, *, max_scopes: int = DEFAULT_MAX_SCOPES) -> None:
@@ -177,6 +178,7 @@ class TimingRecorder:
         self._started_scopes = 0
         self._next_token = 1
         self.events_dropped = 0
+        self._incomplete = []
 
     def _check_owner(self) -> None:
         if threading.get_ident() != self.owner_thread_id:
@@ -369,6 +371,7 @@ class TimingRecorder:
             "started_scopes": self._started_scopes,
             "completed_scopes": len(records),
             "events_dropped": self.events_dropped,
+            "incomplete_scopes": [dict(row) for row in self._incomplete],
             "records": records,
             "summary_by_label": {key: dict(value) for key, value in sorted(grouped.items())},
             "roots": roots,
@@ -382,6 +385,15 @@ class TimingRecorder:
         }
 
     to_jsonable = snapshot
+
+    def retire_incomplete(self, reason: str) -> None:
+        """Retire scalar frames without clocks if a clock/closure fault prevents end."""
+        self._check_owner()
+        if not isinstance(reason,str):raise TimingError("INCOMPLETE_REASON_MUST_BE_SCALAR_TEXT")
+        self._incomplete.extend(dict(token=f.token,label=f.label,parent_token=f.parent_token,
+            interval=f.context.interval,phase=f.context.phase,stage=f.context.stage,
+            start_wall_ns=f.wall_start_ns,start_cpu_ns=f.cpu_start_ns,status='incomplete',reason=reason) for f in self._stack)
+        self._stack.clear()
 
 
 def empty_scope_control_value(*, enabled: bool = True) -> dict[str, Any]:

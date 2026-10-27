@@ -84,8 +84,11 @@ def run(args):
         sg.write(work/'INSTRUMENTATION_BINDING_AFTER.json',verify_bindings(built[1].cpu_s45a_state))
     except BaseException:
         # Only scalar frames are unwound; exception/traceback objects are never retained.
-        while timer._stack:
-            timer.end(timer._stack[-1].token,failed=True)
+        try:
+            for unused in range(len(timer._stack)):
+                timer.end(timer._stack[-1].token,failed=True)
+        except BaseException as cleanup_error:
+            timer.retire_incomplete(type(cleanup_error).__name__)
         if 'work' in locals() and work.is_dir():sg.write(work/'INCOMPLETE_TIMING.json',timer.snapshot())
         raise
     boundary=work/'formal/BOUNDARY_RECEIPT.json'
@@ -114,6 +117,19 @@ def run(args):
     sg.write(work/'OPTICAL_PACING_SIDECAR.json',dict(original_interval_timings=timings,POST_COMMITTED=posts,application_started_monotonic_s=application_started,application_service_s=result['optical_application_window_s'],definition='Immutable deposited source committed before second BK half; not final optical field endpoint'))
     snapshot=timer.snapshot();require(snapshot['events_dropped']==0 and snapshot['clock_closure']['pass'],'BOUNDED_TIMING_TREE_CLOSURE')
     require(snapshot['enabled']==(args.role=='L1_PROFILE'),'HONEST_TIMING_SWITCH')
+    require(not snapshot['incomplete_scopes'] and not any(row['failed'] for row in snapshot['records']),'ONLY_COMPLETE_SUCCESSFUL_TIMING_SCOPES')
+    if snapshot['enabled']:
+        counts={name:row['call_count'] for name,row in snapshot['summary_by_label'].items()}
+        expected=dict(APPLICATION=1,SOURCE_FACTORY=1,PROPAGATION=1,OUTPUT=1,DIAGNOSTICS=1,INPUT_PREPARATION=4,
+            RAMAN_HALF=2*args.intervals,RAMAN_STAGE=4*args.intervals,RAMAN_INTENSITY=4*args.intervals,
+            RAMAN_IIR=4*args.intervals,RAMAN_COEFFICIENTS=8*args.intervals,RAMAN_ENERGY=6*args.intervals,
+            HEUN_ASSEMBLY=2*args.intervals,LINEAR=2*args.intervals,NONLINEAR=args.intervals,ION_SETUP=1,
+            ION_RECURSION=args.intervals,FFT=4*args.intervals,MATH_KERNELS=12*args.intervals)
+        require(all(counts.get(name)==value for name,value in expected.items()),'ACTUAL_TIMING_CATEGORY_WORKLOAD_COUNTS',dict(actual=counts,expected=expected))
+        for phase in ('pre','post'):
+            for stage in ('stage1','stage2'):
+                require(sum(row['label']=='RAMAN_IIR' and row['context']['phase']==phase and row['context']['stage']==stage for row in snapshot['records'])==args.intervals,'ACTUAL_PRE_POST_STAGE1_STAGE2_IIR_COUNTS')
+    else:require(not snapshot['records'],'OFF_ADDED_CLOCKS_DISABLED')
     sg.write(work/'SCALAR_TIMING.json',snapshot)
     sg.write(work/'EMPTY_SCOPE_CONTROL.json',empty_scope_control_value())
     original_events=getattr(built[1],'cpu_o1_candidate_events',[])

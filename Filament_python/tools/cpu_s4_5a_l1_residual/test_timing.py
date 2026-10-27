@@ -126,3 +126,13 @@ def test_scalar_recorder_does_not_keep_returned_values_alive():
     assert reference() is None
     assert recorder.snapshot()["completed_scopes"]==1
 
+
+def test_clock_failure_has_bounded_incomplete_retirement(monkeypatch):
+    _clock_pair(monkeypatch,[100,90],[100,110])
+    recorder=timing.TimingRecorder();token=recorder.begin("APPLICATION")
+    with pytest.raises(timing.TimingError,match="CLOCK_WENT_BACKWARDS"):recorder.end(token)
+    recorder.retire_incomplete("CLOCK_WENT_BACKWARDS")
+    snapshot=recorder.snapshot()
+    assert snapshot["completed_scopes"]==0 and len(snapshot["incomplete_scopes"])==1
+    assert snapshot["incomplete_scopes"][0]["status"]=="incomplete"
+
