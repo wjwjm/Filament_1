@@ -19,6 +19,7 @@ def node_gate(report):
     runtime=frozen_controller._runtime_gate(plan)
     require(int(runtime['cgroup']['effective_limit_bytes'])<=320*1024**3,'ACTUAL_MEMORY_HARD_LIMIT_AT_MOST_320_GIB')
     runtime['process_tree_stop_bytes']=int(.8*min(320*1024**3,int(runtime['cgroup']['effective_limit_bytes'])))
+    require(runtime['process_tree_stop_bytes']>int(plan['capacity_forecast']['required_guardian_headroom_bytes']),'ACTUAL_GUARDIAN_ABOVE_CONSERVATIVE_PEAK_FORECAST')
     from tools.cpu_s4_checkpoint_support import support_module
     metadata=support_module('g2_hpc_exact').inspect_boundary_metadata(plan['reference_boundary'],require_members=True,header_only=True,expected_receipt_path=plan['reference_boundary'],expected_raw_sha256=plan['reference_boundary_raw_sha256'],expected_size_bytes=plan['reference_boundary_size_bytes'])
     disk=shutil.disk_usage(report)
