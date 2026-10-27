@@ -67,16 +67,16 @@ def run(args):
     from .candidate import build_role,verify_bindings,make_recorder
     from .measurement import run_window
     pair=make_recorder(args.role=='L1_S45B_PROFILE');timer=pair.b
-    app_token=timer.begin('APPLICATION',common=True,occurrence_class='WINDOW_ONCE',source_site='entry.run:before-source-and-factory')
+    app_token=timer.begin('APPLICATION',common=True,context=timer.context(0,occurrence_class='WINDOW_ONCE',source_site='entry.run:before-source-and-factory'))
     try:
-        with timer.scope('SOURCE_FACTORY',common=True,occurrence_class='WINDOW_ONCE',source_site='entry.run:source-factory'):
-            with timer.scope('SOURCE_VALIDATION',common=True,occurrence_class='WINDOW_ONCE',source_site='entry.verify_execution:complete-original-source-checks'):
+        with timer.scope('SOURCE_FACTORY',common=True,context=timer.context(0,occurrence_class='WINDOW_ONCE',source_site='entry.run:source-factory')):
+            with timer.scope('SOURCE_VALIDATION',common=True,context=timer.context(0,occurrence_class='WINDOW_ONCE',source_site='entry.verify_execution:complete-original-source-checks')):
                 binding=verify_execution(args.report,local_engineering=args.local_engineering,shape=args.shape,intervals=args.intervals)
             report=Path(args.report).resolve(strict=True);work=Path(args.work).resolve()
             require(not work.exists(),'NON_OVERWRITING_CASE');work.mkdir(parents=True)
             from tools.cpu_s4_checkpoint_support import support_module
             sg.frozen_tools(report);support_module('g2_hpc_entry')._quiet_runtime()
-            with timer.scope('L1_FACTORY',common=True,occurrence_class='WINDOW_ONCE',source_site='candidate.build_role:actual-fresh-factory'):
+            with timer.scope('L1_FACTORY',common=True,context=timer.context(0,occurrence_class='WINDOW_ONCE',source_site='candidate.build_role:actual-fresh-factory')):
                 built=build_role(args.mode,capture_root=work/'BOUNDARY',local_engineering=args.local_engineering,pool_override=1 if args.local_engineering else None,profile=args.role=='L1_S45B_PROFILE',recorder_pair=pair)
             require(built[1].cpu_s4_5b_recorder_pair is pair,'ONE_BOUNDED_RECORDER_FOR_ACTUAL_ROLE')
             empty=built[1].cpu_s4_4a_cache_snapshot()['stats']
