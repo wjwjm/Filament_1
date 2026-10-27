@@ -69,12 +69,14 @@ def run(args):
     timer=TimingRecorder(enabled=args.role=='L1_PROFILE');app_token=timer.begin('APPLICATION')
     try:
         with timer.scope('SOURCE_FACTORY'):
-            binding=verify_execution(args.report,local_engineering=args.local_engineering,shape=args.shape,intervals=args.intervals)
+            with timer.scope('SOURCE_VALIDATION'):
+                binding=verify_execution(args.report,local_engineering=args.local_engineering,shape=args.shape,intervals=args.intervals)
             report=Path(args.report).resolve(strict=True);work=Path(args.work).resolve()
             require(not work.exists(),'NON_OVERWRITING_CASE');work.mkdir(parents=True)
             from tools.cpu_s4_checkpoint_support import support_module
             sg.frozen_tools(report);support_module('g2_hpc_entry')._quiet_runtime()
-            built=build_role(args.mode,capture_root=work/'BOUNDARY',local_engineering=args.local_engineering,pool_override=1 if args.local_engineering else None,profile=args.role=='L1_PROFILE',recorder=timer)
+            with timer.scope('L1_FACTORY'):
+                built=build_role(args.mode,capture_root=work/'BOUNDARY',local_engineering=args.local_engineering,pool_override=1 if args.local_engineering else None,profile=args.role=='L1_PROFILE',recorder=timer)
             require(built[1].cpu_s45a_recorder is timer,'ONE_BOUNDED_RECORDER_FOR_ACTUAL_ROLE')
             empty=built[1].cpu_s4_4a_cache_snapshot()['stats']
             require(empty['factor_requests']==empty['plane_builds']==empty['cache_bytes']==0,'FRESH_EMPTY_ORIGINAL_FACTOR_CACHE')
@@ -120,7 +122,7 @@ def run(args):
     require(not snapshot['incomplete_scopes'] and not any(row['failed'] for row in snapshot['records']),'ONLY_COMPLETE_SUCCESSFUL_TIMING_SCOPES')
     if snapshot['enabled']:
         counts={name:row['call_count'] for name,row in snapshot['summary_by_label'].items()}
-        expected=dict(APPLICATION=1,SOURCE_FACTORY=1,PROPAGATION=1,OUTPUT=1,DIAGNOSTICS=1,INPUT_PREPARATION=4,
+        expected=dict(APPLICATION=1,SOURCE_FACTORY=1,SOURCE_VALIDATION=1,L1_FACTORY=1,PROPAGATION=1,OUTPUT=1,DIAGNOSTICS=1,INPUT_PREPARATION=4,
             RAMAN_HALF=2*args.intervals,RAMAN_STAGE=4*args.intervals,RAMAN_INTENSITY=4*args.intervals,
             RAMAN_IIR=4*args.intervals,RAMAN_COEFFICIENTS=8*args.intervals,RAMAN_ENERGY=6*args.intervals,
             HEUN_ASSEMBLY=2*args.intervals,LINEAR=2*args.intervals,NONLINEAR=args.intervals,ION_SETUP=1,
