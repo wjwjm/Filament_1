@@ -398,12 +398,15 @@ def verify_bindings(dispatch: Any) -> dict[str, Any]:
     lineage = getattr(state, "_cpu_s45b_lineage", {})
     if lineage.get("r8_original_stage_code_identity") != code_identity(r8_original):
         raise SourceBindingError("S45B_R8_LINEAGE_CHANGED")
-    active_namespace = getattr(state, "_cpu_s45a_active_propagation_namespace", None)
-    if active_namespace is not None:
+    active_seal = getattr(state, "_cpu_s45b_active_propagation_seal", None)
+    active_namespace = None if active_seal is None else getattr(active_seal.get("function"), "__globals__", None)
+    if isinstance(active_namespace, dict):
         for name in ("__cpu_s45b_scope__", "__cpu_s45b_marker__"):
             helper = active_namespace.get(name)
             if not callable(helper) or getattr(helper, "__cpu_s45b_recorder__", None) is not pair.b:
                 raise SourceBindingError(f"S45B_PROPAGATION_HELPER_CHANGED:{name}")
+    else:
+        raise SourceBindingError("S45B_ACTIVE_PROPAGATION_NAMESPACE_MISSING")
     for name, seal in getattr(state, "_cpu_s45b_propagation_helper_seals", {}).items():
         if active_namespace.get(name) is not seal.get("function"):
             raise SourceBindingError(f"S45B_PROPAGATION_GLOBAL_SLOT_CHANGED:{name}")

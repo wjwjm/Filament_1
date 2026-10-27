@@ -49,8 +49,10 @@ def run(report,work,role,reference=None):
         timing=pair.snapshot();sg.write(work/'ZERO_SCALAR_TIMING.json',timing)
         markers=timing['b']['markers']
         if pair.profile:
+            from collections import Counter
             require(len(markers)==8 and all(row['kind']=='ZERO_INTENSITY' for row in markers),'ACTUAL_ZERO_EQ10_BRANCH_EIGHT_STAGES')
             require({(row['phase'],row['stage']) for row in markers}=={('pre','stage1'),('pre','stage2'),('post','stage1'),('post','stage2')},'ZERO_ACTUAL_PHASE_STAGE')
+            require(set(Counter((row['phase'],row['stage']) for row in markers).values())=={2},'ZERO_EACH_PHASE_STAGE_EXACTLY_TWO')
             require(not any(row['label'] in ('EQ10_FFT','EQ10_IFFT','EQ10_SUM') for row in timing['b']['records']),'ZERO_BRANCH_RETAINS_NO_EQ10_FFT_OR_SUM')
     # No timing record may hold the returned scientific arrays alive.
     tracked=[weakref.ref(value) for value in (result[0],field)]

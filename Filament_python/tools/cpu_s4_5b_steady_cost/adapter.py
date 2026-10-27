@@ -610,6 +610,8 @@ def attach_with_b(
         record = own.get(str(actual_path))
         if record is None:
             return old_external(path, raw)
+        if record.get("classification") == "tracked_text":
+            raise AdapterBindingError("S45B_TRACKED_SOURCE_MUST_NOT_FALLBACK_TO_RAW")
         digest = _provenance.raw_sha256(raw)
         if digest != record.get("raw_sha256") or len(raw) != int(record.get("size_bytes", -1)):
             raise AdapterBindingError("S45B_OWNED_SOURCE_CHANGED_BEFORE_CALL")
