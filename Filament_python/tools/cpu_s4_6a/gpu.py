@@ -6,6 +6,7 @@ import copy
 import inspect
 import json
 from pathlib import Path
+import sys
 import textwrap
 import time
 from types import FunctionType
@@ -124,21 +125,141 @@ def native_layout(value, cp):
     return rows
 
 
+def _load_s45b_instrument_service():
+    """Load only S45B's scalar AST service, bypassing its CPU package init."""
+    import importlib.util
+    from types import ModuleType
+    from tools.hpc_ops import provenance_v2 as pv
+
+    package_root = Path(__file__).resolve().parents[1] / 'cpu_s4_5b_steady_cost'
+    repo = Path(__file__).resolve().parents[3]
+    package_name = '_filament_cpu_s46a_s45b_scalar'
+    package = sys.modules.get(package_name)
+    if package is None:
+        package = ModuleType(package_name)
+        package.__path__ = [str(package_root)]
+        package.__package__ = package_name
+        package.__file__ = str(package_root / '__init__.py')
+        sys.modules[package_name] = package
+
+    def binding(path):
+        path = Path(path).resolve(strict=True)
+        relative = path.relative_to(repo).as_posix()
+        raw = path.read_bytes()
+        oid = pv._git(repo, 'rev-parse', 'HEAD:' + relative, check=False)
+        if not oid:
+            raise RuntimeError('GPU_S45B_SCALAR_SOURCE_GIT_BINDING_MISSING:' + relative)
+        frozen = pv._read_git_blob(repo, oid)
+        if pv.canonical_lf_bytes(frozen) != pv.canonical_lf_bytes(raw):
+            raise RuntimeError('GPU_S45B_SCALAR_SOURCE_CANONICAL_BINDING:' + relative)
+        return dict(path=relative, hash_scope=pv.TRACKED_HASH_SCOPE,
+                    git_blob_oid=oid, raw_sha256=pv.raw_sha256(raw),
+                    canonical_lf_sha256=pv.canonical_lf_sha256(raw), size_bytes=len(raw))
+
+    paths = {name: package_root / (name + '.py') for name in ('timing', 'instrument')}
+    bindings = {name: binding(path) for name, path in paths.items()}
+    modules = {}
+    for name in ('timing', 'instrument'):
+        full_name = package_name + '.' + name
+        existing = sys.modules.get(full_name)
+        if existing is not None:
+            modules[name] = existing
+            continue
+        spec = importlib.util.spec_from_file_location(full_name, paths[name])
+        if spec is None or spec.loader is None:
+            raise RuntimeError('GPU_S45B_SCALAR_PRIVATE_SPEC:' + name)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[full_name] = module
+        try:
+            spec.loader.exec_module(module)
+        except BaseException:
+            sys.modules.pop(full_name, None)
+            raise
+        modules[name] = module
+    return modules['instrument'], dict(package=package_name, files=bindings)
+
+
+def _support_module(name):
+    from tools.cpu_s4_checkpoint_support import support_module
+    return support_module(name)
+
+
+def _s46a_fingerprints(ctx):
+    """Use the original array identity helper without the CPU benchmark."""
+    from KHz_filament.hr4e5_evidence import sha256_array
+    return dict(source=sha256_array(ctx['source']),
+                PRE={key: sha256_array(value) for key, value in sorted(ctx['pre_fields'].items())})
+
+
+def _normal_output_writer(intervals):
+    """Clone the unchanged G2 output writer with only its interval constant."""
+    original = _support_module('g2_hpc_entry')._write_normal_outputs
+    namespace = dict(original.__globals__)
+    namespace['INTERVALS'] = int(intervals)
+    return FunctionType(original.__code__, namespace, original.__name__,
+                        original.__defaults__, original.__closure__)
+
+
+def _preload_host_services():
+    """Load the frozen host-only comparison services before GPU science starts."""
+    import importlib
+    import os
+
+    entry = _support_module('g2_hpc_entry')
+    quiet_runtime = entry._quiet_runtime()
+    previous_gpu = os.environ.get('UPPE_USE_GPU')
+    try:
+        # These imports are intentionally host-side service code only.  J1's
+        # legacy module sets UPPE_USE_GPU=0 at import time; restore the caller's
+        # verified GPU selection before returning to the real run.
+        j1 = importlib.import_module('tools.cpu_p1r2.cpu_p1r2_j1')
+        q1_t0 = importlib.import_module('tools.cpu_o1.q1_t0')
+        exact = _support_module('g1_exact')
+        extended = _support_module('g2_hpc_exact')
+        writer = _normal_output_writer(8)
+        require(callable(getattr(j1, '_canonical_hash', None)), 'GPU_HOST_J1_SERVICE')
+        require(callable(getattr(q1_t0, '_numeric_scalar_diagnostics', None)),
+                'GPU_HOST_Q1_T0_SERVICE')
+        require(callable(getattr(exact, 'fingerprints', None)), 'GPU_HOST_G1_EXACT_SERVICE')
+        require(callable(writer), 'GPU_HOST_NORMAL_WRITER_SERVICE')
+        return {
+            'observer_check': quiet_runtime,
+            'modules': {
+                'g2_hpc_entry': str(entry.__name__),
+                'g2_hpc_exact': str(extended.__name__),
+                'g1_exact': str(exact.__name__),
+                'cpu_p1r2_j1': str(j1.__name__),
+                'cpu_o1_q1_t0': str(q1_t0.__name__),
+            },
+            'normal_output_writer_loaded': True,
+            'up_use_gpu_restored': True,
+            'scientific_math_executed': False,
+        }
+    finally:
+        if previous_gpu is None:
+            os.environ.pop('UPPE_USE_GPU', None)
+        else:
+            os.environ['UPPE_USE_GPU'] = previous_gpu
+
+
 def build(meter, capture_root, qualify):
     from KHz_filament.propagate import propagate_one_pulse as original
-    from tools.cpu_s4_5b_steady_cost.instrument import instrument_propagation_ast, strip_generated_nodes
-    from tools.cpu_s4_checkpoint_support import support_module, load_g2_adapter
+    instrument_service, scalar_binding = _load_s45b_instrument_service()
+    instrument_propagation_ast = instrument_service.instrument_propagation_ast
+    strip_generated_nodes = instrument_service.strip_generated_nodes
+    from tools.cpu_s4_checkpoint_support import load_g2_adapter
     from tools.hpc_ops import provenance_v2 as pv
-    exact = support_module('g1_exact')
+    exact = _support_module('g1_exact')
     source = textwrap.dedent(inspect.getsource(original))
     module = ast.parse(source); baseline = ast.dump(module, include_attributes=False)
     ast.increment_lineno(module,original.__code__.co_firstlineno-1)
-    boundary = support_module('g2_boundary'); adapter = load_g2_adapter()
+    boundary = _support_module('g2_boundary'); adapter = load_g2_adapter()
     bindings = boundary.load_boundary_mapping()['diagnostic_bindings']
     if qualify:
         adapter._insert_boundary(module, bindings)
     before = ast.dump(module, include_attributes=False)
     receipt = instrument_propagation_ast(module.body[0]) if meter.mode != 'REFERENCE' else {'reference_uninstrumented':True}
+    receipt['s45b_scalar_source_binding'] = scalar_binding
     require(ast.dump(strip_generated_nodes(copy.deepcopy(module)), include_attributes=False) == before, 'GPU_TIMERS_STRIP_TO_ORIGINAL')
     captured = []
     transfers = []
@@ -208,6 +329,7 @@ def run(args, started):
     import numpy as np
     from KHz_filament.device import cp, USE_GPU
     require(USE_GPU and cp is not None, 'GPU_REQUIRED_NO_CPU_FALLBACK')
+    host_services = _preload_host_services()
     require(not args.local, 'GPU_REAL_ALLOCATION_REQUIRED')
     identity = verify_source(args.report, False)
     args.work.mkdir(parents=True, exist_ok=False)
@@ -222,10 +344,9 @@ def run(args, started):
     cp.cuda.runtime.deviceSynchronize()
     meter = Meter(cp, args.mode, args.intervals)
     prop, binding, captured, transfers, calls = build(meter, args.work/'BOUNDARY', args.qualify)
-    from tools.cpu_s4_checkpoint_support import support_module
-    from tools.cpu_s4_3g3_smallgrid import benchmark as sg
-    ingress=sg.fingerprints(ctx)
-    cases, exact = sg.frozen_tools(args.report)
+    cases = _support_module('g2_cases')
+    exact = _support_module('g1_exact')
+    ingress = _s46a_fingerprints(ctx)
     prepare, prepare_binding = prepare_function(cases.prepare, ctx)
     field_host, kwargs, view = prepare(ctx, args.work/'PROPAGATION', intervals=args.intervals)
     field = cp.asarray(field_host)
@@ -250,8 +371,8 @@ def run(args, started):
         bundle = cases.finish(host_result, view, args.work/'PROPAGATION', intervals=args.intervals)
     finally:
         view.close()
-    require(sg.fingerprints(ctx)==ingress,'GPU_CANONICAL_SOURCE_PRE_IMMUTABLE')
-    ordinary = sg.normal_writer(args.report,args.intervals)(bundle,args.work/'PROPAGATION',args.work,role='GPU_NATIVE',raw_diagnostics=host_result[2])
+    require(_s46a_fingerprints(ctx)==ingress,'GPU_CANONICAL_SOURCE_PRE_IMMUTABLE')
+    ordinary = _normal_output_writer(args.intervals)(bundle,args.work/'PROPAGATION',args.work,role='GPU_NATIVE',raw_diagnostics=host_result[2])
     cp.cuda.runtime.deviceSynchronize()
     application_end_ns,application_end_cpu_ns=time.perf_counter_ns(),time.process_time_ns()
     app_s = (application_end_ns-args.application_started_ns)/1e9
@@ -259,7 +380,7 @@ def run(args, started):
     timing = meter.finish(); write(args.work/'RAW_GPU_TIMING.json', timing)
     output = exact.save_tree(args.work/'OUTPUT', bundle, compressed=True)
     comparisons = {}
-    extended = support_module('g2_hpc_exact')
+    extended = _support_module('g2_hpc_exact')
     if args.reference_output:
         comparisons['terminal'] = extended.compare_full_output(args.reference_output,bundle,args.work/'TERMINAL_EXACT.jsonl')
         require(comparisons['terminal']['status']=='PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS', 'GPU_SAME_BACKEND_TERMINAL_EXACT')
@@ -282,7 +403,7 @@ def run(args, started):
         first_interval_s=intervals[0]['wall_ns']/1e9 if intervals else None,
         later_body_s=(intervals[-1]['end_wall_ns']-intervals[1]['start_wall_ns'])/1e9 if intervals else None,
         output=output,boundary_path=captured[0]['path'] if captured else None,comparisons=comparisons,
-        normal_outputs=ordinary,calls=calls,transfers=transfers,qualification_only_readback_s=qualification_readback_s,
+        normal_outputs=ordinary,host_service_preload=host_services,calls=calls,transfers=transfers,qualification_only_readback_s=qualification_readback_s,
         transfer_accounting_scope='Known explicit input and output calls only; internal PRE/thermalization/scalar transfers UNKNOWN without trace',
         memory_pool=dict(used_bytes=cp.get_default_memory_pool().used_bytes(),reserved_bytes=cp.get_default_memory_pool().total_bytes()),
         required_completions='deviceSynchronize before window, interval1 end, final interval end, function return, normal output completion',
