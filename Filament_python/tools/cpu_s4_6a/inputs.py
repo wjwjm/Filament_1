@@ -51,7 +51,8 @@ def seal(destination, data_root, shape, *, full_input_root=None):
         require(os.environ.get('SLURM_JOB_ID', '').isdigit(), 'FULL_INPUT_COMPUTE_NODE_ONLY')
         source_root = Path(full_input_root).resolve(strict=True)
         expected = {'E_source_canonical.npy': '3fcf21546fe61b0c9e3522816f7e03e004321b0ec91ddff1ab70b5c8a25309c7',
-                    'pre0_first_8.npy': 'b38a7a0efe9e43a10ae1520f063380828555228e4bf3efdacdda2434f21721c5'}
+                    'pre0_first_8.npy': 'b38a7a0efe9e43a10ae1520f063380828555228e4bf3efdacdda2434f21721c5',
+                    'derived_n5_execution_config.json':'429f822af9d3845edfc6f098765be0f2d8b10a9fd643225c1af8afa23c59c87c'}
         for name, digest in expected.items():
             require(pv.raw_sha256_file(source_root / name) == digest, 'ORIGINAL_FULL_INPUT_RAW:' + name)
         config_raw = (source_root / 'derived_n5_execution_config.json').read_bytes()
@@ -84,6 +85,9 @@ def seal(destination, data_root, shape, *, full_input_root=None):
     import shutil
     (target / 'cache/rate_tables').mkdir(parents=True)
     for name in ('ionlut_N2_76585af6514cdd04.npz', 'ionlut_O2_1446bb99e8f9fd80.npz'):
+        expected_lut={'ionlut_N2_76585af6514cdd04.npz':'1f70691ab004c410123f5e06a0dbfa626beecf4059c09b715a8052feeb4e128e',
+                      'ionlut_O2_1446bb99e8f9fd80.npz':'57617bc72acbb794ae2c939241beaa57fa313eaa27a3d2981882f1fbe68d6cf8'}
+        require(pv.raw_sha256_file(lut_source/name)==expected_lut[name],'ACCEPTED_LUT_RAW:'+name)
         shutil.copyfile(lut_source / name, target / 'cache/rate_tables' / name)
     records = [dict(path=p.relative_to(target).as_posix(), classification='external', hash_scope='raw_bytes',
                     raw_sha256=pv.raw_sha256_file(p), size_bytes=p.stat().st_size)
@@ -111,6 +115,8 @@ def context(bundle, *, verify_raw=True):
     manifest = load_json_strict(root / 'INPUT_MANIFEST.json')
     require(manifest['schema']=='filament.cpu_s46a.canonical_inputs.v1' and manifest['hash_scope']=='raw_bytes'
             and manifest['precision']=='complex128' and tuple(manifest['shape']) in SHAPES, 'CANONICAL_MANIFEST_DOMAIN')
+    if os.environ.get('SLURM_JOB_ID'):
+        require(root.name=='x'.join(map(str,manifest['shape'])),'FORMAL_CANONICAL_SHAPE_NAMESPACE')
     if verify_raw:
         validate_source_records(root, manifest['records'])
     grid, beam, prop, ion, heat, run, raman = load_all(str(root / 'config.json'))

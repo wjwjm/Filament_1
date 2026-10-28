@@ -289,8 +289,9 @@ def run(args, started):
         default='I0',production_qualified=False,review_gate='MANUAL_REVIEW_PENDING')
     value['POST_timeline']=post_timeline(args.work/'PROPAGATION',args.application_started_ns)
     value.update(schema='filament.cpu_s46a.case.v1',status='CURRENT_GPU_NATIVE_REFERENCE' if args.mode=='REFERENCE' else 'SAME_BACKEND_TERMINAL_EXACT_RECORDED')
-    value['output_raw_index']=str(extended.save_file_index(args.work/'OUTPUT_RAW_INDEX.json',{'OUTPUT':output,'PROPAGATION':args.work/'PROPAGATION',
-        'SCIENTIFIC_QACC':ordinary['scientific_Qacc'],'SCIENTIFIC_SCALARS':ordinary['scientific_scalar_diagnostics']}))
+    extended.save_file_index(args.work/'OUTPUT_RAW_INDEX.json',{'OUTPUT':output,'PROPAGATION':args.work/'PROPAGATION',
+        'SCIENTIFIC_QACC':ordinary['scientific_Qacc'],'SCIENTIFIC_SCALARS':ordinary['scientific_scalar_diagnostics']})
+    value['output_raw_index']=str(args.work/'OUTPUT_RAW_INDEX.json')
     write(args.work/'GPU_SOURCE_BINDING.json',binding);write(args.work/'PREPARE_ACQUISITION_BINDING.json',prepare_binding)
     write(args.work/'GPU_NATIVE_LAYOUT.json',layout)
     write(args.work/'CASE_RECEIPT.json',value)
