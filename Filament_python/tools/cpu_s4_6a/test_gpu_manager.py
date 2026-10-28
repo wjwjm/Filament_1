@@ -106,7 +106,7 @@ assert callable(gpu._normal_output_writer(8))
 import numpy as np
 tiny = np.zeros((2,), dtype=np.float64)
 fingerprints = exact.fingerprints({"tiny": tiny})
-assert fingerprints["tiny"]["nbytes"] == int(tiny.nbytes)
+assert fingerprints["bundle.tiny"]["nbytes"] == int(tiny.nbytes)
 source_pre = entry._source_and_pre_fingerprints({
     "source": np.zeros((2,), dtype=np.complex128),
     "pre_fields": {"tiny": tiny},
@@ -127,7 +127,7 @@ assert not any(name.split(".", 1)[0] in {"numba", "llvmlite", "psutil"} for name
     env['UPPE_USE_GPU'] = '1'
     env['PYTHONPATH'] = str(repo / 'Filament_python')
     completed = subprocess.run(
-        [sys.executable, '-B', '-c', script],
+        [sys.executable, '-s', '-B', '-c', script],
         cwd=str(repo), env=env, capture_output=True, text=True,
     )
     assert completed.returncode == 0, completed.stdout + '\n' + completed.stderr
