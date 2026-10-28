@@ -27,12 +27,12 @@ class FirstSaveWitness:
         expected=trap(np.asarray(I_now),dx=float(dt),axis=0)
         exact(F2D,expected)
         expected_radius=original.second_moment_radius(I_now,axes.x,axes.y,dt=dt,frac_keep=frac_keep,rel_floor=rel_floor)
-        expected_fwhm=original._fwhm_diameter_xy_center(F2D,axes,y0,x0)
+        expected_fwhm=original._fwhm_diameter_xy_center(F2D,axes,x0,y0)
         self.raw=F2D;self.before=F2D.copy(order='K')
         self.root.mkdir(parents=True,exist_ok=False)
         np.save(self.root/'FIRST_RAW_F2D.npy',F2D,allow_pickle=False)
         np.save(self.root/'ORIGINAL_INNER_INTEGRAL.npy',expected,allow_pickle=False)
-        self.value=dict(schema='filament.cpu_s4_5d.first_saved_fluence.v1',interval_index=int(interval_index),input=native(I_now),F2D=native(F2D),original_inner=native(expected),input_asarray_is_same_object=True,actual_dt_type=type(dt).__name__,dt=dt,float_dt_same_bits=np.float64(dt).tobytes()==np.float64(float(dt)).tobytes(),trapezoid_function=trap.__module__+'.'+trap.__name__,original_diagnostics_backend_is_same_numpy=True,F2D_inner_values_dtype_layout_exact=True,outer_inner_shares_memory=bool(np.shares_memory(F2D,expected)),expected_radius=float(expected_radius),expected_fwhm=list(expected_fwhm),frac_keep=frac_keep,rel_floor=rel_floor,qualification_oracle_extra_integrals=2,qualification_only=True,extra_3D_copies=0,extra_3D_hashes=0,live_F2D_references=1)
+        self.value=dict(schema='filament.cpu_s4_5d.first_saved_fluence.v1',interval_index=int(interval_index),input=native(I_now),F2D=native(F2D),original_inner=native(expected),input_asarray_is_same_object=True,actual_dt_type=type(dt).__name__,dt=dt,float_dt_same_bits=np.float64(dt).tobytes()==np.float64(float(dt)).tobytes(),trapezoid_function=trap.__module__+'.'+trap.__name__,original_diagnostics_backend_is_same_numpy=True,F2D_inner_values_dtype_layout_exact=True,outer_inner_shares_memory=bool(np.shares_memory(F2D,expected)),expected_radius=float(expected_radius),expected_fwhm=float(expected_fwhm),frac_keep=frac_keep,rel_floor=rel_floor,qualification_oracle_extra_integrals=2,qualification_only=True,extra_3D_copies=0,extra_3D_hashes=0,live_F2D_references=1)
 
     def radius(self,value):
         if self.value is not None and not self.completed:
@@ -44,7 +44,7 @@ class FirstSaveWitness:
         if self.value is not None and not self.completed:
             require(np.asarray(value,dtype=np.float64).tobytes()==np.asarray(self.value['expected_fwhm'],dtype=np.float64).tobytes(),'D_QUAL_ORIGINAL_FWHM_EXACT')
             exact(self.raw,self.before)
-            self.value.update(actual_fwhm=list(value),FWHM_exact=True,F2D_unchanged_through_FWHM=True,live_F2D_references=0,status='PASS_ACTUAL_FIRST_SAVED_F2D_RADIUS_FWHM_EXACT')
+            self.value.update(actual_fwhm=float(value),FWHM_exact=True,F2D_unchanged_through_FWHM=True,live_F2D_references=0,status='PASS_ACTUAL_FIRST_SAVED_F2D_RADIUS_FWHM_EXACT')
             self.raw=None;self.before=None;self.completed=True
             sg.write(self.root/'FLUENCE_FIRST_SAVE_QUALIFICATION.json',self.value)
         return value

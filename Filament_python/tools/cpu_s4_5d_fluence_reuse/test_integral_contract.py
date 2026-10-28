@@ -40,12 +40,25 @@ def test_original_integral_identity_and_retained_inputs(kind):
         radius=second_moment_radius_from_f2d(outer,x,y,frac_keep=fraction,rel_floor=1e-8)
         assert np.float64(expected).tobytes()==np.float64(radius).tobytes()
         old=(radius,np.float64(radius).tobytes())
-        original._fwhm_diameter_xy_center(outer,type('Axes',(),dict(x=x,y=y))(),ny//2,nx//2)
+        original._fwhm_diameter_xy_center(outer,type('Axes',(),dict(x=x,y=y))(),nx//2,ny//2)
         next_fluence=trap(intensity*.5,dx=dt,axis=0)
         second_moment_radius_from_f2d(next_fluence,x,y,frac_keep=fraction,rel_floor=0.)
         assert np.float64(old[0]).tobytes()==old[1]
         same(outer,held)
         assert (intensity.tobytes(order='A'),intensity.dtype,intensity.shape,intensity.strides)==before
+
+def test_first_save_witness_original_scalar_FWHM_and_coordinate_order(tmp_path):
+    from .qualification import FirstSaveWitness
+    x=np.linspace(-2,2,5);y=np.linspace(-1,1,3);axes=type('Axes',(),dict(x=x,y=y))()
+    intensity=np.asarray(np.exp(-np.linspace(-1,1,7)[:,None,None]**2)*np.exp(-2*((x[None,None,:]-.3)**2+(y[None,:,None]+.2)**2)),dtype=np.float64)
+    dt=float(.25);trap=np.trapezoid if hasattr(np,'trapezoid') else np.trapz;F2D=trap(intensity,dx=dt,axis=0)
+    witness=FirstSaveWitness(tmp_path/'actual')
+    witness.begin(intensity,F2D,dt,axes,1,2,.999,1e-8,0)
+    witness.radius(second_moment_radius_from_f2d(F2D,x,y))
+    actual=original._fwhm_diameter_xy_center(F2D,axes,2,1)
+    witness.fwhm(actual);witness.close();receipt=witness.snapshot()
+    assert receipt['expected_fwhm']==receipt['actual_fwhm']==actual
+    assert receipt['live_F2D_references']==0 and receipt['radius_exact'] and receipt['FWHM_exact']
 
 def test_preregistered_eight_local_cost_samples(tmp_path):
     root=Path(os.environ['S45D_REPORT_ROOT']);plan=json.loads((root/'S45D_EXECUTION_PLAN.json').read_text(encoding='utf-8'))

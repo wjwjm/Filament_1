@@ -16,6 +16,11 @@ def run(args):
     for repeat in range(2):
         work=args.work/('CALL'+str(repeat));work.mkdir()
         ctx=sg.context(args.report,shape=(384,17,19));ingress=sg.fingerprints(ctx)
+        # The original propagator forbids sparse saves when these optional
+        # step-aligned diagnostics are enabled. This local-only fixture uses
+        # its legal sparse-save domain identically for ORIGINAL4A/A/D.
+        ctx['prop'].diag_operator_energy=False
+        ctx['prop'].diag_linear_halfstep_energy=False
         if args.role=='ORIGINAL4A':
             from tools.cpu_s4_4a_linear_cache.candidate import build_role
             built=build_role('PURE_OFF_SMALLGRID',capture_root=work/'unused',local_engineering=True,pool_override=1)
@@ -66,7 +71,7 @@ def run(args):
     del held
     gc.collect();lifetime=[ref() is not None for ref in weak]
     require(not any(lifetime),'D_NO_FINAL_OR_INGRESS_RETAINED_BY_PRIVATE_HELPERS')
-    receipt=dict(status='PASS_ACTUAL_SPARSE_FINAL_AND_OLD_PUBLIC_RETURNS',role=args.role,intervals=args.intervals,save_every=args.save_every,expected_saved_ordinals=[i+1 for i in expected],outputs=outputs,records=records,lifetime=dict(return_or_ingress_live=lifetime),scientific_comparator='ORIGINAL_UNMODIFIED_ALL_ELEMENT_NATIVE_LAYOUT_ALIAS',full_interval_POST_and_sinks_preserved=True)
+    receipt=dict(status='PASS_ACTUAL_SPARSE_FINAL_AND_OLD_PUBLIC_RETURNS',role=args.role,intervals=args.intervals,save_every=args.save_every,expected_saved_ordinals=[i+1 for i in expected],outputs=outputs,records=records,lifetime=dict(return_or_ingress_live=lifetime),scientific_comparator='ORIGINAL_UNMODIFIED_ALL_ELEMENT_NATIVE_LAYOUT_ALIAS',full_interval_POST_and_sinks_preserved=True,local_only_legal_sparse_domain=dict(diag_operator_energy=False,diag_linear_halfstep_energy=False),formal_performance_save_or_diagnostics_changed=False)
     sg.write(args.work/'SAVE_FIXTURE_RECEIPT.json',receipt);return receipt
 
 def main():
