@@ -33,6 +33,12 @@ def test_s46a_accepted_l1_to_off_to_light(tmp_path, shape, intervals):
         assert receipt['shape'] == list(shape) and receipt['intervals'] == intervals
         assert receipt['route']['nH'] == intervals * 2 and receipt['route']['fallback'] == 0
         assert receipt['boundary']['field_count'] == 112 and receipt['boundary']['retained_live_array_refs'] == 0
+        if mode != 'REFERENCE':
+            from .records import cpu_completed_metrics
+            raw = json.loads((work / 'RAW_CPU_TIMING.json').read_text(encoding='utf-8'))
+            completed = cpu_completed_metrics(raw, intervals)
+            assert completed['window_completed_s'] >= completed['first_interval_s'] + completed['later_body_s']
+            assert all(receipt[key] == completed[key] for key in completed)
         if prior:
             assert receipt['comparisons']['terminal']['status'] == 'PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS'
             assert receipt['comparisons']['boundary']['status'] == 'PASS_CURRENT_BOUNDARY_SNAPSHOT_NATIVE_EXACT'

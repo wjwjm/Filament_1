@@ -147,3 +147,20 @@ def test_budget_rejects_unknown_state_and_resource_counts_and_allows_cancelled_z
         budget_check([{"job_id": "x", "category": "small", "state": "completed", "walltime_s": 1, "gpus": 1}], "CPU")
     result = budget_check([{"job_id": "x", "category": "small", "state": "cancelled", "walltime_s": 0}], "CPU")
     assert result["status"] == "PASS_BUDGET"
+
+
+def test_actual_merged_cpu_schema_requires_completed_off_shell():
+    from .records import ClockError, cpu_completed_metrics
+    def row(label,start,end,index=None):
+        return dict(label=label,start_wall_ns=start,end_wall_ns=end,start_cpu_ns=start,end_cpu_ns=end,
+                    wall_inclusive_ns=end-start,cpu_inclusive_ns=end-start,failed=False,
+                    raw_context=dict(interval_index=index))
+    bodies=[row('INTERVAL_BODY',10,40,0),row('INTERVAL_BODY',50,90,1)]
+    raw=dict(merged=dict(records=[row('PROPAGATION',0,100),*bodies]))
+    value=cpu_completed_metrics(raw,2)
+    assert value['window_completed_s']==100/1e9 and value['later_body_s']==40/1e9
+    with pytest.raises(ClockError,match='WINDOW_OR_INTERVALS_MISSING'):
+        cpu_completed_metrics(dict(merged=dict(records=bodies)),2)
+    legacy=dict(bodies[0]);legacy['context']=legacy.pop('raw_context')
+    with pytest.raises(ClockError,match='MERGED_TIMING_SCHEMA'):
+        cpu_completed_metrics(dict(merged=dict(records=[row('PROPAGATION',0,100),legacy,bodies[1]])),2)

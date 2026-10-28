@@ -503,6 +503,40 @@ def _hours(row: Mapping[str, Any], *, resource: str, worst: bool) -> tuple[float
     return core_hours, gpu_hours
 
 
+def cpu_completed_metrics(snapshot: Mapping[str, Any], intervals: int) -> dict[str, Any]:
+    """Read the real S45B merged schema, with one completed propagation shell."""
+    if intervals not in (2, 8):
+        raise ClockError("CPU_COMPLETED_INTERVAL_COUNT")
+    try:
+        records = snapshot["merged"]["records"]
+        bodies = sorted((row for row in records if row.get("label") == "INTERVAL_BODY"), key=lambda row: row["start_wall_ns"])
+        windows = [row for row in records if row.get("label") == "PROPAGATION"]
+        indices = [row["raw_context"]["interval_index"] for row in bodies]
+    except (KeyError, TypeError) as exc:
+        raise ClockError("CPU_MERGED_TIMING_SCHEMA") from exc
+    if indices != list(range(intervals)) or len(windows) != 1:
+        raise ClockError("CPU_COMPLETED_WINDOW_OR_INTERVALS_MISSING")
+    window = windows[0]
+    for row in [window, *bodies]:
+        keys = ("start_wall_ns", "end_wall_ns", "start_cpu_ns", "end_cpu_ns", "wall_inclusive_ns", "cpu_inclusive_ns")
+        if any(type(row.get(key)) is not int for key in keys) or row.get("failed"):
+            raise ClockError("CPU_INCOMPLETE_INTEGER_CLOCK")
+        if row["end_wall_ns"] - row["start_wall_ns"] != row["wall_inclusive_ns"] or row["end_cpu_ns"] - row["start_cpu_ns"] != row["cpu_inclusive_ns"]:
+            raise ClockError("CPU_RAW_CLOCK_ARITHMETIC")
+        if row["wall_inclusive_ns"] <= 0 or row["cpu_inclusive_ns"] < 0:
+            raise ClockError("CPU_NEGATIVE_COMPLETED_CLOCK")
+    if window["start_wall_ns"] > bodies[0]["start_wall_ns"] or window["end_wall_ns"] < bodies[-1]["end_wall_ns"]:
+        raise ClockError("CPU_BODY_OUTSIDE_COMPLETED_WINDOW")
+    if any(left["end_wall_ns"] > right["start_wall_ns"] for left, right in zip(bodies, bodies[1:])):
+        raise ClockError("CPU_INTERVAL_OVERLAP")
+    return dict(window_completed_s=window["wall_inclusive_ns"] / 1e9,
+                window_process_cpu_s=window["cpu_inclusive_ns"] / 1e9,
+                first_interval_s=bodies[0]["wall_inclusive_ns"] / 1e9,
+                later_body_sum_s=sum(row["wall_inclusive_ns"] for row in bodies[1:]) / 1e9,
+                later_body_s=(bodies[-1]["end_wall_ns"] - bodies[1]["start_wall_ns"]) / 1e9,
+                completed_clock_basis="RAW_S45B_MERGED_PROPAGATION_AND_RAW_CONTEXT_INTERVALS")
+
+
 def budget_check(
     ledger: Sequence[Mapping[str, Any]],
     resource: str,

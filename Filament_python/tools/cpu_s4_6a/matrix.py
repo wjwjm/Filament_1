@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 from .inputs import require, seal, write
-from .records import CASE_ORDER, load_json_strict, timing_gate, budget_check
+from .records import CASE_ORDER, load_json_strict, timing_gate, budget_check, cpu_completed_metrics
 from tools.hpc_ops import provenance_v2 as pv
 
 
@@ -185,16 +185,8 @@ def launch(report,backend,shape,case,mode,qualify,reference,node,deadline):
     if backend=='CPU':
         route=result['route']
         require(route['nH']==16 and route['fresh_responses']==32 and route['math_dispatches']==128 and route['fallback']==0,'CPU_ORIGINAL_WORKLOAD')
-        raw=load_json_strict(folder/'work/RAW_CPU_TIMING.json')['merged']['records']
         if mode!='REFERENCE':
-            intervals=[r for r in raw if r['label']=='INTERVAL_BODY']
-            require([r['context']['interval_index'] for r in intervals]==list(range(8)),'CPU_COMPLETED_INTERVALS')
-            result.update(first_interval_s=intervals[0]['wall_inclusive_ns']/1e9,
-                          later_body_sum_s=sum(r['wall_inclusive_ns'] for r in intervals[1:])/1e9,
-                          later_body_s=(intervals[-1]['end_wall_ns']-intervals[1]['start_wall_ns'])/1e9)
-            window=[r for r in raw if r['label']=='PROPAGATION']
-            require(len(window)==1,'CPU_COMPLETE_WINDOW_CLOCK')
-            result['window_completed_s']=window[0]['wall_inclusive_ns']/1e9
+            result.update(cpu_completed_metrics(load_json_strict(folder/'work/RAW_CPU_TIMING.json'), 8))
     write(folder/'MATRIX_CASE_SUMMARY.json',result)
     print(json.dumps({key:result.get(key) for key in ('backend','case','application_service_s','window_completed_s','later_body_s')}),flush=True)
     return result

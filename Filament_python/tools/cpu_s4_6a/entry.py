@@ -13,7 +13,7 @@ import time
 from types import FunctionType, SimpleNamespace
 
 from .inputs import context, require, write
-from .records import load_json_strict
+from .records import load_json_strict, cpu_completed_metrics
 from tools.hpc_ops import provenance_v2 as pv
 
 SCIENCE = '821fec5bdacd832b0347e1f2e84285cb54172e57'
@@ -23,6 +23,15 @@ def clone(function, namespace):
     value = FunctionType(function.__code__, namespace, function.__name__, function.__defaults__, function.__closure__)
     value.__kwdefaults__ = function.__kwdefaults__
     return value
+
+
+def completed_harness_clock(timer):
+    """Keep the existing one-call propagation shell enabled in OFF as well."""
+    def scope(label, *values, **named):
+        if label == 'PROPAGATION':
+            named['common'] = True
+        return timer.scope(label, *values, **named)
+    return SimpleNamespace(scope=scope, end=timer.end)
 
 
 def prepare_function(original, ctx):
@@ -147,7 +156,7 @@ def cpu_run(args, started):
         timer.end(app_token)
     else:
         measured_namespace = dict(vars(measurement)); measured_namespace['sg'] = private_sg
-        result = clone(measurement.run_window, measured_namespace)(request, built, timer=timer, application_token=app_token,
+        result = clone(measurement.run_window, measured_namespace)(request, built, timer=completed_harness_clock(timer), application_token=app_token,
             label='formal', intervals=args.intervals, capture=args.qualify, application_started=started)
         write(args.work / 'INSTRUMENTATION_BINDING_AFTER.json', measured.verify_bindings(built[1]))
     boundary = args.work / 'formal/BOUNDARY_RECEIPT.json'
@@ -170,6 +179,8 @@ def cpu_run(args, started):
                   clock_scope='APPLICATION_INCLUDES_REQUIRED_INPUT_AND_OUTPUT; research/exact after original application boundary separate',
                   boundary_path=str(boundary) if args.qualify else None, fullsize_cache_bytes=1610612736 if shape == (384,351,301) else 268435456)
     result['POST_timeline']=post_timeline(result['normal_outputs']['propagation_root'],args.application_started_ns)
+    if args.mode != 'REFERENCE':
+        result.update(cpu_completed_metrics(snapshot, args.intervals))
     result.update(schema='filament.cpu_s46a.case.v1',legacy_harness_status=result['status'],
                   status='CURRENT_ACCEPTED_L1_REFERENCE' if args.mode=='REFERENCE' else 'SAME_BACKEND_TERMINAL_EXACT_RECORDED')
     write(args.work / 'CASE_RECEIPT.json', result)
