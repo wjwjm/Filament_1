@@ -1,0 +1,104 @@
+{
+  "status": "CPU_ONE_QUALIFICATION_EXACT_GPU_NOT_RUN",
+  "HPC_CPU": [
+    {
+      "backend": "CPU",
+      "shape": [
+        384,
+        117,
+        129
+      ],
+      "case": "QUAL_OFF",
+      "source_commit": "fad2df6d9fd042b181760851b946daa0ef5f15d3",
+      "comparisons": {
+        "terminal": {
+          "status": "PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS",
+          "numeric_rows": 261,
+          "array_layouts": 232,
+          "alias_relations": 27028,
+          "comparison_path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46a_20261028_r1/report/runs/CPU/384x117x129/QUAL_OFF/work/formal/TERMINAL_EXACT.jsonl",
+          "additional_timing_exclusions": []
+        },
+        "stages": {
+          "status": "PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS",
+          "numeric_rows": 32,
+          "array_layouts": 20,
+          "alias_relations": 210,
+          "comparison_path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46a_20261028_r1/report/runs/CPU/384x117x129/QUAL_OFF/work/formal/STAGES_EXACT.jsonl",
+          "additional_timing_exclusions": []
+        },
+        "boundary": {
+          "status": "PASS_CURRENT_BOUNDARY_SNAPSHOT_NATIVE_EXACT",
+          "value": {
+            "status": "PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS",
+            "numeric_rows": 112,
+            "array_layouts": 105,
+            "alias_relations": 5565,
+            "comparison_path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46a_20261028_r1/report/runs/CPU/384x117x129/QUAL_OFF/work/BOUNDARY_EXACT.jsonl",
+            "additional_timing_exclusions": []
+          },
+          "native": {
+            "status": "PASS_CURRENT_NATIVE_LAYOUT_ALIAS_EXACT",
+            "pointer_excluded_from_comparison": true,
+            "historical_native_layout": "UNOBSERVED_IN_ORIGINAL_HISTORY",
+            "failures": []
+          },
+          "historical_native_layout": "UNOBSERVED_IN_ORIGINAL_HISTORY"
+        }
+      },
+      "first_boundary_fields": 112,
+      "retained_live_array_refs": 0,
+      "route": {
+        "nH": 16,
+        "fresh_responses": 32,
+        "math_dispatches": 128,
+        "fallback": 0,
+        "workers": {
+          "temporal_workers": 48,
+          "spatial_workers": 24
+        },
+        "mask_after": 24
+      },
+      "exact_receipt": "terminal_evidence/raw/CPU_R2_FAILED/report/runs/CPU/384x117x129/QUAL_OFF/work/CASE_RECEIPT.json",
+      "scope": "One qualification/reference only, not complete matrix"
+    },
+    {
+      "backend": "CPU",
+      "shape": [
+        384,
+        117,
+        129
+      ],
+      "case": "REFERENCE",
+      "source_commit": "fad2df6d9fd042b181760851b946daa0ef5f15d3",
+      "comparisons": {},
+      "first_boundary_fields": 112,
+      "retained_live_array_refs": 0,
+      "route": {
+        "nH": 16,
+        "fresh_responses": 32,
+        "math_dispatches": 128,
+        "fallback": 0,
+        "workers": {
+          "temporal_workers": 48,
+          "spatial_workers": 24
+        },
+        "mask_after": 24
+      },
+      "exact_receipt": "terminal_evidence/raw/CPU_R2_FAILED/report/runs/CPU/384x117x129/REFERENCE/work/CASE_RECEIPT.json",
+      "scope": "One qualification/reference only, not complete matrix"
+    }
+  ],
+  "HPC_GPU": {
+    "status": "GPU_REAL_NOT_RUN",
+    "cases": []
+  },
+  "cross_backend_exact_claim": false,
+  "original_comparators_unchanged": true,
+  "original_112_boundary_exceptions": "108 science / 4 original timing leaves; NaN handling unchanged",
+  "scientific_arrays_downloaded": 0,
+  "note": "Original full-element comparator records downloaded; arrays retained remote and not revalidated locally",
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}

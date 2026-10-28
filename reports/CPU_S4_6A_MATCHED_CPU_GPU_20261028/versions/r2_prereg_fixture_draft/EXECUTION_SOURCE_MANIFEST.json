@@ -1,0 +1,1725 @@
+{
+  "schema": "filament.provenance.v2",
+  "version": 2,
+  "repository": "https://github.com/wjwjm/Filament_1.git",
+  "repository_path": "C:\\Users\\wangj\\.codex\\worktrees\\cpu-gpu-optical-gap-20261028\\cpu_optimization",
+  "head": "3aa457bef5866206b1c2742b9eb5b401f855a837",
+  "branch": "codex/cpu-gpu-optical-gap-20261028",
+  "hash_scope": "classified_by_record",
+  "line_endings": {
+    "tracked_create": "canonical-LF-from-Git-blob",
+    "tracked_validate": "canonical-LF-worktree-match",
+    "external": "raw-bytes"
+  },
+  "records": [
+    {
+      "path": ".gitattributes",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "96b193cc516a31e7477ce89fe405c2143049cb10",
+      "canonical_lf_sha256": "0db86723a951d039317619c79d071cd20a2d137d43bf038e582fddcc4aa8c8a5"
+    },
+    {
+      "path": "Filament_python/KHz_filament/Config_explain.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "f34006b73403418a5cd4248e29cd8c9bef19fcc7",
+      "canonical_lf_sha256": "56e22f69b5740d4022cb5fc70dd410fea4379526d78220a670e6da326c75c084"
+    },
+    {
+      "path": "Filament_python/KHz_filament/README.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "17f2a8d142cc9ee792a8e63ad08ab64147f1a332",
+      "canonical_lf_sha256": "d003b371b5bc814f22484234f00f47e8d3ac68c5e5f19a4df7e30b688970519a"
+    },
+    {
+      "path": "Filament_python/KHz_filament/__init__.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "382beeb27734b999d43a90385b349d6036fbb512",
+      "canonical_lf_sha256": "3af18f49b740416898e9581d17cb2f6416b5db0c1f4ab28d8c0eeb15c558ae03"
+    },
+    {
+      "path": "Filament_python/KHz_filament/air_dispersion.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "cb712df5280d304c5ef3eb1deb3148e30e9c7421",
+      "canonical_lf_sha256": "0105bc5a1c06cd5240b4658bcb0a81a571d153eec2088ac6fb6a5c5787d9f9a9"
+    },
+    {
+      "path": "Filament_python/KHz_filament/cli.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "a17b3c9abfaed249ae34842e6f130f9c5ed561dd",
+      "canonical_lf_sha256": "dd02d9e26f1e2b3c23034a00cce5f47d254691eeb7f58b273e7861a31cbf4baf"
+    },
+    {
+      "path": "Filament_python/KHz_filament/config.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "0e388c9c4683fceafbe451e177af31bb1084d8ea",
+      "canonical_lf_sha256": "58103eb955d9ef25195d28bc87158835b048d0ab5635757d5d29bb4091dfb0bb"
+    },
+    {
+      "path": "Filament_python/KHz_filament/config_normalize.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "e7a6fd71e8cba43a92ba18c74865f024b1d3ed07",
+      "canonical_lf_sha256": "12a7c1ecae452d2a88bfac2e1a65b2ee4b8c535c133901a3e22f36e8d3774c23"
+    },
+    {
+      "path": "Filament_python/KHz_filament/config_schema.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "c206172f5772036a56f735a9194bbc3047f3c7f6",
+      "canonical_lf_sha256": "cb056e20028189179125cb9be7255716bad066bdab7031275cc7fd9c81df3862"
+    },
+    {
+      "path": "Filament_python/KHz_filament/confio.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "3cdd4c549c2125ea50c4aea7aee92b1569556910",
+      "canonical_lf_sha256": "59f3b1312ab094e4144d220d9f192e893527fd854c9df14931be361c94ff96aa"
+    },
+    {
+      "path": "Filament_python/KHz_filament/constants.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "3798b75245fba0b9be23267c2dc62bbcd88835e7",
+      "canonical_lf_sha256": "704503d5f516a30489e7de1970826843c6586789a8bdeb4daa8417acbe712b97"
+    },
+    {
+      "path": "Filament_python/KHz_filament/deposition.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "991977813e97906aa7c6d16529ab24e902adf51a",
+      "canonical_lf_sha256": "d24a503d51dbb14cc883684c0679dcd1ddcadfbdd5554c5ddabf2a9d90fd51cf"
+    },
+    {
+      "path": "Filament_python/KHz_filament/device.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "cff96a9acbe542819b13645a03d3864462732baf",
+      "canonical_lf_sha256": "79900adb74afcd36f2e9e44b531d848640da3c39ba646de664de63d85a0354b6"
+    },
+    {
+      "path": "Filament_python/KHz_filament/diagnostics.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "bc6165ec951092ff09f02c6d01bbf7d79fc2c11a",
+      "canonical_lf_sha256": "8714cdecbe481cb8fb06430b0634150a3548bbc6c1f8ff4b5c92d9c282c66970"
+    },
+    {
+      "path": "Filament_python/KHz_filament/grids.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "15dc0ca566c17dda32ccd744fe649deea661377e",
+      "canonical_lf_sha256": "1be568fc0ff3a09dfc1d81a3118d5c6d747a8019d5f19efb33e6c29450768b55"
+    },
+    {
+      "path": "Filament_python/KHz_filament/heat.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "f04d05fec3bd8af0bff2c753710a119f6cc821e7",
+      "canonical_lf_sha256": "ebd673d2f9de4e3a0e941e924e312c95e7e973c3556a4da75eaddca57cb10788"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr3c_state_machine.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "a3945ec6fcb0b29c2239c31364468b218f9fbf65",
+      "canonical_lf_sha256": "87c7e3b2984b27d99b0f95fb6ce2ddfc713b3d40222fcd2806f7fd3e30ae67fa"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "af7520cd2a6fdfe0141055e4118686296ccdce8f",
+      "canonical_lf_sha256": "3d429158f484733cba7595a587d87719aed757b55ee8d8110c04b64714cd3bce"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4c_state.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "6f82e2a6291d3ac42deb5a15a56ef5f570ca87d0",
+      "canonical_lf_sha256": "384e8db11c688b778df6a01ace70ec4efa3a864699ff8437d0356f266d0d9735"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4d_pulse_lifecycle.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "8adaf3bdd33093efb9fa0d2f7670dae3adea08b2",
+      "canonical_lf_sha256": "b50e8c1c6adf4d69c49b15512f887f2002885e7866f700136ca1d05e33528a7e"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e2c_adjudication.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "864faa3ae70f0c951736a19bdeecbf8e54c79eff",
+      "canonical_lf_sha256": "601b7e654c7e144c742cab213a4552a0d0ade8faae6ab37564fba3b1cfe19762"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e2c_velocity_diagnostic.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "7154ddaca3111680778392c0d3ae598b0bdbee1e",
+      "canonical_lf_sha256": "c57748d6d7c571bd1e15568d5d43bbaf94e1784094cd130f49a36593dfa9e05b"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5_canonical_source.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "6f8f5fdf3bd77d85899e054f7d1100cc568b6fb2",
+      "canonical_lf_sha256": "53d16f8a694434821a3378446e294254b689187137132676c01fb99352b6967f"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5_evidence.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "223c30f17815d87bce82f550baa8c930856326a0",
+      "canonical_lf_sha256": "a1e46d191b7d16f51f7af0965a4f768097c64c5841281e9b5a498764aa4cea9d"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5_formal_entry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "00b3a7efd8b02238cf06379990024e9a1ed3b7d3",
+      "canonical_lf_sha256": "9b58c9b31822c185df93c2d8862e6b00fb616258bdcf42764761fe647d0f1c42"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5_gpu_binding.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "2cd187f0ecd77fd2b8addb1ca2acee81f25a0613",
+      "canonical_lf_sha256": "a7d67bed6b2f38061adb012755a3a7a3dc9acd3bad136dd53da787547d867247"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5_gpu_bootstrap.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "4c52262567cd97d6176875e8e3f35b1ce7d908d4",
+      "canonical_lf_sha256": "dcb0d6795068e027fb2197f72e2759bc5fea185401bbe967510da41f3c07fc35"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5_paired_campaign.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "e0ed9709e32ee8f3dbf716d3109db03e47b75590",
+      "canonical_lf_sha256": "d68dd4fbe358ab1f94b4a2f3c4c95f95ade78500bc0f23683d2632c1ca3d3db0"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5_parallel.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "ea21e8912c875eb778e0cca52c84e8eccc022b51",
+      "canonical_lf_sha256": "d3e1a8fcf5693fc7fa63e54b31643134d59965f1da281ffaccd355415ba7a50b"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5_production.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "19818e435e6293bc0a138401244757b0f1d6b6f6",
+      "canonical_lf_sha256": "3024991b6cfafb725e3d480829423ff93ab5804c805a81157436be89ff7fcd6f"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5_production_optical_worker.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "23bd21f2543d53218207b5a7b763b46b3dc2a61b",
+      "canonical_lf_sha256": "e0b193845a09a5f5b42beab9d964f573b736070665874a6ac005a629fe5b2a4e"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5_production_reference_worker.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "9ef360ce313fedd633dfb3ce1ada32f4669591c3",
+      "canonical_lf_sha256": "04b2466012ad9015c759183e682f104e8e37fc68853c87527eb3f3e362a59f35"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5_production_worker.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "74439294675b6ad0a7801e4fecf418268b1b0c42",
+      "canonical_lf_sha256": "4649cb107600435b9aa51cdf368c66d4a42429a6de559d865b04ca2d5d53c2a7"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5_recovery_identity.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "ac68be083fb6cd976ab16676cf11e23d732604f5",
+      "canonical_lf_sha256": "8cd0808348dc0e93265443008f2d46dde44545b8d7c1d49903d0ee6affc32b52"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5_recovery_output.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "e349ba46d7c2aceb21903483b0438608911de83d",
+      "canonical_lf_sha256": "9b2bd66eaeb4f952030617bf51ffc8d3242fac5daecb48502713c559b2174c79"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5_storage.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "a43e82c851d48093980e4f8dd8786671fa823517",
+      "canonical_lf_sha256": "d05d03993124e494430fcf5ea2aef4715f436af50309ae04f04bc4b38029487b"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5p_launcher.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "512914ca5aaf386feb48de228fefb077c9ed34a6",
+      "canonical_lf_sha256": "a359def23b3c176f3a3971f79c9d9ea24a6b0f59dc64d1e7fb6eb8984b63b96b"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5p_p4.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "8ae1401d5374316f4f205545d8eea92e374eb8b7",
+      "canonical_lf_sha256": "7d100b6190af7884e044d1f16e1014d4cb5cd55d6e3e6505ee57be8e137f3963"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5p_p5.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "2a620b4c915eaf8a141a76b000594d412a3fb817",
+      "canonical_lf_sha256": "f3de6449082096f2deb60a869d3339ce0b110759001b2f3ffe1f7434a3483d59"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5s_s3.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "769c9af73bbbdbc817e7680e4648c30c58df83cb",
+      "canonical_lf_sha256": "42116beb081c188b8e7e48c007624c9b93ef15e08ece4c5c016eba82d6ed8482"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5s_s4.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "e01cef955f81630ee12a6def32bb878c2c741302",
+      "canonical_lf_sha256": "8765ac0df9400c4056bb6c2e64e29993d527a898b88c6a6b61e87b0837476c25"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5s_s4r.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "1beac56debc31c32312f0dc5fdf9b75b99f21bd3",
+      "canonical_lf_sha256": "c05ca5f69982678c3841db96623b9e03ad77a7ff2cff55468d9e26aa9d9015c8"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5s_s5.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "685c66549fe4862ba73ab317f428adc8ef98989e",
+      "canonical_lf_sha256": "0551b5a793818b9b5df209d32adfccfaaf82d62fd72543f896cb5a1e7763f872"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5s_s5_final.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "0d6f72d3aa2ca90e72516f350000aa874a0847b9",
+      "canonical_lf_sha256": "bd358869f74e46037453057eaa5aa426fe457b9561b1beaf4962ce9a74ffd12d"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e5s_streaming.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "0b037ed8b78fd5309c1eed9a29bbcf664471930a",
+      "canonical_lf_sha256": "5321bf12636c486b3321bdf7a38817bb284207e2de3eab338b43bf19ca326593"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e_domain.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "20272b94a340c8cba22933fa7999dcbd6e0e7e23",
+      "canonical_lf_sha256": "59b191139940e606c42bfab41c86a2fa6f0bff457d4e391dd78f71fda43cd9aa"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e_real_spatial.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "379bbb47e74cd517490f05b88ebe2214ef4e6af1",
+      "canonical_lf_sha256": "0f3d0ce5f85d891611dddf9388566eeaf61af9a1b4cc024c1e89a9e6c8d0e9b0"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e_reduced_limits.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "578897747c239cca0994c331e89bd5103eb3590e",
+      "canonical_lf_sha256": "5932a471b41e1cf5c9d7c459c79592f7e7d6eb57ff6a3b1622e3e364bd803f49"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e_spatial.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "57ba94139483d078b0fe5f1b7835f0cb26b0d85c",
+      "canonical_lf_sha256": "474c068adf683b4c2d86f8f25bcc366a773625762cf40e6c110fe81a50ee3491"
+    },
+    {
+      "path": "Filament_python/KHz_filament/hr4e_timestep.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "13775e6ab0a16db26a6d7afe193ad527863487b7",
+      "canonical_lf_sha256": "4f1aae5b18f5718dccdd0ab6845fa2c50fbe5081e82d2db9ae4edb20ff594ddf"
+    },
+    {
+      "path": "Filament_python/KHz_filament/ionization/README.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "da6c3ab1848d80f73bf103a29f8c550371da68b2",
+      "canonical_lf_sha256": "c64ac597810563bcb76a509fa39f4d0fab2e2e4860212a8dc2eb5e422996b658"
+    },
+    {
+      "path": "Filament_python/KHz_filament/ionization/__init__.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "e4afdbba7268d3436b5f070947d1d427e5dfd320",
+      "canonical_lf_sha256": "8eb15d39da3e73cd6ea93e23cd0d475ed456d5ce3aa461741e2e4e10f0d85973"
+    },
+    {
+      "path": "Filament_python/KHz_filament/ionization/common.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "e1c80dd5c8b82c2a2a7f9c07a58c9c8c39698df0",
+      "canonical_lf_sha256": "f71c92f57e5c2b4a7a50a78242aa10767f4b4bd5864f5bb7fac92d3d66d05ef4"
+    },
+    {
+      "path": "Filament_python/KHz_filament/ionization/lut.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "66e2055cf6a36bf596b035bf308e858fc7118646",
+      "canonical_lf_sha256": "8483c75ec72b730d77a8afa43f64f3914a47650343e5eb9389862324cf5f2a35"
+    },
+    {
+      "path": "Filament_python/KHz_filament/ionization/models_popruzhenko.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "79d6cd0f8c6b7803153feafc7587e4158b0ffd92",
+      "canonical_lf_sha256": "6de8d42a73fb2b6d5656dcb6bfe5054cc63dffb85dc30d908161e7693b0827a5"
+    },
+    {
+      "path": "Filament_python/KHz_filament/ionization/models_ppt.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "fb7650410e8cf107113f44f32f30137220a1e435",
+      "canonical_lf_sha256": "054b8551480fec1048a4af5a6b23e5560bf5f977073e941c1d05cfd53386203d"
+    },
+    {
+      "path": "Filament_python/KHz_filament/ionization/rate_registry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "db6273fece0b285b5356ade5828b91d15812db8a",
+      "canonical_lf_sha256": "043dee3c8bb567f953ba2a99f6940a4068b55069f80bb326129bd156f3c592ef"
+    },
+    {
+      "path": "Filament_python/KHz_filament/ionization/runtime.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "e00708e34b879d2d8451c479e6254545f72e5e3b",
+      "canonical_lf_sha256": "a9c657fcff5993f4a6ea8eaead01f21236f7e191199b18832593d9ffd6787c33"
+    },
+    {
+      "path": "Filament_python/KHz_filament/linear.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "72878dd20daae656a5f9c8c7e39fa955ae8b30c5",
+      "canonical_lf_sha256": "93999555bf605c0be0d1867413a3d685ce8a8bfb781534401f96d5f9a388ce30"
+    },
+    {
+      "path": "Filament_python/KHz_filament/linear_full.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "a5b6342051f35e42a6b4276c55a68dace6219a5b",
+      "canonical_lf_sha256": "f12006a5dc530ebcd0b87cc6fcf1f2496c7850db9557fd921d8472dd79658abe"
+    },
+    {
+      "path": "Filament_python/KHz_filament/longitudinal.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "9815b37c72de3ed16fee0af8f250c7179f471db4",
+      "canonical_lf_sha256": "b158d6e34d39825b9dbdc2ca8255c9ec253d4a7a03b4ca73fbcb65baee34baa1"
+    },
+    {
+      "path": "Filament_python/KHz_filament/nonlinear.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "7674c50ef2d7fe90c805d068e4f4ba535e215dfd",
+      "canonical_lf_sha256": "cb55ec00bbdf7196c926c3563785efe65bd83e26cc767d67f42c6d4db5d57185"
+    },
+    {
+      "path": "Filament_python/KHz_filament/propagate.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "f156111398415c2b92e4609ccc1da075fcf5d1e3",
+      "canonical_lf_sha256": "909fbcf5ef05d2c50b8ed27506b450d40127b3973709d9b4b6a961799dc8d1f6"
+    },
+    {
+      "path": "Filament_python/KHz_filament/raman.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "5bb2702c109103ff882ee3642fedc748040c41b8",
+      "canonical_lf_sha256": "bc211fcde7ac1ed1dd3891ce20abd46201903ebed4eb9859d9ff55bdcc5a6887"
+    },
+    {
+      "path": "Filament_python/KHz_filament/raman_isaacs_reference.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "dd452e4db8b1f8311b4fda1a7ea335118ee3e8bc",
+      "canonical_lf_sha256": "6ff15180082c4b56061878b8ada20a08a2e1cb8cfabad3fd685d13ecf8ce905e"
+    },
+    {
+      "path": "Filament_python/KHz_filament/runner.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "cfa174197e2aefc3e484b18a33ea05d3efde1a00",
+      "canonical_lf_sha256": "73497912a6bfd7fe61bad0e3f62699a878a9591a99bf6e58249e3eddb8a0bfdd"
+    },
+    {
+      "path": "Filament_python/KHz_filament/slow_diffusion.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "7a96bd6fb669a48306769a7a1389711372651691",
+      "canonical_lf_sha256": "d41a6099c36381266eaefa0e483b5253dc0f0649152db5eb0d9b0b0c514afd92"
+    },
+    {
+      "path": "Filament_python/KHz_filament/slow_state.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "cb0e619317c6f007d1f7f4c9ff4838fda6dd71a1",
+      "canonical_lf_sha256": "7c3071448553b522d99bc11536471b8fbe5341866e0fa40501214c517f525a30"
+    },
+    {
+      "path": "Filament_python/KHz_filament/slow_state_pingpong.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "a491ea8e0cc1fd9a633300656b70ca43d9d9a8bd",
+      "canonical_lf_sha256": "47bc609367bd66a904a1900bf0d0b00e2f1c538146e9c5b48849acd21aaf43a9"
+    },
+    {
+      "path": "Filament_python/KHz_filament/summary.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "980b5ce5f115868c7188e45d5ca34730fa9c2ab9",
+      "canonical_lf_sha256": "8a10a514e070f0b7d9109dd0948d3eac719bd7792424d4bfaf16fe45f0b6c88a"
+    },
+    {
+      "path": "Filament_python/KHz_filament/thermalization.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "f1b0bcf3df017550f4b5497a6ec061c2b83cb4aa",
+      "canonical_lf_sha256": "614a88c516a3ada07b321895e256d00d8ba2d7e5adfb13a9868966ab776afda6"
+    },
+    {
+      "path": "Filament_python/KHz_filament/utils.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "331e5238bdae100e464d10e91a5b17448344dfab",
+      "canonical_lf_sha256": "a38784de75cc11d4dccb30dc92d2b0fcceecbaea74dc4675f9f87246e775aec0"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/CPU_O1_IR_JOINT_CONTRACT.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "075853f6c2f83038e4ffee0da7002138eb6ad8e3",
+      "canonical_lf_sha256": "fa42a11dce947ef8295ff3289abd9964aa4baa0ff7b950014a16fc22e29ea934"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/CPU_O1_NEXT_HPC_PROPOSAL_NOT_SUBMITTED.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "12444fb434e2339d05478787795658b5beeeee18",
+      "canonical_lf_sha256": "fd20906d138cfa6f2fed1ce195adb5f48700763855736fb578f8256b57accd0a"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/CPU_Q3_README.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "a56508522ea5c193709299004982986c69ff14b7",
+      "canonical_lf_sha256": "66e56161851b2a152b4716bf59d93dc9dc87d51d98b3f3276be90bc11efa94da"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/DEPENDENCIES_AND_REPRODUCE.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "d96b6ce281a90d23e4c1c7a9838acf2f2e6a7445",
+      "canonical_lf_sha256": "7202c4388c967446900fd7db4d6f66ff996b424f9f6a1077731c224abf09066d"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/README.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "d2d5721de75ae4f939b9070536778143460356c2",
+      "canonical_lf_sha256": "d93cfc709c89250e48698378ac9ad5294d614c8eb99a8349144d6627acc1ef0b"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/__init__.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "86bc991a6d3dbddb20481b9e045be23a67f3dd13",
+      "canonical_lf_sha256": "f106bd5fb796654d8cbde9e06615b445891e9470fc7f0db6f5a042f435cd5eaa"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_o1.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "cad5101e10510579489f9a2b937ddf94a3a23eb4",
+      "canonical_lf_sha256": "a451b5b64f6bb37d3adabb1624103d440e2893e15b3be964508e84e9b72c7c58"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_o1_execution_workspace_contract.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "362080f08ca3c6c94337d07feb72f351446b75c9",
+      "canonical_lf_sha256": "cfd56d0fde67682988a8aa8fd6c8c622f375231d5d3f73a62f828ff81d9bf847"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_o1_operator_contract.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "1eba112a412a6f20ed7cec8ffaf3b2b9d8fb9977",
+      "canonical_lf_sha256": "6ed0436bc6261cc03f6647b0a563f6a5b698526500f854979f90d08c8ae28840"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/__init__.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "4ce5537503d55ab547c45a1eb033b66091ce897c",
+      "canonical_lf_sha256": "92025a6fdd71dabe0363bf25b3b284891477b0124a2a40982980285133e520d8"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/admission.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "14c8977979631d1095f5ba81de96bd886833398f",
+      "canonical_lf_sha256": "31cee04ef9c7466a3633a41d7be43740c3fe6fdd21095d790ea6f46c0c531c59"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/launcher.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "bff5095d7adf9a963497ae7afa36a09d5774ba89",
+      "canonical_lf_sha256": "f012e1e3359af3dc9571d4c15fd253e3170980ffb5eb1bb542769488eec0214f"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/memory_limits.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "5c17bd62d6627b08ae25e163ad2623acb3c7624f",
+      "canonical_lf_sha256": "d9d9461490a3b94e458c5a4ae020feb5ef73089502cd96ccc046694bdee1d148"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/output_inventory.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "a93d08edddf9e6dd441d52a4d284cf365cf3de27",
+      "canonical_lf_sha256": "17fd619313e412790eb7e947f281d39546dc2d506f6ba7d0364bc5c3def423ad"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/profile.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "5060e690986277ccd512370485ddcf991d1f5b9c",
+      "canonical_lf_sha256": "c14efeee9ee80646b26e2000eee623dd096e4be3ba40d14ac5747a4ba8e0b588"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/runtime_gate.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "d8d15596f895207d9ef6cc942745ecc7f5aba612",
+      "canonical_lf_sha256": "dcd797c2dc38c4687048364ea822f6d5a5790e77d845a687aeebc369e15d93a4"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/storage_budget.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "fc150d0b5fa7ab4fcf3e0985750cce8e1f82b5e3",
+      "canonical_lf_sha256": "379377ad5a3353c7d04d015fc40439dc0ce37d157bdf0a6f9b823965290ea96f"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/supervisor.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "241d901514b8892ba64f0e42fed1e0dd7e3357db",
+      "canonical_lf_sha256": "7569e9b1ddf018ca40516874b44c97013173536e89e27583dbb115fd1cbb72f8"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/test_cpu_s4_profile.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "3c93342318652cb0ce302818eb0b28d469dad639",
+      "canonical_lf_sha256": "c8ce2f243849311e957adec19280ed02a877ebe87be2be7e5b3bf3dab38e6a53"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/test_s4_admission.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "31c2f52dd4cf7db00af5a47a4c5a11f7d8636c7f",
+      "canonical_lf_sha256": "b149626a9be8eae5197abc02e3fa5ad0d823679dd7a7c1a5affe6c8b53fe0e51"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/test_s4_git_context.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "af4ff24aa0512a358891e0bd3c8ac7e4a7d88d19",
+      "canonical_lf_sha256": "431410e2ad4016a0ceabdcf2a113e4f30a8e22a1f478c282656e2e4d81f2826b"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/test_s4_raman_timing.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "4cb7e02c4a46058d5064cb66355c5e1c4eff2ca7",
+      "canonical_lf_sha256": "d56a8344a9e0ef9e924b190ed106fdacd4506efbfb2a9ce5f7242cce24ac0815"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/test_s4_real_entry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "1849f51a3738d02e1f136aaaa8ad8f40db5ab567",
+      "canonical_lf_sha256": "359bd653d226a0f2ac1104522771a5a5fa7cac1e132e8f742e493364aa1f54ec"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/test_s4_runtime_layout.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "043cc69f44c67e325c76d5d633f9efa1efb8b3d8",
+      "canonical_lf_sha256": "55f60965d2827753f6daa1e80dba78d0487c2c228e1574b473330e311676ea25"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/test_s4_two_gates.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "9a0aee40b12c089f0461a5023e5d580792d0706e",
+      "canonical_lf_sha256": "8375c11a0ded97252478bcbe3a0ac2d0a2be8d32c32a26b8658a55aa522e9321"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/cpu_s4/timing_instrumentation.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "531b7b5a17ff86cdb92d6c8cf14d1aa55b02278b",
+      "canonical_lf_sha256": "a3b5957c9190c114eaf73337626c72ba8423d8f5dd55ee5127bd7059dfdec629"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/linux_q1_preflight.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "ef23b6083563ffd7e9bca4cffa6977fbd2c403fe",
+      "canonical_lf_sha256": "4df8248f4ff695bf7fc02381ecf5b093a29090f6196e3c2ddf4a4e934747a37b"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/numeric_gate.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "e71125ad70a816079a24adf10e55f0d308425178",
+      "canonical_lf_sha256": "a066251c698c0126c158cb50fddc4a23efd8122e5d5fc403de967f3d98066ae7"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/prepare_wheels.ps1",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "ec5816ea709eb05cd84c56740c0fdf42433b97f7",
+      "canonical_lf_sha256": "9027c31679ae002ffbca6743e19bd84437701b8f75ba8873470d02bcc3ab0ef3"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/q1_t0.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "5450b37891f50747b74346c42afd1f46fdf7f794",
+      "canonical_lf_sha256": "1b6bf2dd285f52205a926acecb64cbaacc8fa4b13d66b2b51b75f041c4008662"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/q1_t0_real.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "d1813d0e2104678a51b23da7062cddc317d8d3aa",
+      "canonical_lf_sha256": "8d2a0dedd1054a02857205b35f3781f0a7d6d47cbeac31c26ac014db4cb76c72"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/q2_t0_real.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "4248c85f3a1e4eeb798b8de4af347986b94d4d9d",
+      "canonical_lf_sha256": "dd04840a83fa08ee4dcbf1946b80a1a7ea7314d3acdea352a1e627a4d43802cf"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/q3_comparison_contract.json",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "cafca57a895040f04ac3dd69dc3800211e78500f",
+      "canonical_lf_sha256": "572e89850432aecddcb04c55cf4c1b89058f1f9bb1e64ce8f55fe285ca0315fe"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/q3_t0_real.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "f97c40c8d9b68536ea8d2f5ad75edb7bcce3315b",
+      "canonical_lf_sha256": "b0850cfe156dca03b66f3d60fd82e5d56788356d8e05369e7954185fc13b934b"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/run_cpu_o1_local.ps1",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "6642c2f8861b2d6bd245ff34654c367b47bb09b4",
+      "canonical_lf_sha256": "87adb062466758062b3b26140ab628d1ea885644a19ee7f74f57f14a68aed1d7"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/test_cpu_o1.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "9549001ad12ce2724c2e3df3d1681ac8527d3a83",
+      "canonical_lf_sha256": "85b2a1b0c186470cb866df43080e079de29b66791b73a105c27b35874b47138e"
+    },
+    {
+      "path": "Filament_python/tools/cpu_o1/test_q3_t0_real.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "90d3e52b7178b997e03c63d2a98e8b2f03b6283d",
+      "canonical_lf_sha256": "95a23b223d283c62b3a00be9c2405df8d8f235909397e88faec857e7373d3b3a"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1/README.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "2ebb9d3dd7f0bee6ac71cea947c4552e6189cc91",
+      "canonical_lf_sha256": "6068d2cd951e73ea66e7befa22c8c1171aa0769c0598a186a7fd1a0b72b08b76"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1/cpu_p1_fft.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "0cf9510487f10b45b3e8a579c081ee0c1bed7e5d",
+      "canonical_lf_sha256": "bc8006274a17e44044d774edf2a864ddddfaf414b7c4f7659d0ed7420f56d49e"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1/cpu_p1_hydro.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "18be180279f363b1bbd534a9bdd82ff3290a1459",
+      "canonical_lf_sha256": "bfef249f37d97468ece4ee0a0525e46a685d6f016cb86e9dd047b00266fdf382"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r/OPTICAL_README.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "257f9bba7bb4d215c89856f7e3114b15812cdf67",
+      "canonical_lf_sha256": "4386f96a10f211b473a931802723d8f0dac1efac12cfd879b765fc3c39bbc6c8"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r/README.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "4e22df0319ce411ecdbb89ba958a342844c43ad3",
+      "canonical_lf_sha256": "c6717a62745302d175e2e12d4607d322c12b3fa06b44ff499681a8be27ac42d8"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r/cpu_p1r_hydro.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "764da404a5ef6a043752af88e34ec51fc76f6d29",
+      "canonical_lf_sha256": "09879569958441ac9a7319231d6cf488241a4030226ad6c8ffe68d9386f22d64"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r/cpu_p1r_optical.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "5cf757529a757859700f0fe4eefbb3ca7e595100",
+      "canonical_lf_sha256": "1e8959bfcd98feb0dad86f22fd3e7f78d04492774e6532c5db52ba7b726a5d6b"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r/test_cpu_p1r_hydro.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "a614e4437d52c618d2ac7156f9c6c516f3bc9a3f",
+      "canonical_lf_sha256": "5f6646a887c80ad5d2c03358a98230ac795959e671418826223d6debea4cac62"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r/test_cpu_p1r_optical.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "01593c09f49fd6ccb646357800b2fb01273c19fc",
+      "canonical_lf_sha256": "3ae0142682e80215cb769d241dbd9b41c23ea949cea06e402300b837c41c996b"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r2/README.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "8fc8d98c005a26a60729836e564218b63f5cd122",
+      "canonical_lf_sha256": "c42d5ab1956a2f0b3e53eeeebaf979b2726c44d7820b1ecf624c360eec17ccd3"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r2/allocation_probe.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "e9af37255c8b1194660121bb7cbf5bfcecfc9103",
+      "canonical_lf_sha256": "bc9609ffba9c14b3696c2b96d8a774ad54c1d980f5a5a96714831c6b3b77cb72"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r2/cpu_p1r2_finalize.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "cc3a3b8af0a64cbdac42c1524992ea6f19664fb6",
+      "canonical_lf_sha256": "b1d9cf1c78f468beb8be19ea4c70d1aea7a61132e84c4c0143da666d8935170e"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r2/cpu_p1r2_j1.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "384fa5aebf6fa2905926c6d855521b641f66ba65",
+      "canonical_lf_sha256": "fe6ba71664a817e169c4f928239af16cdb9dda76d0f1d3308fbc176949c017fb"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r2/cpu_p1r2_j2.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "4a506accfb26cc90aacdd84b8525ca2f527ae821",
+      "canonical_lf_sha256": "cf34629e00e63b81669685c9119692888a729a9b783fa018a66dbc6b43b47f9c"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r2/cpu_p1r2_j3.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "2ccf08548c36e14d333b585b59163cae475e8c9f",
+      "canonical_lf_sha256": "353e8fca83170d5b9bd8d0796a63ff0fd0518e27a19f80e5606dfc216f96fa56"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r2/cpu_p1r2_resume.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "f715dfdeb43cf7f01f45bc6ba057696abfed61e5",
+      "canonical_lf_sha256": "eb133c8eeb584b8c4fd0fc0b515eea24616efc7f15be52ac6d10a4768b473a8a"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r2/test_cpu_p1r2_finalize.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "048bdf3597f04040870aa3e6d9dfa9e85fb20e8d",
+      "canonical_lf_sha256": "75dff42d7bd7d8a6046f1f2a31661b4e7667dd933c1997bf568ab622bac6fb21"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r2/test_cpu_p1r2_j1.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "8fbaf3b7ac562b9bc0fa8678277cfa9a044f889e",
+      "canonical_lf_sha256": "72b83248930c7496bdfde9bde41ef7be4342bae5a38acf76023ca4447f216f79"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r2/test_cpu_p1r2_j2.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "ce58ddbf113876a5b03f33c2396e505ad9812f75",
+      "canonical_lf_sha256": "248e1ebf9a06a39c3fdc3df3d571188235920b2a89e4e985807c5e0d38440f7d"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r2/test_cpu_p1r2_j3.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "d7fa6cda5791e997106021fe0fa9fad2d01fd86b",
+      "canonical_lf_sha256": "48a47fa9e4af172505dc0a517d1d01de0959b1343eabbc6608b10fab16494ca9"
+    },
+    {
+      "path": "Filament_python/tools/cpu_p1r2/test_cpu_p1r2_resume.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "c7d6f5adc67f78057696f746523dd13941593f9a",
+      "canonical_lf_sha256": "8c6a8a494cbedc9e81d70fffc8b7c2dc09d355ccd923a676909c3e648dfa9eac"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3c/candidate.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "f54fb5af2ef8959d323a4375cf904b1dd35027cd",
+      "canonical_lf_sha256": "252fc1e6521812c29872d5b848e4082841f0b8ae0ad15661394f6b31347e0a32"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3d/variants.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "62151073af8d7c6b4657d37b8e7ef5e2d9d7baf0",
+      "canonical_lf_sha256": "a42c02ec76e0d3f5e0b6d809d2696dd58d27ea6ce3fb95e784080b2b985f58ee"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3e/candidate.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "b46472848ba32a9ec0dc637bbb2519abad239d7a",
+      "canonical_lf_sha256": "a268bcfb74fbde603b0b3dbae26028e73a59a4022e3140bba9bae39a20e01e34"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3f/candidate.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "102cacc3d912344cd50faeab125c2baffef6dbc1",
+      "canonical_lf_sha256": "2100fda7adfb2581151eaad46eb3e992133090c54876718759f1ea99df7de6eb"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g/__init__.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "43cf44a489bb9174ce89fc16b21ff215e11722f9",
+      "canonical_lf_sha256": "3868685fad8ab2cc5302512cdcdf3446756d75595f27d2bf1c98cce740f4f6b1"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g/candidate.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "8ad85d038097a4923ff70a4f4587fa16f10fb9c9",
+      "canonical_lf_sha256": "5cf67c43bb9d30744e6b651841e2f5bad37798eead4855b471536c25a7429085"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+      "canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/__init__.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "e42151113b89091d0dc9effb65fd1c485d81be42",
+      "canonical_lf_sha256": "916477b38337092d85eeea2200a3c579bdfaed2583314a2df5c140673e847032"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/adapter.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "bb5b707dfc0c32755d617e40cf7024e5969ab774",
+      "canonical_lf_sha256": "23d865340215573764c44be775d21735776e6bbf5b4675ea998652817947a1dd"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/benchmark.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "c0139064acd9192311523d146d70cc7373b14971",
+      "canonical_lf_sha256": "14b5fe309eb66ecc7a91034dad869055359c2d71a48db0a164e7581a2e4b7ace"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/candidate.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "84eac5f6f031d500ac5cf87e53272fbd3cfee762",
+      "canonical_lf_sha256": "190c45ca1096c76136ba26fa714b94da73b0d9b7fff5a31f5c6dd437ceea3e78"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/controlled_callsite.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "de3df65668808f9e52316b8ec8cc28626e1f2a95",
+      "canonical_lf_sha256": "e914ee1db8fa45125f989401c8d6d6524c034f33a301b26c6696b30eff59ceef"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/factory_binding.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "7d454a24d24aa384b0c9880ef4118e55894e9691",
+      "canonical_lf_sha256": "fca4ba2867511164587f522960b0aea631c472b6c6b6fa5165d2f3a56e4f8f1a"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/node_mask_check.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "d43f41706da17455245c4b0e0c9ed19c15f0d96b",
+      "canonical_lf_sha256": "4279df96de6e75aff3ad9a1484381559a8362b0a4054cfc7d5539f6ac4bc901d"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/runtime_adapter.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "134aab6d38af9af4282010b578707ec2a0839002",
+      "canonical_lf_sha256": "390ae4e4923e07e9b4ff510dcba5bec059f1b53c80be3db130457a512a999adb"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/scientific_context.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "83caf3f464315405c8385df2698838512a4e2bf2",
+      "canonical_lf_sha256": "8223c332bed592d2dbc87268b01da6c5f5b1cd31521e1a2e4bc414bdfd87b0d6"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/test_boundary.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "aa5e1f3afc6efef92525b7c91dd5db0b081da3ce",
+      "canonical_lf_sha256": "916e21545b3837cb9855c676028c4b49b05279ced7d2ecc545018dcf9e323d4b"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/test_entry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "cb0c2a5f8f50d50babca7c06b5e5ba344502e735",
+      "canonical_lf_sha256": "262a2836ae8bf4acdda8fdcea95b1284ac423179db3e7e888efdfe3a0394c6a2"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/test_entry_cleanup.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "41b471d6c50b91384cea351a0dd79bfad019c457",
+      "canonical_lf_sha256": "3fb485b8858bbd98ba2d38c3cc17986afcd1d4ef25fab30147f53342d7b8d776"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/test_lifecycle.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "18e15bb5949668c4d2bcb8a345eda76d152fdc5e",
+      "canonical_lf_sha256": "13f6defdb1dcba80f8349c84ee987ff3aea7fb87ab9da32a9dc196ac075c31ce"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/test_main_sanity.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "c668ae691fbc4d408fb746119c7803106ee878b1",
+      "canonical_lf_sha256": "07635959c265c00b3c6f53759ce86b96b5a336692c30bab31faf27895a1edb47"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/test_portable_binding.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "d4f27d0e1cf485883b7bd08454136b87c96977ea",
+      "canonical_lf_sha256": "6f428c7cefe9618ba8d710b5a224eb24f5a58ab33a1ec3ea0e768caf12be1eec"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/test_public_strict.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "57410aaab9d1c18543acbfde7e76343045b0b501",
+      "canonical_lf_sha256": "137bc0f1e5d8803fc59e8781a165faebf3bc101e7b0cf8006a5e2e215d907388"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/test_real_contracts.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "fde08539eab2f2afc62f5bfb6546ade0be7d7a1e",
+      "canonical_lf_sha256": "aaa557e9e75f2f5112d9f3055cc16ab77507644482bf22acc57ff293ce0a8b57"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_3g3_smallgrid/test_science.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "44c328650eddf5617cfc433db27d4328a2719871",
+      "canonical_lf_sha256": "df18bbbdcf6ba16a5a40758209aee38527b64d5d1e61c43d4606df07ee855da1"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4a_linear_cache/README.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "fbdba4478f70d4dd472c5bd251380562e8079f4e",
+      "canonical_lf_sha256": "f175ce05730029e04ac2df6294b0a39b4f6d97e48c49fd9dfd4abb1092441b42"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4a_linear_cache/__init__.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "097a56596e27126063d50290c6471f4a2f62f145",
+      "canonical_lf_sha256": "231e4cdb9e7d0e6eb2a58e484d358d4800c586c1d5f6992110f2aa13e8943bf0"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4a_linear_cache/cache.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "5a451e0f94efa93cc79c0a2c306f5dd9d644943d",
+      "canonical_lf_sha256": "0f499a55137fa4e3d0e3ceded1ff16c9e76fbf28ea0667c7948a63c579bcadc7"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4a_linear_cache/candidate.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "6e25803255ff201236ded00b9c43b75304293abb",
+      "canonical_lf_sha256": "99bc63ce990b2deb24ef62a531b5baf823c36647fc5e2bb83066b1ec9fd5545c"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4a_linear_cache/entry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "6ab6c0ccd5f7dedb3b6eb919a06a1b44fe40d674",
+      "canonical_lf_sha256": "b9314586a4f7ed900169d147dc9810f3fb4bfe3fc05d3332554f0b29c90b1e56"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4a_linear_cache/hpc.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "2f616f617f76c582c9f37d9096dfb9076a8976a1",
+      "canonical_lf_sha256": "dcf229380580a0b14c97c029385eda8ffee2c1bf6de07a95041d41ee4a474973"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4a_linear_cache/linear_adapter.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "64bb6cd64714ba41c35bfabd4c01cff49b331e75",
+      "canonical_lf_sha256": "a2ea3e6f0102db2662ff81178bfa1b884638dd6aa771798a6966df296f8ebf78"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4a_linear_cache/test_cache.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "136f834b5dbac2b0613e42628f385ab21419d4d9",
+      "canonical_lf_sha256": "17d58595b4a3329072f6444ff3e41e7a2d7a47c240fce0df428857b44c96e981"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4a_linear_cache/test_candidate_contracts.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "c647fc483d4abeef451b544e1e165977d955d860",
+      "canonical_lf_sha256": "61cb844f8a6541b14d5dd974a378855e69f04b6bd40790cf6906d3566352763f"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4a_linear_cache/test_entry_gates.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "ab5d00022ad95c358c921eb7f90cf2e88a448a7e",
+      "canonical_lf_sha256": "eef9752084d5b90811667a0d256e6e9d3e48113838731c47f75342fda492754b"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4a_linear_cache/test_full_linear_gate.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "81c780274c7be1014f43858c49b2695fbe839164",
+      "canonical_lf_sha256": "e1ab4b4dc14bca1791ea815c762dbe8a2e07404cac3cbaafe6b1a6bc5fd3a491"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4a_linear_cache/test_linear_adapter.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "770125053288d65b38d55d7b6308f6489d1c1f64",
+      "canonical_lf_sha256": "7c5f18677e51a909494d152c01320de52bb247e83bcba84b1f49dc21ec2cbe8c"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4a_linear_cache/test_real_entry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "f7e7423feeb96fb36a62d7ea6f4486a6d5003100",
+      "canonical_lf_sha256": "503c99715f308c4496ce46e5a724a741ff6d2dc067d1f0f21d716a82b29ab9d6"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4b_fullsize_linear_cache/README.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "4aed99c224a77eef11f4aae7334515947b091c1e",
+      "canonical_lf_sha256": "0de1331ddd0b69fdf5b1a5509bdd71c3383ea9c16f0a1deb7a19a8ad32009bd1"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4b_fullsize_linear_cache/__init__.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "e11eccd9112f24564198f0a872726ad517aa577b",
+      "canonical_lf_sha256": "2fb197b506b0c8d3bde58d742ce594f7cabd77d08f6aeabe8fdfe7a718365caf"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4b_fullsize_linear_cache/cache.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "3d6b379a420f290fbc32409b28faefdfb790aa92",
+      "canonical_lf_sha256": "5ecf46d9bf862cb6d9744bb32bedffe458966b723d6d7b32e7ac2c2ad24b1343"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4b_fullsize_linear_cache/candidate.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "423a9c48435229d16d0e191b1c42d9a0c4ecabbf",
+      "canonical_lf_sha256": "3723e8266552e5f241d616f42f953a156322a6d252b1c6fa886ea6b74978abe4"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4b_fullsize_linear_cache/contract.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "6a57d03ad51b24ac13bf5c5006e23de353c679d2",
+      "canonical_lf_sha256": "e4aa45bcb42c16c639300e7ffba9d998ec486269e5ac225e7b82ff968878cbcb"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4b_fullsize_linear_cache/entry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "22eadf1ab5622ad006176efe193745bdaf60b6b9",
+      "canonical_lf_sha256": "250b69a12cd1eef5cba3bbef2a19976a6a25a11bc125caf812f31f1655e24c55"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4b_fullsize_linear_cache/hpc.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "21b462d7a25238482ccbd0e5864039ded63d495f",
+      "canonical_lf_sha256": "cd7340ee5f566644425f34e23d9b39641ed5ea02f8c7740224c86963c2ba607c"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4b_fullsize_linear_cache/test_candidate.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "877cdebdacdda8d31b2b1f34156fd986068626b8",
+      "canonical_lf_sha256": "564f00b85bcc21181607397467c45270fa2abffd5e43ae5feb46fcfd1a7f2004"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4b_fullsize_linear_cache/test_capacity.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "94c0a7d628c422e58d6a3750e3766d37bf8a3053",
+      "canonical_lf_sha256": "9b2735869e52d5ccd904f3a374e9c5c6608743070bbf0f2dcc7c56b63484224d"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4b_fullsize_linear_cache/test_entry_gates.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "92f06c776e2f97e5b7f544d404a280af1f3e56ec",
+      "canonical_lf_sha256": "63f62aacc24687fb32a5334d9c43e2bbddb611616d00c361e5913c45067cb62b"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4b_fullsize_linear_cache/test_full_linear_gate.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "a4fb29a96eb0b4e43d81d77217f9e1fce7dc4932",
+      "canonical_lf_sha256": "cf6c75df17bc668884c3baa104fd01afd65845fb5d32acbca37e6fc448f83b1d"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_4b_fullsize_linear_cache/test_real_entry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "7a543f7c6d6593291be465f8e1d16e65c207b07b",
+      "canonical_lf_sha256": "f34f965298530b9b68e32f7950236710c48f8e289dbef9bea692723d04350e8f"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5a_l1_residual/README.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "f930c1edb52a23a4f478d3088918c515ac94ff13",
+      "canonical_lf_sha256": "070dff8378664b0b67db1bc4fc412d96db367411f037a0c796db4198021938e1"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5a_l1_residual/__init__.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "f0693686b0b09cb45348e272feadd5047fba909f",
+      "canonical_lf_sha256": "82c597503c890ab3ebffaae20f83638e88906dd38d32c484bdf1ec60348f7f76"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5a_l1_residual/candidate.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "ef062dfca61c9634de3288bd8d57acc6aa27fdc2",
+      "canonical_lf_sha256": "0399470f60be05e96a8cf49e95a05b8b2534bb6a728e7b3ed8647f3c09a41cf5"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5a_l1_residual/entry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "680262f2dd1d462ae5fea59b8a6b81603278effb",
+      "canonical_lf_sha256": "0cc104753736253688d2c24d7e9d4620c5da94ddce4cb99559bc00f985ffb746"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5a_l1_residual/hpc.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "602fb1699df5988d721408aaad4ff796c48a1247",
+      "canonical_lf_sha256": "99ef5ac1f225c1157ec464652d074d5b79531b529c7214f6833e85d371757230"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5a_l1_residual/instrument.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "0bd540bbf647ffb93bc6dec59df8cfa3dec12698",
+      "canonical_lf_sha256": "4fe7c1ccfee7bac070cd3f0c4ee27a2e693ba5f94e9e3c9234170356d285a943"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5a_l1_residual/measurement.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "e4bbf221037d5e4f787a4c879917bd392fb2b877",
+      "canonical_lf_sha256": "a5cd90e37d48327be30b736b1396fd6ce2cc2fc80004f1079938f249ffa49e43"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5a_l1_residual/test_bindings.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "375f630dabbbb607a128543d305adcba7551e0fb",
+      "canonical_lf_sha256": "3aa59c8dcc57fa43d31fbd5e5cc21bc3cf1e19a471c92544daac6091f29e28ac"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5a_l1_residual/test_real_entry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "5027b10b3d3b8bf4d532423e1fb27913eaff85ae",
+      "canonical_lf_sha256": "c6e116c0f816188cab7af14bdb8e7a97afd44bafa96ba6ce00eb4e6d49e75c38"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5a_l1_residual/test_timing.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "4fc305c70d7389c631c8f5c6cf83306b4ea7990f",
+      "canonical_lf_sha256": "fc875980a84930ef43e7d03ea4c5e72b9667ce51b6c10f0434ef10b3cab02bcf"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5a_l1_residual/timing.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "443f5ab41243e06bbaacc69108aa21f15fd09ff3",
+      "canonical_lf_sha256": "67e774178116d6b95a6580ce7f3808192b119e79057bdaec1f80a01e3998fc7d"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5b_steady_cost/README.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "8dd51099b80178bb244d464ecadf70716fece6d9",
+      "canonical_lf_sha256": "5d18cb59a092c63af6abbb56b487fd5d0bf35f4450fb61582da3824bc85f3cc5"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5b_steady_cost/__init__.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "d62af4d1e5dca82d7c7ecd6c86b23ea4ca3efb14",
+      "canonical_lf_sha256": "5d9c046358cae1f3e19f62eaafcb064ea6ffddf5f6759e0da7c88dc59e0ec17f"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5b_steady_cost/adapter.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "290bf8898ce7e94805d97e7e1238019d961e705a",
+      "canonical_lf_sha256": "06d2129e90d0202327309f4d5b4c193a15800778ef528842c45558664c34e49e"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5b_steady_cost/candidate.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "0ddb730cc1ab4ac55bed6b05a4b7e2932552639d",
+      "canonical_lf_sha256": "756065f3ba70f1037aaaf33b324d2d00830978f419f7daea4bcddfa100c37b83"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5b_steady_cost/entry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "7750507ffbd4ac3578624710b54808be7090e5b0",
+      "canonical_lf_sha256": "bbdf10a4991c5ce147143b28ef54638c9c6742a2b8da18c7482d47f116a8127a"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5b_steady_cost/hpc.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "eca24b0523f3e227baa5ebeadf19a4095d887405",
+      "canonical_lf_sha256": "6f2c96538bbd2a16aab2539fdafd4eac43068bf6a9bf4da7ff8cd16545b141f6"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5b_steady_cost/instrument.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "de39797c6780c9bd2ebb8c4d09693e1e4e4d4897",
+      "canonical_lf_sha256": "67f010940f3f31b812bd8df483a13e80d93c07822afb563797c0565820392213"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5b_steady_cost/measurement.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "f37f1ee516c4734466ac6afd0084faee80164f83",
+      "canonical_lf_sha256": "bb97de09fa15b2ee19dd81af07f8048258ba53586faa2394a7d6c83343b46e58"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5b_steady_cost/test_bindings.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "b9fb0f1f342933a6e2ab92a331d189ae8f1e0ded",
+      "canonical_lf_sha256": "f7f4c0bcee9486681662766385d20bfcefd90343c774367ff5e7ef286ebc03d1"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5b_steady_cost/test_real_entry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "395f98b1ec13fcb57626d1153507cc43ecb59980",
+      "canonical_lf_sha256": "68b1bf69048f054bed7e3fb878cb4ce205aeac67a52bd125caa29fd4731b2a3c"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5b_steady_cost/test_runtime_guards.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "bbb35b5ff683e93457078b85d06ae905a0d6930c",
+      "canonical_lf_sha256": "7cff6fa3c5595fa87362d654fe1c7ba807f3f48904b35810afbd709b8e1fbd7a"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5b_steady_cost/test_timing.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "0ade2564df7723040bb206980e93894f669d2f34",
+      "canonical_lf_sha256": "a315eb8bfa83b518410f6afb701184669bf3233c90cf719c8794ab278d847d3f"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5b_steady_cost/timing.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "16fa4e109487d9b4c723d6bb69ac7c521729a452",
+      "canonical_lf_sha256": "0eb5ced0ca421fa5258c22494529bf75fb5004108661ceaa900c40dd4a872721"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_5b_steady_cost/zero_fixture.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "e7063eab8c257b07ea169b7e99178cde861040cf",
+      "canonical_lf_sha256": "4651df4d723df09b86ea4bf1b513d0750f39b2efc5c3e941f022ea3ea6a7ee67"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_6a/README.md",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "7c3fddfde3e2a1af3dc9085c0cc1445b818b46be",
+      "canonical_lf_sha256": "9fcccc653881c28848000fc4f9d33c6382948b3bb6c3fc95deaadf5b4ec78b15"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_6a/__init__.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "a64dc671cdea0b9f36b497e19945f7506854dd58",
+      "canonical_lf_sha256": "3c797aa8c36adfd7e781db1e22f830b902ccae032bf2dd0b4bb593797fc9250e"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_6a/cpu.sbatch",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "75443a48f675ba96fb054df0c31eb1d4ebd6fc6d",
+      "canonical_lf_sha256": "e61ec46376fee1ae1483db87d4ae0e5851240aff5774d8ef778f483c0ceaab0f"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_6a/entry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "b152b24c91801ea6050695af2dfcdfff29aebab5",
+      "canonical_lf_sha256": "9810e9df80c387e0bb0b485d6a5fce23797a47870881e749eec3f31b233d928f"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_6a/gpu.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "2ad220fb52acde6bd17462e411f789843a8b6716",
+      "canonical_lf_sha256": "4d20e9577515e4835718b04899fa08327d1eeb04d4899745ee6be79624e2f2c9"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_6a/gpu.sbatch",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "c307d066cf2afb21b7c33e05b9725dd62ecd18d6",
+      "canonical_lf_sha256": "95fa28fe21c075e1832b01e1af7d95054d0f71779ea5add5ebbcb4da72960db9"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_6a/inputs.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "cc2c1abbbbcc225e86620b060ab3e240934a0bb8",
+      "canonical_lf_sha256": "30bac715a145a673f77ed8d1eb3ee9718bd1ca1d991e1489e5c8b1f6442c541f"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_6a/matrix.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "c4b421b6183c69483e108c9e50e02e7f330e53e3",
+      "canonical_lf_sha256": "245bc8d4f70db8c13838e32951a1678b23f5f84ad9eaef1711a917fa8864123e"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_6a/records.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "d6d202364f20efa68781a9ce54f1af35d5d2e058",
+      "canonical_lf_sha256": "f14212a3a711b9571e4eda0fa03a4805e9ad31c868ca350b084f402e5238d230"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_6a/test_gpu_manager.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "3a5bea7d9c71ee4c07804bf7a03560835114c0d0",
+      "canonical_lf_sha256": "2eea7d9a9de2a405245073ce05df5b1d9d6a1ab645b3dd617ac49ca72f770265"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_6a/test_micro.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "1ed39e7ad13ba119bc4d30ed80447d2517c7f9a2",
+      "canonical_lf_sha256": "4c0fb626871a704ef4d18a2a2fe1aac8e61783c0bb14919efa0ad35ef21b5bdf"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_6a/test_records.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "5ce51ee0bd696e043e49acc98382a43066343abc",
+      "canonical_lf_sha256": "92f173e7cddc31a259f124e7b186e7e05be18a06bd5a1ef771966b492a8ed3da"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/CHECKPOINT_DEPENDENCIES.json",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "bded8ba882c36c2fbc32608816a8e865d933e089",
+      "canonical_lf_sha256": "b90c032b72057e0912bad8a7a9236c0db7d9aa3a97798b758fd7e5393f98fd91"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/__init__.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "6d1398678de3847ee47834f67ac7a52b3b9dc560",
+      "canonical_lf_sha256": "1a984e9a35a88d3f64b62d9a5ce00869d71be78dc8f91cb1b98058aa113154b9"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/config/SMALLGRID_CONFIG.json",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "93c0740171a51ef19077fdac6a86590148fdea60",
+      "canonical_lf_sha256": "7a93829975bfda37456e44d80e8ebc8f21849ca07492a34b193b96e235be276c"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/g1_common.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "b9bea21d8e9b8efa07f7a6bb38f389c24b2c782f",
+      "canonical_lf_sha256": "221e4596dd4170add273c40dc8ad531b16654f21046975fb68f1e5231fc6506b"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/g1_exact.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "19414b193b98d29c3c099267288516f2f28c4e4b",
+      "canonical_lf_sha256": "27cc6007ea021e432b1a8958952677edcd075d594201c408692729438594971f"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/g1_segment.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "b0cb9c2dc43356510e29f6addcc3b7e1e75aaa24",
+      "canonical_lf_sha256": "b118e4f63c148f0777816f5a1ab40ad7903cf5012439a8ed1b26f2fdd8aa2da1"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/g2_adapter.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "6b71aaf8dd76a9239dabc98ce97eba831c3a5ab2",
+      "canonical_lf_sha256": "105f8f97cd6f1e8a185943651179875f51f7cc28f22d509fdd12ef68990f91ce"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/g2_boundary.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "a6fbeb5cd32cb1136a6706894b1e6f9f480baa03",
+      "canonical_lf_sha256": "2f146ae76fe76c7f466c83d692f2de9201f661b5a283088513c5e22469e552c1"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/g2_cases.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "73ac6e512bf801c41e818da0d6f035f03b2c10e8",
+      "canonical_lf_sha256": "2aaff65fd7dcee909e71b6c4d3d2909f67b9be8c7e34ff1f5173ef185b2151e7"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/g2_hpc_entry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "d5c3ef34da4717e717073e819f60ed73ef4d4aa3",
+      "canonical_lf_sha256": "a11ecc16a113376b3998734c17b47e5cbfe4b59cb1bdf0c341f6dc7c291d0dc2"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/g2_hpc_exact.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "b48d586c1aa992eb7a23abcbc3bbd56dc76842d2",
+      "canonical_lf_sha256": "8fdc7332d954e12863de48aa8866690f6f42503679b279fc0c4c8f3129a35453"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/g2_storage_bridge.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "00699c3138c023d800c245b64867c022b8a01527",
+      "canonical_lf_sha256": "c0c4f55a0f244d9f28a5cb59b466f22c4c92da2e8b1be98816efa8c189190d73"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/git_readonly_compat.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "2cf0e79db6c48f86438650c037789d1aff1b3164",
+      "canonical_lf_sha256": "7e2f07d3505772825c375bca1dbed50b8ca2fd497b164d21a8fbe0d061a6dda7"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/portable_binding.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "61bbf5186a16494ee3bf1411eb90c35cb44929ca",
+      "canonical_lf_sha256": "b20fc25302d2260cca46036e56ef0669db3c22665ff556d7003dd9d7f7d16252"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/prepare_data.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "2cef77033b43a50ac2d1a025422362ffac77f79f",
+      "canonical_lf_sha256": "f29f1b5cfb782f548690faf60f098dc1cb7f3a7a54480fdfed96b2ec1a992755"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/run_portable_tests.ps1",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "e2d276005e51fe10dc0b77405ca62721b58223e3",
+      "canonical_lf_sha256": "195820b8a9c4c02e54d512319cd66a7273b66908fd10bc5ad1585f5be711076a"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/test_boundary_json_compat.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "d875fff877bad6a09c42cbeed7adc9dc85650f25",
+      "canonical_lf_sha256": "9cc46a6e2b4c563d3edfc0cdcd2ff1bf4907983520a1a432bb30ca3f73050d83"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_checkpoint_support/timing_adapter.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "24e87e863df1fd76a85c233c56fcc463cf382e63",
+      "canonical_lf_sha256": "bd4039660152a7c5e6ec30ed478c2988134cc96cd2a28a29640713287bffa4e2"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_fullsize_confirmation/__init__.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "d11c1f3992c8acd42ca10bd21b3412d79d9c9e43",
+      "canonical_lf_sha256": "2297d6c66701b60ca52935f50b8fdc2db965f511635d35aba29fefbbdba7df21"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_fullsize_confirmation/controller.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "b62a281ec87c3c4c8c56481f5b64baca90e0c493",
+      "canonical_lf_sha256": "dd3b84bd698c957fd96f7ed6c7a13932aa5442e7bee72209d8393d5dbc2ba738"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_fullsize_confirmation/entry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "fbc1b4c8bc6ee1183d380a3e7b9e474fe7681582",
+      "canonical_lf_sha256": "b60a5c90544efeb7d898922eedc4945685cabe51156dbbf200766ab946079dc6"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_fullsize_confirmation/test_boundary_json_real_roundtrip.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "7e7fd06ec19b67d18c13ac3dfa9702291bcd90cd",
+      "canonical_lf_sha256": "248091249990fb7b43d996958c180d19b4c370bc90b1c6f67fe853cd77d22e2d"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_fullsize_confirmation/test_full_entry.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "0812f79b017291a8863ecba0ae4a2ff468309762",
+      "canonical_lf_sha256": "52a10ebcd1eb2c97a1381861c3a0747283cbc6c18b50a2abb3e08e8f033f5937"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_fullsize_confirmation/test_git_compat.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "c3610b325d28bbebbd4613084ea3dfd3add25c27",
+      "canonical_lf_sha256": "82a23eddcb14cccb077e3a920dcd14c402b142950c0b5b4007d1dad085aef735"
+    },
+    {
+      "path": "Filament_python/tools/cpu_s4_fullsize_confirmation/test_r1_controller_gates.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "a808c600ad185bd692bc7bf632c9b2f95102db61",
+      "canonical_lf_sha256": "89ca384526019e768f0c5d4267b480cb6c15ad21796ace01ab13178ca40a7681"
+    },
+    {
+      "path": "Filament_python/tools/hpc_ops/provenance_v2.py",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "9e9c4d2462aeaadb4a15c036549be7d0343cec9e",
+      "canonical_lf_sha256": "b470efc2323539eaabf2cd93449eb26c69a8babec0c292e9a4cfbca4b831dbae"
+    },
+    {
+      "path": "Filament_python/tools/inputs/HISTORICAL_BOUNDARY_FIELD_MAP_112.csv",
+      "classification": "tracked_text",
+      "hash_scope": "git_blob_oid+canonical_lf_sha256",
+      "git_blob_oid": "120880550823ac250a142aa4617c2c3ec384459d",
+      "canonical_lf_sha256": "c8a3697fa6a55f823edd9bc192a2c47c83e0b9ccdff2831a45229664d5aebdc5"
+    }
+  ],
+  "created_at_utc": "2026-10-28T15:39:49.643112Z"
+}

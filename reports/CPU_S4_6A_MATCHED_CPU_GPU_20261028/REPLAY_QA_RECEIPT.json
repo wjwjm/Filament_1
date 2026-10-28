@@ -1,0 +1,84 @@
+{
+  "status": "PASS_DELIVERY_ENGINEERING_QA",
+  "scientific_status": "NO_MATCHED_SPEEDUP_CLAIM",
+  "replayed_analysis_status": "INCOMPLETE",
+  "zip": {
+    "path": "C:\\Users\\wangj\\.codex\\worktrees\\cpu-gpu-optical-gap-20261028\\cpu_optimization\\reports\\CPU_S4_6A_MATCHED_CPU_GPU_20261028\\CPU_S4_6A_REVIEW_20261029_001.zip",
+    "size_bytes": 4033813,
+    "raw_sha256": "0d4891a7a02758bb408847121f2ab281853b22f8c690a60636dd6541ec6b405b",
+    "hash_scope": "raw_bytes",
+    "members": 775,
+    "CRC": "PASS",
+    "scientific_arrays": 0,
+    "nested_archives": 0,
+    "defaults": {
+      "DEFAULT": "I0",
+      "PRODUCTION_QUALIFIED": false,
+      "MANUAL_REVIEW_PENDING": true
+    },
+    "semantic_status": "NO_MATCHED_SPEEDUP_CLAIM"
+  },
+  "Windows": {
+    "argv": [
+      "D:\\Filament_1\\.local_envs\\cpu_o1_py312\\python.exe",
+      "-s",
+      "-B",
+      "C:\\Users\\wangj\\.codex\\worktrees\\cpu-gpu-optical-gap-20261028\\cpu_optimization\\reports\\CPU_S4_6A_MATCHED_CPU_GPU_20261028\\zip_validation\\windows_7op1b3f_\\replay_readonly.py",
+      "--root",
+      "C:\\Users\\wangj\\.codex\\worktrees\\cpu-gpu-optical-gap-20261028\\cpu_optimization\\reports\\CPU_S4_6A_MATCHED_CPU_GPU_20261028\\zip_validation\\windows_7op1b3f_"
+    ],
+    "executable": "D:\\Filament_1\\.local_envs\\cpu_o1_py312\\python.exe",
+    "expected_missing": "No matrices/3 OFF samples/GPU; original OFF PROPAGATION missing",
+    "extracted_files": 775,
+    "extracted_root": "C:\\Users\\wangj\\.codex\\worktrees\\cpu-gpu-optical-gap-20261028\\cpu_optimization\\reports\\CPU_S4_6A_MATCHED_CPU_GPU_20261028\\zip_validation\\windows_7op1b3f_",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.12.8 | packaged by Anaconda, Inc. | (main, Dec 11 2024, 16:48:34) [MSC v.1929 64 bit (AMD64)]",
+    "read_only_tree_before_after_equal": true,
+    "replay_and_selftest_s": 6.03200750000542,
+    "scientific_arrays_rechecked": false,
+    "status": "PASS_REPLAY_REPRODUCES_INCOMPLETE",
+    "validation_utc": "2026-10-28T16:29:13.664343+00:00",
+    "zip_raw_sha256": "0d4891a7a02758bb408847121f2ab281853b22f8c690a60636dd6541ec6b405b"
+  },
+  "Linux": {
+    "argv": [
+      "/usr/bin/python3",
+      "-s",
+      "-B",
+      "/tmp/cpu_s46a_review_v8bk0mo1/replay_readonly.py",
+      "--root",
+      "/tmp/cpu_s46a_review_v8bk0mo1"
+    ],
+    "executable": "/usr/bin/python3",
+    "expected_missing": "No matrices/3 OFF samples/GPU; original OFF PROPAGATION missing",
+    "extracted_files": 775,
+    "extracted_root": "/tmp/cpu_s46a_review_v8bk0mo1",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+    "read_only_tree_before_after_equal": true,
+    "replay_and_selftest_s": 0.5621497929999997,
+    "scientific_arrays_rechecked": false,
+    "status": "PASS_REPLAY_REPRODUCES_INCOMPLETE",
+    "validation_utc": "2026-10-28T16:29:11.263394+00:00",
+    "zip_raw_sha256": "0d4891a7a02758bb408847121f2ab281853b22f8c690a60636dd6541ec6b405b"
+  },
+  "cross_platform_semantic_results_equal": true,
+  "executed_source_records_verified": 244,
+  "source_identity_rule": "Original Git blob byte header plus canonical-LF via frozen PV2 function; not a new HPC hash manifest",
+  "primary_sacct_core_hours": 13.173333333333332,
+  "GPU_hours": 0,
+  "scientific_arrays_read_or_downloaded": 0,
+  "expected_failure": [
+    "CLOCK:raw/CPU_R2_FAILED/report/runs/CPU/384x117x129/QUAL_OFF/work/RAW_CPU_TIMING.json:PARTIAL_CLOCK_CLOSURE"
+  ],
+  "missing": [
+    "CPU_CASE_METADATA_REPLAY",
+    "CPU_GPU_RATIO",
+    "MATRIX_RESULT",
+    "RAW_TIMING_CLOCKS",
+    "TIMING_GATE"
+  ],
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}

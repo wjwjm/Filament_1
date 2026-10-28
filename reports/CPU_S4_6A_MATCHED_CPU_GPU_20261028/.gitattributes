@@ -1,0 +1,3 @@
+# This new task's frozen receipts and delivery evidence retain original bytes.
+# Runtime source still uses the repository's authoritative PV2 tracked-text rules.
+* -text whitespace=blank-at-eol,space-before-tab,cr-at-eol

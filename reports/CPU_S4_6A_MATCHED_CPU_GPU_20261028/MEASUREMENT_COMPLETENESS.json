@@ -1,0 +1,40 @@
+{
+  "status": "WORKLOAD_MISMATCH_IDENTIFIED",
+  "performance_claim": "NO_MATCHED_SPEEDUP_CLAIM",
+  "entry_status": "MATCHED_ENTRY_BLOCKED_AFTER_ALLOWED_REPAIR",
+  "CPU_small": {
+    "completed_cases": [
+      "REFERENCE",
+      "QUAL_OFF"
+    ],
+    "completed_formal_P_samples": 0,
+    "missing_cases": [
+      "QUAL_LIGHT",
+      "P1_OFF",
+      "P1_LIGHT",
+      "P2_LIGHT",
+      "P2_OFF",
+      "P3_OFF",
+      "P3_LIGHT"
+    ],
+    "window_clock": "MISSING_IN_OFF",
+    "same_backend_QUAL_OFF_exact": true
+  },
+  "GPU_small": {
+    "status": "NOT_SUBMITTED_UPSTREAM_CPU_GATE_BLOCKED",
+    "completed_formal_P_samples": 0
+  },
+  "CPU_full": {
+    "status": "NOT_RUN"
+  },
+  "GPU_full": {
+    "status": "NOT_RUN"
+  },
+  "application_ratio": "NOT_COMPARABLE",
+  "window_ratio": "NOT_COMPARABLE",
+  "later_ratio": "NOT_COMPARABLE",
+  "top_three_gap_contributors": "NOT_RANKABLE",
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}

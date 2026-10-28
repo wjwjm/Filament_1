@@ -1,0 +1,348 @@
+{
+  "inputs": [
+    {
+      "shape": [
+        384,
+        117,
+        129
+      ],
+      "canonical_manifest_path": "terminal_evidence/raw/CPU_V1_INVALID/report/canonical/384x117x129/INPUT_MANIFEST.json",
+      "manifest_raw_sha256": "0d3c4ec28a3a335d004ae7ac06272399a60b13fe07c95fb97a539d00cf2c17f1",
+      "source": {
+        "file": "E_source.npy",
+        "shape": [
+          384,
+          117,
+          129
+        ],
+        "dtype": "complex128",
+        "canonical_array_sha256": "d787fef4183a28fba6840df541af2f02f8b4514747c73b1171f972593bd4a45b"
+      },
+      "schedule": {
+        "z_edges": [
+          0.0,
+          0.0001,
+          0.0002,
+          0.00030000000000000003,
+          0.0004,
+          0.0005,
+          0.0006000000000000001,
+          0.0007000000000000001,
+          0.0008000000000000001
+        ],
+        "dz_intervals": [
+          0.0001,
+          0.0001,
+          0.0001,
+          0.0001,
+          0.0001,
+          0.0001,
+          0.0001,
+          0.0001
+        ],
+        "n_intervals": 8,
+        "z_start": 0.0,
+        "z_end": 0.0008000000000000001
+      },
+      "spacing": {
+        "dx": 2.3333333333333332e-05,
+        "dy": 3e-05,
+        "dt": 2.5e-15
+      },
+      "records": [
+        {
+          "path": "E_source.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "92e4e43276ca59d428c62b0e49995eca3246123086265d7a94ebc7b837cf05e8",
+          "size_bytes": 92731520
+        },
+        {
+          "path": "PRE_delta_n.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "81e7d1e41427a4095b3ccca315fdd4ab2b2d9b5c74b61b0390ed35478ed772d8",
+          "size_bytes": 966080
+        },
+        {
+          "path": "PRE_vx.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "81e7d1e41427a4095b3ccca315fdd4ab2b2d9b5c74b61b0390ed35478ed772d8",
+          "size_bytes": 966080
+        },
+        {
+          "path": "PRE_vy.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "81e7d1e41427a4095b3ccca315fdd4ab2b2d9b5c74b61b0390ed35478ed772d8",
+          "size_bytes": 966080
+        },
+        {
+          "path": "axes_Omega.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "a4f54578f82eece1d488243150d0a8a7754477da72de99eceabe66cb62484427",
+          "size_bytes": 3200
+        },
+        {
+          "path": "axes_grid_kx.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "7d955ed07bca9314372aa9b56cc155a708ddfed6766ef3cd9380f1765efe9946",
+          "size_bytes": 120872
+        },
+        {
+          "path": "axes_grid_ky.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "a623b213a60c3ab3f30d8c833681106301eebaa2b64a66f934fb742c266cb5df",
+          "size_bytes": 120872
+        },
+        {
+          "path": "axes_kperp2.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "4db6ab0d08979b06298d0bf22d3a515f8d2be235e1177ee15b2b3e238d263616",
+          "size_bytes": 120872
+        },
+        {
+          "path": "axes_kx.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "0e3bfc27b43c3a4a662493d7c04e87db6ec0d2117b3403e11a7c08d8abd08f7c",
+          "size_bytes": 1160
+        },
+        {
+          "path": "axes_ky.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "b1fe6977b5775b093dd7f99dc59b06aa412250de20ac3ed9e0828b309f8aca79",
+          "size_bytes": 1064
+        },
+        {
+          "path": "axes_t.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "7101099a0afb1170afe5e729f8dad75d9e75c9891e7d457abf6bb2baa6617ab0",
+          "size_bytes": 3200
+        },
+        {
+          "path": "axes_x.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "3955fe510c8d16c1356b44ab1282a20668aa9e7029c1578aa9edaf2156dc2d35",
+          "size_bytes": 1160
+        },
+        {
+          "path": "axes_y.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "ad187bbebaedb7ef4ab0a56e4e689f90d24f9a369c60a6e3695fc9e60b88be59",
+          "size_bytes": 1064
+        },
+        {
+          "path": "cache/rate_tables/ionlut_N2_76585af6514cdd04.npz",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "1f70691ab004c410123f5e06a0dbfa626beecf4059c09b715a8052feeb4e128e",
+          "size_bytes": 49064
+        },
+        {
+          "path": "cache/rate_tables/ionlut_O2_1446bb99e8f9fd80.npz",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "57617bc72acbb794ae2c939241beaa57fa313eaa27a3d2981882f1fbe68d6cf8",
+          "size_bytes": 49013
+        },
+        {
+          "path": "config.json",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "17705e421a716908fb08fdd75e774a4185fccd5d0bb541b339694ef085f83fac",
+          "size_bytes": 3543
+        }
+      ],
+      "CPU_status": "SEALED_ON_COMPUTE_AND_REVALIDATED_BEFORE_R2_SCIENCE",
+      "GPU_status": "NOT_TRANSFERRED_OR_EXECUTED; runtime input identity not yet established",
+      "independent_GPU_regeneration": false
+    },
+    {
+      "shape": [
+        384,
+        351,
+        301
+      ],
+      "canonical_manifest_path": "terminal_evidence/raw/CPU_V1_INVALID/report/canonical/384x351x301/INPUT_MANIFEST.json",
+      "manifest_raw_sha256": "d157263575c1291b851b037080754e827596ba965cf7e1540d81f23ea1e00fef",
+      "source": {
+        "file": "E_source.npy",
+        "shape": [
+          384,
+          351,
+          301
+        ],
+        "dtype": "complex128",
+        "canonical_array_sha256": "52731713b0358c760af8605b7c7f39dd94df500722bdb4e299664c13c04af144"
+      },
+      "schedule": {
+        "z_edges": [
+          0.0,
+          0.0001,
+          0.0002,
+          0.00030000000000000003,
+          0.0004,
+          0.0005,
+          0.0006000000000000001,
+          0.0007000000000000001,
+          0.0008000000000000001
+        ],
+        "dz_intervals": [
+          0.0001,
+          0.0001,
+          0.0001,
+          0.0001,
+          0.0001,
+          0.0001,
+          0.0001,
+          0.0001
+        ],
+        "n_intervals": 8,
+        "z_start": 0.0,
+        "z_end": 0.0008000000000000001
+      },
+      "spacing": {
+        "dx": 1e-05,
+        "dy": 1e-05,
+        "dt": 2.5e-15
+      },
+      "records": [
+        {
+          "path": "E_source.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "3fcf21546fe61b0c9e3522816f7e03e004321b0ec91ddff1ab70b5c8a25309c7",
+          "size_bytes": 649119872
+        },
+        {
+          "path": "PRE_delta_n.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "b38a7a0efe9e43a10ae1520f063380828555228e4bf3efdacdda2434f21721c5",
+          "size_bytes": 6761792
+        },
+        {
+          "path": "PRE_vx.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "648ab499b7fddce1a397c9f318bbd4675bc5ed787f6a3a2c60a31875317a4d18",
+          "size_bytes": 6761792
+        },
+        {
+          "path": "PRE_vy.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "648ab499b7fddce1a397c9f318bbd4675bc5ed787f6a3a2c60a31875317a4d18",
+          "size_bytes": 6761792
+        },
+        {
+          "path": "axes_Omega.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "a4f54578f82eece1d488243150d0a8a7754477da72de99eceabe66cb62484427",
+          "size_bytes": 3200
+        },
+        {
+          "path": "axes_grid_kx.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "4c8a48858233fa9b54e02f4900a6a16497e9faaf4dda1abc5ef2df37136dc960",
+          "size_bytes": 845336
+        },
+        {
+          "path": "axes_grid_ky.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "3c57bd599c8265de4427b2e9f3d89237c6f1efccaf9069e1193e06c311e52480",
+          "size_bytes": 845336
+        },
+        {
+          "path": "axes_kperp2.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "9fa3c26731a4c694fe0801f11fb01460e36fca324df0aee0929aa9f82787d62c",
+          "size_bytes": 845336
+        },
+        {
+          "path": "axes_kx.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "fa6d2c493db967138124c5b2baae24593fa0214d147b01068125f58fa444a94c",
+          "size_bytes": 2536
+        },
+        {
+          "path": "axes_ky.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "84bf8bf5b352d0f7e44f828acb071fcf6d323689291b0e09e60ba5f9bf15241b",
+          "size_bytes": 2936
+        },
+        {
+          "path": "axes_t.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "7101099a0afb1170afe5e729f8dad75d9e75c9891e7d457abf6bb2baa6617ab0",
+          "size_bytes": 3200
+        },
+        {
+          "path": "axes_x.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "b071b05030429463841c789086d9b0948f6f8a797d57b3b206abc8964e150608",
+          "size_bytes": 2536
+        },
+        {
+          "path": "axes_y.npy",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "f9d9b4d9f1eec9e3fc36c8223fa810d390ad041910ee49aded13b3e1021469b8",
+          "size_bytes": 2936
+        },
+        {
+          "path": "cache/rate_tables/ionlut_N2_76585af6514cdd04.npz",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "1f70691ab004c410123f5e06a0dbfa626beecf4059c09b715a8052feeb4e128e",
+          "size_bytes": 49064
+        },
+        {
+          "path": "cache/rate_tables/ionlut_O2_1446bb99e8f9fd80.npz",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "57617bc72acbb794ae2c939241beaa57fa313eaa27a3d2981882f1fbe68d6cf8",
+          "size_bytes": 49013
+        },
+        {
+          "path": "config.json",
+          "classification": "external",
+          "hash_scope": "raw_bytes",
+          "raw_sha256": "429f822af9d3845edfc6f098765be0f2d8b10a9fd643225c1af8afa23c59c87c",
+          "size_bytes": 3543
+        }
+      ],
+      "CPU_status": "SEALED_ON_COMPUTE_AND_REVALIDATED_BEFORE_R2_SCIENCE",
+      "GPU_status": "NOT_TRANSFERRED_OR_EXECUTED; runtime input identity not yet established",
+      "independent_GPU_regeneration": false
+    }
+  ],
+  "arrays_downloaded": 0,
+  "local_array_bytes_revalidated": false,
+  "scientific_subtree_unchanged": true,
+  "optional_BK_fine_profiler_current": false,
+  "original_macro_clocks_current": true,
+  "normal_scientific_work_preserved": true,
+  "GPU_runtime_precision": "UNVERIFIED_NO_GPU_ALLOCATION",
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}

@@ -1,0 +1,5 @@
+origin,target,commit,evidence,meaning
+CPU accepted full L1,S46A CPU factory,c2644d21f7f8fd201b5264d0245c7b4a37643899,SOURCE_AND_BACKEND_BINDINGS.json,Science baseline; not new timing denominator
+CPU accepted small,S46A canonical generator,16879445d9aff784a6c3f2d7edf33a0a464efc62,WORKLOAD_MATCH_CONTRACT.json,Original fixed small-grid rule; generated once
+GPU accepted S4R reduced core,S46A original CuPy tool,d4bd96ca21c5815b57f1a3c2ee8f8cec54dfb220,SOURCE_AND_BACKEND_BINDINGS.json,Core source identity only; new real GPU qualification not run
+Historical S4 selected screen record,Historical formula reconciliation,e7e900e94830405988626f7825408ebf6e3bec45,historical/GPU_S4_RUNTIME_EVENTS_ORIGINAL.csv,48/span; not matched entry8 performance

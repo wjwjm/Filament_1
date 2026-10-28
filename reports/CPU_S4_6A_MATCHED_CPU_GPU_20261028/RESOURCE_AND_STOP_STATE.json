@@ -1,0 +1,24 @@
+{
+  "cpu_jobids": [
+    "8854173",
+    "8854203"
+  ],
+  "CPU_allocated_core_hours": 13.173333333333332,
+  "CPU_cap_core_hours": 240,
+  "CPU_max_jobids": 3,
+  "CPU_technical_repair_limit": 1,
+  "CPU_technical_repairs_used": 1,
+  "GPU_jobids": [],
+  "GPU_allocated_hours": 0,
+  "GPU_host_allocated_core_hours": 0,
+  "GPU_max_jobids": 2,
+  "inflight_task_allocations": 0,
+  "unused_numeric_budget_does_not_authorize_another_small_repair": true,
+  "stop_reason": "CPU_SMALLGRID_MATRIX_INCOMPLETE_AFTER_ALLOWED_TECHNICAL_REPAIR; GPU/full-size gates not released",
+  "local_engineering_time": "UNMEASURED",
+  "monitoring_wait_time": "UNMEASURED",
+  "transfer_time": "See raw local transfer receipts; active time not reconstructed",
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}

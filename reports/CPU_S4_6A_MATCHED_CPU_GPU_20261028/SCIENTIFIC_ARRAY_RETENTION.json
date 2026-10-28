@@ -1,0 +1,13 @@
+{
+  "arrays_downloaded": 0,
+  "raw_array_reverification_on_local": false,
+  "retention": "PRESERVE_REMOTE_NO_CLEANUP",
+  "roots": [
+    "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46a_20261028_a01/report/canonical",
+    "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46a_20261028_r1/report/runs"
+  ],
+  "identity_evidence": "Original canonical INPUT_MANIFEST and per-case OUTPUT_RAW_INDEX files in raw evidence; raw bytes validated on compute during sealing/loading, not independently rehashed in this export",
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}

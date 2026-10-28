@@ -1,0 +1,56 @@
+{
+  "status": "PASS_LOCAL_COLLECTOR_ENGINEERING_ONLY",
+  "source_commit": "6577000055c5597cad073f59e59718c01a5328e1",
+  "science_tree": "821fec5bdacd832b0347e1f2e84285cb54172e57",
+  "verified_utc": "2026-10-28T16:15:13.108358+00:00",
+  "tests": [
+    {
+      "path": "WINDOWS_RECORDS_COLLECTOR_FIX.xml",
+      "tests": 10,
+      "raw_sha256": "8d4a190465bd963e424c2d7d5b96a0125423e4c01ef41d9e5a9be0f5e7845329",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "WINDOWS_MICRO_COLLECTOR_FIX.xml",
+      "tests": 3,
+      "raw_sha256": "7423fe8897115fd6f078f5f1aa23c4cf4cd781ef8d79625894cb8659da1e8220",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "WINDOWS_REPLAY_UNITS_A02.xml",
+      "tests": 7,
+      "raw_sha256": "2af62eef33fc366d3a3ee7161643c576bbb163d236f100dc31c68c21b5d7fa20",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "LINUX_RECORDS_COLLECTOR_FIX.xml",
+      "tests": 10,
+      "raw_sha256": "8a69f94c79cec513f9d746f92beaad8c0d5237fe80b264cc1e6ebb5a335f3200",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "LINUX_MICRO_COLLECTOR_FIX.xml",
+      "tests": 3,
+      "raw_sha256": "3961f8732f0f63381317036facd1d9ac13d687ec6cebb565cbb23393a80d90c2",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "LINUX_REPLAY_UNITS_A02.xml",
+      "tests": 7,
+      "raw_sha256": "9311303afb71bd036263db592c3ebb4c425cab1811889da7b01c7d6b2bfe9b2e",
+      "hash_scope": "raw_bytes"
+    }
+  ],
+  "real_micro_windows_per_platform": 9,
+  "checks": [
+    "Original accepted L1 reference -> OFF -> LIGHT exact including boundary/stages/lifetime",
+    "Actual merged raw_context extraction on all real OFF/LIGHT2/8 interval micro windows",
+    "Completed PROPAGATION shell present in OFF/LIGHT",
+    "Native negative-dependency GPU manager AST/host-only checks"
+  ],
+  "HPC_status": "HPC_NOT_RUN",
+  "GPU_status": "GPU_REAL_NOT_RUN",
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}

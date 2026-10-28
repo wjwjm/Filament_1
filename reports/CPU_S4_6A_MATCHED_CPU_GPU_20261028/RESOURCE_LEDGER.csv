@@ -1,0 +1,3 @@
+backend,job_id,category,state,scheduler_state_raw,exit_code,cpus,gpus,walltime_s,actual_walltime_s,allocated_core_hours,allocated_GPU_hours,queue_s,node,requested_memory,classification,batch_extern_double_charged,evidence
+CPU,8854173,small,cancelled,CANCELLED by 4004430,0:0,96,0,1200,175,4.666666666666667,0,1.0,ca0403,32G,INVALID_FINE_PROFILER_IN_OFF,False,terminal_evidence/raw/CPU_V1_INVALID/SCHEDULER_TERMINAL.json
+CPU,8854203,repair,failed,FAILED,1:0,96,0,1200,319,8.506666666666666,0,1.0,cc1201,32G,COLLECTOR_SCHEMA_FAILURE_AFTER_EXACT,False,terminal_evidence/raw/CPU_R2_FAILED/SCHEDULER_TERMINAL.json

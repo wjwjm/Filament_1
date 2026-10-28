@@ -1,0 +1,46 @@
+{
+  "records": [
+    {
+      "signature": "V1_FINE_BK_PROFILER_ENABLED_IN_OFF",
+      "effect": "Invalid formal OFF design",
+      "fallback": "Disable optional fine profiler in both current references and cases",
+      "preserved": "versions/v1; raw/CPU_V1_INVALID"
+    },
+    {
+      "signature": "LOGIN_FACTORY_CAPTURE_ROOT_ARGUMENT_MISSING",
+      "effect": "Preflight only; no JobID",
+      "fallback": "Supply required fixed argument; preserve INSTALL_FAILURE"
+    },
+    {
+      "signature": "GPU_NUMBA_MISSING",
+      "effect": "Preflight only; no GPU allocation",
+      "fallback": "Reuse original host/scalar services directly without CPU factory package; shared environment unchanged"
+    },
+    {
+      "signature": "FETCH_INTO_CURRENT_BRANCH_NONBARE",
+      "effect": "Preflight only",
+      "fallback": "Verify empty no-checkout clone, detach baseline, fetch verified bundle, checkout new source"
+    },
+    {
+      "signature": "GPU_EXPLICIT_MEM_REJECTED_TWICE",
+      "effect": "No GPU JobID",
+      "fallback": "Circuit opened; authoritative default 1GPU8CPU126000MiB test-only passed"
+    },
+    {
+      "signature": "CPU_MATRIX_KEYERROR_CONTEXT",
+      "effect": "Repair allocation FAILED after QUAL_OFF exact",
+      "fallback": "Local-only raw_context fix plus missing OFF propagation shell; no further HPC submission"
+    },
+    {
+      "signature": "PREREG_CONSOLE_CPU_LABEL_FROM_GPU_LOOP",
+      "effect": "Console label only; admission JSON remains authoritative",
+      "fallback": "Resource totals recomputed from original primary sacct rows"
+    }
+  ],
+  "no_scientific_fallback": true,
+  "no_historical_sample_substitution": true,
+  "no_cross_version_matrix_splicing": true,
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}

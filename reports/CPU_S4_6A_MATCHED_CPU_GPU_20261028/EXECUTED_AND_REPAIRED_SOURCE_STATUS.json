@@ -1,0 +1,16 @@
+{
+  "attempted_execution_commit": "fad2df6d9fd042b181760851b946daa0ef5f15d3",
+  "invalid_instrument_commit": "e134087bd07cc8748e5b6e000fe5592379e35e2c",
+  "local_collector_repair_commit": "6577000055c5597cad073f59e59718c01a5328e1",
+  "local_collector_HPC_status": "HPC_NOT_RUN",
+  "science_tree": "821fec5bdacd832b0347e1f2e84285cb54172e57",
+  "fixed_defects": [
+    "Read raw_context.interval_index from authoritative S45B merged rows",
+    "Enable the existing one-call PROPAGATION clock as common OFF/LIGHT scalar shell",
+    "Run the matrix extractor in actual local 2/8-interval tests"
+  ],
+  "current_measurement_plan": "MEASUREMENT_PLAN.json records attempted HPC revision; repaired code is separately bound here",
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}

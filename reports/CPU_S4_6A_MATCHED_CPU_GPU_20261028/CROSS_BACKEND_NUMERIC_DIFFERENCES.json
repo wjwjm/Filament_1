@@ -1,0 +1,16 @@
+{
+  "status": "CROSS_BACKEND_NUMERICAL_EQUIVALENCE_NOT_QUALIFIED",
+  "execution_status": "NOT_RUN",
+  "fields": [],
+  "new_epsilon": null,
+  "reason": "GPU job not submitted because CPU small matrix hard gate failed",
+  "unresolved_identity": {
+    "backend": "GPU",
+    "identity": "UNRESOLVED",
+    "reason": "NO_COMPUTE_ALLOCATION",
+    "required_evidence": "Actual single GPU node/runtime and qualification outputs"
+  },
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}

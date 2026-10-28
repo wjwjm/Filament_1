@@ -1,0 +1,16 @@
+{
+  "path": "C:\\Users\\wangj\\.codex\\worktrees\\cpu-gpu-optical-gap-20261028\\cpu_optimization\\reports\\CPU_S4_6A_MATCHED_CPU_GPU_20261028\\CPU_S4_6A_REVIEW_20261029_001.zip",
+  "size_bytes": 4033813,
+  "raw_sha256": "0d4891a7a02758bb408847121f2ab281853b22f8c690a60636dd6541ec6b405b",
+  "hash_scope": "raw_bytes",
+  "members": 775,
+  "CRC": "PASS",
+  "scientific_arrays": 0,
+  "nested_archives": 0,
+  "defaults": {
+    "DEFAULT": "I0",
+    "PRODUCTION_QUALIFIED": false,
+    "MANUAL_REVIEW_PENDING": true
+  },
+  "semantic_status": "NO_MATCHED_SPEEDUP_CLAIM"
+}

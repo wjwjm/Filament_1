@@ -1,0 +1,37 @@
+{
+  "schema": "filament.cpu_s46a.source_bindings.v1",
+  "execution_commit": "e134087bd07cc8748e5b6e000fe5592379e35e2c",
+  "cpu_full_reference": "c2644d21f7f8fd201b5264d0245c7b4a37643899",
+  "cpu_small_reference": "16879445d9aff784a6c3f2d7edf33a0a464efc62",
+  "cpu_instrumentation_dependency": "4a5f3355ea2ca27135eb3c67d6de1c768b862a6d",
+  "gpu_reference": "d4bd96ca21c5815b57f1a3c2ee8f8cec54dfb220",
+  "science_tree": "821fec5bdacd832b0347e1f2e84285cb54172e57",
+  "protected_blobs": {
+    "propagate.py": "f156111398415c2b92e4609ccc1da075fcf5d1e3",
+    "linear.py": "72878dd20daae656a5f9c8c7e39fa955ae8b30c5",
+    "raman.py": "5bb2702c109103ff882ee3642fedc748040c41b8"
+  },
+  "scientific_expressions_changed": 0,
+  "new_namespace": "Filament_python/tools/cpu_s4_6a",
+  "cpu_chain": [
+    "cpu_s4_3g3_smallgrid private G3 factory",
+    "accepted cpu_s4_4a linear cache",
+    "full cpu_s4_4b empty 1.5GiB cache",
+    "S45A/B scalar private source-bound instrumentation",
+    "original G2 normal writer/exact comparators"
+  ],
+  "gpu_chain": [
+    "same accepted propagate/linear/Raman core blobs as d4bd96c",
+    "original CuPy operators, no CPU L1 replacement",
+    "same original G2 PRE/POST wrapper and normal outputs",
+    "AST stripping proof and scalar/deferred-event seams"
+  ],
+  "source_provenance": "EXECUTION_SOURCE_MANIFEST.json",
+  "source_count": 244,
+  "scvi_environment": "Python3.13.7,NumPy2.3.3,SciPy1.16.3,CuPy13.6.0; psutil/nsys absent",
+  "cpu_environment": "Python3.12.8,NumPy2.2.5,SciPy1.15.2,Numba0.61.2,llvmlite0.44.0,psutil7.0.0,threadpoolctl3.6.0",
+  "gpu_hardware": "UNKNOWN_UNTIL_ALLOCATION",
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}

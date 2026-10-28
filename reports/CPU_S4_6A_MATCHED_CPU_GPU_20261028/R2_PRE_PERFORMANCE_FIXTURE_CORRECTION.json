@@ -1,0 +1,10 @@
+{
+  "previous_commit": "3aa457bef5866206b1c2742b9eb5b401f855a837",
+  "execution_commit": "fad2df6d9fd042b181760851b946daa0ef5f15d3",
+  "runtime_files_changed": [],
+  "test_changed": "test_gpu_manager.py qualified key and -s isolation",
+  "prior_preregistration_preserved": "versions/r2_prereg_fixture_draft",
+  "performance_cases_run": 0,
+  "instrument_revision": 2,
+  "additional_measurement_repairs": 0
+}

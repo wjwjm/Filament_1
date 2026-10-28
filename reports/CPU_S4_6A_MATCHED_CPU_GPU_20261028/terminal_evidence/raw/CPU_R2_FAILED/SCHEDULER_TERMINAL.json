@@ -1,0 +1,48 @@
+{
+  "job_id": "8854203",
+  "fields": [
+    "JobIDRaw",
+    "JobName",
+    "State",
+    "ExitCode",
+    "ElapsedRaw",
+    "AllocCPUS",
+    "Submit",
+    "Start",
+    "End",
+    "TimelimitRaw",
+    "ReqMem",
+    "MaxRSS",
+    "NodeList"
+  ],
+  "argv": [
+    "sacct",
+    "-j",
+    "8854203",
+    "--parsable2",
+    "-n",
+    "--format=JobIDRaw,JobName,State,ExitCode,ElapsedRaw,AllocCPUS,Submit,Start,End,TimelimitRaw,ReqMem,MaxRSS,NodeList"
+  ],
+  "exit_code": 0,
+  "stdout": "8854203|s46a-cpu-small-r2|FAILED|1:0|319|96|2026-10-28T23:49:45|2026-10-28T23:49:46|2026-10-28T23:55:05|20|32G||cc1201\n8854203.batch|batch|FAILED|1:0|319|96|2026-10-28T23:49:46|2026-10-28T23:49:46|2026-10-28T23:55:05|||3652K|cc1201\n8854203.extern|extern|COMPLETED|0:0|320|96|2026-10-28T23:49:46|2026-10-28T23:49:46|2026-10-28T23:55:06|||0|cc1201\n8854203.0|python|FAILED|1:0|315|96|2026-10-28T23:49:50|2026-10-28T23:49:50|2026-10-28T23:55:05|||8938400K|cc1201\n",
+  "stderr": "",
+  "main": {
+    "JobIDRaw": "8854203",
+    "JobName": "s46a-cpu-small-r2",
+    "State": "FAILED",
+    "ExitCode": "1:0",
+    "ElapsedRaw": "319",
+    "AllocCPUS": "96",
+    "Submit": "2026-10-28T23:49:45",
+    "Start": "2026-10-28T23:49:46",
+    "End": "2026-10-28T23:55:05",
+    "TimelimitRaw": "20",
+    "ReqMem": "32G",
+    "MaxRSS": "",
+    "NodeList": "cc1201"
+  },
+  "allocated_core_hours": 8.506666666666666,
+  "batch_extern_double_charged": false,
+  "remote_timezone": "+0800",
+  "captured_utc": "2026-10-28T16:03:57.108255+00:00"
+}

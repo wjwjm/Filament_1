@@ -1,0 +1,52 @@
+{
+  "status": "PASS_LOCAL_WINDOWS_LINUX_MICRO",
+  "execution_commit": "e134087bd07cc8748e5b6e000fe5592379e35e2c",
+  "science_tree": "821fec5bdacd832b0347e1f2e84285cb54172e57",
+  "sealed_utc": "2026-10-28T15:17:37.717481+00:00",
+  "tests": [
+    {
+      "path": "WINDOWS_RECORDS_FINAL.xml",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "raw_sha256": "6f78e64fee29deea5cca722cc819e935a99340afd27cd58942dd7b5af427f96a",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "WINDOWS_MICRO_FINAL.xml",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "raw_sha256": "191d0377018021c87b9294f8782eeefb318c279815e7baaf598dfc62a1c92c62",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "LINUX_RECORDS_FINAL.xml",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "raw_sha256": "2710356163429aecf1e4802f68547dad8f73321d032c1de3fa144eaf6cac2b40",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "LINUX_MICRO_FINAL.xml",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "raw_sha256": "e303dd6f3a0bc650149fe5483219f40381b48fd741f00cfdaa73882746344fbe",
+      "hash_scope": "raw_bytes"
+    }
+  ],
+  "real_windows_per_platform": 9,
+  "micro_cases": [
+    "Nt32/17/19 two intervals",
+    "Nt32/17/19 eight intervals",
+    "Nt384/17/19 two intervals"
+  ],
+  "original_reference_and_OFF_and_LIGHT": true,
+  "backend_sanity_compileall": true,
+  "GPU_REAL_NOT_RUN": true,
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}

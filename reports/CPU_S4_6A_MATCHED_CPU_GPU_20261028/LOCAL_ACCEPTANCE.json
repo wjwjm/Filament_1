@@ -1,0 +1,59 @@
+{
+  "status": "PASS_LOCAL_WINDOWS_LINUX_MICRO",
+  "execution_commit": "fad2df6d9fd042b181760851b946daa0ef5f15d3",
+  "instrument_revision": 2,
+  "cpu_qualification_commit": "5c45586d12cb6450f5543b511ae179f87e58bcfa",
+  "CPU_executed_source_files_identical_after_qualification": true,
+  "post_qualification_diff": [
+    "GPU-only tool loader",
+    "GPU-only negative-dependency test"
+  ],
+  "science_tree": "821fec5bdacd832b0347e1f2e84285cb54172e57",
+  "sealed_utc": "2026-10-28T15:43:33.269263+00:00",
+  "tests": [
+    {
+      "path": "WINDOWS_RECORDS_R2_FINAL_A02.xml",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "raw_sha256": "b0059484f581d72150ec1c60567559ff4944098a65b53770734482b8046f5eee",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "WINDOWS_MICRO_R2.xml",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "raw_sha256": "9976f959c3431230410e08170c3b180f6bf31f07dce923b9f1a48df614a5373a",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "LINUX_RECORDS_R2_FINAL_A02.xml",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "raw_sha256": "b6afe0fc6253003a65648d335d150f17c12c86c87e7a8ba78f6f5f092db84b01",
+      "hash_scope": "raw_bytes"
+    },
+    {
+      "path": "LINUX_MICRO_R2.xml",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "raw_sha256": "3bc9fdcd90fb0b39c0607ab5fb6241d59f45f5037c429a57669f72921d584f8a",
+      "hash_scope": "raw_bytes"
+    }
+  ],
+  "real_windows_per_platform": 9,
+  "micro_cases": [
+    "Nt32/17/19 two intervals",
+    "Nt32/17/19 eight intervals",
+    "Nt384/17/19 eight intervals"
+  ],
+  "original_reference_and_OFF_and_LIGHT": true,
+  "backend_sanity_compileall": true,
+  "GPU_REAL_NOT_RUN": true,
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}

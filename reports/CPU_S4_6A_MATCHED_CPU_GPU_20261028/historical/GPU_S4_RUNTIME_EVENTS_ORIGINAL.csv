@@ -1,0 +1,226 @@
+actor,block,event,gpu_visible_devices,monotonic_s,ordinal,producer_blocked,queue_capacity,queue_occupancy,screen_id,worker_id,z_m
+hydro_consumer_0,,CONSUMER_IDLE_BEGIN,0,6183223.959035379,,False,16,0,,hydro_consumer_0,
+hydro_consumer_1,,CONSUMER_IDLE_BEGIN,0,6183224.304670526,,False,16,0,,hydro_consumer_1,
+optical,,OPTICAL_START,0,6183224.583553778,,False,16,0,,optical_producer,
+optical,,POST_COMMITTED,0,6189003.518780609,0,False,16,0,source_index_07998,optical_producer,0.7998499999999282
+optical,,ENQUEUE,0,6189003.550718387,0,False,16,1,source_index_07998,optical_producer,0.7998499999999282
+optical,,POST_COMMITTED,0,6189004.715694155,1,False,16,1,source_index_07999,optical_producer,0.7999499999999282
+optical,,ENQUEUE,0,6189004.741404649,1,False,16,2,source_index_07999,optical_producer,0.7999499999999282
+optical,,POST_COMMITTED,0,6189005.71741757,2,False,16,2,source_index_08000,optical_producer,0.8000499999999282
+optical,,ENQUEUE,0,6189005.753739818,2,False,16,3,source_index_08000,optical_producer,0.8000499999999282
+optical,,POST_COMMITTED,0,6189006.62011563,3,False,16,3,source_index_08001,optical_producer,0.8001499999999282
+optical,,ENQUEUE,0,6189006.691157603,3,False,16,4,source_index_08001,optical_producer,0.8001499999999282
+optical,,POST_COMMITTED,0,6189007.913066626,4,False,16,4,source_index_08002,optical_producer,0.8002499999999282
+optical,,ENQUEUE,0,6189007.950118602,4,False,16,5,source_index_08002,optical_producer,0.8002499999999282
+optical,,POST_COMMITTED,0,6189008.835765023,5,False,16,5,source_index_08003,optical_producer,0.8003499999999282
+optical,,ENQUEUE,0,6189008.886903592,5,False,16,6,source_index_08003,optical_producer,0.8003499999999282
+optical,,POST_COMMITTED,0,6189009.816101606,6,False,16,6,source_index_08004,optical_producer,0.8004499999999282
+optical,,ENQUEUE,0,6189009.870627828,6,False,16,7,source_index_08004,optical_producer,0.8004499999999282
+optical,,POST_COMMITTED,0,6189011.096504076,7,False,16,7,source_index_08005,optical_producer,0.8005499999999282
+optical,,ENQUEUE,0,6189011.145672671,7,False,16,8,source_index_08005,optical_producer,0.8005499999999282
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_CLAIM,0,6189011.182999431,,False,16,0,,hydro_consumer_0,
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_BLOCK_START,0,6189011.212378754,,False,16,0,,hydro_consumer_0,
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_START,0,6189011.251150886,0,False,16,0,source_index_07998,hydro_consumer_0,0.7998499999999282
+optical,,POST_COMMITTED,0,6189012.025879378,8,False,16,0,source_index_08006,optical_producer,0.8006499999999281
+optical,,ENQUEUE,0,6189012.061130414,8,False,16,1,source_index_08006,optical_producer,0.8006499999999281
+optical,,POST_COMMITTED,0,6189013.269282591,9,False,16,1,source_index_08007,optical_producer,0.8007499999999281
+optical,,ENQUEUE,0,6189013.305063651,9,False,16,2,source_index_08007,optical_producer,0.8007499999999281
+optical,,POST_COMMITTED,0,6189014.405524853,10,False,16,2,source_index_08008,optical_producer,0.8008499999999281
+optical,,ENQUEUE,0,6189014.455268849,10,False,16,3,source_index_08008,optical_producer,0.8008499999999281
+optical,,POST_COMMITTED,0,6189015.410172173,11,False,16,3,source_index_08009,optical_producer,0.8009499999999281
+optical,,ENQUEUE,0,6189015.43909343,11,False,16,4,source_index_08009,optical_producer,0.8009499999999281
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_END,0,6189015.996623463,0,False,16,4,source_index_07998,hydro_consumer_0,0.7998499999999282
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_START,0,6189016.039151994,1,False,16,4,source_index_07999,hydro_consumer_0,0.7999499999999282
+optical,,POST_COMMITTED,0,6189016.321302649,12,False,16,4,source_index_08010,optical_producer,0.8010499999999281
+optical,,ENQUEUE,0,6189016.362458779,12,False,16,5,source_index_08010,optical_producer,0.8010499999999281
+optical,,POST_COMMITTED,0,6189017.583808078,13,False,16,5,source_index_08011,optical_producer,0.8011499999999281
+optical,,ENQUEUE,0,6189017.618026808,13,False,16,6,source_index_08011,optical_producer,0.8011499999999281
+optical,,POST_COMMITTED,0,6189018.506704234,14,False,16,6,source_index_08012,optical_producer,0.8012499999999281
+optical,,ENQUEUE,0,6189018.541842833,14,False,16,7,source_index_08012,optical_producer,0.8012499999999281
+optical,,POST_COMMITTED,0,6189019.420650913,15,False,16,7,source_index_08013,optical_producer,0.8013499999999281
+optical,,ENQUEUE,0,6189019.458827429,15,False,16,8,source_index_08013,optical_producer,0.8013499999999281
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_CLAIM,0,6189019.498173807,,False,16,0,,hydro_consumer_1,
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_BLOCK_START,0,6189019.528053368,,False,16,0,,hydro_consumer_1,
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_START,0,6189019.576350169,8,False,16,0,source_index_08006,hydro_consumer_1,0.8006499999999281
+optical,,POST_COMMITTED,0,6189020.343070898,16,False,16,0,source_index_08014,optical_producer,0.801449999999928
+optical,,ENQUEUE,0,6189020.377550983,16,False,16,1,source_index_08014,optical_producer,0.801449999999928
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_END,0,6189020.502364902,1,False,16,1,source_index_07999,hydro_consumer_0,0.7999499999999282
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_START,0,6189020.538378728,2,False,16,1,source_index_08000,hydro_consumer_0,0.8000499999999282
+optical,,POST_COMMITTED,0,6189021.263781897,17,False,16,1,source_index_08015,optical_producer,0.801549999999928
+optical,,ENQUEUE,0,6189021.292628944,17,False,16,2,source_index_08015,optical_producer,0.801549999999928
+optical,,POST_COMMITTED,0,6189022.163669473,18,False,16,2,source_index_08016,optical_producer,0.801649999999928
+optical,,ENQUEUE,0,6189022.191322985,18,False,16,3,source_index_08016,optical_producer,0.801649999999928
+optical,,POST_COMMITTED,0,6189023.415583536,19,False,16,3,source_index_08017,optical_producer,0.801749999999928
+optical,,ENQUEUE,0,6189023.447832917,19,False,16,4,source_index_08017,optical_producer,0.801749999999928
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_END,0,6189024.264619813,8,False,16,4,source_index_08006,hydro_consumer_1,0.8006499999999281
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_START,0,6189024.337149826,9,False,16,4,source_index_08007,hydro_consumer_1,0.8007499999999281
+optical,,POST_COMMITTED,0,6189024.450896195,20,False,16,4,source_index_08018,optical_producer,0.801849999999928
+optical,,ENQUEUE,0,6189024.480148488,20,False,16,5,source_index_08018,optical_producer,0.801849999999928
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_END,0,6189024.961355717,2,False,16,5,source_index_08000,hydro_consumer_0,0.8000499999999282
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_START,0,6189024.999817489,3,False,16,5,source_index_08001,hydro_consumer_0,0.8001499999999282
+optical,,POST_COMMITTED,0,6189025.345826122,21,False,16,5,source_index_08019,optical_producer,0.801949999999928
+optical,,ENQUEUE,0,6189025.37608586,21,False,16,6,source_index_08019,optical_producer,0.801949999999928
+optical,,POST_COMMITTED,0,6189026.683367044,22,False,16,6,source_index_08020,optical_producer,0.802049999999928
+optical,,ENQUEUE,0,6189026.715567963,22,False,16,7,source_index_08020,optical_producer,0.802049999999928
+optical,,POST_COMMITTED,0,6189027.598970046,23,False,16,7,source_index_08021,optical_producer,0.802149999999928
+optical,,ENQUEUE,0,6189027.626234026,23,False,16,8,source_index_08021,optical_producer,0.802149999999928
+optical,,POST_COMMITTED,0,6189028.484917312,24,False,16,8,source_index_08022,optical_producer,0.802249999999928
+optical,,ENQUEUE,0,6189028.515841483,24,False,16,9,source_index_08022,optical_producer,0.802249999999928
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_END,0,6189028.699586233,9,False,16,9,source_index_08007,hydro_consumer_1,0.8007499999999281
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_START,0,6189028.737693885,10,False,16,9,source_index_08008,hydro_consumer_1,0.8008499999999281
+optical,,POST_COMMITTED,0,6189029.513053985,25,False,16,9,source_index_08023,optical_producer,0.802349999999928
+optical,,ENQUEUE,0,6189029.542051269,25,False,16,10,source_index_08023,optical_producer,0.802349999999928
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_END,0,6189029.572826775,3,False,16,10,source_index_08001,hydro_consumer_0,0.8001499999999282
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_START,0,6189029.616477928,4,False,16,10,source_index_08002,hydro_consumer_0,0.8002499999999282
+optical,,POST_COMMITTED,0,6189030.405330702,26,False,16,10,source_index_08024,optical_producer,0.8024499999999279
+optical,,ENQUEUE,0,6189030.440037534,26,False,16,11,source_index_08024,optical_producer,0.8024499999999279
+optical,,POST_COMMITTED,0,6189031.330161466,27,False,16,11,source_index_08025,optical_producer,0.8025499999999279
+optical,,ENQUEUE,0,6189031.362442138,27,False,16,12,source_index_08025,optical_producer,0.8025499999999279
+optical,,POST_COMMITTED,0,6189032.742347291,28,False,16,12,source_index_08026,optical_producer,0.8026499999999279
+optical,,ENQUEUE,0,6189032.768718138,28,False,16,13,source_index_08026,optical_producer,0.8026499999999279
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_END,0,6189033.153932556,10,False,16,13,source_index_08008,hydro_consumer_1,0.8008499999999281
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_START,0,6189033.189132895,11,False,16,13,source_index_08009,hydro_consumer_1,0.8009499999999281
+optical,,POST_COMMITTED,0,6189033.646291832,29,False,16,13,source_index_08027,optical_producer,0.8027499999999279
+optical,,ENQUEUE,0,6189033.702504278,29,False,16,14,source_index_08027,optical_producer,0.8027499999999279
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_END,0,6189034.02270324,4,False,16,14,source_index_08002,hydro_consumer_0,0.8002499999999282
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_START,0,6189034.057134474,5,False,16,14,source_index_08003,hydro_consumer_0,0.8003499999999282
+optical,,POST_COMMITTED,0,6189034.619272833,30,False,16,14,source_index_08028,optical_producer,0.8028499999999279
+optical,,ENQUEUE,0,6189034.65113433,30,False,16,15,source_index_08028,optical_producer,0.8028499999999279
+optical,,POST_COMMITTED,0,6189035.950270752,31,False,16,15,source_index_08029,optical_producer,0.8029499999999279
+optical,,ENQUEUE,0,6189035.98055231,31,False,16,16,source_index_08029,optical_producer,0.8029499999999279
+optical,,POST_COMMITTED,0,6189036.859418848,32,False,16,16,source_index_08030,optical_producer,0.8030499999999279
+optical,,PRODUCER_BACKPRESSURE_BEGIN,0,6189036.88768064,32,True,16,16,source_index_08030,optical_producer,0.8030499999999279
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_END,0,6189037.558360591,11,False,16,16,source_index_08009,hydro_consumer_1,0.8009499999999281
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_START,0,6189037.593624566,12,False,16,16,source_index_08010,hydro_consumer_1,0.8010499999999281
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_END,0,6189038.490801217,5,False,16,16,source_index_08003,hydro_consumer_0,0.8003499999999282
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_START,0,6189038.53735087,6,False,16,16,source_index_08004,hydro_consumer_0,0.8004499999999282
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_END,0,6189041.960643463,12,False,16,16,source_index_08010,hydro_consumer_1,0.8010499999999281
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_START,0,6189042.024444734,13,False,16,16,source_index_08011,hydro_consumer_1,0.8011499999999281
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_END,0,6189042.95387023,6,False,16,16,source_index_08004,hydro_consumer_0,0.8004499999999282
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_START,0,6189043.004632096,7,False,16,16,source_index_08005,hydro_consumer_0,0.8005499999999282
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_END,0,6189046.395235631,13,False,16,16,source_index_08011,hydro_consumer_1,0.8011499999999281
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_START,0,6189046.453506376,14,False,16,16,source_index_08012,hydro_consumer_1,0.8012499999999281
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_SCREEN_END,0,6189047.475695178,7,False,16,16,source_index_08005,hydro_consumer_0,0.8005499999999282
+hydro_consumer_0,"[0, 1, 2, 3, 4, 5, 6, 7]",HYDRO_BLOCK_END,0,6189047.538514729,,False,16,16,,hydro_consumer_0,
+hydro_consumer_0,,CONSUMER_IDLE_END,0,6189047.572589085,,False,16,16,,hydro_consumer_0,
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_CLAIM,0,6189047.623420727,,False,16,8,,hydro_consumer_0,
+optical,,ENQUEUE,0,6189047.675132629,32,True,16,9,source_index_08030,optical_producer,0.8030499999999279
+optical,,PRODUCER_BACKPRESSURE_END,0,6189047.675145036,32,False,16,9,source_index_08030,optical_producer,0.8030499999999279
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_BLOCK_START,0,6189047.712482375,,False,16,9,,hydro_consumer_0,
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_START,0,6189047.756235771,16,False,16,9,source_index_08014,hydro_consumer_0,0.801449999999928
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_END,0,6189050.823368925,14,False,16,9,source_index_08012,hydro_consumer_1,0.8012499999999281
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_START,0,6189050.861394867,15,False,16,9,source_index_08013,hydro_consumer_1,0.8013499999999281
+optical,,POST_COMMITTED,0,6189052.184162087,33,False,16,9,source_index_08031,optical_producer,0.8031499999999279
+optical,,ENQUEUE,0,6189052.224774897,33,False,16,10,source_index_08031,optical_producer,0.8031499999999279
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_END,0,6189052.363914775,16,False,16,10,source_index_08014,hydro_consumer_0,0.801449999999928
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_START,0,6189052.407457847,17,False,16,10,source_index_08015,hydro_consumer_0,0.801549999999928
+optical,,POST_COMMITTED,0,6189053.453069766,34,False,16,10,source_index_08032,optical_producer,0.8032499999999279
+optical,,ENQUEUE,0,6189053.483357282,34,False,16,11,source_index_08032,optical_producer,0.8032499999999279
+optical,,POST_COMMITTED,0,6189054.376121608,35,False,16,11,source_index_08033,optical_producer,0.8033499999999278
+optical,,ENQUEUE,0,6189054.410736533,35,False,16,12,source_index_08033,optical_producer,0.8033499999999278
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_SCREEN_END,0,6189055.218303397,15,False,16,12,source_index_08013,hydro_consumer_1,0.8013499999999281
+hydro_consumer_1,"[8, 9, 10, 11, 12, 13, 14, 15]",HYDRO_BLOCK_END,0,6189055.254418859,,False,16,12,,hydro_consumer_1,
+hydro_consumer_1,,CONSUMER_IDLE_END,0,6189055.285689687,,False,16,12,,hydro_consumer_1,
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_CLAIM,0,6189055.319253074,,False,16,4,,hydro_consumer_1,
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_BLOCK_START,0,6189055.351725513,,False,16,4,,hydro_consumer_1,
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_START,0,6189055.389638261,24,False,16,4,source_index_08022,hydro_consumer_1,0.802249999999928
+optical,,POST_COMMITTED,0,6189055.680078301,36,False,16,4,source_index_08034,optical_producer,0.8034499999999278
+optical,,ENQUEUE,0,6189055.715595607,36,False,16,5,source_index_08034,optical_producer,0.8034499999999278
+optical,,POST_COMMITTED,0,6189056.618840983,37,False,16,5,source_index_08035,optical_producer,0.8035499999999278
+optical,,ENQUEUE,0,6189056.655015836,37,False,16,6,source_index_08035,optical_producer,0.8035499999999278
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_END,0,6189056.835673229,17,False,16,6,source_index_08015,hydro_consumer_0,0.801549999999928
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_START,0,6189056.878513495,18,False,16,6,source_index_08016,hydro_consumer_0,0.801649999999928
+optical,,POST_COMMITTED,0,6189057.538785627,38,False,16,6,source_index_08036,optical_producer,0.8036499999999278
+optical,,ENQUEUE,0,6189057.574491886,38,False,16,7,source_index_08036,optical_producer,0.8036499999999278
+optical,,POST_COMMITTED,0,6189058.450961497,39,False,16,7,source_index_08037,optical_producer,0.8037499999999278
+optical,,ENQUEUE,0,6189058.488081346,39,False,16,8,source_index_08037,optical_producer,0.8037499999999278
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_END,0,6189059.730196759,24,False,16,8,source_index_08022,hydro_consumer_1,0.802249999999928
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_START,0,6189059.809240602,25,False,16,8,source_index_08023,hydro_consumer_1,0.802349999999928
+optical,,POST_COMMITTED,0,6189059.899239323,40,False,16,8,source_index_08038,optical_producer,0.8038499999999278
+optical,,ENQUEUE,0,6189059.937353685,40,False,16,9,source_index_08038,optical_producer,0.8038499999999278
+optical,,POST_COMMITTED,0,6189060.811181206,41,False,16,9,source_index_08039,optical_producer,0.8039499999999278
+optical,,ENQUEUE,0,6189060.846079915,41,False,16,10,source_index_08039,optical_producer,0.8039499999999278
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_END,0,6189061.316853516,18,False,16,10,source_index_08016,hydro_consumer_0,0.801649999999928
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_START,0,6189061.35695156,19,False,16,10,source_index_08017,hydro_consumer_0,0.801749999999928
+optical,,POST_COMMITTED,0,6189061.730798246,42,False,16,10,source_index_08040,optical_producer,0.8040499999999278
+optical,,ENQUEUE,0,6189061.773640874,42,False,16,11,source_index_08040,optical_producer,0.8040499999999278
+optical,,POST_COMMITTED,0,6189062.995674462,43,False,16,11,source_index_08041,optical_producer,0.8041499999999278
+optical,,ENQUEUE,0,6189063.030293106,43,False,16,12,source_index_08041,optical_producer,0.8041499999999278
+optical,,POST_COMMITTED,0,6189063.910959764,44,False,16,12,source_index_08042,optical_producer,0.8042499999999277
+optical,,ENQUEUE,0,6189063.952324754,44,False,16,13,source_index_08042,optical_producer,0.8042499999999277
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_END,0,6189064.242028188,25,False,16,13,source_index_08023,hydro_consumer_1,0.802349999999928
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_START,0,6189064.319024606,26,False,16,13,source_index_08024,hydro_consumer_1,0.8024499999999279
+optical,,POST_COMMITTED,0,6189065.111583309,45,False,16,13,source_index_08043,optical_producer,0.8043499999999277
+optical,,ENQUEUE,0,6189065.141566404,45,False,16,14,source_index_08043,optical_producer,0.8043499999999277
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_END,0,6189065.811744884,19,False,16,14,source_index_08017,hydro_consumer_0,0.801749999999928
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_START,0,6189065.858385342,20,False,16,14,source_index_08018,hydro_consumer_0,0.801849999999928
+optical,,POST_COMMITTED,0,6189066.065112801,46,False,16,14,source_index_08044,optical_producer,0.8044499999999277
+optical,,ENQUEUE,0,6189066.114788253,46,False,16,15,source_index_08044,optical_producer,0.8044499999999277
+optical,,POST_COMMITTED,0,6189066.99485388,47,False,16,15,source_index_08045,optical_producer,0.8045499999999277
+optical,,ENQUEUE,0,6189067.025232043,47,False,16,16,source_index_08045,optical_producer,0.8045499999999277
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_END,0,6189068.713957728,26,False,16,16,source_index_08024,hydro_consumer_1,0.8024499999999279
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_START,0,6189068.759940893,27,False,16,16,source_index_08025,hydro_consumer_1,0.8025499999999279
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_END,0,6189070.29364283,20,False,16,16,source_index_08018,hydro_consumer_0,0.801849999999928
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_START,0,6189070.338408153,21,False,16,16,source_index_08019,hydro_consumer_0,0.801949999999928
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_END,0,6189073.119757518,27,False,16,16,source_index_08025,hydro_consumer_1,0.8025499999999279
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_START,0,6189073.166004959,28,False,16,16,source_index_08026,hydro_consumer_1,0.8026499999999279
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_END,0,6189074.812598843,21,False,16,16,source_index_08019,hydro_consumer_0,0.801949999999928
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_START,0,6189074.854390108,22,False,16,16,source_index_08020,hydro_consumer_0,0.802049999999928
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_END,0,6189077.526788741,28,False,16,16,source_index_08026,hydro_consumer_1,0.8026499999999279
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_START,0,6189077.570330513,29,False,16,16,source_index_08027,hydro_consumer_1,0.8027499999999279
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_END,0,6189079.360440715,22,False,16,16,source_index_08020,hydro_consumer_0,0.802049999999928
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_START,0,6189079.401517948,23,False,16,16,source_index_08021,hydro_consumer_0,0.802149999999928
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_END,0,6189081.923148668,29,False,16,16,source_index_08027,hydro_consumer_1,0.8027499999999279
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_START,0,6189081.96966361,30,False,16,16,source_index_08028,hydro_consumer_1,0.8028499999999279
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_SCREEN_END,0,6189083.833673196,23,False,16,16,source_index_08021,hydro_consumer_0,0.802149999999928
+hydro_consumer_0,"[16, 17, 18, 19, 20, 21, 22, 23]",HYDRO_BLOCK_END,0,6189083.874405525,,False,16,16,,hydro_consumer_0,
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_CLAIM,0,6189083.911850888,,False,16,8,,hydro_consumer_0,
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_BLOCK_START,0,6189083.946234542,,False,16,8,,hydro_consumer_0,
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_START,0,6189083.992694759,32,False,16,8,source_index_08030,hydro_consumer_0,0.8030499999999279
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_END,0,6189086.321253497,30,False,16,8,source_index_08028,hydro_consumer_1,0.8028499999999279
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_START,0,6189086.368251214,31,False,16,8,source_index_08029,hydro_consumer_1,0.8029499999999279
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_END,0,6189088.500517211,32,False,16,8,source_index_08030,hydro_consumer_0,0.8030499999999279
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_START,0,6189088.548742098,33,False,16,8,source_index_08031,hydro_consumer_0,0.8031499999999279
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_SCREEN_END,0,6189090.736654412,31,False,16,8,source_index_08029,hydro_consumer_1,0.8029499999999279
+hydro_consumer_1,"[24, 25, 26, 27, 28, 29, 30, 31]",HYDRO_BLOCK_END,0,6189090.777790151,,False,16,8,,hydro_consumer_1,
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_CLAIM,0,6189090.817515283,,False,16,0,,hydro_consumer_1,
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_BLOCK_START,0,6189090.856336264,,False,16,0,,hydro_consumer_1,
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_START,0,6189090.903988139,40,False,16,0,source_index_08038,hydro_consumer_1,0.8038499999999278
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_END,0,6189093.036612698,33,False,16,0,source_index_08031,hydro_consumer_0,0.8031499999999279
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_START,0,6189093.082692521,34,False,16,0,source_index_08032,hydro_consumer_0,0.8032499999999279
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_END,0,6189095.285483986,40,False,16,0,source_index_08038,hydro_consumer_1,0.8038499999999278
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_START,0,6189095.35819283,41,False,16,0,source_index_08039,hydro_consumer_1,0.8039499999999278
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_END,0,6189097.528720142,34,False,16,0,source_index_08032,hydro_consumer_0,0.8032499999999279
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_START,0,6189097.57599812,35,False,16,0,source_index_08033,hydro_consumer_0,0.8033499999999278
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_END,0,6189099.774338489,41,False,16,0,source_index_08039,hydro_consumer_1,0.8039499999999278
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_START,0,6189099.821694834,42,False,16,0,source_index_08040,hydro_consumer_1,0.8040499999999278
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_END,0,6189102.01266907,35,False,16,0,source_index_08033,hydro_consumer_0,0.8033499999999278
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_START,0,6189102.058044823,36,False,16,0,source_index_08034,hydro_consumer_0,0.8034499999999278
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_END,0,6189104.207533351,42,False,16,0,source_index_08040,hydro_consumer_1,0.8040499999999278
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_START,0,6189104.254385557,43,False,16,0,source_index_08041,hydro_consumer_1,0.8041499999999278
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_END,0,6189106.485553451,36,False,16,0,source_index_08034,hydro_consumer_0,0.8034499999999278
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_START,0,6189106.533788646,37,False,16,0,source_index_08035,hydro_consumer_0,0.8035499999999278
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_END,0,6189108.65884296,43,False,16,0,source_index_08041,hydro_consumer_1,0.8041499999999278
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_START,0,6189108.707766683,44,False,16,0,source_index_08042,hydro_consumer_1,0.8042499999999277
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_END,0,6189111.003873502,37,False,16,0,source_index_08035,hydro_consumer_0,0.8035499999999278
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_START,0,6189111.052355964,38,False,16,0,source_index_08036,hydro_consumer_0,0.8036499999999278
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_END,0,6189113.078220096,44,False,16,0,source_index_08042,hydro_consumer_1,0.8042499999999277
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_START,0,6189113.127419219,45,False,16,0,source_index_08043,hydro_consumer_1,0.8043499999999277
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_END,0,6189115.520114269,38,False,16,0,source_index_08036,hydro_consumer_0,0.8036499999999278
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_START,0,6189115.567128602,39,False,16,0,source_index_08037,hydro_consumer_0,0.8037499999999278
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_END,0,6189117.462242451,45,False,16,0,source_index_08043,hydro_consumer_1,0.8043499999999277
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_START,0,6189117.511829476,46,False,16,0,source_index_08044,hydro_consumer_1,0.8044499999999277
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_SCREEN_END,0,6189120.042579814,39,False,16,0,source_index_08037,hydro_consumer_0,0.8037499999999278
+hydro_consumer_0,"[32, 33, 34, 35, 36, 37, 38, 39]",HYDRO_BLOCK_END,0,6189120.078770391,,False,16,0,,hydro_consumer_0,
+hydro_consumer_0,,CONSUMER_IDLE_BEGIN,0,6189120.129018056,,False,16,0,,hydro_consumer_0,
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_END,0,6189121.849008389,46,False,16,0,source_index_08044,hydro_consumer_1,0.8044499999999277
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_START,0,6189121.892012994,47,False,16,0,source_index_08045,hydro_consumer_1,0.8045499999999277
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_SCREEN_END,0,6189126.240845281,47,False,16,0,source_index_08045,hydro_consumer_1,0.8045499999999277
+hydro_consumer_1,"[40, 41, 42, 43, 44, 45, 46, 47]",HYDRO_BLOCK_END,0,6189126.28457741,,False,16,0,,hydro_consumer_1,
+hydro_consumer_1,,CONSUMER_IDLE_BEGIN,0,6189126.351356165,,False,16,0,,hydro_consumer_1,
+optical,,OPTICAL_COMPLETE,0,6194114.947249961,,False,16,0,,optical_producer,
+hydro_consumer_0,,CONSUMER_COMPLETE,0,6194116.11151472,,False,16,0,,hydro_consumer_0,
+hydro_consumer_1,,CONSUMER_COMPLETE,0,6194116.17073168,,False,16,0,,hydro_consumer_1,
+s3_barrier,,BARRIER_START,"0,1,2",6194118.882292419,,False,16,0,,s3_barrier,
+s3_barrier,,BARRIER_PASS,"0,1,2",6194120.297376783,,False,16,0,,s3_barrier,
+s3_barrier,,PROMOTION,"0,1,2",6194120.357644048,,False,16,0,,s3_barrier,
