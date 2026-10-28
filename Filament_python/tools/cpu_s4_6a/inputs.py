@@ -139,10 +139,10 @@ def context(bundle, *, verify_raw=True):
     require(all(value.dtype==np.float64 and value.shape==(8,grid.Ny,grid.Nx) for value in pre.values()), 'PRE_SHAPE_PRECISION')
     require(manifest['spacing']==dict(dx=grid.Lx/grid.Nx,dy=grid.Ly/grid.Ny,dt=grid.Twin/grid.Nt), 'COMMON_SPACING')
     axes = Axes(**{name: xp.asarray(value) for name, value in host_axes.items()}, **manifest['spacing'])
-    # Both original loaders enable these existing diagnostic clocks. Their
-    # built-in synchronization remains part of each backend's natural work.
+    # Retain original macro clocks, but disable the optional per-expression
+    # BK profiler: its GPU synchronizations are forbidden in formal OFF.
     prop.measure_performance = True
-    prop.diag_bk_nee_profile = True
+    prop.diag_bk_nee_profile = False
     ion.rate_table = dict(ion.rate_table)
     ion.rate_table['cache_dir'] = str(root / 'cache/rate_tables')
     require(not ion.rate_table.get('force_rebuild'), 'NO_LUT_REBUILD')

@@ -21,6 +21,11 @@ Exact comparisons reuse the original current-backend comparators, including
 the original NaN/timing exceptions. Cross-backend differences are descriptive
 and confer no numerical-equivalence or production qualification.
 
+Instrument revision 2 disables the optional per-expression BK profiler in
+every current reference/OFF/LIGHT role. Original macro clocks and scientific
+diagnostics remain enabled. Revision 1 is invalid for formal OFF attribution;
+its cancelled CPU allocation and frozen canonical inputs remain preserved.
+
 Local checks go through `tools/run_local_tests.ps1`; the report's fixed target
 adapters select these tests and the independent Linux interpreter. GPU manager
 simulation and AST compilation are labelled `GPU_REAL_NOT_RUN`.

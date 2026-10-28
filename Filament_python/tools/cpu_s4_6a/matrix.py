@@ -279,9 +279,17 @@ def main():
     deadline=started+int(os.environ['S46A_WALLTIME_S'])-60
     try:
         if args.backend=='CPU' and args.size=='small':
+            canonical=Path(plan.get('canonical_root',str(report/'canonical')))
             for shape in ((384,117,129),(384,351,301)):
-                seal(report/'canonical'/('x'.join(map(str,shape))),report/'external_data/input_bundle',shape,full_input_root=plan['full_input_root'])
-            manifests={','.join(map(str,shape)):pv.raw_sha256_file(report/'canonical'/('x'.join(map(str,shape)))/'INPUT_MANIFEST.json')
+                target=canonical/('x'.join(map(str,shape)))
+                if plan.get('reuse_sealed_canonical'):
+                    from .records import validate_source_records
+                    frozen=load_json_strict(target/'INPUT_MANIFEST.json')
+                    require(frozen['shape']==list(shape) and frozen['generated_once'],'REUSED_FROZEN_CANONICAL_SHAPE')
+                    validate_source_records(target,frozen['records'])
+                else:
+                    seal(target,report/'external_data/input_bundle',shape,full_input_root=plan['full_input_root'])
+            manifests={','.join(map(str,shape)):pv.raw_sha256_file(canonical/('x'.join(map(str,shape)))/'INPUT_MANIFEST.json')
                        for shape in ((384,117,129),(384,351,301))}
             write(report/'INPUT_BINDINGS.json',dict(schema='filament.cpu_s46a.input_bindings.v1',hash_scope='raw_bytes',manifest_raw_sha256=manifests,frozen_before_any_performance_case=True))
         elif args.backend=='GPU':

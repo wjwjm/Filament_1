@@ -114,6 +114,7 @@ def cpu_run(args, started):
         import numpy as np
         from KHz_filament.grids import make_axes
         native_ctx=sg.context(args.report,shape=shape)
+        native_ctx['prop'].diag_bk_nee_profile=False
         require(sg.fingerprints(native_ctx)==sg.fingerprints(ctx),'ORIGINAL_GENERATOR_CANONICAL_MICRO_VALUES')
         original_axes=make_axes(ctx['grid'].Nx,ctx['grid'].Ny,ctx['grid'].Nt,ctx['grid'].Lx,ctx['grid'].Ly,ctx['grid'].Twin)
         for name,value in ctx['host_axes'].items():
