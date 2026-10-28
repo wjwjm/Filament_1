@@ -1,0 +1,413 @@
+{
+  "AA_controls": [
+    {
+      "control": "EARLY",
+      "first": "CTRL_EARLY_A1",
+      "second": "CTRL_EARLY_A2"
+    },
+    {
+      "control": "LATE",
+      "first": "CTRL_LATE_A1",
+      "second": "CTRL_LATE_A2"
+    }
+  ],
+  "shape": [
+    384,
+    117,
+    129
+  ],
+  "intervals": 8,
+  "threads": {
+    "workers": 48,
+    "outer_mask": 24,
+    "temporal_fft": 48,
+    "spatial_fft": 24,
+    "BLAS": 1,
+    "cpu_target": "generic",
+    "threading_layer": "workqueue"
+  },
+  "factor_cache": {
+    "max_bytes": 268435456,
+    "max_tables": 2,
+    "initial": "EMPTY_EACH_NEW_PROCESS"
+  },
+  "JIT_cache": "Separate role namespaces. Initially empty qualifications; subsequent same-role processes reuse fixed namespace. Metadata is not proof of a hit. All candidate registration/load/compile within application clock.",
+  "metrics": {
+    "primary": "later_body_s=sum complete original body ordinal2..8 inclusive; unchanged seam",
+    "secondary": [
+      "median of seven actual POST_COMMITTED gaps",
+      "complete application_service_s",
+      "first body",
+      "initialization within application",
+      "first POST latency",
+      "original propagation and linear/ionization/Raman clocks",
+      "process CPU and supervisor/memory"
+    ],
+    "research_clock": "Raw research_service_s is cumulative including application; extra research is derived difference, not additive raw clock",
+    "independent_units": "4 adjacent formal pairs nested in2time blocks,8formal windows; seven interval observations per window are not independent replications; no cross-node or long steady-state inference"
+  },
+  "schema": "filament.cpu_s4_5d.plan.v1",
+  "task": "CPU-S4-5D-SAVED-FLUENCE-REUSE-20261028",
+  "task_level": "L2_ONE_SOURCE_BOUND_NUMERICAL_EXECUTION_CANDIDATE",
+  "frozen_utc": "2026-10-28T08:50:07.132547+00:00",
+  "execution_base": "17a6152260fb5b5b8dad44b22f9c20e48a129897",
+  "execution_commit_binding": "Separate strict committed-source manifest and execution binding required before HPC; this protocol remains byte-frozen",
+  "science_tree": "821fec5bdacd832b0347e1f2e84285cb54172e57",
+  "authority": {
+    "user_task_raw_sha256": "a4c4feebe39b6df69f7a48aacfdaa59d7b5bb511be39ebfddf8dcaf8f45907f2",
+    "old_budget_carried": 0,
+    "old_C_excluded": true,
+    "conditional_fullsize_authorized": true
+  },
+  "candidate": "SAVED_FLUENCE_TRAPEZOID_REUSE_SAME_ORDER",
+  "roles": [
+    "L1_REF_5D",
+    "D_FLUENCE_REUSE_V1"
+  ],
+  "matrix": [
+    {
+      "case": "QUAL_A_SMALL",
+      "role": "L1_REF_5D",
+      "symbol": "A",
+      "mode": "QUALIFY_BOUNDARY",
+      "kind": "QUALIFICATION"
+    },
+    {
+      "case": "QUAL_D_SMALL",
+      "role": "D_FLUENCE_REUSE_V1",
+      "symbol": "D",
+      "mode": "QUALIFY_BOUNDARY",
+      "kind": "QUALIFICATION"
+    },
+    {
+      "case": "CTRL_EARLY_A1",
+      "role": "L1_REF_5D",
+      "symbol": "A",
+      "mode": "OFF",
+      "kind": "AA_CONTROL"
+    },
+    {
+      "case": "CTRL_EARLY_A2",
+      "role": "L1_REF_5D",
+      "symbol": "A",
+      "mode": "OFF",
+      "kind": "AA_CONTROL"
+    },
+    {
+      "case": "K1_A1",
+      "role": "L1_REF_5D",
+      "symbol": "A",
+      "mode": "OFF",
+      "kind": "FORMAL",
+      "block": "K1"
+    },
+    {
+      "case": "K1_D1",
+      "role": "D_FLUENCE_REUSE_V1",
+      "symbol": "D",
+      "mode": "OFF",
+      "kind": "FORMAL",
+      "block": "K1"
+    },
+    {
+      "case": "K1_D2",
+      "role": "D_FLUENCE_REUSE_V1",
+      "symbol": "D",
+      "mode": "OFF",
+      "kind": "FORMAL",
+      "block": "K1"
+    },
+    {
+      "case": "K1_A2",
+      "role": "L1_REF_5D",
+      "symbol": "A",
+      "mode": "OFF",
+      "kind": "FORMAL",
+      "block": "K1"
+    },
+    {
+      "case": "K2_D1",
+      "role": "D_FLUENCE_REUSE_V1",
+      "symbol": "D",
+      "mode": "OFF",
+      "kind": "FORMAL",
+      "block": "K2"
+    },
+    {
+      "case": "K2_A1",
+      "role": "L1_REF_5D",
+      "symbol": "A",
+      "mode": "OFF",
+      "kind": "FORMAL",
+      "block": "K2"
+    },
+    {
+      "case": "K2_A2",
+      "role": "L1_REF_5D",
+      "symbol": "A",
+      "mode": "OFF",
+      "kind": "FORMAL",
+      "block": "K2"
+    },
+    {
+      "case": "K2_D2",
+      "role": "D_FLUENCE_REUSE_V1",
+      "symbol": "D",
+      "mode": "OFF",
+      "kind": "FORMAL",
+      "block": "K2"
+    },
+    {
+      "case": "CTRL_LATE_A1",
+      "role": "L1_REF_5D",
+      "symbol": "A",
+      "mode": "OFF",
+      "kind": "AA_CONTROL"
+    },
+    {
+      "case": "CTRL_LATE_A2",
+      "role": "L1_REF_5D",
+      "symbol": "A",
+      "mode": "OFF",
+      "kind": "AA_CONTROL"
+    }
+  ],
+  "blocks": [
+    {
+      "block": "K1",
+      "sequence": "ADDA",
+      "cases": [
+        "K1_A1",
+        "K1_D1",
+        "K1_D2",
+        "K1_A2"
+      ],
+      "A_cases": [
+        "K1_A1",
+        "K1_A2"
+      ],
+      "D_cases": [
+        "K1_D1",
+        "K1_D2"
+      ]
+    },
+    {
+      "block": "K2",
+      "sequence": "DAAD",
+      "cases": [
+        "K2_D1",
+        "K2_A1",
+        "K2_A2",
+        "K2_D2"
+      ],
+      "A_cases": [
+        "K2_A1",
+        "K2_A2"
+      ],
+      "D_cases": [
+        "K2_D1",
+        "K2_D2"
+      ]
+    }
+  ],
+  "adjacent_pairs": [
+    {
+      "pair": "K1_P1",
+      "block": "K1",
+      "A_case": "K1_A1",
+      "D_case": "K1_D1",
+      "execution_order": "AD"
+    },
+    {
+      "pair": "K1_P2",
+      "block": "K1",
+      "A_case": "K1_A2",
+      "D_case": "K1_D2",
+      "execution_order": "DA"
+    },
+    {
+      "pair": "K2_P1",
+      "block": "K2",
+      "A_case": "K2_A1",
+      "D_case": "K2_D1",
+      "execution_order": "DA"
+    },
+    {
+      "pair": "K2_P2",
+      "block": "K2",
+      "A_case": "K2_A2",
+      "D_case": "K2_D2",
+      "execution_order": "AD"
+    }
+  ],
+  "randomization": {
+    "method": "One secrets.randbits(1) draw;0=ADDA/DAAD,1=DAAD/ADDA, before candidate performance",
+    "draw": 0,
+    "sequences": [
+      "ADDA",
+      "DAAD"
+    ],
+    "rerandomize": false
+  },
+  "serial": true,
+  "new_process_each_window": true,
+  "propagation_warmup_intervals": 0,
+  "scope": {
+    "reference": "Accepted L1 only; C Eq10 package and kernels must not be loaded by either role",
+    "seam": "Same save branch: preserve first F2D integral; D replaces only radius internal integral with this same raw F2D",
+    "private_postprocess": "Source-bound 3D post-integration statements unchanged and inverse AST exact; no public2D shortcut",
+    "input_domain": "CPU complex128 propagation, original native intensity layouts, axes.dt actual Python float, no fallback",
+    "science_files_changed": false,
+    "original_diagnostics_and_frequency": "ALL retained; formal record_every_z=1; sparse and forced-final saves local-only",
+    "no_cross_call_F2D_cache": true,
+    "extra_3D_copy_or_hash": false
+  },
+  "local_qualification": {
+    "platforms": [
+      "real Windows",
+      "independent native Linux interpreter and Git worktree"
+    ],
+    "micro_shape": [
+      384,
+      17,
+      19
+    ],
+    "intervals": [
+      2,
+      8
+    ],
+    "roles": [
+      "ORIGINAL_4A_REFERENCE",
+      "L1_REF_5D",
+      "D_FLUENCE_REUSE_V1"
+    ],
+    "required": "Actual factory, qualifying disk112=108exact+4 originaltiming, full terminal/stage/Qacc/POST/sink, native layouts/alias/lifetimes and retained returns",
+    "additional_save_cases": [
+      {
+        "intervals": 8,
+        "record_every_z": 3,
+        "forced_final": true
+      },
+      {
+        "intervals": 2,
+        "record_every_z": 8,
+        "forced_final": true
+      }
+    ],
+    "unit_cases": "Seed20261028 positive/Gaussian/asymmetric/multipeak; Nt384/odd/even/tails; zero/tiny/subnormal/signedzero/negative/NaNInf original policy; frac0/1/.999/.75/.8 with ties/plateaus; rel_floor0/1e-8/1; singleton x/y; old3D versus public2D counterexample; raw input/F2D unchanged across helper/FWHM/nextcall; exact integral bytes/dtype/strides",
+    "counts": "Actual saved S: A outerS+innerS; D outerS+inner0; both radiusS and FWHMS. Separate initial/global integrals. Normal8:16to8,later14to7",
+    "bounded_cost_diagnostic": {
+      "scope": "One fixed seeded Gaussian Nt384 17x19 actual domain; no warmup, exactly8 repetitions of original outer integral, original inner integral, retained postprocess, in that fixed order",
+      "seed": 20261028,
+      "repetitions": 8,
+      "warmup": 0,
+      "thread_pool": 1,
+      "interpretation": "Local costs only; no W48 projection and not historical3.37s parent"
+    }
+  },
+  "exact_gates": {
+    "all_windows": "Unchanged original full-element terminal/Qacc/POST/input/retained returns;16halves/32fresh/128original math dispatches/48Omega/0E scans; actual W48 and FFT48/24,mask24,BLAS1,generic/workqueue; cache source/cap empty new factory;0fallback/reject",
+    "qualifications": "Both original112 boundary disk capture-retire-readback108exact+4timing plus original relevant stages and raw F2D/original second integral/radius/FWHM proof",
+    "source": "Original protected PV2 GitOID+canonicalLF source gates retained, new private functions/code/AST/slots sealed, strict batchentry and runtime resources, C package absent",
+    "no_comparator_or_tolerance_change": true
+  },
+  "analysis": {
+    "block_log_ratio": "mean(log(D))-mean(log(A)) for each metric; two blocks equal weight",
+    "balanced_log_ratio": "mean(two block log ratios); gain=1-exp(logratio)",
+    "pair_log_ratio": "log(D/A) always, four adjacent pairs first2/last2 per block",
+    "order_gains": "1-exp(mean(pair_log_ratio)) separately AD and DA",
+    "AA_noise": "For each metric separately max of two abs(log(A2/A1)); observed reference only, not95percent or population bound",
+    "body": "Both block body gains>=0.03 AND both order gains>0 AND -balanced_body_log_ratio>body AA noise",
+    "POST": "Both block POST gains>0",
+    "application": "Balanced application gain>=0 AND median four adjacent D/A ratios<=1.02 AND each<=1.05; separately report app versus its own AA noise",
+    "validity": "All science/layout/alias/lifetime/source/entry/cache/workload/resource/clock and intended duplicate elimination PASS,0fallback/reject,no unexplained first-delay/domain/role issue",
+    "no_old_case_pooling": true,
+    "no_outlier_deletion": true,
+    "no_p_value_or_95percent_claim": true,
+    "no_subtraction_of_other_scopes": true
+  },
+  "fullsize": {
+    "enabled_only_if": "ALL small gates true; SMALLGRID_STEADY_GATE_PASS",
+    "shape": [
+      384,
+      351,
+      301
+    ],
+    "intervals": 8,
+    "roles": {
+      "A": "L1_REF_5D",
+      "D": "D_FLUENCE_REUSE_V1"
+    },
+    "serial": true,
+    "qualifications": [
+      "QUAL_A_FULL",
+      "QUAL_D_FULL"
+    ],
+    "formal_pairs": [
+      "AD",
+      "DA",
+      "AD"
+    ],
+    "factor_cache": {
+      "max_bytes": 1610612736,
+      "max_tables": 2
+    },
+    "reference": "Accepted4B current A against preserved accepted original arrays; D against same-allocation A",
+    "gates": {
+      "body_paired_median_gain_at_least": 0.03,
+      "body_positive_pairs_at_least": 2,
+      "POST_paired_median_gain_positive": true,
+      "application_paired_median_gain_nonnegative": true,
+      "application_each_D_over_A_at_most": 1.05,
+      "all_exact_source_native_and_resource_gates": true
+    },
+    "no_I0_matrix": true,
+    "no_focus_full_distance_multipulse_Hydro_GPU": true
+  },
+  "resources": {
+    "account": "t0s000727",
+    "route": "Native t0-hpc; reverify v6_384/bscc-t/qosnormal mapping before side effects",
+    "max_new_jobids": 3,
+    "max_allocated_core_hours": 256,
+    "max_inflight": 1,
+    "old_balance": 0,
+    "requeue": false,
+    "small": {
+      "nodes": 1,
+      "physical_cpus": 96,
+      "memory_GiB": 32,
+      "gpus": 0,
+      "walltime_s": 1800,
+      "worst_core_hours": 48
+    },
+    "conditional_fullsize": {
+      "nodes": 1,
+      "physical_cpus": 96,
+      "memory_GiB": 320,
+      "gpus": 0,
+      "walltime_s": 5400,
+      "worst_core_hours": 144
+    },
+    "third_job": "Only evidenced technical repair; no performance resample; remaining budget must cover full reserved walltime",
+    "guardian": "80percent minimum of actual effective cgroup and allocation"
+  },
+  "forecast": {
+    "small_history_job": "8853585",
+    "small_history_s": 1399,
+    "small_serial_estimate_s": 1450,
+    "small_estimated_allocated_core_hours": 38.666666666666664,
+    "queue": "UNKNOWN",
+    "fullsize_estimate": "Read accepted4B history if and only if small gate passes"
+  },
+  "stopping": {
+    "small_valid_under_gate": "SMALL_GAIN_BELOW_GATE or NO_WORTHWHILE_GAIN then stop; no extra samples/tuning/bigger grid",
+    "technical_or_nonexact": "Freeze preimage; repair only private issue and rerun affected local gates; full new formal matrix and budget recheck if authorized technical reattempt",
+    "final": "MANUAL_REVIEW_PENDING",
+    "automatic_fullsize": "Only ALL section7 gates",
+    "extra_batches": false,
+    "production_enabled": false
+  },
+  "default": "I0",
+  "production_qualified": false,
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}
