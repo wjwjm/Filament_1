@@ -43,10 +43,22 @@ _reject_optimized_python()
 
 def source_identity() -> dict[str, str]:
     path = Path(__file__).resolve()
+    repo = path.parents[3]
+    relative = path.relative_to(repo).as_posix()
+    oid = _provenance_v2._git_blob_oid(repo, relative)
+    blob = _provenance_v2._read_git_blob(repo, oid)
+    canonical = _provenance_v2.canonical_lf_sha256(path.read_bytes())
+    if canonical != _provenance_v2.canonical_lf_sha256(blob):
+        raise KernelUnsupported("KERNEL_SOURCE_DIFFERS_FROM_COMMITTED_CANONICAL_BLOB")
     return {
         "path": str(path),
-        "hash_scope": _provenance_v2.EXTERNAL_HASH_SCOPE,
+        "relative_path": relative,
+        "classification": "tracked_text",
+        "hash_scope": _provenance_v2.TRACKED_HASH_SCOPE,
+        "git_blob_oid": oid,
+        "canonical_lf_sha256": canonical,
         "raw_sha256": _provenance_v2.raw_sha256_file(path),
+        "raw_byte_observation": "Current checkout/cache observation only; not a cross-platform validation value",
     }
 
 
