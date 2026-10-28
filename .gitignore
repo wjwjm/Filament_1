@@ -13,3 +13,6 @@ Filament_python/tmp/
 # Local complete derived-artifact mirror; publish only explicit evidence under
 # results/campaigns/<campaign_id>/.
 .artifacts/
+
+# S46A raw measurement evidence; lightweight deliverables are added explicitly.
+reports/CPU_S4_6A_MATCHED_CPU_GPU_20261028/

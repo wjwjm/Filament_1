@@ -1,0 +1,149 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+
+import pytest
+
+from .records import (
+    BudgetError,
+    ClockError,
+    RecordError,
+    TimingGateError,
+    budget_check,
+    load_json_strict,
+    timing_gate,
+    resolve_record_path,
+    validate_case_order,
+    validate_clock_records,
+    validate_source_records,
+)
+
+
+def _clock_rows():
+    return [
+        {"scope": "window", "start_ns": 0, "end_ns": 100, "completed": True},
+        {"scope": "interval1", "start_ns": 0, "end_ns": 40, "completed": True, "parent": "window"},
+        {"scope": "later", "start_ns": 40, "end_ns": 100, "completed": True, "parent": "window"},
+    ]
+
+
+def test_strict_json_rejects_duplicate_and_nonfinite(tmp_path: Path):
+    duplicate = tmp_path / "duplicate.json"
+    duplicate.write_text('{"a": 1, "a": 2}', encoding="utf-8")
+    with pytest.raises(RecordError):
+        load_json_strict(duplicate)
+    nonfinite = tmp_path / "nonfinite.json"
+    nonfinite.write_text('{"a": NaN}', encoding="utf-8")
+    with pytest.raises(RecordError):
+        load_json_strict(nonfinite)
+    overflow = tmp_path / "overflow.json"
+    overflow.write_text('{"a": 1e999}', encoding="utf-8")
+    with pytest.raises(RecordError):
+        load_json_strict(overflow)
+
+
+def test_source_records_hash_and_basename_guards(tmp_path: Path):
+    source = tmp_path / "source.txt"
+    source.write_bytes(b"source")
+    digest = hashlib.sha256(b"source").hexdigest()
+    result = validate_source_records(tmp_path, [{"path": "source.txt", "hash_scope": "raw_bytes", "raw_sha256": digest}])
+    assert result["status"] == "PASS_SOURCE_RECORDS"
+    with pytest.raises(RecordError):
+        validate_source_records(tmp_path, [{"path": "source.txt", "hash_scope": "raw_bytes", "raw_sha256": "0" * 64}])
+    with pytest.raises(RecordError):
+        validate_source_records(tmp_path, [{"path": "../source.txt", "hash_scope": "raw_bytes", "raw_sha256": digest}])
+    (tmp_path / "nested").mkdir()
+    (tmp_path / "nested" / "source.txt").write_bytes(b"source")
+    with pytest.raises(RecordError, match="BASENAME_AMBIGUOUS"):
+        validate_source_records(tmp_path, [{"path": "source.txt", "hash_scope": "raw_bytes", "raw_sha256": digest}])
+    (tmp_path / "top").mkdir()
+    (tmp_path / "top" / "source.txt").write_bytes(b"source")
+    qualified = validate_source_records(tmp_path, [
+        {"path": "top/source.txt", "hash_scope": "raw_bytes", "raw_sha256": digest},
+        {"path": "nested/source.txt", "hash_scope": "raw_bytes", "raw_sha256": digest},
+    ])
+    assert len(qualified["records"]) == 2
+    link_dir = tmp_path / "linkdir"
+    link_dir.mkdir()
+    link = link_dir / "source.txt"
+    try:
+        link.symlink_to(source)
+    except OSError:
+        link = None
+    if link is not None:
+        with pytest.raises(RecordError, match="SYMLINK"):
+            resolve_record_path(tmp_path, "linkdir/source.txt", expected_raw_sha256=digest)
+
+
+def test_clock_disjoint_and_negative_guards():
+    result = validate_clock_records(_clock_rows())
+    assert result["durations_ns"] == {"window": 100, "interval1": 40, "later": 60}
+    bad = _clock_rows()
+    bad[2] = dict(bad[2], start_ns=20)
+    with pytest.raises(ClockError):
+        validate_clock_records(bad)
+    bad = _clock_rows()
+    bad[1] = dict(bad[1], end_ns=-1)
+    with pytest.raises(ClockError):
+        validate_clock_records(bad)
+
+
+def test_case_order_and_timing_gate():
+    rows = [{"case": name} for name in ("QUAL_OFF", "QUAL_LIGHT", "P1_OFF", "P1_LIGHT", "P2_LIGHT", "P2_OFF", "P3_OFF", "P3_LIGHT")]
+    assert validate_case_order(rows)["status"] == "PASS_CASE_ORDER"
+    good = []
+    for pair in ("P1", "P2", "P3"):
+        good.extend([
+            {"pair": pair, "kind": "OFF", "application_s": 10, "window_s": 8, "later_s": 6},
+            {"pair": pair, "kind": "LIGHT", "application_s": 10.1, "window_s": 8.1, "later_s": 6.1},
+        ])
+    assert timing_gate(good)["status"] == "PASS_TIMING_GATE"
+    failed = [dict(row) for row in good]
+    failed[1]["application_s"] = 12.0
+    failure = timing_gate(failed)
+    assert failure["status"] == "TIMING_GATE_FAIL"
+    assert failure["metrics"]["application"]["ratios"][0] == pytest.approx(1.2)
+    with pytest.raises(TimingGateError, match="REQUIRED_PAIRS"):
+        timing_gate(good[:2])
+    with pytest.raises(TimingGateError):
+        timing_gate([{**good[0], "application_s": float("nan")}, good[1]])
+
+
+def test_budget_ignores_batch_and_enforces_total_and_inflight():
+    ledger = [{"job_id": "batch", "category": "batch", "state": "completed", "walltime_s": 1000}]
+    result = budget_check(ledger, "CPU", new_request={"job_id": "cpu1", "category": "small", "state": "pending", "walltime_s": 1200})
+    assert result["status"] == "PASS_BUDGET"
+    blocked_inflight = budget_check([
+        {"job_id": "1", "category": "small", "state": "running", "walltime_s": 1200},
+        {"job_id": "2", "category": "small", "state": "pending", "walltime_s": 1200},
+    ], "CPU")
+    assert blocked_inflight["status"] == "BUDGET_BLOCKED"
+    assert "MAX_INFLIGHT" in blocked_inflight["reasons"]
+    exact = budget_check(
+        [{"job_id": "g0", "category": "repair", "state": "completed", "walltime_s": 1800, "gpus": 1, "cpus": 8}],
+        "GPU",
+        new_request={"job_id": "g1", "category": "main", "state": "pending", "walltime_s": 5400},
+    )
+    assert exact["status"] == "PASS_BUDGET"
+    exceeded = budget_check(
+        [{"job_id": "g0", "category": "repair", "state": "completed", "walltime_s": 1801, "gpus": 1, "cpus": 8}],
+        "GPU",
+        new_request={"job_id": "g1", "category": "main", "state": "pending", "walltime_s": 5400},
+    )
+    assert exceeded["status"] == "BUDGET_BLOCKED"
+    assert "GPU_HOURS_BUDGET" in exceeded["reasons"]
+
+
+def test_budget_rejects_unknown_state_and_resource_counts_and_allows_cancelled_zero():
+    with pytest.raises(BudgetError):
+        budget_check([{"job_id": "x", "category": "mystery", "state": "completed", "walltime_s": 1}], "CPU")
+    with pytest.raises(BudgetError):
+        budget_check([{"job_id": "x", "category": "small", "state": "mystery", "walltime_s": 1}], "CPU")
+    with pytest.raises(BudgetError):
+        budget_check([{"job_id": "x", "category": "small", "state": "completed", "walltime_s": 1, "cpus": float("nan")}], "CPU")
+    with pytest.raises(BudgetError):
+        budget_check([{"job_id": "x", "category": "small", "state": "completed", "walltime_s": 1, "gpus": 1}], "CPU")
+    result = budget_check([{"job_id": "x", "category": "small", "state": "cancelled", "walltime_s": 0}], "CPU")
+    assert result["status"] == "PASS_BUDGET"
