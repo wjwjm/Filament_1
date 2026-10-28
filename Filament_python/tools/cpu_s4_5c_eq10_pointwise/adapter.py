@@ -90,8 +90,10 @@ def attach(raw_propagator,dispatch,*,role,mode,capture_root,owned_identity,body_
                 receipts.append(dict(baseline_ast_sha256=pv.raw_sha256(dump(baseline).encode()),
                     stripped_ast_sha256=pv.raw_sha256(dump(stripped).encode()),timing=timing,boundary=boundary,
                     common_clock_types=1,old_guard_capture='AFTER_COMPILE_INSERTION',scientific_expressions_changed=0))
+                compile_interceptor.static_receipt=copy.deepcopy(receipts[-1])
                 injected=True
             return builtins.compile(source,filename,compile_mode,*args,**kwargs)
+        compile_interceptor.static_receipt=None
         return compile_interceptor
     namespace['_make_compile_interceptor']=make_interceptor
     original_clone=namespace['_clone_g']
