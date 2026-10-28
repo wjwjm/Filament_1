@@ -133,8 +133,8 @@ def _load_numba_bundle() -> dict[str, Any]:
         parallel_body.__qualname__ = parallel_name
         globals()[parallel_name] = parallel_body
         dispatchers[name] = (
-            numba.njit(serial_body, cache=True, fastmath=False),
-            numba.njit(parallel_body, cache=True, fastmath=False, parallel=True),
+            numba.njit(serial_body, cache=True, fastmath=False, error_model="numpy"),
+            numba.njit(parallel_body, cache=True, fastmath=False, parallel=True, error_model="numpy"),
         )
     cache_identity = {
         "source": source_identity(),
@@ -207,8 +207,6 @@ def _validate_scale(scale: Any) -> float:
     if not isinstance(scale, (float, np.floating)):
         raise KernelUnsupported("INTENSITY_SCALE_MUST_BE_FLOAT")
     value = float(scale)
-    if not np.isfinite(value):
-        raise KernelUnsupported("INTENSITY_SCALE_MUST_BE_FINITE")
     return value
 
 
@@ -223,6 +221,11 @@ def _layout(value: np.ndarray) -> dict[str, Any]:
         "owndata": bool(flags.owndata),
         "writeable": bool(flags.writeable),
         "base_type": None if value.base is None else type(value.base).__name__,
+        "data_pointer": int(value.__array_interface__["data"][0]),
+        "object_id": int(id(value)),
+        "base_object_id": None if value.base is None else int(id(value.base)),
+        "base_data_pointer": int(value.base.__array_interface__["data"][0]) if isinstance(value.base, np.ndarray) else None,
+        "pointer_scope": "Current-process native relation only; never a cross-process identity",
     }
 
 
@@ -283,7 +286,7 @@ class KernelExecutor:
         self.block_size = _BLOCK_SIZE
         self.diagnostic_local = bool(diagnostic_local)
         self._control_thread_id = threading.get_ident()
-        self._lock = threading.RLock()
+        self._lock = threading.Lock()
         self._runtime = _new_runtime_view()
         self._dispatches: list[dict[str, Any]] = []
 
@@ -320,6 +323,11 @@ class KernelExecutor:
             "active_thread_ids": [],
             "input_layouts": [_layout(value) for value in inputs],
             "output_layout": _layout(output),
+            "native_alias_relations": {
+                "output_shares_input": [bool(np.shares_memory(output, value)) for value in inputs],
+                "input_pair_shares_memory": [bool(np.shares_memory(inputs[i], inputs[j]))
+                    for i in range(len(inputs)) for j in range(i + 1, len(inputs))],
+            },
             "function": {
                 "serial_name": getattr(serial.py_func, "__name__", ""),
                 "parallel_name": getattr(parallel.py_func, "__name__", ""),
@@ -339,6 +347,23 @@ class KernelExecutor:
         finally:
             record["compiled_signatures"] = [str(signature) for signature in dispatcher.signatures]
             self._runtime["cache_identity"]["compiled_signatures"][operation] = list(record["compiled_signatures"])
+            runtime_key = {
+                "source": self._runtime["cache_identity"]["source"], "role": self.role,
+                "operation": operation, "parallel": self.workers != 1,
+                "actual_signatures": record["compiled_signatures"],
+                "effective_environment": {
+                    **self._runtime["cache_identity"]["environment"],
+                    "CPU_NAME": str(numba.config.CPU_NAME),
+                    "CPU_FEATURES": str(numba.config.CPU_FEATURES),
+                    "THREADING_LAYER_CONFIG": str(numba.config.THREADING_LAYER),
+                    "threading_layer_actual": numba.threading_layer() if self.workers != 1 else "serial",
+                },
+                "block_elements": int(output.shape[0]) * self.block_size,
+                "fastmath": False, "error_model": "numpy",
+            }
+            record["compiled_cache_binding"] = runtime_key
+            record["compiled_cache_key"] = hashlib.sha256(json.dumps(runtime_key, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            record["cache_key_semantics"] = "Post-compilation internal key includes actual signatures; NumPy source/canonical provenance is recorded separately"
             record["thread_mask_after"] = int(numba.get_num_threads())
             record["active_thread_ids"] = [int(item) for item in np.flatnonzero(owners)]
             record["present_thread_ids"] = list(record["active_thread_ids"])
