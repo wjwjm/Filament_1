@@ -1,0 +1,9 @@
+﻿scope,source,workload,clock,evidence_strength,limitation
+completed_later,Filament_python/KHz_filament/propagate.py:628,"7 intervals, all operators plus normal work",native OFF completed-wall,MEASURED,Operator allocation UNKNOWN
+window_remainder,Filament_python/KHz_filament/propagate.py:628,first interval plus entry/finalization and loop gaps,native OFF completed-wall,MEASURED,Not a single numerical operator
+outside,Filament_python/tools/cpu_s4_6a/entry.py:60; gpu.py:324,application minus full propagation window,native OFF completed-wall,MEASURED,Cold-process management/input/writer costs combined
+Raman_Heun,Filament_python/tools/cpu_s4_3c/candidate.py:267; KHz_filament/raman.py:163,16 Raman halves /32 stages; existing C3 prange point helpers,CPU valid LIGHT exclusive,MEASURED_CPU_SOURCE_SUPPORTED,GPU native operator delta UNKNOWN
+stable_field_fluence_and_loss,Filament_python/KHz_filament/raman.py:479,"16 no-stage calls, chunk_t32, real then imag, float64 sums",CPU valid LIGHT exclusive,MEASURED_CPU_SOURCE_SUPPORTED,Logical temporaries do not prove hardware DRAM saturation
+ionization,Filament_python/tools/cpu_o1/cpu_o1.py:1781,8 recursions; LUT species loop then existing prange pixel blocks,CPU valid LIGHT; source-bound effective factory,SOURCE_AND_CPU_MEASUREMENT,No direct serialized closure identity or busy kernel trace
+linear,Filament_python/tools/cpu_s4_4a_linear_cache/candidate.py:99; KHz_filament/linear.py,"16 half steps, temporal/spatial FFT and accepted full cache",CPU valid LIGHT; GPU source,SOURCE_AND_CPU_MEASUREMENT,No native full-size cross-backend operator delta
+GPU_device_activity,Filament_python/tools/cpu_s4_6a/gpu.py:96,LIGHT event spans and separate SERIALIZED_PHASE_DIAGNOSTIC,async span / serialized own wall,LIMITED,No kernel activity trace/counters; event span includes idle gaps

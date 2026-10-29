@@ -1,0 +1,17 @@
+# 当前执行语义与证据强度
+
+两端执行SHA分别为CPU ed8754041625549a80959db7a8abd804d5d219ae、GPU 6440ace43e07523ef924c790055b3cc21e7bc1fc；共同KHz_filament科学子树821fec5bdacd832b0347e1f2e84285cb54172e57。源包同时保留两份原PV2 manifest和Git blob字节，离线重放检查blob OID与canonical-LF SHA256；不拿Windows raw-text hash替代HPC来源。
+
+CPU保持已接受L1私有factory及全尺寸缓存；GPU保持原CuPy数学，不安装CPU候选。共同核心相同不表示工具链相同：CPU有G3生命周期校验、C3五个Numba点helper、O1电离prange和L1因子缓存；GPU有CUDA context、原FFT/exp组织、必要H2D/D2H。差异成本进入各自自然应用时间。源链见SOURCE_AND_BACKEND_BINDINGS.json和DIRECTED_SOURCE_TABLE.csv。
+
+CPU有效电离链是S46A→S45B→S45A→S44A→G3/C3→cpu_o1 identity-I私有evolve_candidate→evolve_rho_time_cpu_o1。底层已有prange像素块；按物种顺序的LUT rate evaluation先于RK4。原生产runtime import不是当前私有closure的最终身份。已有binding JSON没有直接保存该closure，故这里只称源链证明，不称直接运行时身份采样。ION_SETUP/ION_RECURSION原始merged标签确实存在；Raman Numba worker计数不能替代电离kernel执行证据。
+
+原exact比较器、112字段首边界、NaN/计时例外、科学输出、布局和别名门均保留。GPU新环境原生layout与当前同环境REFERENCE比较；经真人批准仅gpu_allocated_step_bytes、gpu_reserved_step_bytes另列资源遥测，原值和差异不丢弃。290181原失败保留，后续使用保存的native metadata读取而不是把np.load重建的OWNDATA当成原数组状态；真实112快照审计与授权见acquisition/authorization目录。
+
+跨端输入shape/dtype/原字节、日程及分支是工作量门；全元素差异是描述性结果。Small与full各251字段，均保留零分母、NaN/Inf计数和相对L2定义；没有新epsilon，没有跨端科学等价PASS。
+
+CPU small/full及GPU small LIGHT门通过。GPU full LIGHT失败：窗口配对比中位1.507109、later1.668984。原OFF完成墙钟仍可用于主比值及application/window/later宏观三叶分账；禁止将失败LIGHT分项映射为原生OFF算子差。两尺寸AUX_SERIALIZED单次显式同步诊断各自独立，原比值分母为P1_OFF，另列OFF中位作敏感性观察。
+
+CPU process_cpu/wall叫占用当量；CUDA event叫事件跨度；已知传输字节叫已知显式调用，逻辑临时数组字节叫逻辑工作量。缺kernel trace、活跃线程时间线和硬件计数，带宽、GIL、NUMA、设备饱和及纯硬件倍率均UNKNOWN。监测器在作业退出后旧squeue入口报无JobID，不是科学作业失败；最终sacct与batch/python终态分别核验。
+
+DEFAULT=I0；PRODUCTION_QUALIFIED=false；MANUAL_REVIEW_PENDING。

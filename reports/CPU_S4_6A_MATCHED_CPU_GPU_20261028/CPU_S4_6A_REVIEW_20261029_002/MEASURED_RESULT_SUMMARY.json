@@ -1,0 +1,2740 @@
+{
+  "cpu_gpu_ratios": {
+    "missing": [],
+    "ratios": [
+      {
+        "backend_pair": [
+          "CPU",
+          "GPU"
+        ],
+        "metrics": {
+          "application": {
+            "cpu_off_median_s": 81.246124952,
+            "cpu_over_gpu": 2.103756901985111,
+            "gpu_off_median_s": 38.619540535
+          },
+          "later": {
+            "cpu_off_median_s": 36.914620963,
+            "cpu_over_gpu": 4.291192167473308,
+            "gpu_off_median_s": 8.602416187
+          },
+          "window": {
+            "cpu_off_median_s": 48.732874894,
+            "cpu_over_gpu": 4.599853414349778,
+            "gpu_off_median_s": 10.594440845
+          }
+        },
+        "shape": "shape:384x117x129"
+      },
+      {
+        "backend_pair": [
+          "CPU",
+          "GPU"
+        ],
+        "metrics": {
+          "application": {
+            "cpu_off_median_s": 346.097522225,
+            "cpu_over_gpu": 7.014243014053168,
+            "gpu_off_median_s": 49.342105988
+          },
+          "later": {
+            "cpu_off_median_s": 257.26400611,
+            "cpu_over_gpu": 34.97633304939708,
+            "gpu_off_median_s": 7.355373868
+          },
+          "window": {
+            "cpu_off_median_s": 303.230748277,
+            "cpu_over_gpu": 28.81495382119465,
+            "gpu_off_median_s": 10.523381372
+          }
+        },
+        "shape": "shape:384x351x301"
+      }
+    ],
+    "status": "REPLAYED"
+  },
+  "native_off_macro_summaries": [
+    {
+      "backends": {
+        "CPU": {
+          "closure": {
+            "application_mean_s": 81.304050839,
+            "leaf_sum_s": 81.304050839,
+            "pass": true,
+            "residual_decimal_s": "0"
+          },
+          "issues": [],
+          "leaves": {
+            "later": {
+              "mean_decimal_s": "36.733334239",
+              "mean_s": 36.733334239
+            },
+            "outside": {
+              "mean_decimal_s": "32.880523833333333333333333333333333333333333333333",
+              "mean_s": 32.880523833333335
+            },
+            "window_remainder": {
+              "mean_decimal_s": "11.690192766666666666666666666666666666666666666667",
+              "mean_s": 11.690192766666666
+            }
+          },
+          "metrics": {
+            "application": {
+              "mean_decimal_s": "81.304050839",
+              "mean_s": 81.304050839,
+              "values_s": [
+                81.49316966,
+                81.172857905,
+                81.246124952
+              ]
+            },
+            "later": {
+              "mean_decimal_s": "36.733334239",
+              "mean_s": 36.733334239,
+              "values_s": [
+                36.914620963,
+                36.148610311,
+                37.136771443
+              ]
+            },
+            "window": {
+              "mean_decimal_s": "48.423527005666666666666666666666666666666666666667",
+              "mean_s": 48.423527005666664,
+              "values_s": [
+                48.732874894,
+                47.631276243,
+                48.90642988
+              ]
+            }
+          },
+          "off_status": "COMPLETE",
+          "source_path": "formal_case_receipts/CPU/shape:384x117x129",
+          "status": "REPLAYED",
+          "timing_gate": "PASS_TIMING_GATE"
+        },
+        "GPU": {
+          "closure": {
+            "application_mean_s": 38.77098834466667,
+            "leaf_sum_s": 38.77098834466666,
+            "pass": true,
+            "residual_decimal_s": "0"
+          },
+          "issues": [],
+          "leaves": {
+            "later": {
+              "mean_decimal_s": "8.4681572353333333333333333333333333333333333333333",
+              "mean_s": 8.468157235333333
+            },
+            "outside": {
+              "mean_decimal_s": "28.308887183333333333333333333333333333333333333334",
+              "mean_s": 28.308887183333333
+            },
+            "window_remainder": {
+              "mean_decimal_s": "1.9939439259999999999999999999999999999999999999997",
+              "mean_s": 1.993943926
+            }
+          },
+          "metrics": {
+            "application": {
+              "mean_decimal_s": "38.770988344666666666666666666666666666666666666667",
+              "mean_s": 38.77098834466667,
+              "values_s": [
+                38.36361566,
+                39.329808839,
+                38.619540535
+              ]
+            },
+            "later": {
+              "mean_decimal_s": "8.4681572353333333333333333333333333333333333333333",
+              "mean_s": 8.468157235333333,
+              "values_s": [
+                8.07236879,
+                8.729686729,
+                8.602416187
+              ]
+            },
+            "window": {
+              "mean_decimal_s": "10.462101161333333333333333333333333333333333333333",
+              "mean_s": 10.462101161333333,
+              "values_s": [
+                10.107333785,
+                10.684528854,
+                10.594440845
+              ]
+            }
+          },
+          "off_status": "COMPLETE",
+          "source_path": "formal_case_receipts/GPU/shape:384x117x129",
+          "status": "REPLAYED",
+          "timing_gate": "PASS_TIMING_GATE"
+        }
+      },
+      "clock_domain": "native completed-wall OFF records; no round-paired CPU/GPU comparison",
+      "delta": {
+        "application_delta_decimal_s": "42.533062494333333333333333333333333333333333333333",
+        "application_delta_fraction": "127599187483/3000000000",
+        "application_delta_s": 42.533062494333336,
+        "closure_pass": true,
+        "closure_residual_decimal_s": "0",
+        "closure_residual_fraction": "0/1",
+        "leaf_delta_sum_decimal_s": "42.533062494333333333333333333333333333333333333333",
+        "leaf_delta_sum_fraction": "127599187483/3000000000",
+        "leaf_delta_sum_s": 42.533062494333336,
+        "leaves": {
+          "later": {
+            "delta_decimal_s": "28.265177003666666666666666666666666666666666666667",
+            "delta_fraction": "84795531011/3000000000",
+            "delta_s": 28.26517700366667
+          },
+          "outside": {
+            "delta_decimal_s": "4.57163665",
+            "delta_fraction": "91432733/20000000",
+            "delta_s": 4.57163665
+          },
+          "window_remainder": {
+            "delta_decimal_s": "9.6962488406666666666666666666666666666666666666667",
+            "delta_fraction": "14544373261/1500000000",
+            "delta_s": 9.696248840666666
+          }
+        }
+      },
+      "delta_definition": "CPU independent three-OFF arithmetic mean minus GPU independent three-OFF arithmetic mean",
+      "issues": [],
+      "native_operator_delta_status": "DESCRIPTIVE_MACRO_ONLY",
+      "scientific_interpretation_allowed": false,
+      "shape": "shape:384x117x129",
+      "shape_class": "SMALL",
+      "status": "REPLAYED_METADATA_ONLY"
+    },
+    {
+      "backends": {
+        "CPU": {
+          "closure": {
+            "application_mean_s": 344.89335137066666,
+            "leaf_sum_s": 344.89335137066666,
+            "pass": true,
+            "residual_decimal_s": "0"
+          },
+          "issues": [],
+          "leaves": {
+            "later": {
+              "mean_decimal_s": "257.250029517",
+              "mean_s": 257.250029517
+            },
+            "outside": {
+              "mean_decimal_s": "41.96642143433333333333333333333333333333333333334",
+              "mean_s": 41.966421434333334
+            },
+            "window_remainder": {
+              "mean_decimal_s": "45.67690041933333333333333333333333333333333333333",
+              "mean_s": 45.676900419333336
+            }
+          },
+          "metrics": {
+            "application": {
+              "mean_decimal_s": "344.89335137066666666666666666666666666666666666667",
+              "mean_s": 344.89335137066666,
+              "values_s": [
+                346.097522225,
+                347.451679406,
+                341.130852481
+              ]
+            },
+            "later": {
+              "mean_decimal_s": "257.250029517",
+              "mean_s": 257.250029517,
+              "values_s": [
+                257.26400611,
+                259.456997396,
+                255.029085045
+              ]
+            },
+            "window": {
+              "mean_decimal_s": "302.92692993633333333333333333333333333333333333333",
+              "mean_s": 302.92692993633335,
+              "values_s": [
+                303.230748277,
+                304.925994959,
+                300.624046573
+              ]
+            }
+          },
+          "off_status": "COMPLETE",
+          "source_path": "formal_case_receipts/CPU/shape:384x351x301",
+          "status": "REPLAYED",
+          "timing_gate": "PASS_TIMING_GATE"
+        },
+        "GPU": {
+          "closure": {
+            "application_mean_s": 49.804875212666666,
+            "leaf_sum_s": 49.804875212666666,
+            "pass": true,
+            "residual_decimal_s": "0"
+          },
+          "issues": [],
+          "leaves": {
+            "later": {
+              "mean_decimal_s": "8.4664396273333333333333333333333333333333333333333",
+              "mean_s": 8.466439627333333
+            },
+            "outside": {
+              "mean_decimal_s": "37.123488202666666666666666666666666666666666666667",
+              "mean_s": 37.123488202666664
+            },
+            "window_remainder": {
+              "mean_decimal_s": "4.2149473826666666666666666666666666666666666666667",
+              "mean_s": 4.214947382666667
+            }
+          },
+          "metrics": {
+            "application": {
+              "mean_decimal_s": "49.804875212666666666666666666666666666666666666667",
+              "mean_s": 49.804875212666666,
+              "values_s": [
+                55.538682918,
+                49.342105988,
+                44.533836732
+              ]
+            },
+            "later": {
+              "mean_decimal_s": "8.4664396273333333333333333333333333333333333333333",
+              "mean_s": 8.466439627333333,
+              "values_s": [
+                11.14565108,
+                6.898293934,
+                7.355373868
+              ]
+            },
+            "window": {
+              "mean_decimal_s": "12.681387010",
+              "mean_s": 12.68138701,
+              "values_s": [
+                17.475484849,
+                10.045294809,
+                10.523381372
+              ]
+            }
+          },
+          "off_status": "COMPLETE",
+          "source_path": "formal_case_receipts/GPU/shape:384x351x301",
+          "status": "REPLAYED",
+          "timing_gate": "TIMING_GATE_FAIL"
+        }
+      },
+      "clock_domain": "native completed-wall OFF records; no round-paired CPU/GPU comparison",
+      "delta": {
+        "application_delta_decimal_s": "295.088476158",
+        "application_delta_fraction": "147544238079/500000000",
+        "application_delta_s": 295.088476158,
+        "closure_pass": true,
+        "closure_residual_decimal_s": "0",
+        "closure_residual_fraction": "0/1",
+        "leaf_delta_sum_decimal_s": "295.088476158",
+        "leaf_delta_sum_fraction": "147544238079/500000000",
+        "leaf_delta_sum_s": 295.088476158,
+        "leaves": {
+          "later": {
+            "delta_decimal_s": "248.78358988966666666666666666666666666666666666667",
+            "delta_fraction": "746350769669/3000000000",
+            "delta_s": 248.78358988966667
+          },
+          "outside": {
+            "delta_decimal_s": "4.8429332316666666666666666666666666666666666666667",
+            "delta_fraction": "2905759939/600000000",
+            "delta_s": 4.842933231666667
+          },
+          "window_remainder": {
+            "delta_decimal_s": "41.461953036666666666666666666666666666666666666667",
+            "delta_fraction": "12438585911/300000000",
+            "delta_s": 41.461953036666664
+          }
+        }
+      },
+      "delta_definition": "CPU independent three-OFF arithmetic mean minus GPU independent three-OFF arithmetic mean",
+      "issues": [],
+      "native_operator_delta_status": "UNKNOWN",
+      "scientific_interpretation_allowed": false,
+      "shape": "shape:384x351x301",
+      "shape_class": "FULL",
+      "status": "REPLAYED_METADATA_ONLY"
+    }
+  ],
+  "light_exclusive_summaries": [
+    {
+      "amdahl_definition": "1 / ((1-f) + f/s), f=category wall-median / propagation wall-median, s=2 or 4",
+      "backend": "CPU",
+      "case_count": 3,
+      "cases": [
+        "P1_LIGHT",
+        "P2_LIGHT",
+        "P3_LIGHT"
+      ],
+      "categories": [
+        {
+          "amdahl_speedup_2x": 1.062937900376939,
+          "amdahl_speedup_4x": 1.0974742633019143,
+          "category": "linear",
+          "cpu_cost_rank": 2,
+          "labels": [
+            "LINEAR"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.29260017049023546,
+            "median": 6.556582475331171,
+            "range": 0.7953084346512522,
+            "status": "REPLAYED",
+            "values": [
+              6.556582475331171,
+              7.059290739492187,
+              6.263982304840935
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 2455308901,
+            "mad_s": 2.455308901,
+            "median_ns": 37853608188,
+            "median_s": 37.853608188,
+            "range_ns": 6671101201,
+            "range_s": 6.671101201,
+            "status": "REPLAYED",
+            "values_ns": [
+              37853608188,
+              42069400488,
+              35398299287
+            ],
+            "values_s": [
+              37.853608188,
+              42.069400488,
+              35.398299287
+            ]
+          },
+          "wall_cost_rank": 4,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 122289369,
+            "mad_s": 0.122289369,
+            "median_ns": 5773374823,
+            "median_s": 5.773374823,
+            "range_ns": 308351838,
+            "range_s": 0.308351838,
+            "status": "REPLAYED",
+            "values_ns": [
+              5773374823,
+              5959437292,
+              5651085454
+            ],
+            "values_s": [
+              5.773374823,
+              5.959437292,
+              5.651085454
+            ]
+          },
+          "wall_fraction_of_propagation": 0.11842253504107828
+        },
+        {
+          "amdahl_speedup_2x": 1.17138382095104,
+          "amdahl_speedup_4x": 1.2811697002049516,
+          "category": "Raman_Heun",
+          "cpu_cost_rank": 1,
+          "labels": [
+            "EQ10_DERIVATIVE_EXPR",
+            "EQ10_FFT",
+            "EQ10_IFFT",
+            "EQ10_MATERIALIZE",
+            "EQ10_NORMALIZE_SCALE",
+            "EQ10_PRODUCT_REDUCE_SCALE",
+            "EQ10_SCALE_MAX",
+            "EQ10_SUM",
+            "FFT",
+            "HEUN_ASSEMBLY",
+            "MATH_KERNELS",
+            "RAMAN_COEFFICIENTS",
+            "RAMAN_ENERGY",
+            "RAMAN_HALF",
+            "RAMAN_IIR",
+            "RAMAN_INTENSITY",
+            "RAMAN_STAGE"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.2932122594644815,
+            "median": 5.8756513375638075,
+            "range": 0.7191505225658279,
+            "status": "REPLAYED",
+            "values": [
+              6.301589600665154,
+              5.582439078099326,
+              5.8756513375638075
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 2024175184,
+            "mad_s": 2.024175184,
+            "median_ns": 82770462666,
+            "median_s": 82.770462666,
+            "range_ns": 9150901420,
+            "range_s": 9.15090142,
+            "status": "REPLAYED",
+            "values_ns": [
+              89897188902,
+              80746287482,
+              82770462666
+            ],
+            "values_s": [
+              89.897188902,
+              80.746287482,
+              82.770462666
+            ]
+          },
+          "wall_cost_rank": 1,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 178767935,
+            "mad_s": 0.178767935,
+            "median_ns": 14265795553,
+            "median_s": 14.265795553,
+            "range_ns": 377310703,
+            "range_s": 0.377310703,
+            "status": "REPLAYED",
+            "values_ns": [
+              14265795553,
+              14464338321,
+              14087027618
+            ],
+            "values_s": [
+              14.265795553,
+              14.464338321,
+              14.087027618
+            ]
+          },
+          "wall_fraction_of_propagation": 0.29261770204730064
+        },
+        {
+          "amdahl_speedup_2x": 1.120352935449691,
+          "amdahl_speedup_4x": 1.1920886176764538,
+          "category": "ion",
+          "cpu_cost_rank": 3,
+          "labels": [
+            "ION_RECURSION",
+            "ION_SETUP"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.012526551088918092,
+            "median": 1.9215078557429337,
+            "range": 0.10073892972271059,
+            "status": "REPLAYED",
+            "values": [
+              2.009720234376726,
+              1.9215078557429337,
+              1.9089813046540156
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 22620067,
+            "mad_s": 0.022620067,
+            "median_ns": 20126552536,
+            "median_s": 20.126552536,
+            "range_ns": 925083601,
+            "range_s": 0.925083601,
+            "status": "REPLAYED",
+            "values_ns": [
+              21029016070,
+              20126552536,
+              20103932469
+            ],
+            "values_s": [
+              21.02901607,
+              20.126552536,
+              20.103932469
+            ]
+          },
+          "wall_cost_rank": 2,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 10700048,
+            "mad_s": 0.010700048,
+            "median_ns": 10474353501,
+            "median_s": 10.474353501,
+            "range_ns": 67582458,
+            "range_s": 0.067582458,
+            "status": "REPLAYED",
+            "values_ns": [
+              10463653453,
+              10474353501,
+              10531235911
+            ],
+            "values_s": [
+              10.463653453,
+              10.474353501,
+              10.531235911
+            ]
+          },
+          "wall_fraction_of_propagation": 0.21484825297732335
+        },
+        {
+          "amdahl_speedup_2x": 1.0434922250840342,
+          "amdahl_speedup_4x": 1.0666885544360827,
+          "category": "otherNL",
+          "cpu_cost_rank": 6,
+          "labels": [
+            "NONLINEAR",
+            "NONLINEAR_ARRAYS"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 2.3556819469527923e-06,
+            "median": 0.9976398375642058,
+            "range": 7.427608793242335e-06,
+            "status": "REPLAYED",
+            "values": [
+              0.9976398375642058,
+              0.9976421932461528,
+              0.9976347656373595
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 576830,
+            "mad_s": 0.00057683,
+            "median_ns": 4054332665,
+            "median_s": 4.054332665,
+            "range_ns": 30164873,
+            "range_s": 0.030164873,
+            "status": "REPLAYED",
+            "values_ns": [
+              4083920708,
+              4053755835,
+              4054332665
+            ],
+            "values_s": [
+              4.083920708,
+              4.053755835,
+              4.054332665
+            ]
+          },
+          "wall_cost_rank": 6,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 608450,
+            "mad_s": 0.00060845,
+            "median_ns": 4063944847,
+            "median_s": 4.063944847,
+            "range_ns": 30245830,
+            "range_s": 0.03024583,
+            "status": "REPLAYED",
+            "values_ns": [
+              4093582227,
+              4063336397,
+              4063944847
+            ],
+            "values_s": [
+              4.093582227,
+              4.063336397,
+              4.063944847
+            ]
+          },
+          "wall_fraction_of_propagation": 0.0833589825368016
+        },
+        {
+          "amdahl_speedup_2x": 1.0504593837083236,
+          "amdahl_speedup_4x": 1.0776481135401605,
+          "category": "deposition_POST",
+          "cpu_cost_rank": 5,
+          "labels": [
+            "INTERVAL_DEPOSITION_AND_QACC",
+            "INTERVAL_ENERGY_BOOKKEEPING",
+            "INTERVAL_POST_COMMIT"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.0026488185962725286,
+            "median": 0.9760532543767942,
+            "range": 0.006488493358557168,
+            "status": "REPLAYED",
+            "values": [
+              0.9798929291390789,
+              0.9760532543767942,
+              0.9734044357805217
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 67767531,
+            "mad_s": 0.067767531,
+            "median_ns": 4571530133,
+            "median_s": 4.571530133,
+            "range_ns": 189496437,
+            "range_s": 0.189496437,
+            "status": "REPLAYED",
+            "values_ns": [
+              4639297664,
+              4571530133,
+              4449801227
+            ],
+            "values_s": [
+              4.639297664,
+              4.571530133,
+              4.449801227
+            ]
+          },
+          "wall_cost_rank": 5,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 50805232,
+            "mad_s": 0.050805232,
+            "median_ns": 4683689248,
+            "median_s": 4.683689248,
+            "range_ns": 163114832,
+            "range_s": 0.163114832,
+            "status": "REPLAYED",
+            "values_ns": [
+              4734494480,
+              4683689248,
+              4571379648
+            ],
+            "values_s": [
+              4.73449448,
+              4.683689248,
+              4.571379648
+            ]
+          },
+          "wall_fraction_of_propagation": 0.09607107993112914
+        },
+        {
+          "amdahl_speedup_2x": 1.038052905736886,
+          "amdahl_speedup_4x": 1.0581864401667438,
+          "category": "diagnostics_output",
+          "cpu_cost_rank": 7,
+          "labels": [
+            "INTERVAL_SAVED_DIAGNOSTICS"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 5.246094419986136e-06,
+            "median": 0.9976345707354113,
+            "range": 9.518672412101026e-05,
+            "status": "REPLAYED",
+            "values": [
+              0.9976345707354113,
+              0.9975446301057103,
+              0.9976398168298313
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 78281344,
+            "mad_s": 0.078281344,
+            "median_ns": 3565867675,
+            "median_s": 3.565867675,
+            "range_ns": 262774069,
+            "range_s": 0.262774069,
+            "status": "REPLAYED",
+            "values_ns": [
+              3565867675,
+              3750360400,
+              3487586331
+            ],
+            "values_s": [
+              3.565867675,
+              3.7503604,
+              3.487586331
+            ]
+          },
+          "wall_cost_rank": 7,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 78485335,
+            "mad_s": 0.078485335,
+            "median_ns": 3574322482,
+            "median_s": 3.574322482,
+            "range_ns": 263754441,
+            "range_s": 0.263754441,
+            "status": "REPLAYED",
+            "values_ns": [
+              3574322482,
+              3759591588,
+              3495837147
+            ],
+            "values_s": [
+              3.574322482,
+              3.759591588,
+              3.495837147
+            ]
+          },
+          "wall_fraction_of_propagation": 0.07331592739942894
+        },
+        {
+          "amdahl_speedup_2x": 1.0637929912119166,
+          "amdahl_speedup_4x": 1.0988422068338335,
+          "category": "management_remainder_unknown",
+          "cpu_cost_rank": 4,
+          "labels": [
+            "INTERVAL_BODY",
+            "INTERVAL_PREP_AND_OTHER_ARRAYS",
+            "PROPAGATION",
+            "PROP_ENTRY_INIT",
+            "PROP_FINALIZE_EXIT"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.0005877915187018079,
+            "median": 0.9950687552828901,
+            "range": 0.0012160090152165681,
+            "status": "REPLAYED",
+            "values": [
+              0.9944809637641883,
+              0.9956969727794048,
+              0.9950687552828901
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 27038143,
+            "mad_s": 0.027038143,
+            "median_ns": 5814839234,
+            "median_s": 5.814839234,
+            "range_ns": 78998567,
+            "range_s": 0.078998567,
+            "status": "REPLAYED",
+            "values_ns": [
+              5814839234,
+              5866799658,
+              5787801091
+            ],
+            "values_s": [
+              5.814839234,
+              5.866799658,
+              5.787801091
+            ]
+          },
+          "wall_cost_rank": 3,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 30626049,
+            "mad_s": 0.030626049,
+            "median_ns": 5847109644,
+            "median_s": 5.847109644,
+            "range_ns": 75670161,
+            "range_s": 0.075670161,
+            "status": "REPLAYED",
+            "values_ns": [
+              5847109644,
+              5892153756,
+              5816483595
+            ],
+            "values_s": [
+              5.847109644,
+              5.892153756,
+              5.816483595
+            ]
+          },
+          "wall_fraction_of_propagation": 0.11993497182048746
+        }
+      ],
+      "closure": [
+        {
+          "case": "P1_LIGHT",
+          "closure_pass": true,
+          "exclusive_process_cpu_ns": 166883738441,
+          "exclusive_wall_ns": 48752332662,
+          "issues": [],
+          "ledger_status": "PASS_HOST_CLOCK_EXCLUSIVE",
+          "process_cpu_residual_ns": 0,
+          "propagation_process_cpu_ns": 166883738441,
+          "propagation_wall_ns": 48752332662,
+          "source_path": "evidence_CPU_SMALL/raw/CPU_SMALL/report/runs/CPU/384x117x129/P1_LIGHT/work/CASE_RECEIPT.json",
+          "wall_residual_ns": 0
+        },
+        {
+          "case": "P2_LIGHT",
+          "closure_pass": true,
+          "exclusive_process_cpu_ns": 161184686532,
+          "exclusive_wall_ns": 49296900103,
+          "issues": [],
+          "ledger_status": "PASS_HOST_CLOCK_EXCLUSIVE",
+          "process_cpu_residual_ns": 0,
+          "propagation_process_cpu_ns": 161184686532,
+          "propagation_wall_ns": 49296900103,
+          "source_path": "evidence_CPU_SMALL/raw/CPU_SMALL/report/runs/CPU/384x117x129/P2_LIGHT/work/CASE_RECEIPT.json",
+          "wall_residual_ns": 0
+        },
+        {
+          "case": "P3_LIGHT",
+          "closure_pass": true,
+          "exclusive_process_cpu_ns": 156052215736,
+          "exclusive_wall_ns": 48216994220,
+          "issues": [],
+          "ledger_status": "PASS_HOST_CLOCK_EXCLUSIVE",
+          "process_cpu_residual_ns": 0,
+          "propagation_process_cpu_ns": 156052215736,
+          "propagation_wall_ns": 48216994220,
+          "source_path": "evidence_CPU_SMALL/raw/CPU_SMALL/report/runs/CPU/384x117x129/P3_LIGHT/work/CASE_RECEIPT.json",
+          "wall_residual_ns": 0
+        }
+      ],
+      "closure_all_pass": true,
+      "cross_backend_operator_difference_allowed": false,
+      "host_wall_semantics": "synchronized CPU host wall clock",
+      "issues": [],
+      "native_attribution_allowed": true,
+      "occupancy_definition": "process CPU exclusive ns / host wall exclusive ns; diagnostic only and may exceed 1 under parallel CPU execution",
+      "rank_by_process_cpu_median": [
+        "Raman_Heun",
+        "linear",
+        "ion",
+        "management_remainder_unknown",
+        "deposition_POST",
+        "otherNL",
+        "diagnostics_output"
+      ],
+      "rank_scope": "CPU process-CPU median only",
+      "scientific_interpretation_allowed": false,
+      "shape": "shape:384x117x129",
+      "status": "REPLAYED",
+      "timing_gate": "PASS_TIMING_GATE",
+      "timing_gate_metrics": {
+        "application": {
+          "each_pass": true,
+          "median": 1.021173730325123,
+          "median_pass": true,
+          "pass": true,
+          "ratios": [
+            1.0135696172650257,
+            1.021173730325123,
+            1.025289093605558
+          ]
+        },
+        "later": {
+          "each_pass": true,
+          "median": 1.0033315353047583,
+          "median_pass": true,
+          "pass": true,
+          "ratios": [
+            1.0033315353047583,
+            1.0384888551462965,
+            0.9834697770391209
+          ]
+        },
+        "window": {
+          "each_pass": true,
+          "median": 1.0003992739612084,
+          "median_pass": true,
+          "pass": true,
+          "ratios": [
+            1.0003992739612084,
+            1.0349691209511687,
+            0.9859029648720701
+          ]
+        }
+      }
+    },
+    {
+      "amdahl_definition": "1 / ((1-f) + f/s), f=category wall-median / propagation wall-median, s=2 or 4",
+      "backend": "CPU",
+      "case_count": 3,
+      "cases": [
+        "P1_LIGHT",
+        "P2_LIGHT",
+        "P3_LIGHT"
+      ],
+      "categories": [
+        {
+          "amdahl_speedup_2x": 1.0363155163297388,
+          "amdahl_speedup_4x": 1.0554806792512756,
+          "category": "linear",
+          "cpu_cost_rank": 2,
+          "labels": [
+            "LINEAR"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.20040452097319772,
+            "median": 10.537406339454437,
+            "range": 1.0819859449660978,
+            "status": "REPLAYED",
+            "values": [
+              11.418987763447337,
+              10.33700181848124,
+              10.537406339454437
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 5519798701,
+            "mad_s": 5.519798701,
+            "median_ns": 220450026437,
+            "median_s": 220.450026437,
+            "range_ns": 24716787609,
+            "range_s": 24.716787609,
+            "status": "REPLAYED",
+            "values_ns": [
+              239647015345,
+              214930227736,
+              220450026437
+            ],
+            "values_s": [
+              239.647015345,
+              214.930227736,
+              220.450026437
+            ]
+          },
+          "wall_cost_rank": 7,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 66002281,
+            "mad_s": 0.066002281,
+            "median_ns": 20920710404,
+            "median_s": 20.920710404,
+            "range_ns": 194394805,
+            "range_s": 0.194394805,
+            "status": "REPLAYED",
+            "values_ns": [
+              20986712685,
+              20792317880,
+              20920710404
+            ],
+            "values_s": [
+              20.986712685,
+              20.79231788,
+              20.920710404
+            ]
+          },
+          "wall_fraction_of_propagation": 0.0700858295712014
+        },
+        {
+          "amdahl_speedup_2x": 1.2181651231823887,
+          "amdahl_speedup_4x": 1.3673153882340128,
+          "category": "Raman_Heun",
+          "cpu_cost_rank": 1,
+          "labels": [
+            "EQ10_DERIVATIVE_EXPR",
+            "EQ10_FFT",
+            "EQ10_IFFT",
+            "EQ10_MATERIALIZE",
+            "EQ10_NORMALIZE_SCALE",
+            "EQ10_PRODUCT_REDUCE_SCALE",
+            "EQ10_SCALE_MAX",
+            "EQ10_SUM",
+            "FFT",
+            "HEUN_ASSEMBLY",
+            "MATH_KERNELS",
+            "RAMAN_COEFFICIENTS",
+            "RAMAN_ENERGY",
+            "RAMAN_HALF",
+            "RAMAN_IIR",
+            "RAMAN_INTENSITY",
+            "RAMAN_STAGE"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.03134815158218096,
+            "median": 4.856922311507111,
+            "range": 0.47856540163928596,
+            "status": "REPLAYED",
+            "values": [
+              5.304139561564216,
+              4.856922311507111,
+              4.82557415992493
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 4454693514,
+            "mad_s": 4.454693514,
+            "median_ns": 519297849838,
+            "median_s": 519.297849838,
+            "range_ns": 59949154362,
+            "range_s": 59.949154362,
+            "status": "REPLAYED",
+            "values_ns": [
+              574792310686,
+              519297849838,
+              514843156324
+            ],
+            "values_s": [
+              574.792310686,
+              519.297849838,
+              514.843156324
+            ]
+          },
+          "wall_cost_rank": 1,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 228569028,
+            "mad_s": 0.228569028,
+            "median_ns": 106919118020,
+            "median_s": 106.91911802,
+            "range_ns": 1676190611,
+            "range_s": 1.676190611,
+            "status": "REPLAYED",
+            "values_ns": [
+              108366739603,
+              106919118020,
+              106690548992
+            ],
+            "values_s": [
+              108.366739603,
+              106.91911802,
+              106.690548992
+            ]
+          },
+          "wall_fraction_of_propagation": 0.3581864544150538
+        },
+        {
+          "amdahl_speedup_2x": 1.0701857388027425,
+          "amdahl_speedup_4x": 1.1091075035778821,
+          "category": "ion",
+          "cpu_cost_rank": 3,
+          "labels": [
+            "ION_RECURSION",
+            "ION_SETUP"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.023720612433946187,
+            "median": 2.5126636488233687,
+            "range": 0.08266561851782717,
+            "status": "REPLAYED",
+            "values": [
+              2.536384261257315,
+              2.5126636488233687,
+              2.4537186427394877
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 1887737166,
+            "mad_s": 1.887737166,
+            "median_ns": 98378518579,
+            "median_s": 98.378518579,
+            "range_ns": 4428386554,
+            "range_s": 4.428386554,
+            "status": "REPLAYED",
+            "values_ns": [
+              100266255745,
+              98378518579,
+              95837869191
+            ],
+            "values_s": [
+              100.266255745,
+              98.378518579,
+              95.837869191
+            ]
+          },
+          "wall_cost_rank": 3,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 94864545,
+            "mad_s": 0.094864545,
+            "median_ns": 39153079094,
+            "median_s": 39.153079094,
+            "range_ns": 472962677,
+            "range_s": 0.472962677,
+            "status": "REPLAYED",
+            "values_ns": [
+              39531177226,
+              39153079094,
+              39058214549
+            ],
+            "values_s": [
+              39.531177226,
+              39.153079094,
+              39.058214549
+            ]
+          },
+          "wall_fraction_of_propagation": 0.13116552810965684
+        },
+        {
+          "amdahl_speedup_2x": 1.0539379624734102,
+          "amdahl_speedup_4x": 1.0831493982719549,
+          "category": "otherNL",
+          "cpu_cost_rank": 6,
+          "labels": [
+            "NONLINEAR",
+            "NONLINEAR_ARRAYS"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 1.6487922288588308e-06,
+            "median": 0.9976424419919996,
+            "range": 3.7077124114270887e-06,
+            "status": "REPLAYED",
+            "values": [
+              0.9976407931997707,
+              0.9976445009121822,
+              0.9976424419919996
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 173111191,
+            "mad_s": 0.173111191,
+            "median_ns": 30481098250,
+            "median_s": 30.48109825,
+            "range_ns": 521295813,
+            "range_s": 0.521295813,
+            "status": "REPLAYED",
+            "values_ns": [
+              30307987059,
+              30829282872,
+              30481098250
+            ],
+            "values_s": [
+              30.307987059,
+              30.829282872,
+              30.48109825
+            ]
+          },
+          "wall_cost_rank": 5,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 173470067,
+            "mad_s": 0.173470067,
+            "median_ns": 30553129024,
+            "median_s": 30.553129024,
+            "range_ns": 522413719,
+            "range_s": 0.522413719,
+            "status": "REPLAYED",
+            "values_ns": [
+              30379658957,
+              30902072676,
+              30553129024
+            ],
+            "values_s": [
+              30.379658957,
+              30.902072676,
+              30.553129024
+            ]
+          },
+          "wall_fraction_of_propagation": 0.10235509943455698
+        },
+        {
+          "amdahl_speedup_2x": 1.0585971778605834,
+          "amdahl_speedup_4x": 1.0905487164111716,
+          "category": "deposition_POST",
+          "cpu_cost_rank": 5,
+          "labels": [
+            "INTERVAL_DEPOSITION_AND_QACC",
+            "INTERVAL_ENERGY_BOOKKEEPING",
+            "INTERVAL_POST_COMMIT"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.00014234812572400113,
+            "median": 0.9942662144953197,
+            "range": 0.0005477507685718308,
+            "status": "REPLAYED",
+            "values": [
+              0.9942662144953197,
+              0.9938608118524719,
+              0.9944085626210437
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 63769450,
+            "mad_s": 0.06376945,
+            "median_ns": 32861473165,
+            "median_s": 32.861473165,
+            "range_ns": 760667013,
+            "range_s": 0.760667013,
+            "status": "REPLAYED",
+            "values_ns": [
+              33558370728,
+              32797703715,
+              32861473165
+            ],
+            "values_s": [
+              33.558370728,
+              32.797703715,
+              32.861473165
+            ]
+          },
+          "wall_cost_rank": 4,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 45950440,
+            "mad_s": 0.04595044,
+            "median_ns": 33046249198,
+            "median_s": 33.046249198,
+            "range_ns": 751598107,
+            "range_s": 0.751598107,
+            "status": "REPLAYED",
+            "values_ns": [
+              33751896865,
+              33000298758,
+              33046249198
+            ],
+            "values_s": [
+              33.751896865,
+              33.000298758,
+              33.046249198
+            ]
+          },
+          "wall_fraction_of_propagation": 0.11070722478026605
+        },
+        {
+          "amdahl_speedup_2x": 1.047087881604734,
+          "amdahl_speedup_4x": 1.0723348703116655,
+          "category": "diagnostics_output",
+          "cpu_cost_rank": 7,
+          "labels": [
+            "INTERVAL_SAVED_DIAGNOSTICS"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 4.375605822226625e-06,
+            "median": 0.997639963649496,
+            "range": 3.7105868312181656e-05,
+            "status": "REPLAYED",
+            "values": [
+              0.9976072333870061,
+              0.997639963649496,
+              0.9976443392553183
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 157189086,
+            "mad_s": 0.157189086,
+            "median_ns": 26784156093,
+            "median_s": 26.784156093,
+            "range_ns": 654765373,
+            "range_s": 0.654765373,
+            "status": "REPLAYED",
+            "values_ns": [
+              27281732380,
+              26626967007,
+              26784156093
+            ],
+            "values_s": [
+              27.28173238,
+              26.626967007,
+              26.784156093
+            ]
+          },
+          "wall_cost_rank": 6,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 157443184,
+            "mad_s": 0.157443184,
+            "median_ns": 26847399458,
+            "median_s": 26.847399458,
+            "range_ns": 657211496,
+            "range_s": 0.657211496,
+            "status": "REPLAYED",
+            "values_ns": [
+              27347167770,
+              26689956274,
+              26847399458
+            ],
+            "values_s": [
+              27.34716777,
+              26.689956274,
+              26.847399458
+            ]
+          },
+          "wall_fraction_of_propagation": 0.08994064859688465
+        },
+        {
+          "amdahl_speedup_2x": 1.0738265044012967,
+          "amdahl_speedup_4x": 1.1149841972750483,
+          "category": "management_remainder_unknown",
+          "cpu_cost_rank": 4,
+          "labels": [
+            "INTERVAL_BODY",
+            "INTERVAL_PREP_AND_OTHER_ARRAYS",
+            "PROPAGATION",
+            "PROP_ENTRY_INIT",
+            "PROP_FINALIZE_EXIT"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 4.292335997224672e-05,
+            "median": 0.9965669933856953,
+            "range": 0.00012117254394128363,
+            "status": "REPLAYED",
+            "values": [
+              0.9964887442017263,
+              0.9966099167456676,
+              0.9965669933856953
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 14235757,
+            "mad_s": 0.014235757,
+            "median_ns": 40905301303,
+            "median_s": 40.905301303,
+            "range_ns": 122757569,
+            "range_s": 0.122757569,
+            "status": "REPLAYED",
+            "values_ns": [
+              40919537060,
+              40905301303,
+              40796779491
+            ],
+            "values_s": [
+              40.91953706,
+              40.905301303,
+              40.796779491
+            ]
+          },
+          "wall_cost_rank": 2,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 19276903,
+            "mad_s": 0.019276903,
+            "median_ns": 41044445390,
+            "median_s": 41.04444539,
+            "range_ns": 126404720,
+            "range_s": 0.12640472,
+            "status": "REPLAYED",
+            "values_ns": [
+              41063722293,
+              41044445390,
+              40937317573
+            ],
+            "values_s": [
+              41.063722293,
+              41.04444539,
+              40.937317573
+            ]
+          },
+          "wall_fraction_of_propagation": 0.13750173626503695
+        }
+      ],
+      "closure": [
+        {
+          "case": "P1_LIGHT",
+          "closure_pass": true,
+          "exclusive_process_cpu_ns": 1046773209003,
+          "exclusive_wall_ns": 301427075399,
+          "issues": [],
+          "ledger_status": "PASS_HOST_CLOCK_EXCLUSIVE",
+          "process_cpu_residual_ns": 0,
+          "propagation_process_cpu_ns": 1046773209003,
+          "propagation_wall_ns": 301427075399,
+          "source_path": "evidence_CPU_FULL/raw/CPU_FULL/report/runs/CPU/384x351x301/P1_LIGHT/work/CASE_RECEIPT.json",
+          "wall_residual_ns": 0
+        },
+        {
+          "case": "P2_LIGHT",
+          "closure_pass": true,
+          "exclusive_process_cpu_ns": 963765851050,
+          "exclusive_wall_ns": 298501288092,
+          "issues": [],
+          "ledger_status": "PASS_HOST_CLOCK_EXCLUSIVE",
+          "process_cpu_residual_ns": 0,
+          "propagation_process_cpu_ns": 963765851050,
+          "propagation_wall_ns": 298501288092,
+          "source_path": "evidence_CPU_FULL/raw/CPU_FULL/report/runs/CPU/384x351x301/P2_LIGHT/work/CASE_RECEIPT.json",
+          "wall_residual_ns": 0
+        },
+        {
+          "case": "P3_LIGHT",
+          "closure_pass": true,
+          "exclusive_process_cpu_ns": 962054558951,
+          "exclusive_wall_ns": 298053569198,
+          "issues": [],
+          "ledger_status": "PASS_HOST_CLOCK_EXCLUSIVE",
+          "process_cpu_residual_ns": 0,
+          "propagation_process_cpu_ns": 962054558951,
+          "propagation_wall_ns": 298053569198,
+          "source_path": "evidence_CPU_FULL/raw/CPU_FULL/report/runs/CPU/384x351x301/P3_LIGHT/work/CASE_RECEIPT.json",
+          "wall_residual_ns": 0
+        }
+      ],
+      "closure_all_pass": true,
+      "cross_backend_operator_difference_allowed": false,
+      "host_wall_semantics": "synchronized CPU host wall clock",
+      "issues": [],
+      "native_attribution_allowed": true,
+      "occupancy_definition": "process CPU exclusive ns / host wall exclusive ns; diagnostic only and may exceed 1 under parallel CPU execution",
+      "rank_by_process_cpu_median": [
+        "Raman_Heun",
+        "linear",
+        "ion",
+        "management_remainder_unknown",
+        "deposition_POST",
+        "otherNL",
+        "diagnostics_output"
+      ],
+      "rank_scope": "CPU process-CPU median only",
+      "scientific_interpretation_allowed": false,
+      "shape": "shape:384x351x301",
+      "status": "REPLAYED",
+      "timing_gate": "PASS_TIMING_GATE",
+      "timing_gate_metrics": {
+        "application": {
+          "each_pass": true,
+          "median": 0.993859383547917,
+          "median_pass": true,
+          "pass": true,
+          "ratios": [
+            0.993859383547917,
+            0.9784692758809247,
+            1.0018027207757008
+          ]
+        },
+        "later": {
+          "each_pass": true,
+          "median": 0.9927910820027622,
+          "median_pass": true,
+          "pass": true,
+          "ratios": [
+            0.9967513414230101,
+            0.9781058149519477,
+            0.9927910820027622
+          ]
+        },
+        "window": {
+          "each_pass": true,
+          "median": 0.9914495283916823,
+          "median_pass": true,
+          "pass": true,
+          "ratios": [
+            0.9940518140450838,
+            0.9789302749742151,
+            0.9914495283916823
+          ]
+        }
+      }
+    },
+    {
+      "amdahl_definition": "1 / ((1-f) + f/s), f=category wall-median / propagation wall-median, s=2 or 4",
+      "backend": "GPU",
+      "case_count": 3,
+      "cases": [
+        "P1_LIGHT",
+        "P2_LIGHT",
+        "P3_LIGHT"
+      ],
+      "categories": [
+        {
+          "amdahl_speedup_2x": null,
+          "amdahl_speedup_4x": null,
+          "category": "linear",
+          "cpu_cost_rank": null,
+          "labels": [
+            "LINEAR"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.00030210669948615987,
+            "median": 0.9518612239252926,
+            "range": 0.00784029470209524,
+            "status": "REPLAYED",
+            "values": [
+              0.9521633306247788,
+              0.9518612239252926,
+              0.9443230359226835
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 1499300,
+            "mad_s": 0.0014993,
+            "median_ns": 892455723,
+            "median_s": 0.892455723,
+            "range_ns": 17547943,
+            "range_s": 0.017547943,
+            "status": "REPLAYED",
+            "values_ns": [
+              893955023,
+              876407080,
+              892455723
+            ],
+            "values_s": [
+              0.893955023,
+              0.87640708,
+              0.892455723
+            ]
+          },
+          "wall_cost_rank": null,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 6207300,
+            "mad_s": 0.0062073,
+            "median_ns": 938867308,
+            "median_s": 0.938867308,
+            "range_ns": 24344718,
+            "range_s": 0.024344718,
+            "status": "REPLAYED",
+            "values_ns": [
+              938867308,
+              920729890,
+              945074608
+            ],
+            "values_s": [
+              0.938867308,
+              0.92072989,
+              0.945074608
+            ]
+          },
+          "wall_fraction_of_propagation": null
+        },
+        {
+          "amdahl_speedup_2x": null,
+          "amdahl_speedup_4x": null,
+          "category": "Raman_Heun",
+          "cpu_cost_rank": null,
+          "labels": [
+            "RAMAN_HALF",
+            "RAMAN_STAGE"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.008367539368841492,
+            "median": 0.9241446185156613,
+            "range": 0.0187118563701697,
+            "status": "REPLAYED",
+            "values": [
+              0.9241446185156613,
+              0.9157770791468198,
+              0.9344889355169895
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 5241462,
+            "mad_s": 0.005241462,
+            "median_ns": 750179765,
+            "median_s": 0.750179765,
+            "range_ns": 12331804,
+            "range_s": 0.012331804,
+            "status": "REPLAYED",
+            "values_ns": [
+              755421227,
+              743089423,
+              750179765
+            ],
+            "values_s": [
+              0.755421227,
+              0.743089423,
+              0.750179765
+            ]
+          },
+          "wall_cost_rank": null,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 5997035,
+            "mad_s": 0.005997035,
+            "median_ns": 811430467,
+            "median_s": 0.811430467,
+            "range_ns": 14657414,
+            "range_s": 0.014657414,
+            "status": "REPLAYED",
+            "values_ns": [
+              817427502,
+              811430467,
+              802770088
+            ],
+            "values_s": [
+              0.817427502,
+              0.811430467,
+              0.802770088
+            ]
+          },
+          "wall_fraction_of_propagation": null
+        },
+        {
+          "amdahl_speedup_2x": null,
+          "amdahl_speedup_4x": null,
+          "category": "ion",
+          "cpu_cost_rank": null,
+          "labels": [
+            "ION_RECURSION",
+            "ION_SETUP"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.0001410067625430278,
+            "median": 0.9895122036068216,
+            "range": 0.004910850278334933,
+            "status": "REPLAYED",
+            "values": [
+              0.9895122036068216,
+              0.9847423600910297,
+              0.9896532103693646
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 11350043,
+            "mad_s": 0.011350043,
+            "median_ns": 1849669328,
+            "median_s": 1.849669328,
+            "range_ns": 44850325,
+            "range_s": 0.044850325,
+            "status": "REPLAYED",
+            "values_ns": [
+              1883169610,
+              1838319285,
+              1849669328
+            ],
+            "values_s": [
+              1.88316961,
+              1.838319285,
+              1.849669328
+            ]
+          },
+          "wall_cost_rank": null,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 2205274,
+            "mad_s": 0.002205274,
+            "median_ns": 1869007556,
+            "median_s": 1.869007556,
+            "range_ns": 36326960,
+            "range_s": 0.03632696,
+            "status": "REPLAYED",
+            "values_ns": [
+              1903129242,
+              1866802282,
+              1869007556
+            ],
+            "values_s": [
+              1.903129242,
+              1.866802282,
+              1.869007556
+            ]
+          },
+          "wall_fraction_of_propagation": null
+        },
+        {
+          "amdahl_speedup_2x": null,
+          "amdahl_speedup_4x": null,
+          "category": "otherNL",
+          "cpu_cost_rank": null,
+          "labels": [
+            "NONLINEAR",
+            "NONLINEAR_ARRAYS"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.0017931111267419642,
+            "median": 0.7524644749657496,
+            "range": 0.06920312953020968,
+            "status": "REPLAYED",
+            "values": [
+              0.7542575860924916,
+              0.6850544565622819,
+              0.7524644749657496
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 49782,
+            "mad_s": 4.9782e-05,
+            "median_ns": 7063702,
+            "median_s": 0.007063702,
+            "range_ns": 212846,
+            "range_s": 0.000212846,
+            "status": "REPLAYED",
+            "values_ns": [
+              7113484,
+              7063702,
+              6900638
+            ],
+            "values_s": [
+              0.007113484,
+              0.007063702,
+              0.006900638
+            ]
+          },
+          "wall_cost_rank": null,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 260391,
+            "mad_s": 0.000260391,
+            "median_ns": 9431107,
+            "median_s": 0.009431107,
+            "range_ns": 1140438,
+            "range_s": 0.001140438,
+            "status": "REPLAYED",
+            "values_ns": [
+              9431107,
+              10311154,
+              9170716
+            ],
+            "values_s": [
+              0.009431107,
+              0.010311154,
+              0.009170716
+            ]
+          },
+          "wall_fraction_of_propagation": null
+        },
+        {
+          "amdahl_speedup_2x": null,
+          "amdahl_speedup_4x": null,
+          "category": "deposition_POST",
+          "cpu_cost_rank": null,
+          "labels": [
+            "INTERVAL_DEPOSITION_AND_QACC",
+            "INTERVAL_ENERGY_BOOKKEEPING",
+            "INTERVAL_POST_COMMIT"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.00014573118876200913,
+            "median": 0.024268198394149527,
+            "range": 0.0004507715585674206,
+            "status": "REPLAYED",
+            "values": [
+              0.024268198394149527,
+              0.024573238763954938,
+              0.024122467205387518
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 545752,
+            "mad_s": 0.000545752,
+            "median_ns": 148642851,
+            "median_s": 0.148642851,
+            "range_ns": 1600980,
+            "range_s": 0.00160098,
+            "status": "REPLAYED",
+            "values_ns": [
+              149698079,
+              148097099,
+              148642851
+            ],
+            "values_s": [
+              0.149698079,
+              0.148097099,
+              0.148642851
+            ]
+          },
+          "wall_cost_rank": null,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 6478897,
+            "mad_s": 0.006478897,
+            "median_ns": 6162008626,
+            "median_s": 6.162008626,
+            "range_ns": 141724001,
+            "range_s": 0.141724001,
+            "status": "REPLAYED",
+            "values_ns": [
+              6168487523,
+              6026763522,
+              6162008626
+            ],
+            "values_s": [
+              6.168487523,
+              6.026763522,
+              6.162008626
+            ]
+          },
+          "wall_fraction_of_propagation": null
+        },
+        {
+          "amdahl_speedup_2x": null,
+          "amdahl_speedup_4x": null,
+          "category": "diagnostics_output",
+          "cpu_cost_rank": null,
+          "labels": [
+            "INTERVAL_SAVED_DIAGNOSTICS"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.0055196239588277685,
+            "median": 0.8517415532469282,
+            "range": 0.017516617960428693,
+            "status": "REPLAYED",
+            "values": [
+              0.8462219292881005,
+              0.8517415532469282,
+              0.8637385472485292
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 153463,
+            "mad_s": 0.000153463,
+            "median_ns": 158505376,
+            "median_s": 0.158505376,
+            "range_ns": 941227,
+            "range_s": 0.000941227,
+            "status": "REPLAYED",
+            "values_ns": [
+              158505376,
+              157717612,
+              158658839
+            ],
+            "values_s": [
+              0.158505376,
+              0.157717612,
+              0.158658839
+            ]
+          },
+          "wall_cost_rank": null,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 1482237,
+            "mad_s": 0.001482237,
+            "median_ns": 185170738,
+            "median_s": 0.185170738,
+            "range_ns": 3620963,
+            "range_s": 0.003620963,
+            "status": "REPLAYED",
+            "values_ns": [
+              187309464,
+              185170738,
+              183688501
+            ],
+            "values_s": [
+              0.187309464,
+              0.185170738,
+              0.183688501
+            ]
+          },
+          "wall_fraction_of_propagation": null
+        },
+        {
+          "amdahl_speedup_2x": null,
+          "amdahl_speedup_4x": null,
+          "category": "management_remainder_unknown",
+          "cpu_cost_rank": null,
+          "labels": [
+            "INTERVAL_BODY",
+            "INTERVAL_PREP_AND_OTHER_ARRAYS",
+            "PROPAGATION",
+            "PROP_ENTRY_INIT",
+            "PROP_FINALIZE_EXIT"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.005742471646063618,
+            "median": 0.4270656531852821,
+            "range": 0.018494704259461536,
+            "status": "REPLAYED",
+            "values": [
+              0.4213231815392185,
+              0.4270656531852821,
+              0.43981788579868003
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 665015,
+            "mad_s": 0.000665015,
+            "median_ns": 116172419,
+            "median_s": 0.116172419,
+            "range_ns": 2197465,
+            "range_s": 0.002197465,
+            "status": "REPLAYED",
+            "values_ns": [
+              114639969,
+              116172419,
+              116837434
+            ],
+            "values_s": [
+              0.114639969,
+              0.116172419,
+              0.116837434
+            ]
+          },
+          "wall_cost_rank": null,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 70360,
+            "mad_s": 7.036e-05,
+            "median_ns": 272024730,
+            "median_s": 0.27202473,
+            "range_ns": 6445516,
+            "range_s": 0.006445516,
+            "status": "REPLAYED",
+            "values_ns": [
+              272095090,
+              272024730,
+              265649574
+            ],
+            "values_s": [
+              0.27209509,
+              0.27202473,
+              0.265649574
+            ]
+          },
+          "wall_fraction_of_propagation": null
+        }
+      ],
+      "closure": [
+        {
+          "case": "P1_LIGHT",
+          "closure_pass": true,
+          "exclusive_process_cpu_ns": 3962502768,
+          "exclusive_wall_ns": 10296747236,
+          "issues": [],
+          "ledger_status": "PASS_HOST_CLOCK_EXCLUSIVE",
+          "process_cpu_residual_ns": 0,
+          "propagation_process_cpu_ns": 3962502768,
+          "propagation_wall_ns": 10296747236,
+          "source_path": "evidence_GPU_COMPLETED_A01/raw/GPU/report/runs/GPU/384x117x129/P1_LIGHT/work/CASE_RECEIPT.json",
+          "wall_residual_ns": 0
+        },
+        {
+          "case": "P2_LIGHT",
+          "closure_pass": true,
+          "exclusive_process_cpu_ns": 3886866620,
+          "exclusive_wall_ns": 10093232783,
+          "issues": [],
+          "ledger_status": "PASS_HOST_CLOCK_EXCLUSIVE",
+          "process_cpu_residual_ns": 0,
+          "propagation_process_cpu_ns": 3886866620,
+          "propagation_wall_ns": 10093232783,
+          "source_path": "evidence_GPU_COMPLETED_A01/raw/GPU/report/runs/GPU/384x117x129/P2_LIGHT/work/CASE_RECEIPT.json",
+          "wall_residual_ns": 0
+        },
+        {
+          "case": "P3_LIGHT",
+          "closure_pass": true,
+          "exclusive_process_cpu_ns": 3923344578,
+          "exclusive_wall_ns": 10237369669,
+          "issues": [],
+          "ledger_status": "PASS_HOST_CLOCK_EXCLUSIVE",
+          "process_cpu_residual_ns": 0,
+          "propagation_process_cpu_ns": 3923344578,
+          "propagation_wall_ns": 10237369669,
+          "source_path": "evidence_GPU_COMPLETED_A01/raw/GPU/report/runs/GPU/384x117x129/P3_LIGHT/work/CASE_RECEIPT.json",
+          "wall_residual_ns": 0
+        }
+      ],
+      "closure_all_pass": true,
+      "cross_backend_operator_difference_allowed": false,
+      "host_wall_semantics": "async submission/wait host wall clock; not an additive cross-backend operator cost",
+      "issues": [],
+      "native_attribution_allowed": false,
+      "occupancy_definition": "process CPU exclusive ns / host wall exclusive ns; diagnostic only and may exceed 1 under parallel CPU execution",
+      "rank_by_process_cpu_median": null,
+      "rank_scope": "NOT_COMPUTED_FOR_GPU",
+      "scientific_interpretation_allowed": false,
+      "shape": "shape:384x117x129",
+      "status": "REPLAYED",
+      "timing_gate": "PASS_TIMING_GATE",
+      "timing_gate_metrics": {
+        "application": {
+          "each_pass": true,
+          "median": 1.005512950984154,
+          "median_pass": true,
+          "pass": true,
+          "ratios": [
+            0.9750000231338988,
+            1.0072286869779563,
+            1.005512950984154
+          ]
+        },
+        "later": {
+          "each_pass": true,
+          "median": 0.9634681605529719,
+          "median_pass": true,
+          "pass": true,
+          "ratios": [
+            1.029406405873585,
+            0.9299396755019568,
+            0.9634681605529719
+          ]
+        },
+        "window": {
+          "each_pass": true,
+          "median": 0.9662963641758859,
+          "median_pass": true,
+          "pass": true,
+          "ratios": [
+            1.0187401994461787,
+            0.944658666836897,
+            0.9662963641758859
+          ]
+        }
+      }
+    },
+    {
+      "amdahl_definition": "1 / ((1-f) + f/s), f=category wall-median / propagation wall-median, s=2 or 4",
+      "backend": "GPU",
+      "case_count": 3,
+      "cases": [
+        "P1_LIGHT",
+        "P2_LIGHT",
+        "P3_LIGHT"
+      ],
+      "categories": [
+        {
+          "amdahl_speedup_2x": null,
+          "amdahl_speedup_4x": null,
+          "category": "linear",
+          "cpu_cost_rank": null,
+          "labels": [
+            "LINEAR"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.0009204505433680898,
+            "median": 0.9460080182541031,
+            "range": 0.0025394614141825977,
+            "status": "REPLAYED",
+            "values": [
+              0.9460080182541031,
+              0.9476270291249176,
+              0.945087567710735
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 27130527,
+            "mad_s": 0.027130527,
+            "median_ns": 934086269,
+            "median_s": 0.934086269,
+            "range_ns": 70685718,
+            "range_s": 0.070685718,
+            "status": "REPLAYED",
+            "values_ns": [
+              890531078,
+              934086269,
+              961216796
+            ],
+            "values_s": [
+              0.890531078,
+              0.934086269,
+              0.961216796
+            ]
+          },
+          "wall_cost_rank": null,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 31355509,
+            "mad_s": 0.031355509,
+            "median_ns": 985710876,
+            "median_s": 0.985710876,
+            "range_ns": 75709588,
+            "range_s": 0.075709588,
+            "status": "REPLAYED",
+            "values_ns": [
+              941356797,
+              985710876,
+              1017066385
+            ],
+            "values_s": [
+              0.941356797,
+              0.985710876,
+              1.017066385
+            ]
+          },
+          "wall_fraction_of_propagation": null
+        },
+        {
+          "amdahl_speedup_2x": null,
+          "amdahl_speedup_4x": null,
+          "category": "Raman_Heun",
+          "cpu_cost_rank": null,
+          "labels": [
+            "RAMAN_HALF",
+            "RAMAN_STAGE"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.001783210167749849,
+            "median": 0.9686022878936141,
+            "range": 0.011502255087941449,
+            "status": "REPLAYED",
+            "values": [
+              0.9686022878936141,
+              0.970385498061364,
+              0.9588832429734225
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 7185459,
+            "mad_s": 0.007185459,
+            "median_ns": 1973418345,
+            "median_s": 1.973418345,
+            "range_ns": 23627912,
+            "range_s": 0.023627912,
+            "status": "REPLAYED",
+            "values_ns": [
+              1956975892,
+              1973418345,
+              1980603804
+            ],
+            "values_s": [
+              1.956975892,
+              1.973418345,
+              1.980603804
+            ]
+          },
+          "wall_cost_rank": null,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 13231477,
+            "mad_s": 0.013231477,
+            "median_ns": 2033643690,
+            "median_s": 2.03364369,
+            "range_ns": 45119559,
+            "range_s": 0.045119559,
+            "status": "REPLAYED",
+            "values_ns": [
+              2020412213,
+              2033643690,
+              2065531772
+            ],
+            "values_s": [
+              2.020412213,
+              2.03364369,
+              2.065531772
+            ]
+          },
+          "wall_fraction_of_propagation": null
+        },
+        {
+          "amdahl_speedup_2x": null,
+          "amdahl_speedup_4x": null,
+          "category": "ion",
+          "cpu_cost_rank": null,
+          "labels": [
+            "ION_RECURSION",
+            "ION_SETUP"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.001069950565199873,
+            "median": 0.9866145127953024,
+            "range": 0.002695568088280309,
+            "status": "REPLAYED",
+            "values": [
+              0.9866145127953024,
+              0.9876844633605023,
+              0.984988895272222
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 16700861,
+            "mad_s": 0.016700861,
+            "median_ns": 1950709948,
+            "median_s": 1.950709948,
+            "range_ns": 164224803,
+            "range_s": 0.164224803,
+            "status": "REPLAYED",
+            "values_ns": [
+              1934009087,
+              1950709948,
+              2098233890
+            ],
+            "values_s": [
+              1.934009087,
+              1.950709948,
+              2.09823389
+            ]
+          },
+          "wall_cost_rank": null,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 14785585,
+            "mad_s": 0.014785585,
+            "median_ns": 1975033546,
+            "median_s": 1.975033546,
+            "range_ns": 169962745,
+            "range_s": 0.169962745,
+            "status": "REPLAYED",
+            "values_ns": [
+              1960247961,
+              1975033546,
+              2130210706
+            ],
+            "values_s": [
+              1.960247961,
+              1.975033546,
+              2.130210706
+            ]
+          },
+          "wall_fraction_of_propagation": null
+        },
+        {
+          "amdahl_speedup_2x": null,
+          "amdahl_speedup_4x": null,
+          "category": "otherNL",
+          "cpu_cost_rank": null,
+          "labels": [
+            "NONLINEAR",
+            "NONLINEAR_ARRAYS"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.028725432681698027,
+            "median": 0.7974796699498528,
+            "range": 0.07324210637912676,
+            "status": "REPLAYED",
+            "values": [
+              0.752962996252424,
+              0.8262051026315508,
+              0.7974796699498528
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 830634,
+            "mad_s": 0.000830634,
+            "median_ns": 12226357,
+            "median_s": 0.012226357,
+            "range_ns": 1864943,
+            "range_s": 0.001864943,
+            "status": "REPLAYED",
+            "values_ns": [
+              11192048,
+              13056991,
+              12226357
+            ],
+            "values_s": [
+              0.011192048,
+              0.013056991,
+              0.012226357
+            ]
+          },
+          "wall_cost_rank": null,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 467238,
+            "mad_s": 0.000467238,
+            "median_ns": 15331246,
+            "median_s": 0.015331246,
+            "range_ns": 939563,
+            "range_s": 0.000939563,
+            "status": "REPLAYED",
+            "values_ns": [
+              14864008,
+              15803571,
+              15331246
+            ],
+            "values_s": [
+              0.014864008,
+              0.015803571,
+              0.015331246
+            ]
+          },
+          "wall_fraction_of_propagation": null
+        },
+        {
+          "amdahl_speedup_2x": null,
+          "amdahl_speedup_4x": null,
+          "category": "deposition_POST",
+          "cpu_cost_rank": null,
+          "labels": [
+            "INTERVAL_DEPOSITION_AND_QACC",
+            "INTERVAL_ENERGY_BOOKKEEPING",
+            "INTERVAL_POST_COMMIT"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.006656758028286511,
+            "median": 0.04784357340088606,
+            "range": 0.026717391362518644,
+            "status": "REPLAYED",
+            "values": [
+              0.027782940066653928,
+              0.04784357340088606,
+              0.05450033142917257
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 8020107,
+            "mad_s": 0.008020107,
+            "median_ns": 509844860,
+            "median_s": 0.50984486,
+            "range_ns": 40975337,
+            "range_s": 0.040975337,
+            "status": "REPLAYED",
+            "values_ns": [
+              542800090,
+              501824753,
+              509844860
+            ],
+            "values_s": [
+              0.54280009,
+              0.501824753,
+              0.50984486
+            ]
+          },
+          "wall_cost_rank": null,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 1133969713,
+            "mad_s": 1.133969713,
+            "median_ns": 10488864383,
+            "median_s": 10.488864383,
+            "range_ns": 10182277735,
+            "range_s": 10.182277735,
+            "status": "REPLAYED",
+            "values_ns": [
+              19537172405,
+              10488864383,
+              9354894670
+            ],
+            "values_s": [
+              19.537172405,
+              10.488864383,
+              9.35489467
+            ]
+          },
+          "wall_fraction_of_propagation": null
+        },
+        {
+          "amdahl_speedup_2x": null,
+          "amdahl_speedup_4x": null,
+          "category": "diagnostics_output",
+          "cpu_cost_rank": null,
+          "labels": [
+            "INTERVAL_SAVED_DIAGNOSTICS"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.00481345150359247,
+            "median": 0.9360395163586799,
+            "range": 0.010878156329848676,
+            "status": "REPLAYED",
+            "values": [
+              0.9360395163586799,
+              0.9408529678622723,
+              0.9299748115324237
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 7575090,
+            "mad_s": 0.00757509,
+            "median_ns": 434116628,
+            "median_s": 0.434116628,
+            "range_ns": 28090960,
+            "range_s": 0.02809096,
+            "status": "REPLAYED",
+            "values_ns": [
+              426541538,
+              434116628,
+              454632498
+            ],
+            "values_s": [
+              0.426541538,
+              0.434116628,
+              0.454632498
+            ]
+          },
+          "wall_cost_rank": null,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 5719980,
+            "mad_s": 0.00571998,
+            "median_ns": 461407513,
+            "median_s": 0.461407513,
+            "range_ns": 33177856,
+            "range_s": 0.033177856,
+            "status": "REPLAYED",
+            "values_ns": [
+              455687533,
+              461407513,
+              488865389
+            ],
+            "values_s": [
+              0.455687533,
+              0.461407513,
+              0.488865389
+            ]
+          },
+          "wall_fraction_of_propagation": null
+        },
+        {
+          "amdahl_speedup_2x": null,
+          "amdahl_speedup_4x": null,
+          "category": "management_remainder_unknown",
+          "cpu_cost_rank": null,
+          "labels": [
+            "INTERVAL_BODY",
+            "INTERVAL_PREP_AND_OTHER_ARRAYS",
+            "PROPAGATION",
+            "PROP_ENTRY_INIT",
+            "PROP_FINALIZE_EXIT"
+          ],
+          "occupancy_process_cpu_over_wall": {
+            "count": 3,
+            "issues": [],
+            "mad": 0.00338701756923232,
+            "median": 0.710607194743886,
+            "range": 0.017742500562103247,
+            "status": "REPLAYED",
+            "values": [
+              0.710607194743886,
+              0.6962517117510151,
+              0.7139942123131183
+            ]
+          },
+          "process_cpu_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 3521179,
+            "mad_s": 0.003521179,
+            "median_ns": 562615934,
+            "median_s": 0.562615934,
+            "range_ns": 11250375,
+            "range_s": 0.011250375,
+            "status": "REPLAYED",
+            "values_ns": [
+              554886738,
+              566137113,
+              562615934
+            ],
+            "values_s": [
+              0.554886738,
+              0.566137113,
+              0.562615934
+            ]
+          },
+          "wall_cost_rank": null,
+          "wall_exclusive": {
+            "count": 3,
+            "issues": [],
+            "mad_ns": 7121066,
+            "mad_s": 0.007121066,
+            "median_ns": 787983886,
+            "median_s": 0.787983886,
+            "range_ns": 32258503,
+            "range_s": 0.032258503,
+            "status": "REPLAYED",
+            "values_ns": [
+              780862820,
+              813121323,
+              787983886
+            ],
+            "values_s": [
+              0.78086282,
+              0.813121323,
+              0.787983886
+            ]
+          },
+          "wall_fraction_of_propagation": null
+        }
+      ],
+      "closure": [
+        {
+          "case": "P1_LIGHT",
+          "closure_pass": true,
+          "exclusive_process_cpu_ns": 6316936471,
+          "exclusive_wall_ns": 25710603737,
+          "issues": [],
+          "ledger_status": "PASS_HOST_CLOCK_EXCLUSIVE",
+          "process_cpu_residual_ns": 0,
+          "propagation_process_cpu_ns": 6316936471,
+          "propagation_wall_ns": 25710603737,
+          "source_path": "evidence_GPU_COMPLETED_A01/raw/GPU/report/runs/GPU/384x351x301/P1_LIGHT/work/CASE_RECEIPT.json",
+          "wall_residual_ns": 0
+        },
+        {
+          "case": "P2_LIGHT",
+          "closure_pass": true,
+          "exclusive_process_cpu_ns": 6373350047,
+          "exclusive_wall_ns": 16773584902,
+          "issues": [],
+          "ledger_status": "PASS_HOST_CLOCK_EXCLUSIVE",
+          "process_cpu_residual_ns": 0,
+          "propagation_process_cpu_ns": 6373350047,
+          "propagation_wall_ns": 16773584902,
+          "source_path": "evidence_GPU_COMPLETED_A01/raw/GPU/report/runs/GPU/384x351x301/P2_LIGHT/work/CASE_RECEIPT.json",
+          "wall_residual_ns": 0
+        },
+        {
+          "case": "P3_LIGHT",
+          "closure_pass": true,
+          "exclusive_process_cpu_ns": 6579374139,
+          "exclusive_wall_ns": 15859884054,
+          "issues": [],
+          "ledger_status": "PASS_HOST_CLOCK_EXCLUSIVE",
+          "process_cpu_residual_ns": 0,
+          "propagation_process_cpu_ns": 6579374139,
+          "propagation_wall_ns": 15859884054,
+          "source_path": "evidence_GPU_COMPLETED_A01/raw/GPU/report/runs/GPU/384x351x301/P3_LIGHT/work/CASE_RECEIPT.json",
+          "wall_residual_ns": 0
+        }
+      ],
+      "closure_all_pass": true,
+      "cross_backend_operator_difference_allowed": false,
+      "host_wall_semantics": "async submission/wait host wall clock; not an additive cross-backend operator cost",
+      "issues": [],
+      "native_attribution_allowed": false,
+      "occupancy_definition": "process CPU exclusive ns / host wall exclusive ns; diagnostic only and may exceed 1 under parallel CPU execution",
+      "rank_by_process_cpu_median": null,
+      "rank_scope": "NOT_COMPUTED_FOR_GPU",
+      "scientific_interpretation_allowed": false,
+      "shape": "shape:384x351x301",
+      "status": "REPLAYED",
+      "timing_gate": "TIMING_GATE_FAIL",
+      "timing_gate_metrics": {
+        "application": {
+          "each_pass": false,
+          "median": 1.1331867937149556,
+          "median_pass": false,
+          "pass": false,
+          "ratios": [
+            1.1331867937149556,
+            1.084252154985258,
+            1.1733889311057621
+          ]
+        },
+        "later": {
+          "each_pass": false,
+          "median": 1.6689837925366664,
+          "median_pass": false,
+          "pass": false,
+          "ratios": [
+            1.78254365674975,
+            1.6689837925366664,
+            1.1128055069518323
+          ]
+        },
+        "window": {
+          "each_pass": false,
+          "median": 1.5071091214273633,
+          "median_pass": false,
+          "pass": false,
+          "ratios": [
+            1.4712383638655517,
+            1.6697951848035204,
+            1.5071091214273633
+          ]
+        }
+      }
+    }
+  ],
+  "aux_serialized_summaries": [
+    {
+      "aux_application_s": 80.10894626,
+      "aux_to_off_application_median_ratio": 2.0743112204403134,
+      "aux_to_p1_off_application_ratio": 2.088149015201556,
+      "backend": "GPU",
+      "case": "AUX_SERIALIZED",
+      "diagnostic_only": true,
+      "issues": [],
+      "matrix_eligible": false,
+      "mode": "SERIALIZED",
+      "not_formal_p_sample": true,
+      "not_off_median": true,
+      "off_application_median_s": 38.619540535,
+      "p1_off_application_s": 38.36361566,
+      "p1_off_source_path": "evidence_GPU_COMPLETED_A01/raw/GPU/report/runs/GPU/384x117x129/P1_OFF/work/CASE_RECEIPT.json",
+      "scientific_interpretation_allowed": false,
+      "shape": "shape:384x117x129",
+      "source_path": "evidence_GPU_COMPLETED_A01/raw/GPU/report/runs/GPU/384x117x129/AUX_SERIALIZED/work/CASE_RECEIPT.json",
+      "status": "REPLAYED"
+    },
+    {
+      "aux_application_s": 58.198049659,
+      "aux_to_off_application_median_ratio": 1.1794804557623415,
+      "aux_to_p1_off_application_ratio": 1.0478831438067484,
+      "backend": "GPU",
+      "case": "AUX_SERIALIZED",
+      "diagnostic_only": true,
+      "issues": [],
+      "matrix_eligible": false,
+      "mode": "SERIALIZED",
+      "not_formal_p_sample": true,
+      "not_off_median": true,
+      "off_application_median_s": 49.342105988,
+      "p1_off_application_s": 55.538682918,
+      "p1_off_source_path": "evidence_GPU_COMPLETED_A01/raw/GPU/report/runs/GPU/384x351x301/P1_OFF/work/CASE_RECEIPT.json",
+      "scientific_interpretation_allowed": false,
+      "shape": "shape:384x351x301",
+      "source_path": "evidence_GPU_COMPLETED_A01/raw/GPU/report/runs/GPU/384x351x301/AUX_SERIALIZED/work/CASE_RECEIPT.json",
+      "status": "REPLAYED"
+    }
+  ],
+  "source": "Current original CASE_RECEIPT and RAW timings",
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "MANUAL_REVIEW_PENDING": true
+}

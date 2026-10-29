@@ -1,0 +1,15 @@
+{
+  "schema": "filament.cpu.s46a.source_bundles.v1",
+  "bundles": [
+    {
+      "role": "CPU",
+      "root": "source_roles/CPU",
+      "execution_commit": "ed8754041625549a80959db7a8abd804d5d219ae"
+    },
+    {
+      "role": "GPU",
+      "root": "source_roles/GPU",
+      "execution_commit": "6440ace43e07523ef924c790055b3cc21e7bc1fc"
+    }
+  ]
+}

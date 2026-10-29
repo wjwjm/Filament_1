@@ -1,0 +1,34 @@
+{
+  "status": "TOTAL_GAP_MEASURED / DETAIL_ATTRIBUTION_LIMITED",
+  "inflight_allocations": 0,
+  "cpu_job_ids": [
+    "8854173",
+    "8854203",
+    "8854552",
+    "8855018"
+  ],
+  "gpu_job_ids": [
+    "290147",
+    "290163",
+    "290181",
+    "290195"
+  ],
+  "cpu_allocated_core_hours": 150.77333333333334,
+  "gpu_allocated_hours": 0.7411111111111112,
+  "gpu_host_core_hours": 5.928888888888889,
+  "caps": {
+    "cpu_job_ids": 4,
+    "gpu_job_ids": 4,
+    "cpu_core_hours": 240,
+    "gpu_hours": 2,
+    "gpu_host_core_hours": 16
+  },
+  "local_engineering_time": "UNMEASURED",
+  "monitoring_wait_time": "UNMEASURED",
+  "repair_rework_time": "UNMEASURED",
+  "propagation_samples": "Only current P1-P3 OFF; qualification/reference/failed/historical/AUX excluded",
+  "further_submissions_authorized": false,
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "MANUAL_REVIEW_PENDING": true
+}

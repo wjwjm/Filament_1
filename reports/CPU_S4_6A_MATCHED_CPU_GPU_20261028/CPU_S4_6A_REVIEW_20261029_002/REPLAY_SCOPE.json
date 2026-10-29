@@ -1,0 +1,54 @@
+{
+  "schema": "filament.cpu.s4_6a.replay_scope.v1",
+  "scope_status": "CURRENT_FORMAL_METADATA_ONLY",
+  "datasets": [
+    "evidence_CPU_SMALL/raw/CPU_SMALL/report/MATRIX_RESULT_CPU_117.json",
+    "evidence_GPU_COMPLETED_A01/raw/GPU/report/MATRIX_RESULT_GPU_117.json",
+    "evidence_GPU_COMPLETED_A01/raw/GPU/report/MATRIX_RESULT_GPU_351.json",
+    "evidence_CPU_FULL"
+  ],
+  "timings": [
+    "evidence_CPU_SMALL/raw/CPU_SMALL/report/runs",
+    "evidence_GPU_COMPLETED_A01/raw/GPU/report/runs",
+    "evidence_CPU_FULL"
+  ],
+  "manifests": [
+    "evidence_CPU_SMALL/PORTABLE_METADATA_MANIFEST.json",
+    "evidence_CPU_FULL/PORTABLE_METADATA_MANIFEST.json",
+    "evidence_GPU_COMPLETED_A01/PORTABLE_METADATA_MANIFEST.json",
+    "evidence_CPU_SMALL/raw/CPU_SMALL/canonical/384x117x129/INPUT_MANIFEST.json",
+    "evidence_CPU_SMALL/raw/CPU_SMALL/canonical/384x351x301/INPUT_MANIFEST.json",
+    "evidence_CPU_FULL/raw/CPU_FULL/canonical/384x117x129/INPUT_MANIFEST.json",
+    "evidence_CPU_FULL/raw/CPU_FULL/canonical/384x351x301/INPUT_MANIFEST.json",
+    "evidence_GPU_COMPLETED_A01/raw/GPU/canonical/384x117x129/INPUT_MANIFEST.json",
+    "evidence_GPU_COMPLETED_A01/raw/GPU/canonical/384x351x301/INPUT_MANIFEST.json",
+    "SOURCE_BUNDLE_INDEX.json",
+    "PACKAGE_METADATA_MANIFEST.json"
+  ],
+  "ledgers": [
+    "failure_history/CPU_V1_INVALID/SCHEDULER_TERMINAL.json",
+    "failure_history/CPU_R2_FAILED/SCHEDULER_TERMINAL.json",
+    "evidence_CPU_SMALL/raw/CPU_SMALL/SCHEDULER_TERMINAL.json",
+    "evidence_CPU_FULL/raw/CPU_FULL/SCHEDULER_TERMINAL.json",
+    "failure_history/GPU_290147_SCHEDULER_ORIGINAL.json",
+    "failure_history/GPU_290163_SCHEDULER_ORIGINAL.json",
+    "failure_history/GPU_290181_SCHEDULER_ORIGINAL.json",
+    "evidence_GPU_COMPLETED_A01/raw/GPU/SCHEDULER_TERMINAL.json"
+  ],
+  "excluded": [
+    "REFERENCE",
+    "FAILED",
+    "AUX_SERIALIZED_FROM_FORMAL_MATRIX",
+    "scientific_arrays",
+    "legacy_versions",
+    "old_root_tables",
+    "remote_CPU_FULL_8855018"
+  ],
+  "notes": [
+    "The CPU small MATRIX_RESULT_CPU_117.json and current CPU full MATRIX_RESULT_CPU_351.json are explicitly listed but deferred when they exceed the 8 MiB metadata parser bound; formal CASE_RECEIPT and RAW_CPU_TIMING remain the replay source.",
+    "GPU MATRIX_RESULT_GPU_117.json and MATRIX_RESULT_GPU_351.json are metadata-sized and are cross-checked against CASE_RECEIPT and RAW_GPU_TIMING.",
+    "AUX_SERIALIZED is retained for a separate diagnostic ledger and never fills P1-P3 or OFF statistics.",
+    "SOURCE_BUNDLE_INDEX.json is the explicit two-role CPU/GPU execution-source whitelist; each role manifest is checked against its declared execution_commit and PV2 blob/canonical-LF hashes."
+  ],
+  "resource_selection": "Only original main scheduler rows charged once, not batch/extern/step or presentation CSV"
+}

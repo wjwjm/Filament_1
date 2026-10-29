@@ -1,0 +1,94 @@
+{
+  "scope": "Only no-stage stable_field_fluence_and_loss RAMAN_ENERGY exclusive leaf",
+  "profile_samples": [
+    {
+      "case": "P1_LIGHT",
+      "count": 16,
+      "wall_ns": 24556077038,
+      "process_cpu_ns": 24498009211,
+      "window_s": 301.427075399,
+      "application_s": 343.972270086
+    },
+    {
+      "case": "P2_LIGHT",
+      "count": 16,
+      "wall_ns": 24739376383,
+      "process_cpu_ns": 24681066978,
+      "window_s": 298.501288092,
+      "application_s": 339.970793152
+    },
+    {
+      "case": "P3_LIGHT",
+      "count": 16,
+      "wall_ns": 24893584588,
+      "process_cpu_ns": 24835049449,
+      "window_s": 298.053569198,
+      "application_s": 341.745816156
+    }
+  ],
+  "leaf_median_s": 24.739376383,
+  "leaf_range_s": 0.337507549999998,
+  "leaf_MAD_s": 0.15420820499999977,
+  "scenarios": [
+    {
+      "local_speedup": 2,
+      "cases": [
+        {
+          "case": "P1_LIGHT",
+          "saved_s": 12.278038519,
+          "hypothetical_window_s": 289.14903688,
+          "window_speedup": 1.0424626644151525,
+          "hypothetical_application_s": 331.694231567,
+          "application_speedup": 1.0370161351947416
+        },
+        {
+          "case": "P2_LIGHT",
+          "saved_s": 12.3696881915,
+          "hypothetical_window_s": 286.13159990049996,
+          "window_speedup": 1.0432307658287356,
+          "hypothetical_application_s": 327.6011049605,
+          "application_speedup": 1.0377583836079902
+        },
+        {
+          "case": "P3_LIGHT",
+          "saved_s": 12.446792294,
+          "hypothetical_window_s": 285.606776904,
+          "window_speedup": 1.043580171412332,
+          "hypothetical_application_s": 329.299023862,
+          "application_speedup": 1.0377978414512885
+        }
+      ]
+    },
+    {
+      "local_speedup": 4,
+      "cases": [
+        {
+          "case": "P1_LIGHT",
+          "saved_s": 18.417057778500002,
+          "hypothetical_window_s": 283.0100176205,
+          "window_speedup": 1.0650756391358422,
+          "hypothetical_application_s": 325.55521230749997,
+          "application_speedup": 1.0565712268833354
+        },
+        {
+          "case": "P2_LIGHT",
+          "saved_s": 18.554532287249998,
+          "hypothetical_window_s": 279.94675580474996,
+          "window_speedup": 1.0662787901717674,
+          "hypothetical_application_s": 321.41626086475003,
+          "application_speedup": 1.057727422493592
+        },
+        {
+          "case": "P3_LIGHT",
+          "saved_s": 18.670188441,
+          "hypothetical_window_s": 279.383380757,
+          "window_speedup": 1.0668264103269578,
+          "hypothetical_application_s": 323.075627715,
+          "application_speedup": 1.0577889102098095
+        }
+      ]
+    }
+  ],
+  "added_cost": "UNKNOWN; zero-extra-cost hypothetical upper scenarios, not forecast or GPU lower bound",
+  "implementation_authorized_by_this_task": false
+}

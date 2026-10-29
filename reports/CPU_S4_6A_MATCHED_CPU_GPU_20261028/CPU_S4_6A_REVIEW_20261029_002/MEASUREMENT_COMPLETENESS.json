@@ -1,0 +1,18 @@
+{
+  "status": "TOTAL_GAP_MEASURED / DETAIL_ATTRIBUTION_LIMITED",
+  "current_OFF_samples_per_backend_shape": 3,
+  "backend_shape_count": 4,
+  "OFF_total_and_macro_wall_valid": true,
+  "cpu_small_LIGHT": "PASS",
+  "cpu_full_LIGHT": "PASS",
+  "gpu_small_LIGHT": "PASS",
+  "gpu_full_LIGHT": "FAIL",
+  "gpu_full_NATIVE_operator_deltas": "UNKNOWN",
+  "native_OFF_macro_arithmetic_closure": "0",
+  "scientific_arrays_rechecked_offline": false,
+  "cross_backend_numerical_equivalence": false,
+  "remaining_gap": "Full native GPU operator attribution, kernel activity, hardware counters and exact hardware-cause decomposition",
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "MANUAL_REVIEW_PENDING": true
+}

@@ -1,0 +1,23 @@
+{
+  "status": "PASS_ACTUAL_FINAL_COMPACT_ZIP_RESTORE_AND_REPLAY",
+  "conclusion": "TOTAL_GAP_MEASURED / DETAIL_ATTRIBUTION_LIMITED",
+  "Windows_focused_tests": 21,
+  "Linux_focused_tests": 21,
+  "Windows_actual_final_ZIP_restore": "PASS_ALL_LOGICAL_FILES_RESTORED_RAW_BYTES",
+  "Linux_actual_final_ZIP_restore": "PASS_ALL_LOGICAL_FILES_RESTORED_RAW_BYTES",
+  "Windows_actual_final_ZIP_replay": "PASS_EXPECTED_LIMITED_REPLAY",
+  "Linux_actual_final_ZIP_replay": "PASS_EXPECTED_LIMITED_REPLAY",
+  "logical_files_verified_per_platform": 2044,
+  "unique_payload_files": 1035,
+  "ZIP_bytes": 14411309,
+  "ZIP_raw_sha256": "f18c280933952b8c1fd64974da5c1b2b861f364353d0fbaa4834a13a5625c901",
+  "hash_scope": "raw_bytes",
+  "GPU_full_LIGHT": "TIMING_GATE_FAIL_PRESERVED",
+  "native_full_operator_delta": "UNKNOWN",
+  "cross_backend_scientific_equivalence": false,
+  "scientific_arrays_in_ZIP": 0,
+  "inflight_allocations": 0,
+  "DEFAULT": "I0",
+  "PRODUCTION_QUALIFIED": false,
+  "MANUAL_REVIEW_PENDING": true
+}

@@ -1,0 +1,22 @@
+{
+  "role": "filament_numerical_reviewer",
+  "mode": "Read-only integrated report/contract/table review; no new propagation or tests",
+  "result": "No blocking scientific or accounting defect reported after parent integration",
+  "checked": [
+    "Full GPU LIGHT failure retained",
+    "Median main ratios vs additive independent means",
+    "Nonoverlap and CPU exclusive closure",
+    "No async-host/device mixed delta",
+    "Unique stable-energy candidate with original NumPy sum preserved",
+    "No cross-backend equivalence or hardware-limit claim"
+  ],
+  "corrected_preliminary_evidence": [
+    "Earlier wrong RAW layer claim of missing ION labels withdrawn",
+    "No-stage RAMAN_ENERGY leaf differs from all-label parent/exclusive sum"
+  ],
+  "unverified": [
+    "Native full GPU operator attribution",
+    "Cross-backend scientific equivalence",
+    "Unimplemented next candidate"
+  ]
+}

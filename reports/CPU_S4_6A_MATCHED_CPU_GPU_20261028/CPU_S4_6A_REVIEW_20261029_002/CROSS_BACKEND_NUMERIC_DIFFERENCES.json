@@ -1,0 +1,105 @@
+{
+  "status": "CROSS_BACKEND_NUMERICAL_EQUIVALENCE_NOT_QUALIFIED",
+  "new_epsilon": null,
+  "equivalence_qualified": false,
+  "datasets": [
+    {
+      "shape": "384x117x129",
+      "status": "CROSS_BACKEND_NUMERICAL_EQUIVALENCE_NOT_QUALIFIED",
+      "matched_input_workload": true,
+      "tolerance_contract": null,
+      "field_count": 251,
+      "original": "evidence_GPU_COMPLETED_A01/raw/GPU/report/CROSS_BACKEND_NUMERIC_DIFFERENCES_SMALL.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "01715dcd42c325baf711045520b805cfcb5f09146bd2935f85d6d67e326fdee7",
+      "selected": [
+        {
+          "domain": "terminal",
+          "field": "final_E",
+          "shape": [
+            384,
+            117,
+            129
+          ],
+          "dtype": "complex128",
+          "max_abs": 3.188486390633573e-05,
+          "relative_L2": 6.477826489211191e-15,
+          "relative_denominator": "L2(CPU finite elements)",
+          "zero_denominator": false,
+          "cpu_nan": 0,
+          "gpu_nan": 0,
+          "cpu_inf": 0,
+          "gpu_inf": 0
+        },
+        {
+          "domain": "first_boundary",
+          "field": "E",
+          "shape": [
+            384,
+            117,
+            129
+          ],
+          "dtype": "complex128",
+          "max_abs": 4.6978141058058815e-06,
+          "relative_L2": 1.1730884670665353e-15,
+          "relative_denominator": "L2(CPU finite elements)",
+          "zero_denominator": false,
+          "cpu_nan": 0,
+          "gpu_nan": 0,
+          "cpu_inf": 0,
+          "gpu_inf": 0
+        }
+      ]
+    },
+    {
+      "shape": "384x351x301",
+      "status": "CROSS_BACKEND_NUMERICAL_EQUIVALENCE_NOT_QUALIFIED",
+      "matched_input_workload": true,
+      "tolerance_contract": null,
+      "field_count": 251,
+      "original": "CROSS_FULL_NUMERIC_A01/CROSS_BACKEND_NUMERIC_DIFFERENCES_FULL.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "48d55398516b440132c643358210ca43a1ab96fd6a224cc10e58c74530054ae6",
+      "selected": [
+        {
+          "domain": "terminal",
+          "field": "final_E",
+          "shape": [
+            384,
+            351,
+            301
+          ],
+          "dtype": "complex128",
+          "max_abs": 2.2176212277752917e-05,
+          "relative_L2": 6.947875174988586e-15,
+          "relative_denominator": "L2(CPU finite elements)",
+          "zero_denominator": false,
+          "cpu_nan": 0,
+          "gpu_nan": 0,
+          "cpu_inf": 0,
+          "gpu_inf": 0
+        },
+        {
+          "domain": "first_boundary",
+          "field": "E",
+          "shape": [
+            384,
+            351,
+            301
+          ],
+          "dtype": "complex128",
+          "max_abs": 3.8706321942935515e-06,
+          "relative_L2": 1.2987316459276265e-15,
+          "relative_denominator": "L2(CPU finite elements)",
+          "zero_denominator": false,
+          "cpu_nan": 0,
+          "gpu_nan": 0,
+          "cpu_inf": 0,
+          "gpu_inf": 0
+        }
+      ]
+    }
+  ],
+  "comparator": "Original cross_small body; only four SMALL->FULL acquisition path literals and function name adapted",
+  "full_source_proof": "CROSS_FULL_NUMERIC_A01/CROSS_FULL_NUMERIC_A01_SIDECAR.json"
+}
