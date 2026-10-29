@@ -13,6 +13,7 @@ from types import FunctionType
 from .inputs import context, require, write
 from .entry import prepare_function, verify_source, post_timeline
 from .gpu_resource_exact import compare_terminal_with_resource_policy, inspect_candidate_resources
+from .gpu_boundary_exact import compare_boundary_with_saved_native_metadata
 
 
 def read_snapshot(root):
@@ -422,8 +423,12 @@ def run(args, started):
         reference_layout = Path(args.reference_output).parent/'GPU_NATIVE_LAYOUT.json'
         require(layout == json.loads(reference_layout.read_text(encoding='utf-8')), 'GPU_SAME_BACKEND_NATIVE_LAYOUT_ALIAS')
     if args.reference_boundary and args.qualify:
-        comparisons['boundary'] = exact.compare(args.reference_boundary, read_snapshot(captured[0]['path']), args.work/'BOUNDARY_EXACT.jsonl', disk=True)
-        require(comparisons['boundary']['status']=='PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS', 'GPU_SAME_BACKEND_BOUNDARY_EXACT')
+        comparisons['boundary'] = compare_boundary_with_saved_native_metadata(
+            args.reference_boundary, captured[0]['path'], read_snapshot(captured[0]['path']),
+            args.work/'BOUNDARY_EXACT.jsonl', source_binding=identity,
+        )
+        require(comparisons['boundary']['status']=='PASS_RECORDED_NATIVE_BOUNDARY_WITH_FROZEN_VALUE_GATE',
+                'GPU_SAME_BACKEND_BOUNDARY_VALUE_GATE')
         require(json.loads((Path(args.reference_boundary).parent/'BOUNDARY_GPU_NATIVE_LAYOUT.json').read_text(encoding='utf-8'))
                 == json.loads((args.work/'BOUNDARY_GPU_NATIVE_LAYOUT.json').read_text(encoding='utf-8')), 'GPU_BOUNDARY_NATIVE_LAYOUT_ALIAS')
     intervals = [row for row in meter.rows if row['label']=='INTERVAL_BODY']

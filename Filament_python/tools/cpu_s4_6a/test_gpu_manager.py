@@ -21,6 +21,7 @@ def test_gpu_current_memory_guardian_without_kernel_peak():
                             allocation_bytes=1000)['max_enforced_fraction']>.8
 from .gpu import Meter
 from .gpu_resource_exact import ResourceTelemetryError, compare_terminal_with_resource_policy, inspect_candidate_resources
+from .gpu_boundary_exact import compare_boundary_with_saved_native_metadata
 
 
 class Cuda:
@@ -259,3 +260,102 @@ def test_s46a_resource_telemetry_invalid_values_fail_closed(kind):
         diagnostics['gpu_reserved_step_bytes'] = np.full(8, 4097, dtype=np.int64)
     with pytest.raises(ResourceTelemetryError):
         inspect_candidate_resources(bundle, 4096)
+
+
+def _boundary_fixture(*, science_delta=0, alias_break=False, fortran=True):
+    values = np.arange(8, dtype=np.float64).reshape(2, 4) + float(science_delta)
+    scientific = np.asfortranarray(values) if fortran else np.ascontiguousarray(values)
+    first = scientific.copy(order='F' if fortran else 'C') if alias_break else scientific
+    return {
+        'returned': (
+            first,
+            np.arange(4, dtype=np.int64),
+            {'science': scientific},
+        ),
+        'POST': {'post': np.linspace(0.0, 1.0, 4, dtype=np.float64)},
+        'sinks': {'label': 'boundary-fixture'},
+    }
+
+
+def _boundary_112_fixture(*, science_delta=0, alias_break=False):
+    """Small 112-field boundary with an owned F-order ``E`` field."""
+    values = np.arange(8, dtype=np.float64).reshape(2, 4) + float(science_delta)
+    native_e = np.asfortranarray(values)
+    candidate_e = native_e.copy(order='F') if alias_break else native_e
+    bundle = {'E': candidate_e, 'E_alias': native_e}
+    for index in range(2, 112):
+        bundle[f'field_{index:03d}'] = np.array([index], dtype=np.float64)
+    assert len(bundle) == 112
+    return bundle
+
+
+def _read_boundary_snapshot(path):
+    from .gpu import read_snapshot
+
+    return read_snapshot(path)
+
+
+def test_s46a_boundary_saved_native_metadata_adapter_preserves_value_gate_and_snapshot_bytes(tmp_path):
+    from .gpu import _support_module
+
+    exact = _support_module('g1_exact')
+    reference_bundle = _boundary_112_fixture()
+    candidate_bundle = _boundary_112_fixture()
+    reference = _save_fixture(tmp_path, reference_bundle, 'boundary_reference')
+    candidate = _save_fixture(tmp_path, candidate_bundle, 'boundary_candidate')
+    names = ('TREE.json', 'ALIASES.json', 'ARRAYS.zip')
+    before_reference = {name: (reference / name).read_bytes() for name in names}
+    before_candidate = {name: (candidate / name).read_bytes() for name in names}
+    decoded = _read_boundary_snapshot(candidate)
+
+    with pytest.raises(RuntimeError, match='NATIVE_LAYOUT'):
+        exact.compare(reference, decoded, tmp_path / 'old' / 'BOUNDARY_EXACT.jsonl', disk=True)
+
+    result = compare_boundary_with_saved_native_metadata(
+        reference, candidate, decoded, tmp_path / 'new' / 'BOUNDARY_EXACT.jsonl',
+        source_binding={'head': 'a59765c', 'hash_scope': 'tracked_text'},
+    )
+    assert result['status'] == 'PASS_RECORDED_NATIVE_BOUNDARY_WITH_FROZEN_VALUE_GATE'
+    assert result['value_gate_status'] == 'PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS'
+    sidecar = json.loads(Path(result['readback_layout_provenance']).read_text(encoding='utf-8'))
+    assert sidecar['native_metadata_not_filled_from_reference'] is True
+    assert sidecar['source_binding_pv2']['head'] == 'a59765c'
+    assert len(sidecar['layout_observations']) == 112
+    assert sidecar['layout_observations'][0]['path'] == 'bundle.E'
+    assert sidecar['layout_observations'][0]['saved_native_layout']['F'] is True
+    assert sidecar['layout_observations'][0]['saved_native_layout']['OWNDATA'] is True
+    assert sidecar['layout_observations'][0]['decoded_readback_layout']['OWNDATA'] is False
+    assert all('saved_native_layout' in item and 'decoded_readback_layout' in item for item in sidecar['layout_observations'])
+    assert all((reference / name).read_bytes() == before_reference[name] for name in names)
+    assert all((candidate / name).read_bytes() == before_candidate[name] for name in names)
+
+
+@pytest.mark.parametrize(
+    'kwargs, pattern',
+    [
+        ({'science_delta': 1}, 'FIRST_SCIENTIFIC_NONEXACT'),
+        ({'alias_break': True}, 'ALL_PAIRWISE_ALIAS_EXACT'),
+    ],
+)
+def test_s46a_boundary_adapter_keeps_value_and_alias_failures(kwargs, pattern, tmp_path):
+    reference = _save_fixture(tmp_path, _boundary_112_fixture(), 'boundary_reference')
+    candidate = _save_fixture(tmp_path, _boundary_112_fixture(**kwargs), 'boundary_candidate')
+    with pytest.raises(RuntimeError, match=re.escape(pattern)):
+        compare_boundary_with_saved_native_metadata(
+            reference, candidate, _read_boundary_snapshot(candidate),
+            tmp_path / 'failure' / 'BOUNDARY_EXACT.jsonl',
+        )
+
+
+def test_s46a_boundary_adapter_rejects_candidate_saved_layout_change(tmp_path):
+    reference = _save_fixture(tmp_path, _boundary_112_fixture(), 'boundary_reference')
+    candidate = _save_fixture(tmp_path, _boundary_112_fixture(), 'boundary_candidate')
+    tree_path = candidate / 'TREE.json'
+    tree = json.loads(tree_path.read_text(encoding='utf-8'))
+    tree['items']['E']['layout']['C'] = True
+    tree_path.write_text(json.dumps(tree, indent=2) + '\n', encoding='utf-8', newline='\n')
+    with pytest.raises(RuntimeError, match='NATIVE_LAYOUT'):
+        compare_boundary_with_saved_native_metadata(
+            reference, candidate, _read_boundary_snapshot(candidate),
+            tmp_path / 'layout_failure' / 'BOUNDARY_EXACT.jsonl',
+        )
