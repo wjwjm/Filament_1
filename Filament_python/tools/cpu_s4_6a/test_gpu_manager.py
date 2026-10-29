@@ -1,6 +1,17 @@
 """GPU manager simulation only: no CUDA or GPU mathematical qualification."""
 import os
 from pathlib import Path
+
+
+def test_gpu_current_memory_guardian_without_kernel_peak():
+    from tools.cpu_o1.cpu_s4.memory_limits import memory_fractions
+    unconstrained_root=dict(status='READ',effective_limit_bytes=1000,enforced_cgroup_limits=[])
+    assert memory_fractions(rss_bytes=801,pss_bytes=None,cgroup=unconstrained_root,
+                            allocation_bytes=1000)['max_enforced_fraction']>.8
+    parent_limited=dict(status='READ',effective_limit_bytes=1000,
+                        enforced_cgroup_limits=[dict(path='/job',current_bytes=801,limit_bytes=1000)])
+    assert memory_fractions(rss_bytes=100,pss_bytes=None,cgroup=parent_limited,
+                            allocation_bytes=1000)['max_enforced_fraction']>.8
 import subprocess
 import sys
 from types import SimpleNamespace

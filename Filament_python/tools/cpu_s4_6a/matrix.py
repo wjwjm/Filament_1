@@ -105,10 +105,16 @@ def node_gate(report,backend,size,plan):
     stop=int(.8*memory['effective_limit_bytes'])
     leaf=Path(memory['levels_leaf_to_mount_root'][0]['path'])
     peak=leaf/('memory.max_usage_in_bytes' if memory['version']==1 else 'memory.peak')
-    require(peak.is_file(),'CGROUP_PEAK_AVAILABLE')
+    if backend=='GPU':
+        write(report/'NODE_MEMORY_GATE.json',dict(memory=memory,expected_peak_path=str(peak),
+            kernel_peak_available=peak.is_file(),guardian_fraction=.8,
+            fallback='Existing process-tree RSS plus current values of every enforced cgroup limit; kernel peak unavailable is reported, not estimated'))
+    require(backend=='GPU' or peak.is_file(),'CGROUP_PEAK_AVAILABLE')
     result=dict(status='PASS',job_id=job,backend=backend,size=size,source=source,allocation=description,hardware=hardware,
                 topology=topology,affinity=affinity,physical_cores=len(physical),numa_nodes=numas,memory=memory,
-                guardian_bytes=stop,memory_peak_path=str(peak),versions=versions,python=sys.version,executable=sys.executable,
+                guardian_bytes=stop,memory_peak_path=str(peak) if peak.is_file() else None,
+                memory_guardian_mode='KERNEL_PEAK_AND_PROCESS_TREE_RSS' if peak.is_file() else 'PROCESS_TREE_RSS_AND_CURRENT_CGROUP_LIMITS',
+                versions=versions,python=sys.version,executable=sys.executable,
                 load_average=os.getloadavg(),frequency=command(['lscpu','-e=CPU,CORE,SOCKET,NODE,MHZ']),
                 NUMA_pages=Path('/proc/self/numa_maps').read_text(encoding='utf-8'),
                 thread_environment={key:os.environ.get(key) for key in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','NUMBA_NUM_THREADS','NUMBA_CPU_NAME','NUMBA_THREADING_LAYER')})
@@ -156,8 +162,17 @@ def launch(report,backend,shape,case,mode,qualify,reference,node,deadline):
         while process.poll() is None:
             rss=_tree_rss(process) if backend=='CPU' else proc_tree(process.pid)
             rss_peak=max(rss_peak,rss);samples+=1
-            cgroup_peak=int(Path(node['memory_peak_path']).read_text(encoding='ascii').strip())
-            if rss<0 or max(rss,cgroup_peak)>node['guardian_bytes']:reason='HOST_GUARDIAN_80_PERCENT';break
+            if node['memory_peak_path'] is not None:
+                cgroup_peak=int(Path(node['memory_peak_path']).read_text(encoding='ascii').strip())
+                exceeded=max(rss,cgroup_peak)>node['guardian_bytes']
+            else:
+                from tools.cpu_o1.cpu_s4.memory_limits import snapshot_cgroup_memory,memory_fractions
+                current=snapshot_cgroup_memory(os.getpid(),allocation_bytes=node['memory']['allocation_limit_bytes'])
+                fractions=memory_fractions(rss_bytes=max(rss,0),pss_bytes=None,cgroup=current,
+                    allocation_bytes=node['memory']['allocation_limit_bytes'])
+                require(fractions['status']=='READ','GPU_CURRENT_MEMORY_GUARDIAN_REQUIRED')
+                exceeded=fractions['max_enforced_fraction']>.8
+            if rss<0 or exceeded:reason='HOST_GUARDIAN_80_PERCENT';break
             if time.monotonic()>deadline:reason='ALLOCATION_DEADLINE';break
             if mode=='LIGHT' and samples%5==1:
                 if backend=='GPU':thread_samples.append(proc_thread_sample(process.pid))
@@ -175,6 +190,8 @@ def launch(report,backend,shape,case,mode,qualify,reference,node,deadline):
     children_after=resource.getrusage(resource.RUSAGE_CHILDREN)
     supervisor=dict(exit_code=exit_code,stop_reason=reason,start_ns=started,end_ns=finished,
                     process_service_s=(finished-started)/1e9,peak_tree_rss_bytes=rss_peak,sample_s=1,samples=samples)
+    supervisor.update(memory_guardian_mode=node['memory_guardian_mode'],
+                      kernel_cgroup_peak_available=node['memory_peak_path'] is not None)
     supervisor.update(waited_children_cpu_s=(children_after.ru_utime+children_after.ru_stime)-(children_before.ru_utime+children_before.ru_stime),
                       child_cpu_scope='RUSAGE_CHILDREN delta, entry process and descendants it waited for; full service, not application-only')
     write(folder/'SUPERVISOR_RECEIPT.json',supervisor)
