@@ -377,7 +377,23 @@ def run(args, started):
     application_end_ns,application_end_cpu_ns=time.perf_counter_ns(),time.process_time_ns()
     app_s = (application_end_ns-args.application_started_ns)/1e9
     # All subsequent tree serialization/comparisons are research work.
-    timing = meter.finish(); write(args.work/'RAW_GPU_TIMING.json', timing)
+    timing = meter.finish()
+    # Persist existing completed endpoints after the application clock has ended.
+    # This adds no device synchronization, event, or timestamp acquisition.
+    window_clocks = dict(start_ns=window_start_ns,end_ns=window_end_ns,
+                         start_cpu_ns=cpu_start_ns,end_cpu_ns=cpu_end_ns)
+    window_token = 'completed_propagation_window'
+    for row in timing['records']:
+        if row['parent'] is None:
+            row['parent'] = window_token
+    timing['records'] = [dict(token=window_token,parent=None,label='PROPAGATION',
+        start_wall_ns=window_start_ns,end_wall_ns=window_end_ns,
+        start_cpu_ns=cpu_start_ns,end_cpu_ns=cpu_end_ns,
+        wall_ns=window_end_ns-window_start_ns,process_cpu_ns=cpu_end_ns-cpu_start_ns,
+        completed=True,failed=False,completion_anchor=True,
+        clock_domain='completed host wall; existing deviceSynchronize endpoints',
+        device_event_span_ms=None),*timing['records']]
+    write(args.work/'RAW_GPU_TIMING.json', timing)
     output = exact.save_tree(args.work/'OUTPUT', bundle, compressed=True)
     comparisons = {}
     extended = _support_module('g2_hpc_exact')
@@ -400,6 +416,7 @@ def run(args, started):
                                 application_end_ns=application_end_ns,application_end_cpu_ns=application_end_cpu_ns),
         input_identity=ctx['input_identity'],
         window_process_cpu_s=(cpu_end_ns-cpu_start_ns)/1e9,source_binding=identity,
+        completed_window_clocks=window_clocks,
         first_interval_s=intervals[0]['wall_ns']/1e9 if intervals else None,
         later_body_s=(intervals[-1]['end_wall_ns']-intervals[1]['start_wall_ns'])/1e9 if intervals else None,
         output=output,boundary_path=captured[0]['path'] if captured else None,comparisons=comparisons,
