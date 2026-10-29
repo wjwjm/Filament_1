@@ -126,9 +126,15 @@ def test_budget_ignores_batch_and_enforces_total_and_inflight():
                       actual_walltime_s=206)]
     gpu_third = dict(job_id="third", category="main", state="pending", walltime_s=5400)
     assert budget_check(gpu_prior, "GPU", new_request=gpu_third)["status"] == "PASS_BUDGET"
+    gpu_three = gpu_prior + [dict(gpu_third, state="failed", actual_walltime_s=197)]
+    gpu_fourth = dict(job_id="fourth", category="main", state="pending", walltime_s=5400)
+    fourth_gate = budget_check(gpu_three, "GPU", new_request=gpu_fourth)
+    assert fourth_gate["status"] == "PASS_BUDGET"
+    assert fourth_gate["gpu_hours_worst_total"] == pytest.approx(1.625)
+    assert fourth_gate["core_hours_worst_total"] == pytest.approx(13.0)
     assert "NEW_MAX_JOB_IDS" in budget_check(
-        gpu_prior + [dict(gpu_third, state="completed", actual_walltime_s=1)], "GPU",
-        new_request=dict(job_id="fourth", category="repair", state="pending", walltime_s=1))["reasons"]
+        gpu_three + [dict(gpu_fourth, state="completed", actual_walltime_s=1)], "GPU",
+        new_request=dict(job_id="fifth", category="repair", state="pending", walltime_s=1))["reasons"]
     ledger = [{"job_id": "batch", "category": "batch", "state": "completed", "walltime_s": 1000}]
     result = budget_check(ledger, "CPU", new_request={"job_id": "cpu1", "category": "small", "state": "pending", "walltime_s": 1200})
     assert result["status"] == "PASS_BUDGET"
