@@ -43,7 +43,8 @@ BUDGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "repair_walltime_s": None,
     },
     "GPU": {
-        "max_job_ids": 2,
+        # User approved one further GPU allocation on 2026-10-29.
+        "max_job_ids": 3,
         "max_gpu_hours": 2.0,
         "max_core_hours": 16.0,
         "gpus": 1,

@@ -120,6 +120,15 @@ def test_budget_ignores_batch_and_enforces_total_and_inflight():
     assert "NEW_MAX_JOB_IDS" in budget_check(
         completed + [dict(fourth, state="completed", actual_walltime_s=1)],
         "CPU", new_request=fifth)["reasons"]
+    gpu_prior = [dict(job_id="290147", category="main", state="failed", walltime_s=5400,
+                      actual_walltime_s=47),
+                 dict(job_id="290163", category="repair", state="failed", walltime_s=1800,
+                      actual_walltime_s=206)]
+    gpu_third = dict(job_id="third", category="main", state="pending", walltime_s=5400)
+    assert budget_check(gpu_prior, "GPU", new_request=gpu_third)["status"] == "PASS_BUDGET"
+    assert "NEW_MAX_JOB_IDS" in budget_check(
+        gpu_prior + [dict(gpu_third, state="completed", actual_walltime_s=1)], "GPU",
+        new_request=dict(job_id="fourth", category="repair", state="pending", walltime_s=1))["reasons"]
     ledger = [{"job_id": "batch", "category": "batch", "state": "completed", "walltime_s": 1000}]
     result = budget_check(ledger, "CPU", new_request={"job_id": "cpu1", "category": "small", "state": "pending", "walltime_s": 1200})
     assert result["status"] == "PASS_BUDGET"
@@ -172,3 +181,19 @@ def test_actual_merged_cpu_schema_requires_completed_off_shell():
     legacy=dict(bodies[0]);legacy['context']=legacy.pop('raw_context')
     with pytest.raises(ClockError,match='MERGED_TIMING_SCHEMA'):
         cpu_completed_metrics(dict(merged=dict(records=[row('PROPAGATION',0,100),legacy,bodies[1]])),2)
+
+
+def test_full_gpu_memory_admission_uses_measured_workspace_and_free_capacity():
+    from .gpu_memory_probe import FULL,GIB,full_admission
+    total=32*GIB
+    probe=dict(status='PASS_FFT_PLAN_RESOURCE_PROBE',device_total_bytes=total,
+               grids=[dict(shape=list(FULL),plan_workspace_bytes=GIB,free_after_plans_bytes=28*GIB)])
+    passed=full_admission(probe,2689588736,30*GIB,total)
+    assert passed['status']=='PASS_FULLSIZE_MEMORY_FORECAST'
+    assert passed['required_bytes']==32*(384*351*301*16)+3*GIB
+    assert passed['measured_plan_workspace_bytes']==GIB
+    blocked=full_admission(probe,2689588736,20*GIB,total)
+    assert blocked['status']=='FULLSIZE_RESOURCE_BLOCKED'
+    probe['grids'][0]['free_after_plans_bytes']=20*GIB
+    assert full_admission(probe,2689588736,30*GIB,total)['status']=='FULLSIZE_RESOURCE_BLOCKED'
+    assert full_admission(dict(status='BLOCKED'),2689588736,30*GIB,total)['status']=='FULLSIZE_RESOURCE_BLOCKED'

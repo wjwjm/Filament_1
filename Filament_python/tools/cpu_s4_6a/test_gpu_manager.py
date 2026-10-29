@@ -1,7 +1,14 @@
 """GPU manager simulation only: no CUDA or GPU mathematical qualification."""
+import json
 import os
 from pathlib import Path
+import re
+import subprocess
+import sys
+from types import SimpleNamespace
 
+import numpy as np
+import pytest
 
 def test_gpu_current_memory_guardian_without_kernel_peak():
     from tools.cpu_o1.cpu_s4.memory_limits import memory_fractions
@@ -12,10 +19,8 @@ def test_gpu_current_memory_guardian_without_kernel_peak():
                         enforced_cgroup_limits=[dict(path='/job',current_bytes=801,limit_bytes=1000)])
     assert memory_fractions(rss_bytes=100,pss_bytes=None,cgroup=parent_limited,
                             allocation_bytes=1000)['max_enforced_fraction']>.8
-import subprocess
-import sys
-from types import SimpleNamespace
 from .gpu import Meter
+from .gpu_resource_exact import ResourceTelemetryError, compare_terminal_with_resource_policy, inspect_candidate_resources
 
 
 class Cuda:
@@ -142,3 +147,115 @@ assert not any(name.split(".", 1)[0] in {"numba", "llvmlite", "psutil"} for name
         cwd=str(repo), env=env, capture_output=True, text=True,
     )
     assert completed.returncode == 0, completed.stdout + '\n' + completed.stderr
+
+
+def _resource_fixture(*, resource_offset=0, science_delta=0, layout_change=False, alias_break=False):
+    from .gpu import _support_module
+
+    shared = np.arange(8, dtype=np.float64).reshape(2, 4) + float(science_delta)
+    scientific = np.asfortranarray(shared) if layout_change else shared
+    first = scientific.copy() if alias_break else scientific
+    allocated = np.arange(16, 24, dtype=np.int64) + int(resource_offset)
+    reserved = allocated + np.int64(8)
+    return {
+        'returned': (
+            first,
+            np.arange(4, dtype=np.int64),
+            {
+                'science': scientific,
+                'gpu_allocated_step_bytes': allocated,
+                'gpu_reserved_step_bytes': reserved,
+            },
+        ),
+        'POST': {'post': np.linspace(0.0, 1.0, 4, dtype=np.float64)},
+        'sinks': {'label': 'fixture'},
+    }, _support_module('g2_hpc_exact')
+
+
+def _save_fixture(tmp_path, bundle, name):
+    from .gpu import _support_module
+
+    exact = _support_module('g1_exact')
+    root = tmp_path / name
+    root.mkdir(parents=True, exist_ok=False)
+    exact.save_tree(root / 'OUTPUT', bundle, compressed=True)
+    return root / 'OUTPUT'
+
+
+def _run_resource_compare(tmp_path, candidate_bundle, *, name='candidate'):
+    reference_bundle, extended = _resource_fixture()
+    reference = tmp_path / 'reference' / 'OUTPUT'
+    if not reference.is_dir():
+        reference = _save_fixture(tmp_path, reference_bundle, 'reference')
+    candidate_root = _save_fixture(tmp_path, candidate_bundle, name)
+    result = compare_terminal_with_resource_policy(
+        extended, reference, candidate_bundle,
+        candidate_root.parent / 'TERMINAL_EXACT.jsonl',
+        device_total_bytes=4096,
+    )
+    return result, reference, candidate_root
+
+
+def test_s46a_resource_values_change_science_compare_pass_and_snapshot_unchanged(tmp_path):
+    reference_bundle, _ = _resource_fixture()
+    reference = _save_fixture(tmp_path, reference_bundle, 'reference')
+    frozen_names = ('TREE.json', 'ALIASES.json', 'FINGERPRINTS.json', 'ARRAYS.zip')
+    before = {name: (reference / name).read_bytes() for name in frozen_names}
+
+    candidate_bundle, _ = _resource_fixture(resource_offset=3)
+    result, _, candidate_output = _run_resource_compare(tmp_path, candidate_bundle)
+
+    assert result['status'] == 'PASS_SCIENCE_VIEW_WITH_APPROVED_RESOURCE_TELEMETRY'
+    assert result['scientific_status'] == 'PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS'
+    assert result['full_output_exact_old_scope'] is False
+    sidecar = json.loads(Path(result['resource_telemetry_sidecar']).read_text(encoding='utf-8'))
+    assert sidecar['allowed_keys'] == [
+        'gpu_allocated_step_bytes', 'gpu_reserved_step_bytes'
+    ]
+    assert sidecar['vectors']['gpu_allocated_step_bytes']['per_step_delta_candidate_minus_reference'] == [3] * 8
+    assert sidecar['vectors']['gpu_reserved_step_bytes']['per_step_delta_candidate_minus_reference'] == [3] * 8
+    assert set(sidecar['excluded_paths']) == {
+        'bundle.returned.2.gpu_allocated_step_bytes',
+        'bundle.returned.2.gpu_reserved_step_bytes',
+    }
+    assert all((reference / name).read_bytes() == before[name] for name in frozen_names)
+    assert set(candidate_bundle['returned'][2]) == {
+        'science', 'gpu_allocated_step_bytes', 'gpu_reserved_step_bytes'
+    }
+    view_tree = json.loads((Path(result['reference_view']) / 'TREE.json').read_text(encoding='utf-8'))
+    assert 'gpu_allocated_step_bytes' not in view_tree['items']['returned']['items'][2]['items']
+    assert 'gpu_reserved_step_bytes' not in view_tree['items']['returned']['items'][2]['items']
+    assert (candidate_output / 'FINGERPRINTS.json').is_file()
+
+
+@pytest.mark.parametrize(
+    'kwargs, pattern',
+    [
+        ({'science_delta': 1}, 'FIRST_SCIENTIFIC_NONEXACT'),
+        ({'layout_change': True}, 'NATIVE_LAYOUT'),
+        ({'alias_break': True}, 'ALL_PAIRWISE_ALIAS_EXACT'),
+    ],
+)
+def test_s46a_resource_policy_keeps_science_layout_and_alias_gates(tmp_path, kwargs, pattern):
+    candidate_bundle, _ = _resource_fixture(**kwargs)
+    with pytest.raises(RuntimeError, match=re.escape(pattern)):
+        _run_resource_compare(tmp_path, candidate_bundle, name='candidate_bad')
+
+
+@pytest.mark.parametrize('kind', ('float', 'shape', 'negative', 'allocated_gt_reserved', 'over_device'))
+def test_s46a_resource_telemetry_invalid_values_fail_closed(kind):
+    bundle, _ = _resource_fixture()
+    diagnostics = bundle['returned'][2]
+    if kind == 'float':
+        diagnostics['gpu_allocated_step_bytes'] = np.ones(8, dtype=np.float64)
+    elif kind == 'shape':
+        diagnostics['gpu_allocated_step_bytes'] = np.ones((2, 4), dtype=np.int64)
+    elif kind == 'negative':
+        diagnostics['gpu_allocated_step_bytes'] = np.array([-1] + [1] * 7, dtype=np.int64)
+    elif kind == 'allocated_gt_reserved':
+        diagnostics['gpu_allocated_step_bytes'] = np.full(8, 20, dtype=np.int64)
+        diagnostics['gpu_reserved_step_bytes'] = np.full(8, 19, dtype=np.int64)
+    elif kind == 'over_device':
+        diagnostics['gpu_reserved_step_bytes'] = np.full(8, 4097, dtype=np.int64)
+    with pytest.raises(ResourceTelemetryError):
+        inspect_candidate_resources(bundle, 4096)

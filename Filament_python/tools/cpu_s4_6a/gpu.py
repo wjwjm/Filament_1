@@ -12,6 +12,7 @@ import time
 from types import FunctionType
 from .inputs import context, require, write
 from .entry import prepare_function, verify_source, post_timeline
+from .gpu_resource_exact import compare_terminal_with_resource_policy, inspect_candidate_resources
 
 
 def read_snapshot(root):
@@ -375,6 +376,16 @@ def run(args, started):
     ordinary = _normal_output_writer(args.intervals)(bundle,args.work/'PROPAGATION',args.work,role='GPU_NATIVE',raw_diagnostics=host_result[2])
     cp.cuda.runtime.deviceSynchronize()
     application_end_ns,application_end_cpu_ns=time.perf_counter_ns(),time.process_time_ns()
+    # Device memory telemetry is deliberately queried only after the completed
+    # application endpoint; it is not part of the propagation clock or event
+    # stream and introduces no additional timed synchronization.
+    try:
+        device_free_bytes, device_total_bytes = cp.cuda.runtime.memGetInfo()
+    except BaseException as exc:
+        raise RuntimeError('GPU_DEVICE_MEMORY_ENDPOINT_UNAVAILABLE') from exc
+    device_free_bytes, device_total_bytes = int(device_free_bytes), int(device_total_bytes)
+    require(device_total_bytes > 0 and 0 <= device_free_bytes <= device_total_bytes,
+            'GPU_DEVICE_MEMORY_ENDPOINT_INVALID')
     app_s = (application_end_ns-args.application_started_ns)/1e9
     # All subsequent tree serialization/comparisons are research work.
     timing = meter.finish()
@@ -395,11 +406,19 @@ def run(args, started):
         device_event_span_ms=None),*timing['records']]
     write(args.work/'RAW_GPU_TIMING.json', timing)
     output = exact.save_tree(args.work/'OUTPUT', bundle, compressed=True)
+    resource_telemetry = inspect_candidate_resources(
+        bundle, device_total_bytes,
+        fingerprint_source=Path(output) / 'FINGERPRINTS.json',
+    )
     comparisons = {}
     extended = _support_module('g2_hpc_exact')
     if args.reference_output:
-        comparisons['terminal'] = extended.compare_full_output(args.reference_output,bundle,args.work/'TERMINAL_EXACT.jsonl')
-        require(comparisons['terminal']['status']=='PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS', 'GPU_SAME_BACKEND_TERMINAL_EXACT')
+        comparisons['terminal'] = compare_terminal_with_resource_policy(
+            extended, args.reference_output, bundle, args.work/'TERMINAL_EXACT.jsonl',
+            device_total_bytes=device_total_bytes,
+        )
+        require(comparisons['terminal']['status']=='PASS_SCIENCE_VIEW_WITH_APPROVED_RESOURCE_TELEMETRY',
+                'GPU_SAME_BACKEND_TERMINAL_SCIENCE_VIEW_EXACT')
         reference_layout = Path(args.reference_output).parent/'GPU_NATIVE_LAYOUT.json'
         require(layout == json.loads(reference_layout.read_text(encoding='utf-8')), 'GPU_SAME_BACKEND_NATIVE_LAYOUT_ALIAS')
     if args.reference_boundary and args.qualify:
@@ -423,10 +442,13 @@ def run(args, started):
         normal_outputs=ordinary,host_service_preload=host_services,calls=calls,transfers=transfers,qualification_only_readback_s=qualification_readback_s,
         transfer_accounting_scope='Known explicit input and output calls only; internal PRE/thermalization/scalar transfers UNKNOWN without trace',
         memory_pool=dict(used_bytes=cp.get_default_memory_pool().used_bytes(),reserved_bytes=cp.get_default_memory_pool().total_bytes()),
+        resource_telemetry=resource_telemetry,
+        device_memory_endpoint=dict(free_bytes=device_free_bytes,total_bytes=device_total_bytes,
+                                    clock='post_application_endpoint; excluded from all timed windows'),
         required_completions='deviceSynchronize before window, interval1 end, final interval end, function return, normal output completion',
         default='I0',production_qualified=False,review_gate='MANUAL_REVIEW_PENDING')
     value['POST_timeline']=post_timeline(args.work/'PROPAGATION',args.application_started_ns)
-    value.update(schema='filament.cpu_s46a.case.v1',status='CURRENT_GPU_NATIVE_REFERENCE' if args.mode=='REFERENCE' else 'SAME_BACKEND_TERMINAL_EXACT_RECORDED')
+    value.update(schema='filament.cpu_s46a.case.v1',status='CURRENT_GPU_NATIVE_REFERENCE' if args.mode=='REFERENCE' else 'SAME_BACKEND_SCIENCE_EXACT_RESOURCE_TELEMETRY_RECORDED')
     extended.save_file_index(args.work/'OUTPUT_RAW_INDEX.json',{'OUTPUT':output,'PROPAGATION':args.work/'PROPAGATION',
         'SCIENTIFIC_QACC':ordinary['scientific_Qacc'],'SCIENTIFIC_SCALARS':ordinary['scientific_scalar_diagnostics']})
     value['output_raw_index']=str(args.work/'OUTPUT_RAW_INDEX.json')

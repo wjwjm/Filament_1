@@ -306,15 +306,37 @@ def main():
             from .records import validate_source_records
             validate_source_records(report,preposition['records'])
             require((report/'CPU_SMALLGRID_TRANSPARENCY.json').is_file(),'CPU_SMALLGRID_REFERENCE_PREPOSITIONED')
+            probe_env=os.environ.copy()
+            probe_env.update(CUPY_CACHE_DIR=str(report/'cache/resource_probe/cupy'),
+                             CUDA_CACHE_PATH=str(report/'cache/resource_probe/cuda'))
+            for cache_path in (probe_env['CUPY_CACHE_DIR'],probe_env['CUDA_CACHE_PATH']):
+                Path(cache_path).mkdir(parents=True,exist_ok=True)
+            probe_argv=[sys.executable,'-s','-B','-m','tools.cpu_s4_6a.gpu_memory_probe','--report',str(report)]
+            probe_start_ns=time.perf_counter_ns()
+            try:
+                probe_run=subprocess.run(probe_argv,env=probe_env,capture_output=True,text=True,timeout=180)
+                probe_launch=dict(argv=probe_argv,exit_code=probe_run.returncode,stdout=probe_run.stdout,stderr=probe_run.stderr)
+            except subprocess.TimeoutExpired as error:
+                probe_launch=dict(argv=probe_argv,exit_code=None,error='INDEPENDENT_PLAN_PROBE_TIMEOUT',timeout_s=180)
+            probe_end_ns=time.perf_counter_ns()
+            probe_launch.update(start_ns=probe_start_ns,end_ns=probe_end_ns,
+                                resource_probe_wall_s=(probe_end_ns-probe_start_ns)/1e9,
+                                clock_scope='Independent resource preparation before scientific windows')
+            write(report/'GPU_MEMORY_RESOURCE_PROBE_LAUNCH.json',probe_launch)
         shape=(384,351,301) if args.size=='full' else (384,117,129)
         result=matrix(report,args.backend,shape,node,deadline)
         if args.backend=='GPU' and args.size=='both':
             cross_small(report,result)
             import cupy as cp
             free,total=cp.cuda.runtime.memGetInfo()
-            required=plan['gpu_memory_forecast']['full_required_bytes']
-            if free<required:
-                write(report/'FULLSIZE_RESOURCE_BLOCKED.json',dict(reason='AVAILABLE_VRAM_BELOW_PREREGISTERED_LIFETIME_FORECAST',free_bytes=free,total_bytes=total,required_bytes=required))
+            from .gpu_memory_probe import full_admission
+            probe_path=report/'GPU_MEMORY_RESOURCE_PROBE.json'
+            probe=load_json_strict(probe_path) if probe_path.is_file() else dict(status='PROBE_NOT_COMPLETED')
+            reserved=max([2689588736]+[int(c['memory_pool']['reserved_bytes']) for c in [result['reference'],*result['cases']]])
+            admission=full_admission(probe,reserved,int(free),int(total))
+            write(report/'GPU_FULLSIZE_MEMORY_ADMISSION.json',admission)
+            if admission['status']!='PASS_FULLSIZE_MEMORY_FORECAST':
+                write(report/'FULLSIZE_RESOURCE_BLOCKED.json',admission)
                 write(report/'ALLOCATION_PARTIAL.json',dict(status='MATCHED_SMALLGRID_ONLY',reason='FULLSIZE_RESOURCE_BLOCKED',backend=args.backend,job_id=os.environ['SLURM_JOB_ID']))
                 return 0
             else:

@@ -1,0 +1,23 @@
+{
+  "source": "Direct human reply to request_user_input_async",
+  "answer_exact": "批准上述追加方案，继续完成对比",
+  "date": "2026-10-29",
+  "GPU_max_JobIDs": 3,
+  "GPU_additional_allocation_walltime_s": 5400,
+  "GPU_cumulative_hour_cap": 2,
+  "GPU_cumulative_host_core_hour_cap": 16,
+  "separately_audited_resource_fields": [
+    "gpu_allocated_step_bytes",
+    "gpu_reserved_step_bytes"
+  ],
+  "science_exact_unchanged": true,
+  "first_112_boundary_unchanged": true,
+  "independent_FFT_workspace_and_memory_admission_approved": true,
+  "physics_precision_normal_outputs_unchanged": true,
+  "prior_GPU_jobids": [
+    "290147",
+    "290163"
+  ],
+  "prior_GPU_allocation_s": 253,
+  "proposal": "GPU_TELEMETRY_AND_BUDGET_DECISION.md"
+}

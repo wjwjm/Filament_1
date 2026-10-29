@@ -37,3 +37,10 @@ retry, increasing the cumulative CPU JobID cap from three to four. The
 240 core-hour cap and original GPU limits remain unchanged. The retry uses
 the locally validated completed-clock collector and the frozen inputs;
 GPU and full-size execution remain conditional on the original gates.
+
+The user subsequently approved GPU JobID cap two to three, with one additional
+90-minute allocation while keeping the cumulative two GPU-hour and sixteen
+host-core-hour caps. The two GPU memory-pool byte vectors are separately
+audited resource telemetry; scientific exactness and the 112-field boundary
+contract retain their original rules. Full-size memory admission must be
+rechecked in an independent resource process before propagation.
