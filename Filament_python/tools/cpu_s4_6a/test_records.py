@@ -112,6 +112,14 @@ def test_case_order_and_timing_gate():
 
 
 def test_budget_ignores_batch_and_enforces_total_and_inflight():
+    completed = [dict(job_id=str(i), category="repair", state="completed",
+                      walltime_s=1200, actual_walltime_s=1) for i in range(3)]
+    fourth = dict(job_id="fourth", category="large", state="pending", walltime_s=5400)
+    assert budget_check(completed, "CPU", new_request=fourth)["status"] == "PASS_BUDGET"
+    fifth = dict(job_id="fifth", category="repair", state="pending", walltime_s=1200)
+    assert "NEW_MAX_JOB_IDS" in budget_check(
+        completed + [dict(fourth, state="completed", actual_walltime_s=1)],
+        "CPU", new_request=fifth)["reasons"]
     ledger = [{"job_id": "batch", "category": "batch", "state": "completed", "walltime_s": 1000}]
     result = budget_check(ledger, "CPU", new_request={"job_id": "cpu1", "category": "small", "state": "pending", "walltime_s": 1200})
     assert result["status"] == "PASS_BUDGET"

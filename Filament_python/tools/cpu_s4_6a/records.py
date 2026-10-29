@@ -33,7 +33,8 @@ CASE_ORDER = (
 
 BUDGET_CONTRACTS: dict[str, dict[str, Any]] = {
     "CPU": {
-        "max_job_ids": 3,
+        # User authorized one additional CPU small-grid technical retry on 2026-10-29.
+        "max_job_ids": 4,
         "max_core_hours": 240.0,
         "cpus": 96,
         "gpus": 0,

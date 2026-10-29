@@ -31,3 +31,9 @@ adapters select these tests and the independent Linux interpreter. GPU manager
 simulation and AST compilation are labelled `GPU_REAL_NOT_RUN`.
 
 `DEFAULT=I0`, `PRODUCTION_QUALIFIED=false`, `MANUAL_REVIEW_PENDING`.
+
+On 2026-10-29 the user authorized one additional CPU small-grid technical
+retry, increasing the cumulative CPU JobID cap from three to four. The
+240 core-hour cap and original GPU limits remain unchanged. The retry uses
+the locally validated completed-clock collector and the frozen inputs;
+GPU and full-size execution remain conditional on the original gates.
