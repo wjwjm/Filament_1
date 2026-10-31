@@ -12,12 +12,13 @@ import numpy as np
 import pytest
 
 from tools.cpu_s4_3g3_smallgrid import benchmark as sg
+from tools.hpc_ops import provenance_v2 as pv
 
 from KHz_filament.nonlinear import apply_nonlinear
 
 from .c_capture import CaptureStore
-from . import c_hpc
-from .c_entry import _load_capture, _mechanism, _qualify_boundary, _save_capture, _write_entry_failure, admission, input_domain
+from . import c_entry, c_hpc
+from .c_entry import _capture_runtime_binding, _load_capture, _mechanism, _qualify_boundary, _save_capture, _source_identity_digest, _write_entry_failure, admission, input_domain
 from .c_protocol import MICRO_SHAPE, SHAPE, plan
 
 
@@ -97,6 +98,77 @@ def test_s46e_c_capture_load_rejects_source_case_tamper(tmp_path):
     (package_root / "CAPTURE.json").write_text(json.dumps(package), encoding="utf-8")
     with pytest.raises(RuntimeError, match="SOURCE_ROLE"):
         _load_capture(package_root, expected_shape=(2, 2, 2))
+
+
+def test_s46e_c_capture_provenance_comes_from_real_factory_runtime_wrapper(tmp_path):
+    from tools.cpu_s4_5b_steady_cost.adapter import make_recorder_pair
+
+    from .c_candidate import build_role
+
+    pair = make_recorder_pair(False)
+    built = build_role(
+        "PURE_OFF_SMALLGRID",
+        capture_root=tmp_path / "R",
+        role="R",
+        local_engineering=True,
+        pool_override=1,
+        recorder_pair=pair,
+    )
+    try:
+        runtime_binding = _capture_runtime_binding(built[3], role="R", mode="PURE_OFF_SMALLGRID")
+        assert runtime_binding is built[3]["runtime_wrapper"]
+        assert runtime_binding["c_role"] == "R"
+        assert runtime_binding["c_mode"] == "PURE_OFF_SMALLGRID"
+        source = runtime_binding["c_source_binding"]
+        assert source["relative_path"] == "Filament_python/KHz_filament/nonlinear.py"
+        assert source["canonical_lf_sha256"]
+        assert source["raw_sha256"]
+    finally:
+        built[1].close_c_pool()
+
+
+def test_s46e_c_mechanism_negative_gain_writes_final_result_once(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    report = tmp_path / "report"
+    report.mkdir()
+    (report / "EXECUTION.json").write_text("{}", encoding="utf-8")
+    (report / "BENCHMARK_INPUT_MANIFEST.json").write_text("{}", encoding="utf-8")
+    output = tmp_path / "MECHANISM.json"
+    monkeypatch.setattr(c_entry, "verify_execution", lambda *args, **kwargs: None)
+    monkeypatch.setattr(c_entry, "_load_capture", lambda *args, **kwargs: {"metadata": {}, "records": {}})
+    monkeypatch.setattr(
+        c_entry,
+        "run_local_mechanism",
+        lambda groups: {
+            "schema": "filament.cpu_s4_6e.c_mechanism.v2",
+            "formal_calls": 90,
+            "warmup_calls": 36,
+            "mechanism_gate": False,
+            "production_qualified": False,
+        },
+    )
+    writes = []
+    original_write = c_entry.sg.write
+
+    def counted_write(path, payload):
+        writes.append(Path(path))
+        return original_write(path, payload)
+
+    monkeypatch.setattr(c_entry.sg, "write", counted_write)
+    result = c_entry._mechanism(
+        SimpleNamespace(
+            allow_p24=True,
+            local_engineering=False,
+            report=report,
+            capture_root=tmp_path / "CAPTURE",
+            output=output,
+        )
+    )
+    assert result["status"] == "SCIENTIFIC_INSUFFICIENT_P24_GAIN"
+    assert result["classification"] == "SCIENTIFIC_INSUFFICIENT_GAIN"
+    assert writes == [output]
+    assert json.loads(output.read_text(encoding="utf-8"))["status"] == result["status"]
 
 
 def test_s46e_c_hpc_help_and_p24_hpc_only(tmp_path):
@@ -217,6 +289,17 @@ def test_s46e_c_real_entry_micro_fresh_r2_c2_r8_capture_c8():
     r8 = run_case("R8_UNCAPTURED", "R", 8)
     r8c = run_case("R8_CAPTURED", "R", 8, capture=True, reference=r8)
     assert r8c["comparisons"]["terminal"]["status"] == "PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS"
+    capture_root = Path(r8c["capture_package"])
+    assert capture_root.joinpath("CAPTURE.json").is_file()
+    loaded = _load_capture(
+        capture_root,
+        expected_execution_sha=pv.raw_sha256_file(report / "EXECUTION.json"),
+        expected_input_manifest_sha=pv.raw_sha256_file(report / "BENCHMARK_INPUT_MANIFEST.json"),
+        expected_source_identity_digest=_source_identity_digest(),
+        expected_shape=MICRO_SHAPE,
+    )
+    assert loaded["provenance"]["source_binding"]["role"] == "R"
+    assert loaded["provenance"]["source_binding"]["mode"] == "PURE_OFF_SMALLGRID"
+    assert loaded["provenance"]["source_binding"]["source"]["canonical_lf_sha256"]
     c8 = run_case("C8", "C", 8, reference=r8)
     assert c8["comparisons"]["terminal"]["status"] == "PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS"
-    assert Path(r8c["capture_package"]).joinpath("CAPTURE.json").is_file()

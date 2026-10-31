@@ -177,6 +177,32 @@ def _save_capture(store: CaptureStore, root: Path, *, provenance: dict) -> dict:
     return package
 
 
+def _capture_runtime_binding(binding: dict, *, role: str, mode: str) -> dict:
+    """Extract and validate the factory's source-bound runtime wrapper."""
+
+    require(isinstance(binding, dict), "S46E_C_CAPTURE_RUNTIME_BINDING_REQUIRED")
+    runtime_binding = binding.get("runtime_wrapper")
+    require(isinstance(runtime_binding, dict), "S46E_C_CAPTURE_RUNTIME_WRAPPER_REQUIRED")
+    require(str(role).upper() == "R" and runtime_binding.get("c_role") == "R", "S46E_C_CAPTURE_RUNTIME_ROLE")
+    require(runtime_binding.get("c_mode") == mode, "S46E_C_CAPTURE_RUNTIME_MODE")
+    require(isinstance(runtime_binding.get("c_candidate_schema"), str) and runtime_binding["c_candidate_schema"], "S46E_C_CAPTURE_RUNTIME_SCHEMA")
+    source_record = runtime_binding.get("c_source_binding")
+    require(isinstance(source_record, dict), "S46E_C_CAPTURE_RUNTIME_SOURCE_RECORD")
+    required_source_fields = (
+        "path",
+        "relative_path",
+        "classification",
+        "hash_scope",
+        "canonical_lf_sha256",
+        "source_blob",
+        "function",
+        "function_first_line",
+        "raw_sha256",
+    )
+    require(all(source_record.get(field) not in (None, "") for field in required_source_fields), "S46E_C_CAPTURE_RUNTIME_SOURCE_RECORD")
+    return runtime_binding
+
+
 def _load_capture(
     root: Path,
     *,
@@ -267,14 +293,14 @@ def _mechanism(args) -> dict:
     for row in g2["records"].values():
         row["group"] = "G2"
     result = run_local_mechanism({"G1": g1, "G2": g2})
-    sg.write(args.output, result)
     if result.get("status") == "SCIENTIFIC_NONEXACT":
+        sg.write(args.output, result)
         return result
     require(result.get("formal_calls") == 90 and result.get("warmup_calls") == 36, "S46E_C_MECHANISM_CALL_COUNT")
     if result.get("mechanism_gate") is not True:
         result["status"] = "SCIENTIFIC_INSUFFICIENT_P24_GAIN"
         result["classification"] = "SCIENTIFIC_INSUFFICIENT_GAIN"
-        sg.write(args.output, result)
+    sg.write(args.output, result)
     return result
 
 
@@ -396,7 +422,7 @@ def run(args) -> dict:
     if capture_store is not None:
         package_root = Path(args.capture_root) if args.capture_root else work / "CAPTURE"
         input_manifest_path = Path(args.input_manifest) if args.input_manifest else Path(args.report) / "BENCHMARK_INPUT_MANIFEST.json"
-        runtime_binding = built[3]
+        runtime_binding = _capture_runtime_binding(built[3], role=role, mode=mode)
         package = _save_capture(
             capture_store,
             package_root,
