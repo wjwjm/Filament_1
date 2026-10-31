@@ -338,7 +338,7 @@ def test_s46d_factory_rejects_stage_slot_and_backend_tamper(
     original_xp = stage.__globals__["xp"]
     original_scipy = original_xp.fft.dispatch.scipy_fft
     original_defaults = dict(stage.__kwdefaults__)
-    required = dict(Omega=None, dt=None, omega0=None, n0=None, n2=None, n_R=None, omega_R=None, Gamma_R=None)
+    required = dict(Omega=None, dt=None, omega0=None, n0=None, n_R=None, omega_R=None, Gamma_R=None)
     try:
         stage.__globals__[helper_name] = lambda *args: None
         with pytest.raises(Exception, match="SLOT"):
