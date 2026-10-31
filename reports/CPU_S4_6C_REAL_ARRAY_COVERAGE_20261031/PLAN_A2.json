@@ -1,0 +1,130 @@
+{
+  "task": "CPU-S4-6C",
+  "version": "S46C_ARRAY_CHAINS_V1",
+  "baseline": "ed8754041625549a80959db7a8abd804d5d219ae",
+  "science_subtree": "821fec5bdacd832b0347e1f2e84285cb54172e57",
+  "shape": [
+    384,
+    351,
+    301
+  ],
+  "dtype": "complex128",
+  "canonical": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46a_20261028_a01/report/canonical/384x351x301",
+  "canonical_manifest_sha256": "d157263575c1291b851b037080754e827596ba965cf7e1540d81f23ea1e00fef",
+  "stage_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46a_20261029_r2/report_full/runs/CPU/384x351x301/QUAL_OFF/work/formal/STAGES",
+  "stage_metadata_sha256": {
+    "TREE.json": "f1c7ce09b662f254231cd384aa6bda8abf6df5b2c6eef0a134595d05b0c4b708",
+    "ALIASES.json": "83b078d1eebd80cb9d033312464e69b3b583766eea644978df8a0f40e2747ca2",
+    "FINGERPRINTS.json": "bed37a65e3d55779c4dd7b77ee2782cf8950b5c7b73397b771ebc53761c642af"
+  },
+  "python": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_q1_20261014_110706/environment/venv/bin/python",
+  "versions": {
+    "numpy": "2.2.5",
+    "scipy": "1.15.2",
+    "numba": "0.61.2",
+    "llvmlite": "0.44.0",
+    "psutil": "7.0.0",
+    "threadpoolctl": "3.6.0"
+  },
+  "thread_environment": {
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "BLIS_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+    "NUMBA_NUM_THREADS": "48",
+    "NUMBA_CPU_NAME": "generic",
+    "NUMBA_THREADING_LAYER": "workqueue"
+  },
+  "inputs": [
+    "pre_field",
+    "pre_predictor",
+    "post_field",
+    "post_predictor"
+  ],
+  "chains": [
+    "A",
+    "B"
+  ],
+  "C": "UNAVAILABLE_NO_REAL_INPUT",
+  "warmups": 2,
+  "measured": 5,
+  "blocks": 2,
+  "order": [
+    "REF",
+    "P1",
+    "P8",
+    "P24",
+    "P48"
+  ],
+  "reverse_second_block": true,
+  "block_elements": 16384,
+  "local24": true,
+  "local48_rule": "per chain and real input: median(P48)/median(P24)<=0.97 in BOTH order blocks",
+  "performance_requires": "ALL 4 real-input A/B configurations exact, native layout, input/old-output lifetime before timing",
+  "main_clock": "entire local call including management allocation arithmetic reductions and joins; pool init separately recorded",
+  "resources": {
+    "cpu_jobs_max": 2,
+    "cpus": 96,
+    "nodes": 1,
+    "seconds_each_max": 1800,
+    "memory_GiB": 64,
+    "allocated_core_hours_max": 96,
+    "gpus": 0,
+    "partition": "v6_384",
+    "account": "bscc-t"
+  },
+  "memory_forecast_peak_bytes": 25769803776,
+  "memory_guard_fraction": 0.8,
+  "conditional_integration": {
+    "allocation": "second only after a single winner, if budget permits; no valid negative resampling",
+    "selection": "at least 5 percent complete-call median improvement in each real input and both blocks; rank conservative projected absolute old CPU savings; one chain only",
+    "projection": "first four inputs do not establish all-window savings; A anchor12.528s, B complete Eq10 anchor34.388s retains FFT8.610s",
+    "grid": [
+      384,
+      117,
+      129
+    ],
+    "qualify_intervals": 2,
+    "performance_intervals": 8,
+    "performance_gate": "existing full body2-8 median at least3 percent, consistent direction and application guardrails; frozen112 boundary and full output exact",
+    "fullsize_propagation": false
+  },
+  "default": "I0",
+  "reference": "L1",
+  "review_gate": "MANUAL_REVIEW_PENDING",
+  "production_qualified": false,
+  "attempt": "A2_TECHNICAL_REPAIR",
+  "prior_jobs": [
+    {
+      "job_id": "8858616",
+      "state": "FAILED",
+      "elapsed_s": 93,
+      "allocated_core_hours": 2.48
+    }
+  ],
+  "worst_new_plus_used_core_hours": 50.48,
+  "counter_probe": {
+    "input": "pre_field",
+    "chains": [
+      "A",
+      "B"
+    ],
+    "configurations": [
+      "REF",
+      "P24",
+      "P_LOCAL24"
+    ],
+    "calls_each": 5,
+    "order": "after all formal timing",
+    "events": [
+      "cycles:u",
+      "instructions:u",
+      "cache-misses:u"
+    ],
+    "attach": "all pre-existing process threads including persistent target workers",
+    "DRAM_bytes": false
+  },
+  "job_slots_remaining_after_submission": 0,
+  "conditional_integration_resource_note": "Second authorized JobID is consumed by technical repair. No third job; if no validated integration entry is available within this allocation, deliver mechanism result and leave small-grid qualification ungranted."
+}

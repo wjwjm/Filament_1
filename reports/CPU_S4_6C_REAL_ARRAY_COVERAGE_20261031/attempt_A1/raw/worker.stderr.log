@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_6c_array_coverage/runner.py", line 255, in <module>
+    main()
+  File "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_6c_array_coverage/runner.py", line 190, in main
+    ctx=context(canonical);kwargs=stage_kwargs(ctx)
+                                  ^^^^^^^^^^^^^^^^^
+  File "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_6c_array_coverage/runner.py", line 34, in stage_kwargs
+    n_R=r.n_R, omega_R=omega, Gamma_R=gamma, method=r.method,
+                                                    ^^^^^^^^
+AttributeError: 'RamanConfig' object has no attribute 'method'

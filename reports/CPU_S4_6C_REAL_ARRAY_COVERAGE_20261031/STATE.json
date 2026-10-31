@@ -1,6 +1,6 @@
 {
   "task": "CPU-S4-6C",
-  "stage": "R0_SOURCE_AND_INPUT_ADMISSION",
+  "stage": "A1_ENGINEERING_REPAIR",
   "status": "IN_PROGRESS",
   "review_gate": "MANUAL_REVIEW_PENDING",
   "default": "I0",
@@ -14,14 +14,34 @@
   "authorized_CPU_physical_cores": 96,
   "authorized_CPU_allocated_core_hours": 96,
   "authorized_GPU_jobs": 0,
-  "jobs": [],
+  "jobs": [
+    {
+      "job_id": "8858616",
+      "state": "FAILED",
+      "reserved_core_hours": 48,
+      "node": "cb1106",
+      "elapsed_s": 93,
+      "allocated_core_hours": 2.48,
+      "failure": "RamanConfig.method attribute absent; original getattr default not mirrored"
+    }
+  ],
   "inflight": null,
-  "allocated_core_hours_used": 0,
+  "allocated_core_hours_used": 2.48,
   "allocated_core_hours_reserved": 0,
   "proposed_memory_GiB": 64,
   "memory_guard_fraction": 0.8,
   "A4_update": "Full 290714 metadata already recovered locally; original timing gates still fail; no repeated export required",
   "current_scope": "A/B real-input isolated CPU mechanisms, C only if legitimately captured inputs exist; at most one conditional small-grid candidate",
-  "prohibited": ["GPU submissions", "full-size propagation", "Hydro", "MPI", "production merge", "multiple candidate chains in propagation"],
-  "next": "Verify fixed t0 identity/input metadata, freeze source-bound A/B probe plan and qualify locally before submission"
+  "prohibited": [
+    "GPU submissions",
+    "full-size propagation",
+    "Hydro",
+    "MPI",
+    "production merge",
+    "multiple candidate chains in propagation"
+  ],
+  "next": "Follow fixed status script; never rerun submitter",
+  "execution_commit": "7c0ac61fa6de7892a2983e78835f1a3f326a28a1",
+  "last_checked_utc": "2026-10-31T09:03:13.781855+00:00",
+  "ETA": "UNKNOWN"
 }

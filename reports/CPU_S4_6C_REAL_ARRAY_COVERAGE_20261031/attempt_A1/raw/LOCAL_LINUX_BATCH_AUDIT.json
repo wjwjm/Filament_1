@@ -1,0 +1,11 @@
+{
+  "activation_line": null,
+  "bare_python_commands": [],
+  "bash_syntax_exit_code": 0,
+  "batch_path": "/mnt/c/Users/wangj/.codex/worktrees/cpu-real-array-coverage-20261031/cpu_optimization/Filament_python/tools/cpu_s4_6c_array_coverage/cpu.sbatch",
+  "fixed_python": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_q1_20261014_110706/environment/venv/bin/python",
+  "preactivation_shell_line_count": 13,
+  "qualified_python_commands": [],
+  "schema": "filament.hpc_batch_entry_audit.v1",
+  "status": "passed"
+}

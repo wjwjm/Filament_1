@@ -1,0 +1,2420 @@
+{
+  "metadata": {
+    "TREE.json": {
+      "path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46a_20261029_r2/report_full/runs/CPU/384x351x301/QUAL_OFF/work/formal/STAGES/TREE.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "f1c7ce09b662f254231cd384aa6bda8abf6df5b2c6eef0a134595d05b0c4b708",
+      "bytes": 13842,
+      "value": {
+        "kind": "list",
+        "items": [
+          {
+            "kind": "dict",
+            "items": {
+              "field": {
+                "kind": "array",
+                "file": "0000.npy",
+                "layout": {
+                  "shape": [
+                    384,
+                    351,
+                    301
+                  ],
+                  "dtype": "complex128",
+                  "strides": [
+                    1690416,
+                    4816,
+                    16
+                  ],
+                  "C": true,
+                  "F": false,
+                  "OWNDATA": true,
+                  "WRITEABLE": true,
+                  "base_chain_depth": 0,
+                  "base_ndarray": false
+                }
+              },
+              "stage1": {
+                "kind": "dict",
+                "items": {
+                  "rhs": {
+                    "kind": "array",
+                    "file": "0001.npy",
+                    "layout": {
+                      "shape": [
+                        384,
+                        351,
+                        301
+                      ],
+                      "dtype": "complex128",
+                      "strides": [
+                        1690416,
+                        4816,
+                        16
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": true,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 0,
+                      "base_ndarray": false
+                    }
+                  },
+                  "rhs_l2_norm": {
+                    "kind": "scalar",
+                    "dtype": "float64",
+                    "value": 418436915763.4044
+                  },
+                  "IR_max": {
+                    "kind": "scalar",
+                    "dtype": "float64",
+                    "value": 1467471670457502.2
+                  },
+                  "convolution_count": {
+                    "kind": "scalar",
+                    "dtype": "int64",
+                    "value": 1
+                  },
+                  "I_R": {
+                    "kind": "array",
+                    "file": "0002.npy",
+                    "layout": {
+                      "shape": [
+                        384,
+                        351,
+                        301
+                      ],
+                      "dtype": "float64",
+                      "strides": [
+                        845208,
+                        2408,
+                        8
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": false,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 1,
+                      "base_ndarray": true
+                    }
+                  },
+                  "u_R_signed": {
+                    "kind": "array",
+                    "file": "0003.npy",
+                    "layout": {
+                      "shape": [
+                        351,
+                        301
+                      ],
+                      "dtype": "float64",
+                      "strides": [
+                        2408,
+                        8
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": true,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 0,
+                      "base_ndarray": false
+                    }
+                  },
+                  "q_R_positive": {
+                    "kind": "array",
+                    "file": "0004.npy",
+                    "layout": {
+                      "shape": [
+                        351,
+                        301
+                      ],
+                      "dtype": "float64",
+                      "strides": [
+                        2408,
+                        8
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": true,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 0,
+                      "base_ndarray": false
+                    }
+                  }
+                }
+              },
+              "predictor": {
+                "kind": "array",
+                "file": "0005.npy",
+                "layout": {
+                  "shape": [
+                    384,
+                    351,
+                    301
+                  ],
+                  "dtype": "complex128",
+                  "strides": [
+                    1690416,
+                    4816,
+                    16
+                  ],
+                  "C": true,
+                  "F": false,
+                  "OWNDATA": true,
+                  "WRITEABLE": true,
+                  "base_chain_depth": 0,
+                  "base_ndarray": false
+                }
+              },
+              "stage2": {
+                "kind": "dict",
+                "items": {
+                  "rhs": {
+                    "kind": "array",
+                    "file": "0006.npy",
+                    "layout": {
+                      "shape": [
+                        384,
+                        351,
+                        301
+                      ],
+                      "dtype": "complex128",
+                      "strides": [
+                        1690416,
+                        4816,
+                        16
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": true,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 0,
+                      "base_ndarray": false
+                    }
+                  },
+                  "rhs_l2_norm": {
+                    "kind": "scalar",
+                    "dtype": "float64",
+                    "value": 418436878695.86194
+                  },
+                  "IR_max": {
+                    "kind": "scalar",
+                    "dtype": "float64",
+                    "value": 1467471567926179.0
+                  },
+                  "convolution_count": {
+                    "kind": "scalar",
+                    "dtype": "int64",
+                    "value": 1
+                  },
+                  "I_R": {
+                    "kind": "array",
+                    "file": "0007.npy",
+                    "layout": {
+                      "shape": [
+                        384,
+                        351,
+                        301
+                      ],
+                      "dtype": "float64",
+                      "strides": [
+                        845208,
+                        2408,
+                        8
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": false,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 1,
+                      "base_ndarray": true
+                    }
+                  },
+                  "u_R_signed": {
+                    "kind": "array",
+                    "file": "0008.npy",
+                    "layout": {
+                      "shape": [
+                        351,
+                        301
+                      ],
+                      "dtype": "float64",
+                      "strides": [
+                        2408,
+                        8
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": true,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 0,
+                      "base_ndarray": false
+                    }
+                  },
+                  "q_R_positive": {
+                    "kind": "array",
+                    "file": "0009.npy",
+                    "layout": {
+                      "shape": [
+                        351,
+                        301
+                      ],
+                      "dtype": "float64",
+                      "strides": [
+                        2408,
+                        8
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": true,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 0,
+                      "base_ndarray": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "kind": "dict",
+            "items": {
+              "field": {
+                "kind": "array",
+                "file": "0010.npy",
+                "layout": {
+                  "shape": [
+                    384,
+                    351,
+                    301
+                  ],
+                  "dtype": "complex128",
+                  "strides": [
+                    1690416,
+                    4816,
+                    16
+                  ],
+                  "C": true,
+                  "F": false,
+                  "OWNDATA": true,
+                  "WRITEABLE": true,
+                  "base_chain_depth": 0,
+                  "base_ndarray": false
+                }
+              },
+              "stage1": {
+                "kind": "dict",
+                "items": {
+                  "rhs": {
+                    "kind": "array",
+                    "file": "0011.npy",
+                    "layout": {
+                      "shape": [
+                        384,
+                        351,
+                        301
+                      ],
+                      "dtype": "complex128",
+                      "strides": [
+                        1690416,
+                        4816,
+                        16
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": true,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 0,
+                      "base_ndarray": false
+                    }
+                  },
+                  "rhs_l2_norm": {
+                    "kind": "scalar",
+                    "dtype": "float64",
+                    "value": 418436892326.8074
+                  },
+                  "IR_max": {
+                    "kind": "scalar",
+                    "dtype": "float64",
+                    "value": 1467471567830282.0
+                  },
+                  "convolution_count": {
+                    "kind": "scalar",
+                    "dtype": "int64",
+                    "value": 1
+                  },
+                  "I_R": {
+                    "kind": "array",
+                    "file": "0012.npy",
+                    "layout": {
+                      "shape": [
+                        384,
+                        351,
+                        301
+                      ],
+                      "dtype": "float64",
+                      "strides": [
+                        845208,
+                        2408,
+                        8
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": false,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 1,
+                      "base_ndarray": true
+                    }
+                  },
+                  "u_R_signed": {
+                    "kind": "array",
+                    "file": "0013.npy",
+                    "layout": {
+                      "shape": [
+                        351,
+                        301
+                      ],
+                      "dtype": "float64",
+                      "strides": [
+                        2408,
+                        8
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": true,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 0,
+                      "base_ndarray": false
+                    }
+                  },
+                  "q_R_positive": {
+                    "kind": "array",
+                    "file": "0014.npy",
+                    "layout": {
+                      "shape": [
+                        351,
+                        301
+                      ],
+                      "dtype": "float64",
+                      "strides": [
+                        2408,
+                        8
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": true,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 0,
+                      "base_ndarray": false
+                    }
+                  }
+                }
+              },
+              "predictor": {
+                "kind": "array",
+                "file": "0015.npy",
+                "layout": {
+                  "shape": [
+                    384,
+                    351,
+                    301
+                  ],
+                  "dtype": "complex128",
+                  "strides": [
+                    1690416,
+                    4816,
+                    16
+                  ],
+                  "C": true,
+                  "F": false,
+                  "OWNDATA": true,
+                  "WRITEABLE": true,
+                  "base_chain_depth": 0,
+                  "base_ndarray": false
+                }
+              },
+              "stage2": {
+                "kind": "dict",
+                "items": {
+                  "rhs": {
+                    "kind": "array",
+                    "file": "0016.npy",
+                    "layout": {
+                      "shape": [
+                        384,
+                        351,
+                        301
+                      ],
+                      "dtype": "complex128",
+                      "strides": [
+                        1690416,
+                        4816,
+                        16
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": true,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 0,
+                      "base_ndarray": false
+                    }
+                  },
+                  "rhs_l2_norm": {
+                    "kind": "scalar",
+                    "dtype": "float64",
+                    "value": 418436855259.28595
+                  },
+                  "IR_max": {
+                    "kind": "scalar",
+                    "dtype": "float64",
+                    "value": 1467471465298968.8
+                  },
+                  "convolution_count": {
+                    "kind": "scalar",
+                    "dtype": "int64",
+                    "value": 1
+                  },
+                  "I_R": {
+                    "kind": "array",
+                    "file": "0017.npy",
+                    "layout": {
+                      "shape": [
+                        384,
+                        351,
+                        301
+                      ],
+                      "dtype": "float64",
+                      "strides": [
+                        845208,
+                        2408,
+                        8
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": false,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 1,
+                      "base_ndarray": true
+                    }
+                  },
+                  "u_R_signed": {
+                    "kind": "array",
+                    "file": "0018.npy",
+                    "layout": {
+                      "shape": [
+                        351,
+                        301
+                      ],
+                      "dtype": "float64",
+                      "strides": [
+                        2408,
+                        8
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": true,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 0,
+                      "base_ndarray": false
+                    }
+                  },
+                  "q_R_positive": {
+                    "kind": "array",
+                    "file": "0019.npy",
+                    "layout": {
+                      "shape": [
+                        351,
+                        301
+                      ],
+                      "dtype": "float64",
+                      "strides": [
+                        2408,
+                        8
+                      ],
+                      "C": true,
+                      "F": false,
+                      "OWNDATA": true,
+                      "WRITEABLE": true,
+                      "base_chain_depth": 0,
+                      "base_ndarray": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "ALIASES.json": {
+      "path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46a_20261029_r2/report_full/runs/CPU/384x351x301/QUAL_OFF/work/formal/STAGES/ALIASES.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "83b078d1eebd80cb9d033312464e69b3b583766eea644978df8a0f40e2747ca2",
+      "bytes": 28985,
+      "value": [
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.0.field",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.0.stage1.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.0.stage1.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.0.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.0.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.0.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.0.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.0.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.0.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.0.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.1.field",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.1.stage1.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.1.stage1.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.1.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.1.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.1.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.field",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.0.stage1.rhs",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.0.stage1.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.0.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.0.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.0.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.0.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.0.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.0.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.0.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.1.field",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.1.stage1.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.1.stage1.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.1.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.1.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.1.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.rhs",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.0.stage1.I_R",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.0.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.0.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.0.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.0.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.0.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.0.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.0.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.1.field",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.1.stage1.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.1.stage1.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.1.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.1.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.1.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.I_R",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.0.stage1.u_R_signed",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.0.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.0.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.0.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.0.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.0.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.0.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.1.field",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.1.stage1.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.1.stage1.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.1.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.1.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.1.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.u_R_signed",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.0.stage1.q_R_positive",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.0.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.0.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.0.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.0.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.0.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.1.field",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.1.stage1.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.1.stage1.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.1.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.1.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.1.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage1.q_R_positive",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.predictor",
+          "right": "bundle.0.predictor",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.0.predictor",
+          "right": "bundle.0.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.predictor",
+          "right": "bundle.0.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.predictor",
+          "right": "bundle.0.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.predictor",
+          "right": "bundle.0.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.predictor",
+          "right": "bundle.1.field",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.predictor",
+          "right": "bundle.1.stage1.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.predictor",
+          "right": "bundle.1.stage1.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.predictor",
+          "right": "bundle.1.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.predictor",
+          "right": "bundle.1.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.predictor",
+          "right": "bundle.1.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.predictor",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.predictor",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.predictor",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.predictor",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.rhs",
+          "right": "bundle.0.stage2.rhs",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.0.stage2.rhs",
+          "right": "bundle.0.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.rhs",
+          "right": "bundle.0.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.rhs",
+          "right": "bundle.0.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.rhs",
+          "right": "bundle.1.field",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.rhs",
+          "right": "bundle.1.stage1.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.rhs",
+          "right": "bundle.1.stage1.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.rhs",
+          "right": "bundle.1.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.rhs",
+          "right": "bundle.1.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.rhs",
+          "right": "bundle.1.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.rhs",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.rhs",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.rhs",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.rhs",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.I_R",
+          "right": "bundle.0.stage2.I_R",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.0.stage2.I_R",
+          "right": "bundle.0.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.I_R",
+          "right": "bundle.0.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.I_R",
+          "right": "bundle.1.field",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.I_R",
+          "right": "bundle.1.stage1.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.I_R",
+          "right": "bundle.1.stage1.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.I_R",
+          "right": "bundle.1.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.I_R",
+          "right": "bundle.1.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.I_R",
+          "right": "bundle.1.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.I_R",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.I_R",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.I_R",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.I_R",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.u_R_signed",
+          "right": "bundle.0.stage2.u_R_signed",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.0.stage2.u_R_signed",
+          "right": "bundle.0.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.u_R_signed",
+          "right": "bundle.1.field",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.u_R_signed",
+          "right": "bundle.1.stage1.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.u_R_signed",
+          "right": "bundle.1.stage1.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.u_R_signed",
+          "right": "bundle.1.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.u_R_signed",
+          "right": "bundle.1.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.u_R_signed",
+          "right": "bundle.1.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.u_R_signed",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.u_R_signed",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.u_R_signed",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.u_R_signed",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.q_R_positive",
+          "right": "bundle.0.stage2.q_R_positive",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.0.stage2.q_R_positive",
+          "right": "bundle.1.field",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.q_R_positive",
+          "right": "bundle.1.stage1.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.q_R_positive",
+          "right": "bundle.1.stage1.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.q_R_positive",
+          "right": "bundle.1.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.q_R_positive",
+          "right": "bundle.1.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.q_R_positive",
+          "right": "bundle.1.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.q_R_positive",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.q_R_positive",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.q_R_positive",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.0.stage2.q_R_positive",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.field",
+          "right": "bundle.1.field",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.1.field",
+          "right": "bundle.1.stage1.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.field",
+          "right": "bundle.1.stage1.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.field",
+          "right": "bundle.1.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.field",
+          "right": "bundle.1.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.field",
+          "right": "bundle.1.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.field",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.field",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.field",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.field",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.rhs",
+          "right": "bundle.1.stage1.rhs",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.1.stage1.rhs",
+          "right": "bundle.1.stage1.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.rhs",
+          "right": "bundle.1.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.rhs",
+          "right": "bundle.1.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.rhs",
+          "right": "bundle.1.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.rhs",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.rhs",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.rhs",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.rhs",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.I_R",
+          "right": "bundle.1.stage1.I_R",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.1.stage1.I_R",
+          "right": "bundle.1.stage1.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.I_R",
+          "right": "bundle.1.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.I_R",
+          "right": "bundle.1.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.I_R",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.I_R",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.I_R",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.I_R",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.u_R_signed",
+          "right": "bundle.1.stage1.u_R_signed",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.1.stage1.u_R_signed",
+          "right": "bundle.1.stage1.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.u_R_signed",
+          "right": "bundle.1.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.u_R_signed",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.u_R_signed",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.u_R_signed",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.u_R_signed",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.q_R_positive",
+          "right": "bundle.1.stage1.q_R_positive",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.1.stage1.q_R_positive",
+          "right": "bundle.1.predictor",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.q_R_positive",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.q_R_positive",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.q_R_positive",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage1.q_R_positive",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.predictor",
+          "right": "bundle.1.predictor",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.1.predictor",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.predictor",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.predictor",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.predictor",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage2.rhs",
+          "right": "bundle.1.stage2.rhs",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.1.stage2.rhs",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage2.rhs",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage2.rhs",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage2.I_R",
+          "right": "bundle.1.stage2.I_R",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.1.stage2.I_R",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage2.I_R",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage2.u_R_signed",
+          "right": "bundle.1.stage2.u_R_signed",
+          "same_object": true,
+          "shares_memory": true
+        },
+        {
+          "left": "bundle.1.stage2.u_R_signed",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": false,
+          "shares_memory": false
+        },
+        {
+          "left": "bundle.1.stage2.q_R_positive",
+          "right": "bundle.1.stage2.q_R_positive",
+          "same_object": true,
+          "shares_memory": true
+        }
+      ]
+    },
+    "FINGERPRINTS.json": {
+      "path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46a_20261029_r2/report_full/runs/CPU/384x351x301/QUAL_OFF/work/formal/STAGES/FINGERPRINTS.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "bed37a65e3d55779c4dd7b77ee2782cf8950b5c7b73397b771ebc53761c642af",
+      "bytes": 9219,
+      "value": {
+        "bundle.0.field": {
+          "canonical_sha256": "2e90d0f179824b28a039528cddbec25664acf8b303dece56dbaa727edd2a8aca",
+          "layout": {
+            "shape": [
+              384,
+              351,
+              301
+            ],
+            "dtype": "complex128",
+            "strides": [
+              1690416,
+              4816,
+              16
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 649119744
+        },
+        "bundle.0.stage1.rhs": {
+          "canonical_sha256": "1a4c0385f1f8918f6cff076e22e1216fd958c939d91750fcac30f922d1355fd7",
+          "layout": {
+            "shape": [
+              384,
+              351,
+              301
+            ],
+            "dtype": "complex128",
+            "strides": [
+              1690416,
+              4816,
+              16
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 649119744
+        },
+        "bundle.0.stage1.I_R": {
+          "canonical_sha256": "88db23a09b7e0f45707d6acae48b30a70898aec9b010951bc8f32202af7e289e",
+          "layout": {
+            "shape": [
+              384,
+              351,
+              301
+            ],
+            "dtype": "float64",
+            "strides": [
+              845208,
+              2408,
+              8
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": false,
+            "WRITEABLE": true,
+            "base_chain_depth": 1,
+            "base_ndarray": true
+          },
+          "nbytes": 324559872
+        },
+        "bundle.0.stage1.u_R_signed": {
+          "canonical_sha256": "f4efefbde1cb34af15c49e883dab2b1a924c234d2bf3ee178e386e8aebfc705f",
+          "layout": {
+            "shape": [
+              351,
+              301
+            ],
+            "dtype": "float64",
+            "strides": [
+              2408,
+              8
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 845208
+        },
+        "bundle.0.stage1.q_R_positive": {
+          "canonical_sha256": "d4b638064fab1b5fdd931ba864f27d20bb30b38c3992d872de523e484477e2c9",
+          "layout": {
+            "shape": [
+              351,
+              301
+            ],
+            "dtype": "float64",
+            "strides": [
+              2408,
+              8
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 845208
+        },
+        "bundle.0.predictor": {
+          "canonical_sha256": "1fa80ab52bf3b76410855dc2323bd6da34c8d0eb84c3ad0ec1269e6ddd0ba072",
+          "layout": {
+            "shape": [
+              384,
+              351,
+              301
+            ],
+            "dtype": "complex128",
+            "strides": [
+              1690416,
+              4816,
+              16
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 649119744
+        },
+        "bundle.0.stage2.rhs": {
+          "canonical_sha256": "573fa75364438e69afa86b5129888e0fef7505c31b8764b5073ebd8e7d2279e0",
+          "layout": {
+            "shape": [
+              384,
+              351,
+              301
+            ],
+            "dtype": "complex128",
+            "strides": [
+              1690416,
+              4816,
+              16
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 649119744
+        },
+        "bundle.0.stage2.I_R": {
+          "canonical_sha256": "6ef63158aa42815ce0c3465c53c6aeb423dcf1b004e9fba1b26af27157ee7482",
+          "layout": {
+            "shape": [
+              384,
+              351,
+              301
+            ],
+            "dtype": "float64",
+            "strides": [
+              845208,
+              2408,
+              8
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": false,
+            "WRITEABLE": true,
+            "base_chain_depth": 1,
+            "base_ndarray": true
+          },
+          "nbytes": 324559872
+        },
+        "bundle.0.stage2.u_R_signed": {
+          "canonical_sha256": "4da47e80be33b38c36ca36325ae150408650aa6bc91a93aad6d4301e1690165a",
+          "layout": {
+            "shape": [
+              351,
+              301
+            ],
+            "dtype": "float64",
+            "strides": [
+              2408,
+              8
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 845208
+        },
+        "bundle.0.stage2.q_R_positive": {
+          "canonical_sha256": "e9256ffe81bf94205bba4e8028d4b2a9653c51b2ea3c95a6bf836b181bade817",
+          "layout": {
+            "shape": [
+              351,
+              301
+            ],
+            "dtype": "float64",
+            "strides": [
+              2408,
+              8
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 845208
+        },
+        "bundle.1.field": {
+          "canonical_sha256": "320b130eb87e22344c0cf45781edaba2386a7192704a09566d1be85ee5d2f114",
+          "layout": {
+            "shape": [
+              384,
+              351,
+              301
+            ],
+            "dtype": "complex128",
+            "strides": [
+              1690416,
+              4816,
+              16
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 649119744
+        },
+        "bundle.1.stage1.rhs": {
+          "canonical_sha256": "801b72a079120044524ad495190ebf5a3678ac99661c971948eb8b6b7d683e1e",
+          "layout": {
+            "shape": [
+              384,
+              351,
+              301
+            ],
+            "dtype": "complex128",
+            "strides": [
+              1690416,
+              4816,
+              16
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 649119744
+        },
+        "bundle.1.stage1.I_R": {
+          "canonical_sha256": "247d86976f6e1ee25ccf1d2086e6e12e708b218f4acd13bded1c00af7fb38363",
+          "layout": {
+            "shape": [
+              384,
+              351,
+              301
+            ],
+            "dtype": "float64",
+            "strides": [
+              845208,
+              2408,
+              8
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": false,
+            "WRITEABLE": true,
+            "base_chain_depth": 1,
+            "base_ndarray": true
+          },
+          "nbytes": 324559872
+        },
+        "bundle.1.stage1.u_R_signed": {
+          "canonical_sha256": "8bb8e4d18de39e9c4324531b5b036c2e6ddb2f6d24f12d949c167ea0490022a2",
+          "layout": {
+            "shape": [
+              351,
+              301
+            ],
+            "dtype": "float64",
+            "strides": [
+              2408,
+              8
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 845208
+        },
+        "bundle.1.stage1.q_R_positive": {
+          "canonical_sha256": "668bd6eeb0e5a73c939f723801688f1c886bff5752e7d20e01a3302cd6ee5c1b",
+          "layout": {
+            "shape": [
+              351,
+              301
+            ],
+            "dtype": "float64",
+            "strides": [
+              2408,
+              8
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 845208
+        },
+        "bundle.1.predictor": {
+          "canonical_sha256": "7695b8ce58f64655454e5df8a75fb9769f8ffdaae85c29a846a635acc5ba472a",
+          "layout": {
+            "shape": [
+              384,
+              351,
+              301
+            ],
+            "dtype": "complex128",
+            "strides": [
+              1690416,
+              4816,
+              16
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 649119744
+        },
+        "bundle.1.stage2.rhs": {
+          "canonical_sha256": "3be48065a68f33b62a8d47852ead58111d37e833c4d1227f6dc8a151f86df1e6",
+          "layout": {
+            "shape": [
+              384,
+              351,
+              301
+            ],
+            "dtype": "complex128",
+            "strides": [
+              1690416,
+              4816,
+              16
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 649119744
+        },
+        "bundle.1.stage2.I_R": {
+          "canonical_sha256": "646adfe718036e6a1af5bc7db856d3bc431417fb6d5bec8ed0f1bd29116228e8",
+          "layout": {
+            "shape": [
+              384,
+              351,
+              301
+            ],
+            "dtype": "float64",
+            "strides": [
+              845208,
+              2408,
+              8
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": false,
+            "WRITEABLE": true,
+            "base_chain_depth": 1,
+            "base_ndarray": true
+          },
+          "nbytes": 324559872
+        },
+        "bundle.1.stage2.u_R_signed": {
+          "canonical_sha256": "1c83b73a8563bfc3dd60370bd4c93ccef2d1f902a303e1d8b46966a895dcc29f",
+          "layout": {
+            "shape": [
+              351,
+              301
+            ],
+            "dtype": "float64",
+            "strides": [
+              2408,
+              8
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 845208
+        },
+        "bundle.1.stage2.q_R_positive": {
+          "canonical_sha256": "56fd26de3edf7d7f35c06298bea437393190a047831e63a587c7f8cbfdae35c5",
+          "layout": {
+            "shape": [
+              351,
+              301
+            ],
+            "dtype": "float64",
+            "strides": [
+              2408,
+              8
+            ],
+            "C": true,
+            "F": false,
+            "OWNDATA": true,
+            "WRITEABLE": true,
+            "base_chain_depth": 0,
+            "base_ndarray": false
+          },
+          "nbytes": 845208
+        }
+      }
+    }
+  },
+  "archive": {
+    "path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46a_20261029_r2/report_full/runs/CPU/384x351x301/QUAL_OFF/work/formal/STAGES/ARRAYS.zip",
+    "bytes": 4730695744,
+    "mtime_ns": 1793259274739558787,
+    "central_directory": [
+      {
+        "name": "0000.npy",
+        "uncompressed_bytes": 649119872,
+        "compressed_bytes": 427661109,
+        "crc32": 2203303161,
+        "compression": 8
+      },
+      {
+        "name": "0001.npy",
+        "uncompressed_bytes": 649119872,
+        "compressed_bytes": 522513415,
+        "crc32": 229222225,
+        "compression": 8
+      },
+      {
+        "name": "0002.npy",
+        "uncompressed_bytes": 324560000,
+        "compressed_bytes": 191875814,
+        "crc32": 771888588,
+        "compression": 8
+      },
+      {
+        "name": "0003.npy",
+        "uncompressed_bytes": 845336,
+        "compressed_bytes": 455210,
+        "crc32": 3654276115,
+        "compression": 8
+      },
+      {
+        "name": "0004.npy",
+        "uncompressed_bytes": 845336,
+        "compressed_bytes": 455170,
+        "crc32": 391450351,
+        "compression": 8
+      },
+      {
+        "name": "0005.npy",
+        "uncompressed_bytes": 649119872,
+        "compressed_bytes": 477348037,
+        "crc32": 3768650548,
+        "compression": 8
+      },
+      {
+        "name": "0006.npy",
+        "uncompressed_bytes": 649119872,
+        "compressed_bytes": 522507563,
+        "crc32": 3873253363,
+        "compression": 8
+      },
+      {
+        "name": "0007.npy",
+        "uncompressed_bytes": 324560000,
+        "compressed_bytes": 191875096,
+        "crc32": 1341087350,
+        "compression": 8
+      },
+      {
+        "name": "0008.npy",
+        "uncompressed_bytes": 845336,
+        "compressed_bytes": 455410,
+        "crc32": 1684193557,
+        "compression": 8
+      },
+      {
+        "name": "0009.npy",
+        "uncompressed_bytes": 845336,
+        "compressed_bytes": 455381,
+        "crc32": 2868386793,
+        "compression": 8
+      },
+      {
+        "name": "0010.npy",
+        "uncompressed_bytes": 649119872,
+        "compressed_bytes": 482122884,
+        "crc32": 931496137,
+        "compression": 8
+      },
+      {
+        "name": "0011.npy",
+        "uncompressed_bytes": 649119872,
+        "compressed_bytes": 522500905,
+        "crc32": 1306076366,
+        "compression": 8
+      },
+      {
+        "name": "0012.npy",
+        "uncompressed_bytes": 324560000,
+        "compressed_bytes": 191867571,
+        "crc32": 2702795302,
+        "compression": 8
+      },
+      {
+        "name": "0013.npy",
+        "uncompressed_bytes": 845336,
+        "compressed_bytes": 455370,
+        "crc32": 2628267811,
+        "compression": 8
+      },
+      {
+        "name": "0014.npy",
+        "uncompressed_bytes": 845336,
+        "compressed_bytes": 455309,
+        "crc32": 1379071455,
+        "compression": 8
+      },
+      {
+        "name": "0015.npy",
+        "uncompressed_bytes": 649119872,
+        "compressed_bytes": 482421032,
+        "crc32": 2772027767,
+        "compression": 8
+      },
+      {
+        "name": "0016.npy",
+        "uncompressed_bytes": 649119872,
+        "compressed_bytes": 522501585,
+        "crc32": 2062738275,
+        "compression": 8
+      },
+      {
+        "name": "0017.npy",
+        "uncompressed_bytes": 324560000,
+        "compressed_bytes": 191856314,
+        "crc32": 3921512362,
+        "compression": 8
+      },
+      {
+        "name": "0018.npy",
+        "uncompressed_bytes": 845336,
+        "compressed_bytes": 455053,
+        "crc32": 1439568843,
+        "compression": 8
+      },
+      {
+        "name": "0019.npy",
+        "uncompressed_bytes": 845336,
+        "compressed_bytes": 455034,
+        "crc32": 2606025015,
+        "compression": 8
+      }
+    ],
+    "array_payloads_opened": 0,
+    "raw_sha256": null,
+    "hash_not_computed_reason": "Large original array remains remote; qualification must verify selected real inputs on compute node"
+  },
+  "source_inventory_raw_sha256": "828d6d4e8d126b15c43d1d268fb6083dafbca85a3f0bc264d1e6ae3815578243"
+}

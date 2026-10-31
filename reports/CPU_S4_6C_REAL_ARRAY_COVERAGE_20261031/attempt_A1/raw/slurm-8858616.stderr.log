@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_6c_array_coverage/node.py", line 82, in <module>
+    try:main()
+        ^^^^^^
+  File "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_6c_array_coverage/node.py", line 76, in main
+    require(code==0 and stop is None,'WORKER_FAILURE')
+  File "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_6a/inputs.py", line 23, in require
+    raise RuntimeError(why)
+RuntimeError: WORKER_FAILURE
+srun: error: cb1106: task 0: Exited with exit code 1

@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "wsl.exe",
+    "--exec",
+    "/usr/bin/python3",
+    "-B",
+    "/mnt/c/Users/wangj/.codex/worktrees/cpu-real-array-coverage-20261031/cpu_optimization/reports/CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031/control/replay.py",
+    "--root",
+    "/mnt/c/Users/wangj/.codex/worktrees/cpu-real-array-coverage-20261031/cpu_optimization/reports/CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031"
+  ],
+  "exit_code": 1,
+  "stdout": "{\"status\": \"FAIL_READONLY_REPLAY\", \"error\": \"ValueError('MISSING_MECHANISM_COMPLETION')\"}\n",
+  "stderr": "",
+  "status": "EXPECTED_REFUSAL_NOT_REAL_REPLAY_PASS"
+}

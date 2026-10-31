@@ -1,0 +1,1648 @@
+{
+  "status": "PASS",
+  "execution_commit": "7c0ac61fa6de7892a2983e78835f1a3f326a28a1",
+  "base_commit": "ed8754041625549a80959db7a8abd804d5d219ae",
+  "archive_raw_sha256": "add33d32d86738e5e31a487c65760338a14f624c95654b8fa342a7cba38b3589",
+  "bundle_raw_sha256": "3968f6ad66fa3bc7fd7e4f2173be2ab62bf81cff07407b0f05451f6a07813536",
+  "plan_raw_sha256": "c2c4e775fa4717c1812fce474bb245375fc21772d9893dd3f082c8cf481bf6b0",
+  "source_records": 252,
+  "audit": {
+    "schema": "filament.hpc_batch_entry_audit.v1",
+    "status": "passed",
+    "batch_path": "/tmp/s46c_batch_audit_h71j65p0/cpu.sbatch",
+    "fixed_python": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_q1_20261014_110706/environment/venv/bin/python",
+    "bash_syntax_exit_code": 0,
+    "activation_line": null,
+    "preactivation_shell_line_count": 13,
+    "qualified_python_commands": [],
+    "bare_python_commands": []
+  },
+  "git_identity": {
+    "system_git": "/usr/bin/git",
+    "query_launcher": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/runtime_bin/git",
+    "version": "git version 1.8.3.1",
+    "actual_head": "7c0ac61fa6de7892a2983e78835f1a3f326a28a1",
+    "management_uses_system_git_directly": true
+  },
+  "versions": {
+    "numpy": "2.2.5",
+    "scipy": "1.15.2",
+    "numba": "0.61.2",
+    "llvmlite": "0.44.0",
+    "psutil": "7.0.0",
+    "threadpoolctl": "3.6.0"
+  },
+  "factory_binding": {
+    "adapter_schema": "filament.cpu_s4_4a.linear_adapter.v2",
+    "schema": "filament.cpu_s4_4a_linear_cache.candidate.v1",
+    "role": "L1_LINEAR_FACTOR_CACHE",
+    "mode": "PURE_OFF_SMALLGRID",
+    "capture_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/report/UNUSED_LOGIN_CAPTURE",
+    "candidate": "L1_LINEAR_FACTOR_CACHE_V1",
+    "algorithm_id": "bk_nee_transfer_kernel_exp_astype.v2",
+    "pool_contract": {
+      "numba_pool": 48,
+      "outer_mask": 24,
+      "temporal_workers": 48,
+      "spatial_workers": 24
+    },
+    "actual_pool": 48,
+    "resource_scope": "HPC_FIXED_CONTRACT",
+    "scientific_qualification": false,
+    "e_stage1": 0,
+    "e_apply": 0,
+    "omega_hash_roles": [
+      "Omega_stage1",
+      "Omega_apply",
+      "Omega_stage2"
+    ],
+    "cache_snapshot": {
+      "schema": "filament.cpu_s4_4a.linear_factor_cache.v2",
+      "algorithm_id": "bk_nee_transfer_kernel_exp_astype.v2",
+      "algorithm_source_identity": "bk_nee_transfer_kernel_exp_astype.v2:93999555bf605c0be0d1867413a3d685ce8a8bfb781534401f96d5f9a388ce30:dbc62ae90d52de01e8466921985f320d322fbeb8dfa09cf332f84c8e21844063:a2ea3e6f0102db2662ff81178bfa1b884638dd6aa771798a6966df296f8ebf78",
+      "owner_identity": "state:47537273742128",
+      "max_tables": 2,
+      "max_bytes": 268435456,
+      "persistent_capacity_scope": "factor_payload_plus_conservative_key_container_reserve",
+      "cache_bytes_scope": "complete_factor_payload_only_not_process_peak",
+      "events_dropped": 0,
+      "stats": {
+        "factor_requests": 0,
+        "plane_builds": 0,
+        "hits": 0,
+        "misses": 0,
+        "key_misses": 0,
+        "build_attempts": 0,
+        "failed_requests": 0,
+        "entries": 0,
+        "evictions": 0,
+        "invalidations": 0,
+        "cache_bytes": 0,
+        "persistent_bytes_reserved": 0,
+        "key_reserve_bytes": 0,
+        "build_wall": 0.0,
+        "lookup_guard_wall": 0.0
+      },
+      "events": []
+    },
+    "linear_binding": {
+      "schema": "filament.cpu_s4_4a.linear_adapter.v2",
+      "kind": "NEW_AST_CACHED_EXECUTION_PRODUCER",
+      "algorithm_id": "bk_nee_transfer_kernel_exp_astype.v2",
+      "cache_schema": "filament.cpu_s4_4a.linear_factor_cache.v2",
+      "ast_replacement_count": 1,
+      "ast_restore_matches": true,
+      "original_ast_sha256": "49bfebd5a3b73fde673d443549580379eb29eeb6e16c80e5ca3d358d7e9dd3cc",
+      "transformed_ast_sha256": "dbc62ae90d52de01e8466921985f320d322fbeb8dfa09cf332f84c8e21844063",
+      "restored_ast_sha256": "49bfebd5a3b73fde673d443549580379eb29eeb6e16c80e5ca3d358d7e9dd3cc",
+      "helper_name": "__cpu_s4_4a_factor_for_plane",
+      "original_guard_producer": {
+        "function_id": 47537470701792,
+        "code_id": 94269670002704,
+        "code_identity": "990beb1e24aa685e68cff6eb63ad84a74e2679711512f0367fba08264583a446",
+        "global_namespace_id": 47537470430272,
+        "source": {
+          "path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/linear.py",
+          "classification": "tracked_text",
+          "hash_scope": "git_blob_oid+canonical_lf_sha256",
+          "git_blob_oid": "72878dd20daae656a5f9c8c7e39fa955ae8b30c5",
+          "checkout_raw_sha256": "93999555bf605c0be0d1867413a3d685ce8a8bfb781534401f96d5f9a388ce30",
+          "canonical_lf_sha256": "93999555bf605c0be0d1867413a3d685ce8a8bfb781534401f96d5f9a388ce30",
+          "size_bytes": 9198,
+          "function_name": "step_linear_bk_nee_factorized",
+          "function_first_line": 76,
+          "xp_namespace_type": "_XPNamespace",
+          "xp_namespace_module": "tools.cpu_p1r2.cpu_p1r2_j2",
+          "dispatch_type": "_ScipyDispatch",
+          "dispatch_module": "tools.cpu_p1r2.cpu_p1r2_j2"
+        }
+      },
+      "cached_execution_producer": {
+        "function_id": 47537470147456,
+        "code_id": 94269674501008,
+        "code_name": "_cpu_s4_4a_cached_step_linear_bk_nee_factorized",
+        "code_filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_4a_linear_cache/linear_adapter.py",
+        "code_identity": "5346d8ae151e3495c566045b272af06b4d3139a28d5489a0de9ae30cf6b3f1f6",
+        "global_namespace_id": 47537481314112,
+        "global_namespace_is_original": false,
+        "xp_same_object": true,
+        "fft_same_object": true,
+        "cache_owner_id": 47537273742128,
+        "source_path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_4a_linear_cache/linear_adapter.py",
+        "source_kind": "AST_DERIVED_NEW_CODE",
+        "restored_original_ast_sha256": "49bfebd5a3b73fde673d443549580379eb29eeb6e16c80e5ca3d358d7e9dd3cc"
+      }
+    },
+    "runtime_wrapper": {
+      "schema": "filament.cpu_s4_3g2.adapter.v1",
+      "role": "G_CONTROLLED_INPUT",
+      "mode": "PURE_OFF_REAL8",
+      "source_identity": {
+        "path": "Filament_python/KHz_filament/propagate.py",
+        "classification": "tracked_text",
+        "hash_scope": "git_blob_oid+canonical_lf_sha256",
+        "git_blob_oid": "f156111398415c2b92e4609ccc1da075fcf5d1e3",
+        "canonical_lf_sha256": "909fbcf5ef05d2c50b8ed27506b450d40127b3973709d9b4b6a961799dc8d1f6",
+        "raw_sha256": "909fbcf5ef05d2c50b8ed27506b450d40127b3973709d9b4b6a961799dc8d1f6",
+        "size_bytes": 113604
+      },
+      "runtime_source_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+      "runtime_source_root_env": "S43G2_SOURCE_ROOT",
+      "runtime_module_paths": {
+        "KHz_filament.propagate": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/propagate.py",
+        "KHz_filament.linear": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/linear.py",
+        "KHz_filament.raman": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/raman.py",
+        "tools.cpu_s4_3g.controlled_callsite": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py"
+      },
+      "clone_builder": {
+        "kind": "G3_CONTROLLED_BUILDER",
+        "identity": {
+          "path": "Filament_python/KHz_filament/propagate.py",
+          "classification": "tracked_text",
+          "hash_scope": "git_blob_oid+canonical_lf_sha256",
+          "git_blob_oid": "f156111398415c2b92e4609ccc1da075fcf5d1e3",
+          "canonical_lf_sha256": "909fbcf5ef05d2c50b8ed27506b450d40127b3973709d9b4b6a961799dc8d1f6",
+          "raw_sha256": "909fbcf5ef05d2c50b8ed27506b450d40127b3973709d9b4b6a961799dc8d1f6",
+          "size_bytes": 113604
+        },
+        "builder_binding": {
+          "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+          "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+          "name": "_clone_function",
+          "qualname": "_clone_function",
+          "firstlineno": 450,
+          "hash_scope": "git_blob_oid+canonical_lf_sha256",
+          "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+          "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+          "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+          "external_frozen_source": false,
+          "external_binding_report": null,
+          "external_source_path_match": null,
+          "expected_raw_sha256": null,
+          "bytecode_sha256": "e1f2c3c093bd796cf13ec00301db9c7bb501f6aeb750d85ee6c6d648cdbbe8ea",
+          "frozen_bytecode_sha256": "e1f2c3c093bd796cf13ec00301db9c7bb501f6aeb750d85ee6c6d648cdbbe8ea",
+          "actual_code_structure_sha256": "387817964721e2068992964414225cad0dad26d735d4c33bf9d995b7e78c1f7a",
+          "frozen_code_structure_sha256": "387817964721e2068992964414225cad0dad26d735d4c33bf9d995b7e78c1f7a",
+          "code_structure_match": true,
+          "frozen_compile": {
+            "dont_inherit": true,
+            "optimize": 0,
+            "target_qualname": "_clone_function"
+          },
+          "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+          "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+        },
+        "helper_binding": {
+          "schema": "filament.cpu_s4_3g2.adapter.v1.runtime_helper_binding",
+          "state_is_dispatch_cpu_s4_3g_state": true,
+          "dispatch_state_relation": "dispatch.cpu_s4_3g_state",
+          "helper_count": 7,
+          "helpers": {
+            "_g_step_linear_bk_nee": {
+              "label": "_g_step_linear_bk_nee",
+              "module": "tools.cpu_s4_3g.controlled_callsite",
+              "qualname": "_make_state_helpers.<locals>.step_linear",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "firstlineno": 585,
+              "bytecode_sha256": "ab684681f3e2895aa5416ae5774aa887e8f89428c68a7f5eb37f052b8eb1d10f",
+              "code_structure_sha256": "392dace0219100fafaa2c62ee66612030554747f1d2a32aa523ffc297d6c1b42",
+              "method_binding": {
+                "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "name": "step_linear",
+                "qualname": "_make_state_helpers.<locals>.step_linear",
+                "firstlineno": 585,
+                "hash_scope": "git_blob_oid+canonical_lf_sha256",
+                "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+                "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+                "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "external_frozen_source": false,
+                "external_binding_report": null,
+                "external_source_path_match": null,
+                "expected_raw_sha256": null,
+                "bytecode_sha256": "ab684681f3e2895aa5416ae5774aa887e8f89428c68a7f5eb37f052b8eb1d10f",
+                "frozen_bytecode_sha256": "ab684681f3e2895aa5416ae5774aa887e8f89428c68a7f5eb37f052b8eb1d10f",
+                "actual_code_structure_sha256": "392dace0219100fafaa2c62ee66612030554747f1d2a32aa523ffc297d6c1b42",
+                "frozen_code_structure_sha256": "392dace0219100fafaa2c62ee66612030554747f1d2a32aa523ffc297d6c1b42",
+                "code_structure_match": true,
+                "frozen_compile": {
+                  "dont_inherit": true,
+                  "optimize": 0,
+                  "target_qualname": "_make_state_helpers.<locals>.step_linear"
+                },
+                "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+                "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+              },
+              "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+              "globals_owner_kind": "MODULE_DICT",
+              "globals_owner_is_module_dict": true,
+              "backend_binding": null,
+              "closure_freevars": [
+                "original_linear",
+                "state"
+              ],
+              "closure_roles": {
+                "state": "dispatch.cpu_s4_3g_state",
+                "original_linear": "state._g_linear_function"
+              }
+            },
+            "_g_apply_nonlinear": {
+              "label": "_g_apply_nonlinear",
+              "module": "tools.cpu_s4_3g.controlled_callsite",
+              "qualname": "_make_state_helpers.<locals>.apply_nonlinear",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "firstlineno": 588,
+              "bytecode_sha256": "6bb8c956d0b2695d499f67fd0abf13c886f37c7d49811234cddc58c554f1e22d",
+              "code_structure_sha256": "96a9dc89eb78d29b34c6d6f16677da8085177cc77b65674ea0e0549dfdddb424",
+              "method_binding": {
+                "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "name": "apply_nonlinear",
+                "qualname": "_make_state_helpers.<locals>.apply_nonlinear",
+                "firstlineno": 588,
+                "hash_scope": "git_blob_oid+canonical_lf_sha256",
+                "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+                "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+                "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "external_frozen_source": false,
+                "external_binding_report": null,
+                "external_source_path_match": null,
+                "expected_raw_sha256": null,
+                "bytecode_sha256": "6bb8c956d0b2695d499f67fd0abf13c886f37c7d49811234cddc58c554f1e22d",
+                "frozen_bytecode_sha256": "6bb8c956d0b2695d499f67fd0abf13c886f37c7d49811234cddc58c554f1e22d",
+                "actual_code_structure_sha256": "96a9dc89eb78d29b34c6d6f16677da8085177cc77b65674ea0e0549dfdddb424",
+                "frozen_code_structure_sha256": "96a9dc89eb78d29b34c6d6f16677da8085177cc77b65674ea0e0549dfdddb424",
+                "code_structure_match": true,
+                "frozen_compile": {
+                  "dont_inherit": true,
+                  "optimize": 0,
+                  "target_qualname": "_make_state_helpers.<locals>.apply_nonlinear"
+                },
+                "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+                "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+              },
+              "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+              "globals_owner_kind": "MODULE_DICT",
+              "globals_owner_is_module_dict": true,
+              "backend_binding": null,
+              "closure_freevars": [
+                "original_apply",
+                "state"
+              ],
+              "closure_roles": {
+                "state": "dispatch.cpu_s4_3g_state",
+                "original_apply": "state._g_nonlinear_function"
+              }
+            },
+            "_g_controlled_raman_substep": {
+              "label": "_g_controlled_raman_substep",
+              "module": "tools.cpu_s4_3g.controlled_callsite",
+              "qualname": "_make_state_helpers.<locals>.controlled_substep",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "firstlineno": 591,
+              "bytecode_sha256": "a9319a0ae949f2187744dee2e0bb43505881c8dfe1be507ff78d458acf94e932",
+              "code_structure_sha256": "76720872780dfba394e97697a0aef6796c853028fca903da576a892fda99fd61",
+              "method_binding": {
+                "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "name": "controlled_substep",
+                "qualname": "_make_state_helpers.<locals>.controlled_substep",
+                "firstlineno": 591,
+                "hash_scope": "git_blob_oid+canonical_lf_sha256",
+                "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+                "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+                "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "external_frozen_source": false,
+                "external_binding_report": null,
+                "external_source_path_match": null,
+                "expected_raw_sha256": null,
+                "bytecode_sha256": "a9319a0ae949f2187744dee2e0bb43505881c8dfe1be507ff78d458acf94e932",
+                "frozen_bytecode_sha256": "a9319a0ae949f2187744dee2e0bb43505881c8dfe1be507ff78d458acf94e932",
+                "actual_code_structure_sha256": "76720872780dfba394e97697a0aef6796c853028fca903da576a892fda99fd61",
+                "frozen_code_structure_sha256": "76720872780dfba394e97697a0aef6796c853028fca903da576a892fda99fd61",
+                "code_structure_match": true,
+                "frozen_compile": {
+                  "dont_inherit": true,
+                  "optimize": 0,
+                  "target_qualname": "_make_state_helpers.<locals>.controlled_substep"
+                },
+                "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+                "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+              },
+              "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+              "globals_owner_kind": "MODULE_DICT",
+              "globals_owner_is_module_dict": true,
+              "backend_binding": null,
+              "closure_freevars": [
+                "state"
+              ],
+              "closure_roles": {
+                "state": "dispatch.cpu_s4_3g_state"
+              }
+            },
+            "_g_propagation_enter": {
+              "label": "_g_propagation_enter",
+              "module": "tools.cpu_s4_3g.controlled_callsite",
+              "qualname": "_make_state_helpers.<locals>.propagation_enter",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "firstlineno": 607,
+              "bytecode_sha256": "4d2bf7295b386190f1e467f4556571aa6b3abf449d2fb3ecca615faa1c715fa4",
+              "code_structure_sha256": "d347c77026c9db0577f406b479de4a43d935d66b30c4172627e767df3114d814",
+              "method_binding": {
+                "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "name": "propagation_enter",
+                "qualname": "_make_state_helpers.<locals>.propagation_enter",
+                "firstlineno": 607,
+                "hash_scope": "git_blob_oid+canonical_lf_sha256",
+                "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+                "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+                "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "external_frozen_source": false,
+                "external_binding_report": null,
+                "external_source_path_match": null,
+                "expected_raw_sha256": null,
+                "bytecode_sha256": "4d2bf7295b386190f1e467f4556571aa6b3abf449d2fb3ecca615faa1c715fa4",
+                "frozen_bytecode_sha256": "4d2bf7295b386190f1e467f4556571aa6b3abf449d2fb3ecca615faa1c715fa4",
+                "actual_code_structure_sha256": "d347c77026c9db0577f406b479de4a43d935d66b30c4172627e767df3114d814",
+                "frozen_code_structure_sha256": "d347c77026c9db0577f406b479de4a43d935d66b30c4172627e767df3114d814",
+                "code_structure_match": true,
+                "frozen_compile": {
+                  "dont_inherit": true,
+                  "optimize": 0,
+                  "target_qualname": "_make_state_helpers.<locals>.propagation_enter"
+                },
+                "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+                "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+              },
+              "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+              "globals_owner_kind": "MODULE_DICT",
+              "globals_owner_is_module_dict": true,
+              "backend_binding": null,
+              "closure_freevars": [
+                "state"
+              ],
+              "closure_roles": {
+                "state": "dispatch.cpu_s4_3g_state"
+              }
+            },
+            "_g_propagation_finalize": {
+              "label": "_g_propagation_finalize",
+              "module": "tools.cpu_s4_3g.controlled_callsite",
+              "qualname": "_make_state_helpers.<locals>.propagation_finalize",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "firstlineno": 613,
+              "bytecode_sha256": "7b5f4fd283b8b383227ebc7349ab1c47b2636146826dbd2b3257c4dccee4b2be",
+              "code_structure_sha256": "e1a805f6ce9e2f2d220ab9a8c55702f99da8c2dbc6b49b0abcc2afb22e4446ab",
+              "method_binding": {
+                "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "name": "propagation_finalize",
+                "qualname": "_make_state_helpers.<locals>.propagation_finalize",
+                "firstlineno": 613,
+                "hash_scope": "git_blob_oid+canonical_lf_sha256",
+                "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+                "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+                "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "external_frozen_source": false,
+                "external_binding_report": null,
+                "external_source_path_match": null,
+                "expected_raw_sha256": null,
+                "bytecode_sha256": "7b5f4fd283b8b383227ebc7349ab1c47b2636146826dbd2b3257c4dccee4b2be",
+                "frozen_bytecode_sha256": "7b5f4fd283b8b383227ebc7349ab1c47b2636146826dbd2b3257c4dccee4b2be",
+                "actual_code_structure_sha256": "e1a805f6ce9e2f2d220ab9a8c55702f99da8c2dbc6b49b0abcc2afb22e4446ab",
+                "frozen_code_structure_sha256": "e1a805f6ce9e2f2d220ab9a8c55702f99da8c2dbc6b49b0abcc2afb22e4446ab",
+                "code_structure_match": true,
+                "frozen_compile": {
+                  "dont_inherit": true,
+                  "optimize": 0,
+                  "target_qualname": "_make_state_helpers.<locals>.propagation_finalize"
+                },
+                "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+                "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+              },
+              "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+              "globals_owner_kind": "MODULE_DICT",
+              "globals_owner_is_module_dict": true,
+              "backend_binding": null,
+              "closure_freevars": [
+                "state"
+              ],
+              "closure_roles": {
+                "state": "dispatch.cpu_s4_3g_state"
+              }
+            },
+            "_g_publish_result": {
+              "label": "_g_publish_result",
+              "module": "tools.cpu_s4_3g.controlled_callsite",
+              "qualname": "_make_state_helpers.<locals>.publish_result",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "firstlineno": 610,
+              "bytecode_sha256": "da67a1bfe44b5f2b56ce683c437aa6c357d39fe43ca552992e720df6ec42b695",
+              "code_structure_sha256": "8c1a6d82d7e41267786797139bd03152763c28947549e872a45be46663ad3827",
+              "method_binding": {
+                "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "name": "publish_result",
+                "qualname": "_make_state_helpers.<locals>.publish_result",
+                "firstlineno": 610,
+                "hash_scope": "git_blob_oid+canonical_lf_sha256",
+                "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+                "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+                "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "external_frozen_source": false,
+                "external_binding_report": null,
+                "external_source_path_match": null,
+                "expected_raw_sha256": null,
+                "bytecode_sha256": "da67a1bfe44b5f2b56ce683c437aa6c357d39fe43ca552992e720df6ec42b695",
+                "frozen_bytecode_sha256": "da67a1bfe44b5f2b56ce683c437aa6c357d39fe43ca552992e720df6ec42b695",
+                "actual_code_structure_sha256": "8c1a6d82d7e41267786797139bd03152763c28947549e872a45be46663ad3827",
+                "frozen_code_structure_sha256": "8c1a6d82d7e41267786797139bd03152763c28947549e872a45be46663ad3827",
+                "code_structure_match": true,
+                "frozen_compile": {
+                  "dont_inherit": true,
+                  "optimize": 0,
+                  "target_qualname": "_make_state_helpers.<locals>.publish_result"
+                },
+                "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+                "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+              },
+              "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+              "globals_owner_kind": "MODULE_DICT",
+              "globals_owner_is_module_dict": true,
+              "backend_binding": null,
+              "closure_freevars": [
+                "state"
+              ],
+              "closure_roles": {
+                "state": "dispatch.cpu_s4_3g_state"
+              }
+            },
+            "_g_reject_complete_mode": {
+              "label": "_g_reject_complete_mode",
+              "module": "tools.cpu_s4_3g.controlled_callsite",
+              "qualname": "_make_state_helpers.<locals>.reject_complete",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "firstlineno": 616,
+              "bytecode_sha256": "dc6c5dc8441006046b5a9ed56454a216b7679821f92ee2ffcd90c2e862436cbb",
+              "code_structure_sha256": "cb14fe2c315083cbfcea24aeb364cbe7e82a21d07c12588d6ed4fb35f4862806",
+              "method_binding": {
+                "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "name": "reject_complete",
+                "qualname": "_make_state_helpers.<locals>.reject_complete",
+                "firstlineno": 616,
+                "hash_scope": "git_blob_oid+canonical_lf_sha256",
+                "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+                "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+                "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+                "external_frozen_source": false,
+                "external_binding_report": null,
+                "external_source_path_match": null,
+                "expected_raw_sha256": null,
+                "bytecode_sha256": "dc6c5dc8441006046b5a9ed56454a216b7679821f92ee2ffcd90c2e862436cbb",
+                "frozen_bytecode_sha256": "dc6c5dc8441006046b5a9ed56454a216b7679821f92ee2ffcd90c2e862436cbb",
+                "actual_code_structure_sha256": "cb14fe2c315083cbfcea24aeb364cbe7e82a21d07c12588d6ed4fb35f4862806",
+                "frozen_code_structure_sha256": "cb14fe2c315083cbfcea24aeb364cbe7e82a21d07c12588d6ed4fb35f4862806",
+                "code_structure_match": true,
+                "frozen_compile": {
+                  "dont_inherit": true,
+                  "optimize": 0,
+                  "target_qualname": "_make_state_helpers.<locals>.reject_complete"
+                },
+                "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+                "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+              },
+              "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+              "globals_owner_kind": "MODULE_DICT",
+              "globals_owner_is_module_dict": true,
+              "backend_binding": null,
+              "closure_freevars": [
+                "state"
+              ],
+              "closure_roles": {
+                "state": "dispatch.cpu_s4_3g_state"
+              }
+            }
+          },
+          "bound_originals": {
+            "original_linear": {
+              "label": "state._g_linear_function",
+              "module": "KHz_filament.linear",
+              "qualname": "step_linear_bk_nee_factorized",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/linear.py",
+              "firstlineno": 76,
+              "bytecode_sha256": "0f5202dea731b60ae8abbaf61b553b160578bef50ffd14d496cead64dd4a99d0",
+              "code_structure_sha256": "23727ed5076bc39fb065ef2a4408707ecab73f9b3616c52765e63e4b5852ee69",
+              "method_binding": {
+                "relative_path": "Filament_python/KHz_filament/linear.py",
+                "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/linear.py",
+                "name": "step_linear_bk_nee_factorized",
+                "qualname": "step_linear_bk_nee_factorized",
+                "firstlineno": 76,
+                "hash_scope": "git_blob_oid+canonical_lf_sha256",
+                "git_blob_oid": "72878dd20daae656a5f9c8c7e39fa955ae8b30c5",
+                "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+                "git_relative_path": "Filament_python/KHz_filament/linear.py",
+                "external_frozen_source": false,
+                "external_binding_report": null,
+                "external_source_path_match": null,
+                "expected_raw_sha256": null,
+                "bytecode_sha256": "0f5202dea731b60ae8abbaf61b553b160578bef50ffd14d496cead64dd4a99d0",
+                "frozen_bytecode_sha256": "0f5202dea731b60ae8abbaf61b553b160578bef50ffd14d496cead64dd4a99d0",
+                "actual_code_structure_sha256": "23727ed5076bc39fb065ef2a4408707ecab73f9b3616c52765e63e4b5852ee69",
+                "frozen_code_structure_sha256": "23727ed5076bc39fb065ef2a4408707ecab73f9b3616c52765e63e4b5852ee69",
+                "code_structure_match": true,
+                "frozen_compile": {
+                  "dont_inherit": true,
+                  "optimize": 0,
+                  "target_qualname": "step_linear_bk_nee_factorized"
+                },
+                "source_raw_sha256": "93999555bf605c0be0d1867413a3d685ce8a8bfb781534401f96d5f9a388ce30",
+                "source_canonical_lf_sha256": "93999555bf605c0be0d1867413a3d685ce8a8bfb781534401f96d5f9a388ce30"
+              },
+              "globals_owner_module": "KHz_filament.linear",
+              "globals_owner_kind": "FROZEN_FACTORY_PRIVATE_NAMESPACE",
+              "globals_owner_is_module_dict": false,
+              "backend_binding": {
+                "xp_namespace_type": "_XPNamespace",
+                "xp_namespace_module": "tools.cpu_p1r2.cpu_p1r2_j2",
+                "dispatch_type": "_ScipyDispatch",
+                "dispatch_module": "tools.cpu_p1r2.cpu_p1r2_j2",
+                "dispatch_id": 47537465310288,
+                "capture_dispatch_rejected": true,
+                "linear_source_binding": {
+                  "path": "Filament_python/KHz_filament/linear.py",
+                  "git_blob_oid": "72878dd20daae656a5f9c8c7e39fa955ae8b30c5",
+                  "canonical_lf_sha256": "93999555bf605c0be0d1867413a3d685ce8a8bfb781534401f96d5f9a388ce30",
+                  "function_name": "step_linear_bk_nee_factorized",
+                  "function_first_line": 76,
+                  "code_filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/linear.py",
+                  "code_object_id": 94269670002704
+                },
+                "nonlinear_source_binding": {
+                  "path": "Filament_python/KHz_filament/nonlinear.py",
+                  "git_blob_oid": "7674c50ef2d7fe90c805d068e4f4ba535e215dfd",
+                  "canonical_lf_sha256": "cb55ec00bbdf7196c926c3563785efe65bd83e26cc767d67f42c6d4db5d57185",
+                  "function_name": "apply_nonlinear",
+                  "function_first_line": 34,
+                  "code_filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/nonlinear.py",
+                  "code_object_id": 94269672951600
+                }
+              },
+              "closure_freevars": [],
+              "closure_roles": {}
+            },
+            "original_apply": {
+              "label": "state._g_nonlinear_function",
+              "module": "KHz_filament.nonlinear",
+              "qualname": "apply_nonlinear",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/nonlinear.py",
+              "firstlineno": 34,
+              "bytecode_sha256": "e39ec4dbf76e2d6805fb8f13de45c6f6f37bb4b468011448fa0a599f5e00a8ad",
+              "code_structure_sha256": "16c3baf7bf7a75d7bd3cbd1c15003a60dfdc1a692b9dd4d29d06a5f37a4c06ef",
+              "method_binding": {
+                "relative_path": "Filament_python/KHz_filament/nonlinear.py",
+                "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/nonlinear.py",
+                "name": "apply_nonlinear",
+                "qualname": "apply_nonlinear",
+                "firstlineno": 34,
+                "hash_scope": "git_blob_oid+canonical_lf_sha256",
+                "git_blob_oid": "7674c50ef2d7fe90c805d068e4f4ba535e215dfd",
+                "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+                "git_relative_path": "Filament_python/KHz_filament/nonlinear.py",
+                "external_frozen_source": false,
+                "external_binding_report": null,
+                "external_source_path_match": null,
+                "expected_raw_sha256": null,
+                "bytecode_sha256": "e39ec4dbf76e2d6805fb8f13de45c6f6f37bb4b468011448fa0a599f5e00a8ad",
+                "frozen_bytecode_sha256": "e39ec4dbf76e2d6805fb8f13de45c6f6f37bb4b468011448fa0a599f5e00a8ad",
+                "actual_code_structure_sha256": "16c3baf7bf7a75d7bd3cbd1c15003a60dfdc1a692b9dd4d29d06a5f37a4c06ef",
+                "frozen_code_structure_sha256": "16c3baf7bf7a75d7bd3cbd1c15003a60dfdc1a692b9dd4d29d06a5f37a4c06ef",
+                "code_structure_match": true,
+                "frozen_compile": {
+                  "dont_inherit": true,
+                  "optimize": 0,
+                  "target_qualname": "apply_nonlinear"
+                },
+                "source_raw_sha256": "cb55ec00bbdf7196c926c3563785efe65bd83e26cc767d67f42c6d4db5d57185",
+                "source_canonical_lf_sha256": "cb55ec00bbdf7196c926c3563785efe65bd83e26cc767d67f42c6d4db5d57185"
+              },
+              "globals_owner_module": "KHz_filament.nonlinear",
+              "globals_owner_kind": "FROZEN_FACTORY_PRIVATE_NAMESPACE",
+              "globals_owner_is_module_dict": false,
+              "backend_binding": {
+                "xp_namespace_type": "_XPNamespace",
+                "xp_namespace_module": "tools.cpu_p1r2.cpu_p1r2_j2",
+                "dispatch_type": "_ScipyDispatch",
+                "dispatch_module": "tools.cpu_p1r2.cpu_p1r2_j2",
+                "dispatch_id": 47537465310288,
+                "capture_dispatch_rejected": true,
+                "linear_source_binding": {
+                  "path": "Filament_python/KHz_filament/linear.py",
+                  "git_blob_oid": "72878dd20daae656a5f9c8c7e39fa955ae8b30c5",
+                  "canonical_lf_sha256": "93999555bf605c0be0d1867413a3d685ce8a8bfb781534401f96d5f9a388ce30",
+                  "function_name": "step_linear_bk_nee_factorized",
+                  "function_first_line": 76,
+                  "code_filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/linear.py",
+                  "code_object_id": 94269670002704
+                },
+                "nonlinear_source_binding": {
+                  "path": "Filament_python/KHz_filament/nonlinear.py",
+                  "git_blob_oid": "7674c50ef2d7fe90c805d068e4f4ba535e215dfd",
+                  "canonical_lf_sha256": "cb55ec00bbdf7196c926c3563785efe65bd83e26cc767d67f42c6d4db5d57185",
+                  "function_name": "apply_nonlinear",
+                  "function_first_line": 34,
+                  "code_filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/nonlinear.py",
+                  "code_object_id": 94269672951600
+                }
+              },
+              "closure_freevars": [],
+              "closure_roles": {}
+            }
+          },
+          "builder": {
+            "binding": {
+              "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "name": "_clone_function",
+              "qualname": "_clone_function",
+              "firstlineno": 450,
+              "hash_scope": "git_blob_oid+canonical_lf_sha256",
+              "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+              "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+              "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "external_frozen_source": false,
+              "external_binding_report": null,
+              "external_source_path_match": null,
+              "expected_raw_sha256": null,
+              "bytecode_sha256": "e1f2c3c093bd796cf13ec00301db9c7bb501f6aeb750d85ee6c6d648cdbbe8ea",
+              "frozen_bytecode_sha256": "e1f2c3c093bd796cf13ec00301db9c7bb501f6aeb750d85ee6c6d648cdbbe8ea",
+              "actual_code_structure_sha256": "387817964721e2068992964414225cad0dad26d735d4c33bf9d995b7e78c1f7a",
+              "frozen_code_structure_sha256": "387817964721e2068992964414225cad0dad26d735d4c33bf9d995b7e78c1f7a",
+              "code_structure_match": true,
+              "frozen_compile": {
+                "dont_inherit": true,
+                "optimize": 0,
+                "target_qualname": "_clone_function"
+              },
+              "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+              "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+            },
+            "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+            "globals_owner_is_module_dict": true,
+            "copy_globals_changed_names": [
+              "compile"
+            ],
+            "copy_globals_only_compile_change": true,
+            "closure_freevars": []
+          },
+          "helper_factory_binding": {
+            "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+            "name": "_make_state_helpers",
+            "qualname": "_make_state_helpers",
+            "firstlineno": 582,
+            "hash_scope": "git_blob_oid+canonical_lf_sha256",
+            "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+            "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+            "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+            "external_frozen_source": false,
+            "external_binding_report": null,
+            "external_source_path_match": null,
+            "expected_raw_sha256": null,
+            "bytecode_sha256": "d613a73b869323a22ea152cd37066a339575218eff29a03bba97df6bbafd34e2",
+            "frozen_bytecode_sha256": "d613a73b869323a22ea152cd37066a339575218eff29a03bba97df6bbafd34e2",
+            "actual_code_structure_sha256": "ae527ccec7756513f6673da2c7a735b879163ce914b5f14fdcb375ac2331d2af",
+            "frozen_code_structure_sha256": "ae527ccec7756513f6673da2c7a735b879163ce914b5f14fdcb375ac2331d2af",
+            "code_structure_match": true,
+            "frozen_compile": {
+              "dont_inherit": true,
+              "optimize": 0,
+              "target_qualname": "_make_state_helpers"
+            },
+            "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+            "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+          },
+          "qualify_boundary_hook_bound": false,
+          "qualify_boundary_lease_bound": false
+        }
+      },
+      "runtime_helper_binding": {
+        "schema": "filament.cpu_s4_3g2.adapter.v1.runtime_helper_binding",
+        "state_is_dispatch_cpu_s4_3g_state": true,
+        "dispatch_state_relation": "dispatch.cpu_s4_3g_state",
+        "helper_count": 7,
+        "helpers": {
+          "_g_step_linear_bk_nee": {
+            "label": "_g_step_linear_bk_nee",
+            "module": "tools.cpu_s4_3g.controlled_callsite",
+            "qualname": "_make_state_helpers.<locals>.step_linear",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+            "firstlineno": 585,
+            "bytecode_sha256": "ab684681f3e2895aa5416ae5774aa887e8f89428c68a7f5eb37f052b8eb1d10f",
+            "code_structure_sha256": "392dace0219100fafaa2c62ee66612030554747f1d2a32aa523ffc297d6c1b42",
+            "method_binding": {
+              "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "name": "step_linear",
+              "qualname": "_make_state_helpers.<locals>.step_linear",
+              "firstlineno": 585,
+              "hash_scope": "git_blob_oid+canonical_lf_sha256",
+              "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+              "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+              "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "external_frozen_source": false,
+              "external_binding_report": null,
+              "external_source_path_match": null,
+              "expected_raw_sha256": null,
+              "bytecode_sha256": "ab684681f3e2895aa5416ae5774aa887e8f89428c68a7f5eb37f052b8eb1d10f",
+              "frozen_bytecode_sha256": "ab684681f3e2895aa5416ae5774aa887e8f89428c68a7f5eb37f052b8eb1d10f",
+              "actual_code_structure_sha256": "392dace0219100fafaa2c62ee66612030554747f1d2a32aa523ffc297d6c1b42",
+              "frozen_code_structure_sha256": "392dace0219100fafaa2c62ee66612030554747f1d2a32aa523ffc297d6c1b42",
+              "code_structure_match": true,
+              "frozen_compile": {
+                "dont_inherit": true,
+                "optimize": 0,
+                "target_qualname": "_make_state_helpers.<locals>.step_linear"
+              },
+              "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+              "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+            },
+            "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+            "globals_owner_kind": "MODULE_DICT",
+            "globals_owner_is_module_dict": true,
+            "backend_binding": null,
+            "closure_freevars": [
+              "original_linear",
+              "state"
+            ],
+            "closure_roles": {
+              "state": "dispatch.cpu_s4_3g_state",
+              "original_linear": "state._g_linear_function"
+            }
+          },
+          "_g_apply_nonlinear": {
+            "label": "_g_apply_nonlinear",
+            "module": "tools.cpu_s4_3g.controlled_callsite",
+            "qualname": "_make_state_helpers.<locals>.apply_nonlinear",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+            "firstlineno": 588,
+            "bytecode_sha256": "6bb8c956d0b2695d499f67fd0abf13c886f37c7d49811234cddc58c554f1e22d",
+            "code_structure_sha256": "96a9dc89eb78d29b34c6d6f16677da8085177cc77b65674ea0e0549dfdddb424",
+            "method_binding": {
+              "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "name": "apply_nonlinear",
+              "qualname": "_make_state_helpers.<locals>.apply_nonlinear",
+              "firstlineno": 588,
+              "hash_scope": "git_blob_oid+canonical_lf_sha256",
+              "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+              "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+              "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "external_frozen_source": false,
+              "external_binding_report": null,
+              "external_source_path_match": null,
+              "expected_raw_sha256": null,
+              "bytecode_sha256": "6bb8c956d0b2695d499f67fd0abf13c886f37c7d49811234cddc58c554f1e22d",
+              "frozen_bytecode_sha256": "6bb8c956d0b2695d499f67fd0abf13c886f37c7d49811234cddc58c554f1e22d",
+              "actual_code_structure_sha256": "96a9dc89eb78d29b34c6d6f16677da8085177cc77b65674ea0e0549dfdddb424",
+              "frozen_code_structure_sha256": "96a9dc89eb78d29b34c6d6f16677da8085177cc77b65674ea0e0549dfdddb424",
+              "code_structure_match": true,
+              "frozen_compile": {
+                "dont_inherit": true,
+                "optimize": 0,
+                "target_qualname": "_make_state_helpers.<locals>.apply_nonlinear"
+              },
+              "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+              "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+            },
+            "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+            "globals_owner_kind": "MODULE_DICT",
+            "globals_owner_is_module_dict": true,
+            "backend_binding": null,
+            "closure_freevars": [
+              "original_apply",
+              "state"
+            ],
+            "closure_roles": {
+              "state": "dispatch.cpu_s4_3g_state",
+              "original_apply": "state._g_nonlinear_function"
+            }
+          },
+          "_g_controlled_raman_substep": {
+            "label": "_g_controlled_raman_substep",
+            "module": "tools.cpu_s4_3g.controlled_callsite",
+            "qualname": "_make_state_helpers.<locals>.controlled_substep",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+            "firstlineno": 591,
+            "bytecode_sha256": "a9319a0ae949f2187744dee2e0bb43505881c8dfe1be507ff78d458acf94e932",
+            "code_structure_sha256": "76720872780dfba394e97697a0aef6796c853028fca903da576a892fda99fd61",
+            "method_binding": {
+              "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "name": "controlled_substep",
+              "qualname": "_make_state_helpers.<locals>.controlled_substep",
+              "firstlineno": 591,
+              "hash_scope": "git_blob_oid+canonical_lf_sha256",
+              "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+              "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+              "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "external_frozen_source": false,
+              "external_binding_report": null,
+              "external_source_path_match": null,
+              "expected_raw_sha256": null,
+              "bytecode_sha256": "a9319a0ae949f2187744dee2e0bb43505881c8dfe1be507ff78d458acf94e932",
+              "frozen_bytecode_sha256": "a9319a0ae949f2187744dee2e0bb43505881c8dfe1be507ff78d458acf94e932",
+              "actual_code_structure_sha256": "76720872780dfba394e97697a0aef6796c853028fca903da576a892fda99fd61",
+              "frozen_code_structure_sha256": "76720872780dfba394e97697a0aef6796c853028fca903da576a892fda99fd61",
+              "code_structure_match": true,
+              "frozen_compile": {
+                "dont_inherit": true,
+                "optimize": 0,
+                "target_qualname": "_make_state_helpers.<locals>.controlled_substep"
+              },
+              "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+              "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+            },
+            "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+            "globals_owner_kind": "MODULE_DICT",
+            "globals_owner_is_module_dict": true,
+            "backend_binding": null,
+            "closure_freevars": [
+              "state"
+            ],
+            "closure_roles": {
+              "state": "dispatch.cpu_s4_3g_state"
+            }
+          },
+          "_g_propagation_enter": {
+            "label": "_g_propagation_enter",
+            "module": "tools.cpu_s4_3g.controlled_callsite",
+            "qualname": "_make_state_helpers.<locals>.propagation_enter",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+            "firstlineno": 607,
+            "bytecode_sha256": "4d2bf7295b386190f1e467f4556571aa6b3abf449d2fb3ecca615faa1c715fa4",
+            "code_structure_sha256": "d347c77026c9db0577f406b479de4a43d935d66b30c4172627e767df3114d814",
+            "method_binding": {
+              "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "name": "propagation_enter",
+              "qualname": "_make_state_helpers.<locals>.propagation_enter",
+              "firstlineno": 607,
+              "hash_scope": "git_blob_oid+canonical_lf_sha256",
+              "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+              "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+              "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "external_frozen_source": false,
+              "external_binding_report": null,
+              "external_source_path_match": null,
+              "expected_raw_sha256": null,
+              "bytecode_sha256": "4d2bf7295b386190f1e467f4556571aa6b3abf449d2fb3ecca615faa1c715fa4",
+              "frozen_bytecode_sha256": "4d2bf7295b386190f1e467f4556571aa6b3abf449d2fb3ecca615faa1c715fa4",
+              "actual_code_structure_sha256": "d347c77026c9db0577f406b479de4a43d935d66b30c4172627e767df3114d814",
+              "frozen_code_structure_sha256": "d347c77026c9db0577f406b479de4a43d935d66b30c4172627e767df3114d814",
+              "code_structure_match": true,
+              "frozen_compile": {
+                "dont_inherit": true,
+                "optimize": 0,
+                "target_qualname": "_make_state_helpers.<locals>.propagation_enter"
+              },
+              "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+              "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+            },
+            "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+            "globals_owner_kind": "MODULE_DICT",
+            "globals_owner_is_module_dict": true,
+            "backend_binding": null,
+            "closure_freevars": [
+              "state"
+            ],
+            "closure_roles": {
+              "state": "dispatch.cpu_s4_3g_state"
+            }
+          },
+          "_g_propagation_finalize": {
+            "label": "_g_propagation_finalize",
+            "module": "tools.cpu_s4_3g.controlled_callsite",
+            "qualname": "_make_state_helpers.<locals>.propagation_finalize",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+            "firstlineno": 613,
+            "bytecode_sha256": "7b5f4fd283b8b383227ebc7349ab1c47b2636146826dbd2b3257c4dccee4b2be",
+            "code_structure_sha256": "e1a805f6ce9e2f2d220ab9a8c55702f99da8c2dbc6b49b0abcc2afb22e4446ab",
+            "method_binding": {
+              "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "name": "propagation_finalize",
+              "qualname": "_make_state_helpers.<locals>.propagation_finalize",
+              "firstlineno": 613,
+              "hash_scope": "git_blob_oid+canonical_lf_sha256",
+              "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+              "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+              "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "external_frozen_source": false,
+              "external_binding_report": null,
+              "external_source_path_match": null,
+              "expected_raw_sha256": null,
+              "bytecode_sha256": "7b5f4fd283b8b383227ebc7349ab1c47b2636146826dbd2b3257c4dccee4b2be",
+              "frozen_bytecode_sha256": "7b5f4fd283b8b383227ebc7349ab1c47b2636146826dbd2b3257c4dccee4b2be",
+              "actual_code_structure_sha256": "e1a805f6ce9e2f2d220ab9a8c55702f99da8c2dbc6b49b0abcc2afb22e4446ab",
+              "frozen_code_structure_sha256": "e1a805f6ce9e2f2d220ab9a8c55702f99da8c2dbc6b49b0abcc2afb22e4446ab",
+              "code_structure_match": true,
+              "frozen_compile": {
+                "dont_inherit": true,
+                "optimize": 0,
+                "target_qualname": "_make_state_helpers.<locals>.propagation_finalize"
+              },
+              "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+              "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+            },
+            "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+            "globals_owner_kind": "MODULE_DICT",
+            "globals_owner_is_module_dict": true,
+            "backend_binding": null,
+            "closure_freevars": [
+              "state"
+            ],
+            "closure_roles": {
+              "state": "dispatch.cpu_s4_3g_state"
+            }
+          },
+          "_g_publish_result": {
+            "label": "_g_publish_result",
+            "module": "tools.cpu_s4_3g.controlled_callsite",
+            "qualname": "_make_state_helpers.<locals>.publish_result",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+            "firstlineno": 610,
+            "bytecode_sha256": "da67a1bfe44b5f2b56ce683c437aa6c357d39fe43ca552992e720df6ec42b695",
+            "code_structure_sha256": "8c1a6d82d7e41267786797139bd03152763c28947549e872a45be46663ad3827",
+            "method_binding": {
+              "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "name": "publish_result",
+              "qualname": "_make_state_helpers.<locals>.publish_result",
+              "firstlineno": 610,
+              "hash_scope": "git_blob_oid+canonical_lf_sha256",
+              "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+              "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+              "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "external_frozen_source": false,
+              "external_binding_report": null,
+              "external_source_path_match": null,
+              "expected_raw_sha256": null,
+              "bytecode_sha256": "da67a1bfe44b5f2b56ce683c437aa6c357d39fe43ca552992e720df6ec42b695",
+              "frozen_bytecode_sha256": "da67a1bfe44b5f2b56ce683c437aa6c357d39fe43ca552992e720df6ec42b695",
+              "actual_code_structure_sha256": "8c1a6d82d7e41267786797139bd03152763c28947549e872a45be46663ad3827",
+              "frozen_code_structure_sha256": "8c1a6d82d7e41267786797139bd03152763c28947549e872a45be46663ad3827",
+              "code_structure_match": true,
+              "frozen_compile": {
+                "dont_inherit": true,
+                "optimize": 0,
+                "target_qualname": "_make_state_helpers.<locals>.publish_result"
+              },
+              "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+              "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+            },
+            "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+            "globals_owner_kind": "MODULE_DICT",
+            "globals_owner_is_module_dict": true,
+            "backend_binding": null,
+            "closure_freevars": [
+              "state"
+            ],
+            "closure_roles": {
+              "state": "dispatch.cpu_s4_3g_state"
+            }
+          },
+          "_g_reject_complete_mode": {
+            "label": "_g_reject_complete_mode",
+            "module": "tools.cpu_s4_3g.controlled_callsite",
+            "qualname": "_make_state_helpers.<locals>.reject_complete",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+            "firstlineno": 616,
+            "bytecode_sha256": "dc6c5dc8441006046b5a9ed56454a216b7679821f92ee2ffcd90c2e862436cbb",
+            "code_structure_sha256": "cb14fe2c315083cbfcea24aeb364cbe7e82a21d07c12588d6ed4fb35f4862806",
+            "method_binding": {
+              "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "name": "reject_complete",
+              "qualname": "_make_state_helpers.<locals>.reject_complete",
+              "firstlineno": 616,
+              "hash_scope": "git_blob_oid+canonical_lf_sha256",
+              "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+              "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+              "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+              "external_frozen_source": false,
+              "external_binding_report": null,
+              "external_source_path_match": null,
+              "expected_raw_sha256": null,
+              "bytecode_sha256": "dc6c5dc8441006046b5a9ed56454a216b7679821f92ee2ffcd90c2e862436cbb",
+              "frozen_bytecode_sha256": "dc6c5dc8441006046b5a9ed56454a216b7679821f92ee2ffcd90c2e862436cbb",
+              "actual_code_structure_sha256": "cb14fe2c315083cbfcea24aeb364cbe7e82a21d07c12588d6ed4fb35f4862806",
+              "frozen_code_structure_sha256": "cb14fe2c315083cbfcea24aeb364cbe7e82a21d07c12588d6ed4fb35f4862806",
+              "code_structure_match": true,
+              "frozen_compile": {
+                "dont_inherit": true,
+                "optimize": 0,
+                "target_qualname": "_make_state_helpers.<locals>.reject_complete"
+              },
+              "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+              "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+            },
+            "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+            "globals_owner_kind": "MODULE_DICT",
+            "globals_owner_is_module_dict": true,
+            "backend_binding": null,
+            "closure_freevars": [
+              "state"
+            ],
+            "closure_roles": {
+              "state": "dispatch.cpu_s4_3g_state"
+            }
+          }
+        },
+        "bound_originals": {
+          "original_linear": {
+            "label": "state._g_linear_function",
+            "module": "KHz_filament.linear",
+            "qualname": "step_linear_bk_nee_factorized",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/linear.py",
+            "firstlineno": 76,
+            "bytecode_sha256": "0f5202dea731b60ae8abbaf61b553b160578bef50ffd14d496cead64dd4a99d0",
+            "code_structure_sha256": "23727ed5076bc39fb065ef2a4408707ecab73f9b3616c52765e63e4b5852ee69",
+            "method_binding": {
+              "relative_path": "Filament_python/KHz_filament/linear.py",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/linear.py",
+              "name": "step_linear_bk_nee_factorized",
+              "qualname": "step_linear_bk_nee_factorized",
+              "firstlineno": 76,
+              "hash_scope": "git_blob_oid+canonical_lf_sha256",
+              "git_blob_oid": "72878dd20daae656a5f9c8c7e39fa955ae8b30c5",
+              "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+              "git_relative_path": "Filament_python/KHz_filament/linear.py",
+              "external_frozen_source": false,
+              "external_binding_report": null,
+              "external_source_path_match": null,
+              "expected_raw_sha256": null,
+              "bytecode_sha256": "0f5202dea731b60ae8abbaf61b553b160578bef50ffd14d496cead64dd4a99d0",
+              "frozen_bytecode_sha256": "0f5202dea731b60ae8abbaf61b553b160578bef50ffd14d496cead64dd4a99d0",
+              "actual_code_structure_sha256": "23727ed5076bc39fb065ef2a4408707ecab73f9b3616c52765e63e4b5852ee69",
+              "frozen_code_structure_sha256": "23727ed5076bc39fb065ef2a4408707ecab73f9b3616c52765e63e4b5852ee69",
+              "code_structure_match": true,
+              "frozen_compile": {
+                "dont_inherit": true,
+                "optimize": 0,
+                "target_qualname": "step_linear_bk_nee_factorized"
+              },
+              "source_raw_sha256": "93999555bf605c0be0d1867413a3d685ce8a8bfb781534401f96d5f9a388ce30",
+              "source_canonical_lf_sha256": "93999555bf605c0be0d1867413a3d685ce8a8bfb781534401f96d5f9a388ce30"
+            },
+            "globals_owner_module": "KHz_filament.linear",
+            "globals_owner_kind": "FROZEN_FACTORY_PRIVATE_NAMESPACE",
+            "globals_owner_is_module_dict": false,
+            "backend_binding": {
+              "xp_namespace_type": "_XPNamespace",
+              "xp_namespace_module": "tools.cpu_p1r2.cpu_p1r2_j2",
+              "dispatch_type": "_ScipyDispatch",
+              "dispatch_module": "tools.cpu_p1r2.cpu_p1r2_j2",
+              "dispatch_id": 47537465310288,
+              "capture_dispatch_rejected": true,
+              "linear_source_binding": {
+                "path": "Filament_python/KHz_filament/linear.py",
+                "git_blob_oid": "72878dd20daae656a5f9c8c7e39fa955ae8b30c5",
+                "canonical_lf_sha256": "93999555bf605c0be0d1867413a3d685ce8a8bfb781534401f96d5f9a388ce30",
+                "function_name": "step_linear_bk_nee_factorized",
+                "function_first_line": 76,
+                "code_filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/linear.py",
+                "code_object_id": 94269670002704
+              },
+              "nonlinear_source_binding": {
+                "path": "Filament_python/KHz_filament/nonlinear.py",
+                "git_blob_oid": "7674c50ef2d7fe90c805d068e4f4ba535e215dfd",
+                "canonical_lf_sha256": "cb55ec00bbdf7196c926c3563785efe65bd83e26cc767d67f42c6d4db5d57185",
+                "function_name": "apply_nonlinear",
+                "function_first_line": 34,
+                "code_filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/nonlinear.py",
+                "code_object_id": 94269672951600
+              }
+            },
+            "closure_freevars": [],
+            "closure_roles": {}
+          },
+          "original_apply": {
+            "label": "state._g_nonlinear_function",
+            "module": "KHz_filament.nonlinear",
+            "qualname": "apply_nonlinear",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/nonlinear.py",
+            "firstlineno": 34,
+            "bytecode_sha256": "e39ec4dbf76e2d6805fb8f13de45c6f6f37bb4b468011448fa0a599f5e00a8ad",
+            "code_structure_sha256": "16c3baf7bf7a75d7bd3cbd1c15003a60dfdc1a692b9dd4d29d06a5f37a4c06ef",
+            "method_binding": {
+              "relative_path": "Filament_python/KHz_filament/nonlinear.py",
+              "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/nonlinear.py",
+              "name": "apply_nonlinear",
+              "qualname": "apply_nonlinear",
+              "firstlineno": 34,
+              "hash_scope": "git_blob_oid+canonical_lf_sha256",
+              "git_blob_oid": "7674c50ef2d7fe90c805d068e4f4ba535e215dfd",
+              "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+              "git_relative_path": "Filament_python/KHz_filament/nonlinear.py",
+              "external_frozen_source": false,
+              "external_binding_report": null,
+              "external_source_path_match": null,
+              "expected_raw_sha256": null,
+              "bytecode_sha256": "e39ec4dbf76e2d6805fb8f13de45c6f6f37bb4b468011448fa0a599f5e00a8ad",
+              "frozen_bytecode_sha256": "e39ec4dbf76e2d6805fb8f13de45c6f6f37bb4b468011448fa0a599f5e00a8ad",
+              "actual_code_structure_sha256": "16c3baf7bf7a75d7bd3cbd1c15003a60dfdc1a692b9dd4d29d06a5f37a4c06ef",
+              "frozen_code_structure_sha256": "16c3baf7bf7a75d7bd3cbd1c15003a60dfdc1a692b9dd4d29d06a5f37a4c06ef",
+              "code_structure_match": true,
+              "frozen_compile": {
+                "dont_inherit": true,
+                "optimize": 0,
+                "target_qualname": "apply_nonlinear"
+              },
+              "source_raw_sha256": "cb55ec00bbdf7196c926c3563785efe65bd83e26cc767d67f42c6d4db5d57185",
+              "source_canonical_lf_sha256": "cb55ec00bbdf7196c926c3563785efe65bd83e26cc767d67f42c6d4db5d57185"
+            },
+            "globals_owner_module": "KHz_filament.nonlinear",
+            "globals_owner_kind": "FROZEN_FACTORY_PRIVATE_NAMESPACE",
+            "globals_owner_is_module_dict": false,
+            "backend_binding": {
+              "xp_namespace_type": "_XPNamespace",
+              "xp_namespace_module": "tools.cpu_p1r2.cpu_p1r2_j2",
+              "dispatch_type": "_ScipyDispatch",
+              "dispatch_module": "tools.cpu_p1r2.cpu_p1r2_j2",
+              "dispatch_id": 47537465310288,
+              "capture_dispatch_rejected": true,
+              "linear_source_binding": {
+                "path": "Filament_python/KHz_filament/linear.py",
+                "git_blob_oid": "72878dd20daae656a5f9c8c7e39fa955ae8b30c5",
+                "canonical_lf_sha256": "93999555bf605c0be0d1867413a3d685ce8a8bfb781534401f96d5f9a388ce30",
+                "function_name": "step_linear_bk_nee_factorized",
+                "function_first_line": 76,
+                "code_filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/linear.py",
+                "code_object_id": 94269670002704
+              },
+              "nonlinear_source_binding": {
+                "path": "Filament_python/KHz_filament/nonlinear.py",
+                "git_blob_oid": "7674c50ef2d7fe90c805d068e4f4ba535e215dfd",
+                "canonical_lf_sha256": "cb55ec00bbdf7196c926c3563785efe65bd83e26cc767d67f42c6d4db5d57185",
+                "function_name": "apply_nonlinear",
+                "function_first_line": 34,
+                "code_filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/nonlinear.py",
+                "code_object_id": 94269672951600
+              }
+            },
+            "closure_freevars": [],
+            "closure_roles": {}
+          }
+        },
+        "builder": {
+          "binding": {
+            "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+            "name": "_clone_function",
+            "qualname": "_clone_function",
+            "firstlineno": 450,
+            "hash_scope": "git_blob_oid+canonical_lf_sha256",
+            "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+            "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+            "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+            "external_frozen_source": false,
+            "external_binding_report": null,
+            "external_source_path_match": null,
+            "expected_raw_sha256": null,
+            "bytecode_sha256": "e1f2c3c093bd796cf13ec00301db9c7bb501f6aeb750d85ee6c6d648cdbbe8ea",
+            "frozen_bytecode_sha256": "e1f2c3c093bd796cf13ec00301db9c7bb501f6aeb750d85ee6c6d648cdbbe8ea",
+            "actual_code_structure_sha256": "387817964721e2068992964414225cad0dad26d735d4c33bf9d995b7e78c1f7a",
+            "frozen_code_structure_sha256": "387817964721e2068992964414225cad0dad26d735d4c33bf9d995b7e78c1f7a",
+            "code_structure_match": true,
+            "frozen_compile": {
+              "dont_inherit": true,
+              "optimize": 0,
+              "target_qualname": "_clone_function"
+            },
+            "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+            "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+          },
+          "globals_owner_module": "tools.cpu_s4_3g.controlled_callsite",
+          "globals_owner_is_module_dict": true,
+          "copy_globals_changed_names": [
+            "compile"
+          ],
+          "copy_globals_only_compile_change": true,
+          "closure_freevars": []
+        },
+        "helper_factory_binding": {
+          "relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+          "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+          "name": "_make_state_helpers",
+          "qualname": "_make_state_helpers",
+          "firstlineno": 582,
+          "hash_scope": "git_blob_oid+canonical_lf_sha256",
+          "git_blob_oid": "21d589a7383b95e7c76c3d7f656da69278c5f4a4",
+          "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+          "git_relative_path": "Filament_python/tools/cpu_s4_3g/controlled_callsite.py",
+          "external_frozen_source": false,
+          "external_binding_report": null,
+          "external_source_path_match": null,
+          "expected_raw_sha256": null,
+          "bytecode_sha256": "d613a73b869323a22ea152cd37066a339575218eff29a03bba97df6bbafd34e2",
+          "frozen_bytecode_sha256": "d613a73b869323a22ea152cd37066a339575218eff29a03bba97df6bbafd34e2",
+          "actual_code_structure_sha256": "ae527ccec7756513f6673da2c7a735b879163ce914b5f14fdcb375ac2331d2af",
+          "frozen_code_structure_sha256": "ae527ccec7756513f6673da2c7a735b879163ce914b5f14fdcb375ac2331d2af",
+          "code_structure_match": true,
+          "frozen_compile": {
+            "dont_inherit": true,
+            "optimize": 0,
+            "target_qualname": "_make_state_helpers"
+          },
+          "source_raw_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542",
+          "source_canonical_lf_sha256": "a5bab54452f5b6261219068753adec979bf890a440b65736b62672cc584ce542"
+        },
+        "qualify_boundary_hook_bound": false,
+        "qualify_boundary_lease_bound": false
+      },
+      "timing_helper_binding": {
+        "schema": "filament.cpu_s4_3g2.adapter.v1.timing_helper_binding",
+        "helper_count": 6,
+        "helpers": {
+          "_timing_call_begin": {
+            "qualname": "_clock_helpers.<locals>.call_begin",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_checkpoint_support/timing_adapter.py",
+            "code_structure_sha256": "7012336162c93b595c2f1c3593336e0c5d19222e45471c15f0d1b12adbd1ecc6",
+            "closure_freevars": [
+              "clock"
+            ],
+            "closure_roles": {
+              "clock": "WindowClock"
+            }
+          },
+          "_timing_segment_begin": {
+            "qualname": "_clock_helpers.<locals>.segment_begin",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_checkpoint_support/timing_adapter.py",
+            "code_structure_sha256": "54655a12521b8966fca0f15cc72e48b43979ebb8387e74b2f70cbb288120608b",
+            "closure_freevars": [
+              "clock"
+            ],
+            "closure_roles": {
+              "clock": "WindowClock"
+            }
+          },
+          "_timing_segment_end": {
+            "qualname": "_clock_helpers.<locals>.segment_end",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_checkpoint_support/timing_adapter.py",
+            "code_structure_sha256": "d438b4e04e105865faa31fb523cfc0523e85920da022ba3ac60cf14af4aa235d",
+            "closure_freevars": [
+              "clock"
+            ],
+            "closure_roles": {
+              "clock": "WindowClock"
+            }
+          },
+          "_timing_heun_begin": {
+            "qualname": "_clock_helpers.<locals>.heun_begin",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_checkpoint_support/timing_adapter.py",
+            "code_structure_sha256": "b999bcb626fe7ce3db9fc783be69e63b7a99244fc38313676f1f5eff2f3ecfc0",
+            "closure_freevars": [
+              "clock"
+            ],
+            "closure_roles": {
+              "clock": "WindowClock"
+            }
+          },
+          "_timing_heun_end": {
+            "qualname": "_clock_helpers.<locals>.heun_end",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_checkpoint_support/timing_adapter.py",
+            "code_structure_sha256": "7ee0deace35c0f476bdbaecdfc78e02988be01984c8b449f1d76260578fadfeb",
+            "closure_freevars": [
+              "clock"
+            ],
+            "closure_roles": {
+              "clock": "WindowClock"
+            }
+          },
+          "_timing_call_finalize": {
+            "qualname": "_clock_helpers.<locals>.call_finalize",
+            "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_checkpoint_support/timing_adapter.py",
+            "code_structure_sha256": "dd0585f08125c039ed672e0d36e3ca3cf63d5d6f0f95901453e1529c9a68ff67",
+            "closure_freevars": [
+              "clock"
+            ],
+            "closure_roles": {
+              "clock": "WindowClock"
+            }
+          }
+        },
+        "role_audit": {
+          "module": "g1_segment",
+          "class": "g1_segment.RoleAudit",
+          "source_path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_checkpoint_support/g1_segment.py",
+          "source_raw_sha256": "b118e4f63c148f0777816f5a1ab40ad7903cf5012439a8ed1b26f2fdd8aa2da1",
+          "source_canonical_lf_sha256": "b118e4f63c148f0777816f5a1ab40ad7903cf5012439a8ed1b26f2fdd8aa2da1",
+          "hash_scope": "git_blob_oid+canonical_lf_sha256",
+          "git_blob_oid": "b0cb9c2dc43356510e29f6addcc3b7e1e75aaa24",
+          "source_size_bytes": 10952,
+          "source_record_path": "BASELINE_RESTORE/runtime/adapter/reports/CPU_S4_3G2_LOCAL_20261023_160301/tool/g1_segment.py",
+          "path_translation": {
+            "record_raw": "BASELINE_RESTORE/runtime/adapter/reports/CPU_S4_3G2_LOCAL_20261023_160301/tool/g1_segment.py",
+            "record_portable": "BASELINE_RESTORE/runtime/adapter/reports/CPU_S4_3G2_LOCAL_20261023_160301/tool/g1_segment.py",
+            "expected_runtime_path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_checkpoint_support/g1_segment.py",
+            "matched_complete_suffix": "Filament_python/tools/cpu_s4_checkpoint_support/g1_segment.py"
+          },
+          "init_qualname": "RoleAudit.__init__",
+          "init_code_structure_sha256": "5d4d85a1a54ea8467bceaeca2d2d6efd950f8065a1b4ca6005b4676ba0fd0cc5",
+          "closed_qualname": "RoleAudit.__init__.<locals>.closed",
+          "closed_code_structure_sha256": "78724974681f2bf54061eadbf3919fd05adbf737b86e867e661807ae54bc4422",
+          "input_binding": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_checkpoint_support/CHECKPOINT_DEPENDENCIES.json"
+        },
+        "allowed_heun_end_closure_roles": {
+          "original": "this_build_clock._timing_heun_end",
+          "self": "frozen g1_segment.RoleAudit"
+        }
+      },
+      "actual_code": {
+        "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/propagate.py",
+        "name": "propagate_one_pulse",
+        "firstlineno": 226,
+        "code_object_id": 94269674749104,
+        "bytecode_sha256": "cef93ae92aebd437fc7f1afb460024fe8087df812f16a1a7e0a9f8cf54a4d3d3"
+      },
+      "base_code": {
+        "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/propagate.py",
+        "name": "propagate_one_pulse",
+        "firstlineno": 226,
+        "code_object_id": 94269673350336,
+        "bytecode_sha256": "84126ed3f2498c9484853cea64350138057633d0a1213a1fb51940473e60765b"
+      },
+      "static_receipt": {
+        "schema": "filament.cpu_s4_3g2.adapter.v1.static",
+        "timing": {
+          "schema": "filament.cpu_s4_3g1.timing_adapter.v1.static",
+          "source_structure_equal_after_timer_strip": true,
+          "timer_layout": {
+            "segment_begin_neighbor": "Assign@649",
+            "segment_end_neighbor": "Assign@969",
+            "segment_end_outer_try_body_reachable": true,
+            "heun_begin": "nested_body_first_statement",
+            "heun_end": "nested_return_predecessor",
+            "role": "G"
+          },
+          "transformed_raman_role": "G"
+        },
+        "boundary": null,
+        "baseline_ast_sha256": "453281e968881257850466afab67f7f0968cd383af2fd4fec68caa45d1cd9997",
+        "post_strip_ast_sha256": "453281e968881257850466afab67f7f0968cd383af2fd4fec68caa45d1cd9997"
+      },
+      "boundary": null,
+      "mapping": {
+        "hash_scope": "raw_bytes",
+        "sha256": "26d7de0ab58861d083ffa0e1ab0e06edc29c00db8dd184b102651c2a246f5c90",
+        "size_bytes": 21160,
+        "path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/inputs/HISTORICAL_BOUNDARY_FIELD_MAP_112.csv",
+        "field_count": 112,
+        "diagnostic_count": 99
+      },
+      "lease_scope": {
+        "thread_bound": true,
+        "state_bound": true,
+        "generation_at_build": 0,
+        "expected_capture_generation": null,
+        "capture_once_interval_zero": false,
+        "pure_off_capture_nodes": true
+      },
+      "formal_contract": {
+        "module": "KHz_filament.hr4e5_formal_entry",
+        "view_class": "KHz_filament.hr4e5_formal_entry.StreamingPulseReadView",
+        "hook_class": "KHz_filament.hr4e5_formal_entry.StreamingPulseHook",
+        "view_post_fields": {
+          "relative_path": "Filament_python/KHz_filament/hr4e5_formal_entry.py",
+          "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/hr4e5_formal_entry.py",
+          "name": "post_fields",
+          "qualname": "StreamingPulseReadView.post_fields",
+          "firstlineno": 385,
+          "hash_scope": "git_blob_oid+canonical_lf_sha256",
+          "git_blob_oid": "00b3a7efd8b02238cf06379990024e9a1ed3b7d3",
+          "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+          "git_relative_path": "Filament_python/KHz_filament/hr4e5_formal_entry.py",
+          "external_frozen_source": false,
+          "external_binding_report": null,
+          "external_source_path_match": null,
+          "expected_raw_sha256": null,
+          "bytecode_sha256": "7ad9e7e82b54ca06273419e0363db91adf28551760e9f6eeb7afc0eb62430949",
+          "frozen_bytecode_sha256": "7ad9e7e82b54ca06273419e0363db91adf28551760e9f6eeb7afc0eb62430949",
+          "actual_code_structure_sha256": "b9e12a5c74fd77e75966cd3330115e614f20c28ad6d970d532a381d080f3a385",
+          "frozen_code_structure_sha256": "b9e12a5c74fd77e75966cd3330115e614f20c28ad6d970d532a381d080f3a385",
+          "code_structure_match": true,
+          "frozen_compile": {
+            "dont_inherit": true,
+            "optimize": 0,
+            "target_qualname": "StreamingPulseReadView.post_fields"
+          },
+          "source_raw_sha256": "9b58c9b31822c185df93c2d8862e6b00fb616258bdcf42764761fe647d0f1c42",
+          "source_canonical_lf_sha256": "9b58c9b31822c185df93c2d8862e6b00fb616258bdcf42764761fe647d0f1c42"
+        },
+        "hook_call": {
+          "relative_path": "Filament_python/KHz_filament/hr4e5_formal_entry.py",
+          "filename": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/KHz_filament/hr4e5_formal_entry.py",
+          "name": "__call__",
+          "qualname": "StreamingPulseHook.__call__",
+          "firstlineno": 757,
+          "hash_scope": "git_blob_oid+canonical_lf_sha256",
+          "git_blob_oid": "00b3a7efd8b02238cf06379990024e9a1ed3b7d3",
+          "git_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+          "git_relative_path": "Filament_python/KHz_filament/hr4e5_formal_entry.py",
+          "external_frozen_source": false,
+          "external_binding_report": null,
+          "external_source_path_match": null,
+          "expected_raw_sha256": null,
+          "bytecode_sha256": "f0c16a4ad51b9298e950290b570b8968834c02c71c56b36a391ab3d8c27b723a",
+          "frozen_bytecode_sha256": "f0c16a4ad51b9298e950290b570b8968834c02c71c56b36a391ab3d8c27b723a",
+          "actual_code_structure_sha256": "1f9d202cd037982f266a0038418cfda684a47f59a0a508e7669c4ddc3c9d331f",
+          "frozen_code_structure_sha256": "1f9d202cd037982f266a0038418cfda684a47f59a0a508e7669c4ddc3c9d331f",
+          "code_structure_match": true,
+          "frozen_compile": {
+            "dont_inherit": true,
+            "optimize": 0,
+            "target_qualname": "StreamingPulseHook.__call__"
+          },
+          "source_raw_sha256": "9b58c9b31822c185df93c2d8862e6b00fb616258bdcf42764761fe647d0f1c42",
+          "source_canonical_lf_sha256": "9b58c9b31822c185df93c2d8862e6b00fb616258bdcf42764761fe647d0f1c42"
+        },
+        "required_hook_final": true,
+        "required_hook_resume": false,
+        "requires_same_view_instance": true,
+        "requires_lifecycle_current_identity_match": true
+      },
+      "smallgrid_role": "L1_LINEAR_FACTOR_CACHE",
+      "smallgrid_mode": "PURE_OFF_SMALLGRID",
+      "owned_candidate": {
+        "schema": "filament.cpu_s4_4a_linear_cache.owned_sources.v1",
+        "files": {
+          "__init__.py": {
+            "path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_4a_linear_cache/__init__.py",
+            "size_bytes": 223,
+            "raw_sha256": "231e4cdb9e7d0e6eb2a58e484d358d4800c586c1d5f6992110f2aa13e8943bf0",
+            "hash_scope": "raw_bytes",
+            "classification": "external"
+          },
+          "cache.py": {
+            "path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_4a_linear_cache/cache.py",
+            "size_bytes": 22104,
+            "raw_sha256": "0f499a55137fa4e3d0e3ceded1ff16c9e76fbf28ea0667c7948a63c579bcadc7",
+            "hash_scope": "raw_bytes",
+            "classification": "external"
+          },
+          "linear_adapter.py": {
+            "path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_4a_linear_cache/linear_adapter.py",
+            "size_bytes": 21932,
+            "raw_sha256": "a2ea3e6f0102db2662ff81178bfa1b884638dd6aa771798a6966df296f8ebf78",
+            "hash_scope": "raw_bytes",
+            "classification": "external"
+          },
+          "candidate.py": {
+            "path": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_4a_linear_cache/candidate.py",
+            "size_bytes": 11930,
+            "raw_sha256": "99bc63ce990b2deb24ef62a531b5baf823c36647fc5e2bb83066b1ec9fd5545c",
+            "hash_scope": "raw_bytes",
+            "classification": "external"
+          }
+        },
+        "producer_module_identity": "tools.cpu_s4_4a_linear_cache.linear_adapter",
+        "composite_raw_sha256": "f4168192fe8cc0e2d9aaeeb69c570c669dd5899e21a9616497458df43383ca57"
+      },
+      "wrapper_scope": "UNCHANGED_G2_COLLECTOR_TIMING_PREPOST_GUARDS_WITH_NEW_OWNED_SOURCE_BINDING"
+    },
+    "boundary_capture": "DISABLED"
+  },
+  "commands": [
+    {
+      "argv": [
+        "/usr/bin/git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit_code": 0,
+      "stdout": "ed8754041625549a80959db7a8abd804d5d219ae\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/usr/bin/git",
+        "status",
+        "--porcelain",
+        "--untracked-files=all"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/usr/bin/git",
+        "-c",
+        "gc.auto=0",
+        "clone",
+        "--shared",
+        "--no-checkout",
+        "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46a_20261029_r2/code",
+        "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code"
+      ],
+      "exit_code": 0,
+      "stdout": "Cloning into '/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code'...\ndone.\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/usr/bin/git",
+        "-c",
+        "gc.auto=0",
+        "remote",
+        "set-url",
+        "origin",
+        "https://github.com/wjwjm/Filament_1.git"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/usr/bin/git",
+        "bundle",
+        "verify",
+        "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/SOURCE.bundle"
+      ],
+      "exit_code": 0,
+      "stdout": "The bundle contains this ref:\n7c0ac61fa6de7892a2983e78835f1a3f326a28a1 refs/heads/codex/cpu-real-array-coverage-20261031\nThe bundle requires this ref:\ned8754041625549a80959db7a8abd804d5d219ae \n",
+      "stderr": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/SOURCE.bundle is okay\n"
+    },
+    {
+      "argv": [
+        "/usr/bin/git",
+        "-c",
+        "gc.auto=0",
+        "fetch",
+        "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/SOURCE.bundle",
+        "refs/heads/codex/cpu-real-array-coverage-20261031:refs/heads/codex/cpu-real-array-coverage-20261031"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "From /publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/SOURCE.bundle\n * [new branch]      codex/cpu-real-array-coverage-20261031 -> codex/cpu-real-array-coverage-20261031\n"
+    },
+    {
+      "argv": [
+        "/usr/bin/git",
+        "-c",
+        "gc.auto=0",
+        "checkout",
+        "codex/cpu-real-array-coverage-20261031"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "Switched to branch 'codex/cpu-real-array-coverage-20261031'\n"
+    },
+    {
+      "argv": [
+        "/usr/bin/git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit_code": 0,
+      "stdout": "7c0ac61fa6de7892a2983e78835f1a3f326a28a1\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/usr/bin/git",
+        "status",
+        "--porcelain",
+        "--untracked-files=all"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "sbatch",
+        "--test-only",
+        "--partition=v6_384",
+        "--account=bscc-t",
+        "--qos=normal",
+        "--nodes=1",
+        "--ntasks=1",
+        "--cpus-per-task=96",
+        "--hint=nomultithread",
+        "--mem=64G",
+        "--time=00:30:00",
+        "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_6c_array_coverage/cpu.sbatch"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "sbatch: Job 8858613 to start at 2028-12-16T10:19:15 using 96 processors on nodes cb1106 in partition v6_384\n"
+    }
+  ],
+  "new_jobs": 0,
+  "science_payload_opened": false
+}

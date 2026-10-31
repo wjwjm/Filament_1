@@ -1,0 +1,26 @@
+{
+  "argv": [
+    "sbatch",
+    "--parsable",
+    "--partition=v6_384",
+    "--account=bscc-t",
+    "--qos=normal",
+    "--nodes=1",
+    "--ntasks=1",
+    "--cpus-per-task=96",
+    "--hint=nomultithread",
+    "--mem=64G",
+    "--time=00:30:00",
+    "--job-name=s46c-array-a1",
+    "--output=/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/report/slurm-%j.stdout.log",
+    "--error=/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/report/slurm-%j.stderr.log",
+    "--export=ALL,S46C_SOURCE=/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code,S46C_REPORT=/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/report,S46C_STAGE_ROOT=/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01,S46C_PLAN_SHA256=c2c4e775fa4717c1812fce474bb245375fc21772d9893dd3f082c8cf481bf6b0",
+    "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code/Filament_python/tools/cpu_s4_6c_array_coverage/cpu.sbatch"
+  ],
+  "exit_code": 0,
+  "stdout": "8858616\n",
+  "stderr": "",
+  "submitted_utc": "2026-10-31T09:00:36.353883+00:00",
+  "core_hours_reserved": 48,
+  "job_id": "8858616"
+}

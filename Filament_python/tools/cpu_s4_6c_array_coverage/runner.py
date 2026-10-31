@@ -6,6 +6,9 @@ import json
 import os
 from pathlib import Path
 import statistics
+import signal
+import shutil
+import subprocess
 import time
 import zipfile
 
@@ -28,11 +31,13 @@ def stage_kwargs(ctx):
     from KHz_filament.raman import resolve_raman_rot_params
     r = ctx['raman']
     omega, gamma = resolve_raman_rot_params(T2=getattr(r, 'T2', None), T_R=getattr(r, 'T_R', None),
-                                          omega_R=r.omega_R, Gamma_R=r.Gamma_R)
+                                          omega_R=getattr(r, 'omega_R', None), Gamma_R=getattr(r, 'Gamma_R', None))
     return dict(Omega=ctx['axes'].Omega, dt=ctx['axes'].dt,
                 omega0=2.0*np.pi*c0/ctx['beam'].lam0, n0=ctx['beam'].n0,
-                n_R=r.n_R, omega_R=omega, Gamma_R=gamma, method=r.method,
-                chunk_pixels=r.chunk_pixels, iir_sampling=r.iir_sampling)
+                n_R=float(getattr(r, 'n_R', 2.3e-23)), omega_R=omega, Gamma_R=gamma,
+                method=str(getattr(r, 'method', 'iir')).lower(),
+                chunk_pixels=int(getattr(r, 'chunk_pixels', 65536)),
+                iir_sampling=getattr(r, 'iir_sampling', 'exact_piecewise_linear'))
 
 
 def fresh_factory(capture, local=False):
@@ -176,6 +181,47 @@ def allow_local48(rows, chain, identity):
     return True
 
 
+def counter_probe(identity, data, refs, fft, root):
+    """Six fixed supporting replays, after the formal matrix; never a speed sample."""
+    perf=shutil.which('perf')
+    if not perf:
+        write(root/'HARDWARE_COUNTERS.json',dict(status='UNAVAILABLE',reason='perf not installed'));return
+    rows=[]
+    for chain in ('A','B'):
+        for mode,count in [('REF',0),('P',24),('P_LOCAL',24)]:
+            pool=chains.Workers(count) if count else None
+            prefix=root/f'perf_{chain}_{mode}{count}'
+            # All target workers are persistent and are explicitly in this list.
+            tids=[t.id for t in psutil.Process().threads()]
+            argv=[perf,'stat','-x',',','-e','cycles:u,instructions:u,cache-misses:u',
+                  '-t',','.join(map(str,tids)),'-o',str(prefix.with_suffix('.csv'))]
+            try:
+                with prefix.with_suffix('.stderr.log').open('xb') as error:
+                    process=subprocess.Popen(argv,stdout=subprocess.DEVNULL,stderr=error)
+                    time.sleep(.2)
+                    active=process.poll() is None
+                    started=time.perf_counter()
+                    if active:
+                        for _ in range(5):
+                            output=call(chain,(mode,count),data,pool,refs,fft)
+                            del output
+                        process.send_signal(signal.SIGINT)
+                    elapsed=time.perf_counter()-started
+                    try:code=process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        process.terminate();code=process.wait(timeout=5)
+                rows.append(dict(input=identity,chain=chain,mode=mode,workers=count,argv=argv,
+                                 target_thread_ids=tids,calls=5 if active else 0,exit_code=code,
+                                 status='CAPTURED_SUPPORT_ONLY' if active else 'TARGET_ATTACH_UNAVAILABLE',
+                                 replay_wall_s=elapsed,raw=str(prefix.with_suffix('.csv')),
+                                 target_activity=pool.take_records() if pool else [],
+                                 DRAM_bytes_measured=False,scope='ISOLATED_SUPPORTING_REPLAY_NOT_FORMAL_TIMING'))
+            finally:
+                if pool:pool.close()
+    write(root/'HARDWARE_COUNTERS.json',dict(status='RECORDED',records=rows,
+          interpretation='Aggregate user-space events for listed threads; includes host bookkeeping during these five calls and capture edges. Not DRAM traffic or saturation proof.'))
+
+
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--report',type=Path,required=True)
     args=parser.parse_args();root=args.report.resolve();plan=json.loads((root/'PLAN.json').read_text())
@@ -244,6 +290,7 @@ def main():
                     configs=[('P',count),('P_LOCAL',count)]
                     if block: configs.reverse()
                     measure_block(chain,identity,data,refs,fft,exact,root,configs,block,'MATERIALIZATION',output_ids[identity,chain])
+    counter_probe(datasets[0][0],datasets[0][1],refs,fft,root)
     for identity,data in datasets:
         require(exact.fingerprints(dict(E=data[0],I=data[1],response=data[2],Omega=data[3]['Omega']))==initial[identity], 'FINAL_INPUT_IMMUTABILITY')
     write(root/'MECHANISM_COMPLETED.json',dict(status='COMPLETE_REAL_ISOLATED_REPLAY',version=chains.VERSION,

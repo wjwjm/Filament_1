@@ -1,0 +1,9 @@
+{
+  "execution_commit": "7c0ac61fa6de7892a2983e78835f1a3f326a28a1",
+  "source_root": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/code",
+  "base_commit": "ed8754041625549a80959db7a8abd804d5d219ae",
+  "science_subtree": "821fec5bdacd832b0347e1f2e84285cb54172e57",
+  "system_git": "/usr/bin/git",
+  "query_git_launcher": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/runtime_bin/git",
+  "python": "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_q1_20261014_110706/environment/venv/bin/python"
+}

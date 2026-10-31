@@ -1,0 +1,127 @@
+{
+  "hash_scope": "raw_bytes",
+  "records": [
+    {
+      "path": "raw/EXECUTION.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "10b095a9a15874b38f59533546392a1c2da4c70d5344280b4f13dc18e702654f",
+      "bytes": 567
+    },
+    {
+      "path": "raw/EXECUTION_SOURCE_MANIFEST.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "cdc4689ad1dec5eae1486ac82157dc16e547018ddce9e6e6a7d1701d4fa4ba73",
+      "bytes": 86715
+    },
+    {
+      "path": "raw/LOCAL_ACCEPTANCE.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "e795b71f8e2a175c02bbc4c1e121d91a58e14605eb1063adcbbf09d98805d517",
+      "bytes": 243
+    },
+    {
+      "path": "raw/LOCAL_BACKEND.log",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "6c8658794f778b4a90b46bcf1a581a70a8f0a7769aaa6c671f03c835701878d4",
+      "bytes": 255
+    },
+    {
+      "path": "raw/LOCAL_LINUX_BATCH_AUDIT.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "19e55a895109873785989f23ad34c95b763734b88503a06d09e90a984024e9de",
+      "bytes": 533
+    },
+    {
+      "path": "raw/LOCAL_SANITY.log",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "a23e4e23ff133452cbbea2116bde11299e8cd6492bc70e3d90b69afbfa735e28",
+      "bytes": 100
+    },
+    {
+      "path": "raw/LOCAL_TARGETED.log",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "7b0805926416694913ed68ff3944a0dc0f019faf4039d5798a8407a051eccd80",
+      "bytes": 118
+    },
+    {
+      "path": "raw/LOGIN_PREFLIGHT.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "93617ed3ed466533d743836e4c341fa7313f375f1f474ba87082ff41499f1e58",
+      "bytes": 94325
+    },
+    {
+      "path": "raw/NODE_GATE.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "eb575f1b98e50d42712ed50c776aaf121d4e2bf52947d8563fc371ede73f96ea",
+      "bytes": 9836
+    },
+    {
+      "path": "raw/PLAN.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "c2c4e775fa4717c1812fce474bb245375fc21772d9893dd3f082c8cf481bf6b0",
+      "bytes": 3504
+    },
+    {
+      "path": "raw/PLAN.md",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "a404afbff174ed69d2aa90507f3bae863464739955568e98aadbcfd7b5197033",
+      "bytes": 3605
+    },
+    {
+      "path": "raw/REAL_INPUT_INDEX.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "05c669cd352cdd01744997ff946552736d44828d0871a3e5cc94be19e9e11554",
+      "bytes": 73097
+    },
+    {
+      "path": "raw/SUBMISSION_RECEIPT.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "57d81e39fd6bf59339730fa85e58323bb678052c0b5123a16c031fc12f64d489",
+      "bytes": 1194
+    },
+    {
+      "path": "raw/SUPERVISOR_RECEIPT.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "77b0fbf72bbd0dceb9f4a4c3c61fb1e2609b33180048912c3205e2ab79bca309",
+      "bytes": 446
+    },
+    {
+      "path": "raw/slurm-8858616.stderr.log",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "50d87da1bc6a63ec143647ce252532c93829186daec4c82becdb72dc525a1fe1",
+      "bytes": 704
+    },
+    {
+      "path": "raw/slurm-8858616.stdout.log",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "raw/worker.stderr.log",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "48f30cbc2e8f87502bd4214a4eb6a53a1c3f55bf5dc827257f5f423577b9c307",
+      "bytes": 941
+    },
+    {
+      "path": "raw/worker.stdout.log",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "execution_sources/numeric_gate.py",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "a066251c698c0126c158cb50fddc4a23efd8122e5d5fc403de967f3d98066ae7",
+      "bytes": 9585
+    },
+    {
+      "path": "execution_sources/raman.py",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "bc211fcde7ac1ed1dd3891ce20abd46201903ebed4eb9859d9ff55bdcc5a6887",
+      "bytes": 39666
+    }
+  ],
+  "excluded": [],
+  "science_arrays_copied": false
+}

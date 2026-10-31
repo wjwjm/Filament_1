@@ -1,0 +1,16 @@
+{
+  "exit_code": 1,
+  "stop_reason": null,
+  "peak_tree_rss_bytes": 307376128,
+  "process_wall_s": 5.0161226589698344,
+  "job_id": "8858616",
+  "argv": [
+    "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_q1_20261014_110706/environment/venv/bin/python",
+    "-s",
+    "-B",
+    "-m",
+    "tools.cpu_s4_6c_array_coverage.runner",
+    "--report",
+    "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a01/report"
+  ]
+}

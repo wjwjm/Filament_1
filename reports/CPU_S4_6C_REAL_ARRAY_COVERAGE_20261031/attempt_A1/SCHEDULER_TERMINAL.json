@@ -1,0 +1,14 @@
+{
+  "job_id": "8858616",
+  "argv": [
+    "sacct",
+    "-j",
+    "8858616",
+    "-n",
+    "--parsable2",
+    "--format=JobIDRaw,State,ExitCode,ElapsedRaw,AllocCPUS,TimelimitRaw"
+  ],
+  "exit_code": 0,
+  "stdout": "8858616|FAILED|1:0|93|96|30\n8858616.batch|FAILED|1:0|93|96|\n8858616.extern|COMPLETED|0:0|93|96|\n8858616.0|FAILED|1:0|90|96|\n",
+  "stderr": ""
+}

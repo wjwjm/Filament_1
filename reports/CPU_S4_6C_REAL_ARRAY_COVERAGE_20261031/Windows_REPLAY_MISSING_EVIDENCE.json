@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "D:/Filament_1/.local_envs/cpu_o1_py312/python.exe",
+    "-s",
+    "-B",
+    "reports\\CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031\\control\\replay.py",
+    "--root",
+    "reports\\CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031"
+  ],
+  "exit_code": 1,
+  "stdout": "{\"status\": \"FAIL_READONLY_REPLAY\", \"error\": \"ValueError('MISSING_MECHANISM_COMPLETION')\"}\r\n",
+  "stderr": "",
+  "status": "EXPECTED_REFUSAL_NOT_REAL_REPLAY_PASS"
+}

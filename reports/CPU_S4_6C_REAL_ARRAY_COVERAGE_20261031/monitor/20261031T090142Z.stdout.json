@@ -1,0 +1,1 @@
+{"job_id": "8858616", "queue": {"exit_code": 0, "stdout": "8858616|RUNNING|1:07|30:00|cb1106\n", "stderr": ""}, "accounting": {"exit_code": 0, "stdout": "8858616|RUNNING|0:0|67|96|30\n8858616.batch|RUNNING|0:0|67|96|\n8858616.extern|RUNNING|0:0|67|96|\n8858616.0|RUNNING|0:0|64|96|\n", "stderr": ""}, "progress": [], "error": [], "batch_error": [], "gates": {}, "ETA": "UNKNOWN"}
