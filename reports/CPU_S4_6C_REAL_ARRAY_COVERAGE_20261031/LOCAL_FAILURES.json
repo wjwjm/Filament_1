@@ -1,0 +1,10 @@
+{
+  "scope": "LOCAL_ENGINEERING_NO_JOB_IDS",
+  "failures": [
+    {"stage":"initial default-environment targeted collection", "signature":"ModuleNotFoundError: psutil", "repair":"Use existing dedicated CPU environment through supported run_local_tests.ps1 -PythonExe; rerun backend first; no dependencies installed"},
+    {"stage":"new runner factory control test", "signature":"TypeError: dict object is not callable at state.stats()", "repair":"Read original @property declaration; use state.stats; rerun all 22 targeted tests"}
+  ],
+  "final_checks": {"backend":"PASS", "targeted":"22 passed, 926 deselected", "sanity":"PASS", "compileall":"PASS"},
+  "synthetic_only": true,
+  "real_input_qualified": false
+}

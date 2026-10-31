@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "ssh.exe",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "ConnectTimeout=15",
+    "t0-hpc",
+    "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_q1_20261014_110706/environment/venv/bin/python",
+    "-s",
+    "-B",
+    "-"
+  ],
+  "start_utc": "2026-10-31T08:23:46.728909+00:00",
+  "end_utc": "2026-10-31T08:23:52.417408+00:00",
+  "exit_code": 0,
+  "remote_mutations": 0,
+  "script": "C:\\Users\\wangj\\.codex\\worktrees\\cpu-real-array-coverage-20261031\\cpu_optimization\\reports\\CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031\\control\\t0_readonly_preflight.py"
+}
