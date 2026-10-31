@@ -35,7 +35,16 @@ def preflight(report):
     audit, code = audit_batch_entry(Path(__file__).with_name('cpu.sbatch'), REMOTE_PYTHON, 'bash')
     require(code == 0 and audit['status'] == 'passed', 'S46D_BATCH_ENTRY_AUDIT', audit)
     help_result = command([sys.executable, '-s', '-B', '-m', 'tools.cpu_s4_6d_eq10_propagation.entry', '--help'])
-    return dict(status='PASS_READONLY_BATCH_SOURCE_ENVIRONMENT_PREFLIGHT', execution_commit=binding['execution_commit'], executable=sys.executable, versions=versions, batch_audit=audit, entry_help_checked=bool(help_result))
+    from .candidate import build_role, verify_bindings
+    factories = {}
+    for role in ('R', 'B'):
+        built = build_role('PURE_OFF_SMALLGRID', capture_root=report / ('UNUSED_PREFLIGHT_'+role), role=role, local_engineering=False)
+        try:
+            factories[role] = verify_bindings(built[1])
+        finally:
+            built[1].close_eq10_pool()
+        require(built[1].eq10_pool_snapshot()['closed'], 'S46D_PREFLIGHT_FACTORY_CLOSED')
+    return dict(status='PASS_READONLY_BATCH_SOURCE_ENVIRONMENT_PREFLIGHT', execution_commit=binding['execution_commit'], executable=sys.executable, versions=versions, batch_audit=audit, entry_help_checked=bool(help_result), factories=factories, scientific_arrays_created=0, propagation_called=False)
 
 
 def node_gate(report):

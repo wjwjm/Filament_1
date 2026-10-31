@@ -23,7 +23,13 @@ def prepare(report, *, inherited_manifest, reference_contract, input_plan):
     require(len(paths) >= 252, 'S46D_INHERITED_SOURCE_CLOSURE')
     report.mkdir(parents=True)
     sg.write(report / 'PLAN.json', plan())
-    manifest = pv.create_manifest(repo, report / 'EXECUTION_SOURCE_MANIFEST.json', sorted(paths), [])
+    # provenance_v2 intentionally creates manifests outside its audited repo.
+    # Keep that original output as evidence and copy its exact bytes into the
+    # ignored report; do not duplicate the authority's hashing semantics.
+    source_manifest = repo.parent / (repo.name + '-' + report.name + '-SOURCE_MANIFEST.json')
+    require(source_manifest.resolve().parent == repo.parent and not source_manifest.exists(), 'S46D_NEW_EXTERNAL_MANIFEST_TARGET')
+    manifest = pv.create_manifest(repo, source_manifest, sorted(paths), [])
+    shutil.copyfile(source_manifest, report / 'EXECUTION_SOURCE_MANIFEST.json')
     pv.validate_manifest(repo, report / 'EXECUTION_SOURCE_MANIFEST.json', require_clean=True, require_hash_scope=True)
     historical = read(input_plan)
     sg.write(report / 'INPUT_CONTRACT.json', dict(input_contract=historical['input_contract'], expected_input_fingerprints=historical['expected_input_fingerprints'], source=str(input_plan), classification='external', hash_scope='raw_bytes', source_raw_sha256=pv.raw_sha256_file(input_plan)))
