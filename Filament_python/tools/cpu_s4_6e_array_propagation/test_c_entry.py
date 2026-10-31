@@ -197,6 +197,39 @@ def test_s46e_c_entry_failure_preserves_science_index_and_exact_paths(tmp_path):
     assert Path(payload["traceback_path"]).is_file()
 
 
+def test_s46e_c_entry_main_indexes_post_run_failure_without_replacing_exception(tmp_path, monkeypatch):
+    work = tmp_path / "work"
+    work.mkdir()
+    expected = RuntimeError("post-run validation failure")
+
+    def fail_after_run(args):
+        raise expected
+
+    monkeypatch.setattr(c_entry, "run", fail_after_run)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "c_entry",
+            "--report",
+            str(tmp_path / "report"),
+            "--work",
+            str(work),
+            "--role",
+            "R",
+            "--intervals",
+            "8",
+            "--local-engineering",
+        ],
+    )
+    with pytest.raises(RuntimeError) as raised:
+        c_entry.main()
+    assert raised.value is expected
+    failure = json.loads((work / "ENTRY_FAILURE.json").read_text(encoding="utf-8"))
+    assert failure["classification"] == "ENGINEERING_OR_RESOURCE_FAILURE"
+    assert failure["error"] == repr(expected)
+
+
 def test_s46e_c_hpc_generates_and_validates_input_manifest_before_launch(tmp_path, monkeypatch):
     calls = []
 

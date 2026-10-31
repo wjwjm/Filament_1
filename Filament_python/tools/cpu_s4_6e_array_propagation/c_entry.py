@@ -5,8 +5,10 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import math
 import os
 from pathlib import Path
+import statistics
 import time
 import traceback
 from typing import Any
@@ -21,6 +23,7 @@ from tools.hpc_ops import provenance_v2 as pv
 
 from .c_capture import CaptureStore
 from .c_mechanism import run_local_mechanism
+from .c_formal14_protocol import BASE as C14_BASE, EXECUTION_SCHEMA as C14_EXECUTION_SCHEMA, HPC_EXECUTION_SCHEMA as C14_HPC_EXECUTION_SCHEMA, MECHANISM_EXECUTION as C14_MECHANISM_EXECUTION, TASK as C14_TASK, plan as c14_plan
 from .c_protocol import BASE, CAPTURE_INTERVALS, CAPTURE_TOTAL_CALLS, HPC_EXECUTION_SCHEMA, MICRO_SHAPE, SCIENCE_TREE, SHAPE, TASK, plan
 
 
@@ -42,19 +45,26 @@ def verify_source(report: str | Path, *, local_engineering: bool) -> dict:
     unoptimized()
     report = Path(report).resolve(strict=True)
     binding = read(report / "EXECUTION.json")
-    require(binding["schema"] == "filament.cpu_s4_6e_c.execution.v1" and binding["task"] == TASK, "S46E_C_EXECUTION_SCHEMA")
-    require(binding["baseline_commit"] == BASE and binding["science_tree"] == SCIENCE_TREE, "S46E_C_FROZEN_SOURCE_CHAIN")
-    require(read(report / "PLAN.json") == plan(), "S46E_C_FIXED_PLAN_IDENTITY")
+    is_c14 = binding.get("schema") == C14_EXECUTION_SCHEMA and binding.get("task") == C14_TASK
+    is_c = binding.get("schema") == "filament.cpu_s4_6e_c.execution.v1" and binding.get("task") == TASK
+    require(is_c14 or is_c, "S46E_C_EXECUTION_SCHEMA")
+    expected_plan = c14_plan() if is_c14 else plan()
+    expected_base = C14_BASE if is_c14 else BASE
+    require(binding["baseline_commit"] == expected_base and binding["science_tree"] == SCIENCE_TREE, "S46E_C_FROZEN_SOURCE_CHAIN")
+    require(read(report / "PLAN.json") == expected_plan, "S46E_C_FIXED_PLAN_IDENTITY")
     require(pv.raw_sha256_file(report / "PLAN.json") == binding["plan_raw_sha256"], "S46E_C_PLAN_IDENTITY")
     repo = Path(__file__).resolve().parents[3]
     if not local_engineering:
         from tools.cpu_s4_checkpoint_support.git_readonly_compat import verify_runtime_query_tool
 
         execution_plan = read(report / "HPC_EXECUTION_PLAN.json")
-        require(execution_plan.get("schema") == HPC_EXECUTION_SCHEMA, "S46E_C_HPC_PLAN_SCHEMA")
-        require(pv.raw_sha256_file(report / "HPC_EXECUTION_PLAN.json") == os.environ.get("S46E_HPC_PLAN_SHA256"), "S46E_C_HPC_PLAN_IDENTITY")
+        expected_hpc_schema = C14_HPC_EXECUTION_SCHEMA if is_c14 else HPC_EXECUTION_SCHEMA
+        hpc_hash_env = "S46E_C14_HPC_PLAN_SHA256" if is_c14 else "S46E_HPC_PLAN_SHA256"
+        execution_hash_env = "S46E_C14_EXECUTION_SHA256" if is_c14 else "S46E_EXECUTION_SHA256"
+        require(execution_plan.get("schema") == expected_hpc_schema, "S46E_C_HPC_PLAN_SCHEMA")
+        require(pv.raw_sha256_file(report / "HPC_EXECUTION_PLAN.json") == os.environ.get(hpc_hash_env), "S46E_C_HPC_PLAN_IDENTITY")
         verify_runtime_query_tool(execution_plan)
-        require(pv.raw_sha256_file(report / "EXECUTION.json") == os.environ.get("S46E_EXECUTION_SHA256"), "S46E_C_BINDING_IDENTITY")
+        require(pv.raw_sha256_file(report / "EXECUTION.json") == os.environ.get(execution_hash_env), "S46E_C_BINDING_IDENTITY")
     require(pv.raw_sha256_file(report / "EXECUTION_SOURCE_MANIFEST.json") == binding["source_manifest_raw_sha256"], "S46E_C_SOURCE_MANIFEST_IDENTITY")
     source = read(report / "EXECUTION_SOURCE_MANIFEST.json")
     require(pv._git(repo, "rev-parse", "HEAD") == binding["execution_commit"], "S46E_C_COMMITTED_EXECUTION_HEAD")
@@ -67,6 +77,21 @@ def verify_source(report: str | Path, *, local_engineering: bool) -> dict:
     require(source["head"] == binding["execution_commit"] and len(source["records"]) >= 252, "S46E_C_COMPLETE_SOURCE_CLOSURE")
     require(pv._git(repo, "rev-parse", "HEAD:Filament_python/KHz_filament") == SCIENCE_TREE, "S46E_C_UNCHANGED_SCIENCE_SUBTREE")
     require(pv.raw_sha256_file(report / "INPUT_CONTRACT.json") == binding["input_contract_raw_sha256"] and pv.raw_sha256_file(report / "REFERENCE_INPUT_RAW_RECORDS.json") == binding["reference_contract_raw_sha256"], "S46E_C_FROZEN_INPUT_CONTRACTS")
+    if is_c14:
+        require(binding.get("mechanism_execution_commit") == C14_MECHANISM_EXECUTION, "C14_MECHANISM_EXECUTION_BINDING")
+        admission_path = report / "MECHANISM_ADMISSION.json"
+        require(admission_path.is_file() and pv.raw_sha256_file(admission_path) == binding.get("mechanism_admission_raw_sha256"), "C14_MECHANISM_ADMISSION_IDENTITY")
+        admission = read(admission_path)
+        require(admission.get("status") == "PASS_C14_MECHANISM_ADMISSION" and admission.get("mechanism_execution_commit") == C14_MECHANISM_EXECUTION and int(admission.get("formal_calls", -1)) == 90 and int(admission.get("warmup_calls", -1)) == 36 and admission.get("all_configs_exact") is True, "C14_MECHANISM_ADMISSION_GATE")
+        gains = admission.get("p24_block_gains")
+        require(isinstance(gains, dict) and len(gains) == 6 and all(float(value) >= 0.05 for value in gains.values()), "C14_MECHANISM_GAIN_GATE")
+        from .c_formal14_evidence import SOURCE_IDENTITY_PATHS
+
+        current_source = {str(row.get("path")): row.get("canonical_lf_sha256") for row in source["records"] if isinstance(row, dict)}
+        admitted_source = admission.get("source_identities")
+        require(isinstance(admitted_source, dict), "C14_MECHANISM_SOURCE_IDENTITIES")
+        for relative in SOURCE_IDENTITY_PATHS:
+            require(admitted_source.get(relative) == current_source.get(relative), "C14_MECHANISM_SOURCE_IDENTITY", relative)
     return binding
 
 
@@ -419,6 +444,40 @@ def run(args) -> dict:
     require(isinstance(finalized, dict) and finalized["pool"]["closed"] and finalized["pool"]["active_thread_ids"] == [], "S46E_C_POOL_FINALIZED_BEFORE_OUTPUT")
     sg.write(work / "C_POOL.json", finalized)
     sg.write(work / "LINEAR_CACHE_SIDECAR.json", cache)
+    reference_integrity = None
+    if role == "R" and args.intervals == 2:
+        for name in ("final_E", "scientific_Qacc"):
+            values = np.load(result["normal_outputs"][name], mmap_mode="r", allow_pickle=False)
+            require(np.isfinite(values).all(), "S46E_C_REFERENCE_CRITICAL_NONFINITE:" + name)
+            del values
+        with np.load(result["normal_outputs"]["final_POST"], allow_pickle=False) as post:
+            require(all(np.isfinite(post[name]).all() for name in post.files), "S46E_C_REFERENCE_POST_NONFINITE")
+        reference_integrity = dict(critical_field_Qacc_POST_finite=True, historical_two_interval_terminal_exact=False, terminal_basis="CURRENT_SOURCE_BOUND_C_REFERENCE_AWAIT_C2_PAIR", native_layout_and_alias_metadata_recorded=True)
+    with np.load(result["normal_outputs"]["diagnostics"], allow_pickle=False) as diagnostic:
+        if reference_integrity is not None:
+            require("U_z" in diagnostic.files and np.isfinite(diagnostic["U_z"]).all(), "S46E_C_REFERENCE_ENERGY_NONFINITE")
+            reference_integrity["energy_finite"] = True
+        timings = {name: diagnostic[name].tolist() for name in ("total_walltime_step_s", "linear_walltime_step_s", "ionization_walltime_step_s", "raman_operator_walltime_step_s")}
+    require(all(len(values) == args.intervals for values in timings.values()), "S46E_C_ORIGINAL_DIAGNOSTIC_CLOCK_COUNT")
+    posts = [row for row in read(work / "formal/PROPAGATION/state/streaming_manifest.json")["rate_events"] if row.get("event") == "POST_COMMITTED"]
+    post_values = [row["time_s"] for row in posts]
+    end = application_started + result["optical_application_window_s"]
+    require(len(post_values) == args.intervals and application_started < post_values[0] < post_values[-1] < end and all(b > a for a, b in zip(post_values, post_values[1:])), "S46E_C_ORIGINAL_POST_CLOCK_DOMAIN")
+    gaps = [b - a for a, b in zip(post_values, post_values[1:])]
+    pair_snapshot = pair.snapshot()
+    raw_b, raw_a = pair.b.snapshot(), pair.s45a.snapshot()
+    merged = pair_snapshot["merged"]
+    require(not raw_a["enabled"] and not raw_b["enabled"] and not raw_a["records"], "S46E_C_FINE_TIMERS_OFF_BOTH_ROLES")
+    require(merged["clock_closure"]["pass"] and pair_snapshot["raw_scope_count"] <= 8192 and pair_snapshot["metadata_reserved_bytes"] <= 67108864, "S46E_C_COMMON_CLOCK_CLOSURE_BUDGET")
+    require(not raw_a["incomplete_scopes"] and not raw_b["incomplete_scopes"] and not any(row["failed"] for row in merged["records"]), "S46E_C_COMPLETE_SCALAR_SCOPES")
+    require(set(row["label"] for row in merged["records"]) <= {"APPLICATION", "SOURCE_FACTORY", "SOURCE_VALIDATION", "L1_FACTORY", "INTERVAL_BODY"}, "S46E_C_OFF_ONLY_COMMON_SCOPES")
+    body = sorted((row for row in raw_b["records"] if row["label"] == "INTERVAL_BODY"), key=lambda row: row["context"]["ordinal"])
+    require([row["context"]["interval_index"] for row in body] == list(range(args.intervals)) and all(row["context"]["ordinal_1based"] == i + 1 and row["context"]["attempt"] == 1 for i, row in enumerate(body)), "S46E_C_ORIGINAL_FULL_BODY_ORDINALS")
+    body_s = [row["wall_inclusive_ns"] / 1e9 for row in body]
+    require(all(math.isfinite(value) and value > 0.0 for value in body_s), "S46E_C_FINITE_BODY_CLOCKS")
+    sg.write(work / "RAW_TIMING.json", dict(b=raw_b, a=raw_a, merged=merged))
+    sg.write(work / "INTERVAL_CLOCKS.json", dict(rows=body, body_s=body_s, main_denominator="sum body ordinals 2..8 for eight-interval formal windows"))
+    sg.write(work / "OPTICAL_PACING_SIDECAR.json", dict(original_interval_timings=timings, POST_COMMITTED=posts, application_started_monotonic_s=application_started, application_finished_monotonic_s=end, adjacent_POST_gaps_s=gaps, definition="Original immutable POST before second linear half; no clock subtraction"))
     if capture_store is not None:
         package_root = Path(args.capture_root) if args.capture_root else work / "CAPTURE"
         input_manifest_path = Path(args.input_manifest) if args.input_manifest else Path(args.report) / "BENCHMARK_INPUT_MANIFEST.json"
@@ -450,7 +509,7 @@ def run(args) -> dict:
         result["capture_metadata"] = package["metadata"]
         capture_store.release_owned_arrays()
         del capture_store
-    result.update(schema=SCHEMA + ".case.v1", execution_commit=read(Path(args.report) / "EXECUTION.json")["execution_commit"], role=role, intervals=args.intervals, capture=bool(args.capture), execution_domain="S46E_LOCAL_MICRO" if args.local_engineering else "S46E_SMALLGRID", cache=cache, cache_fallback=0, initial_cache=initial_cache, fresh_responses=2 * nH, original_math_calls=8 * nH, boundary_path=result.get("boundary_path"), default="I0", production_qualified=False, review_gate="MANUAL_REVIEW_PENDING", initialization_within_application_s=initialized - application_started, research_service_s=time.perf_counter() - application_started)
+    result.update(schema=SCHEMA + ".case.v1", execution_commit=read(Path(args.report) / "EXECUTION.json")["execution_commit"], role=role, intervals=args.intervals, capture=bool(args.capture), execution_domain="S46E_LOCAL_MICRO" if args.local_engineering else "S46E_SMALLGRID", cache=cache, cache_fallback=0, initial_cache=initial_cache, fresh_responses=2 * nH, original_math_calls=8 * nH, boundary_path=result.get("boundary_path"), default="I0", production_qualified=False, review_gate="MANUAL_REVIEW_PENDING", initialization_within_application_s=initialized - application_started, application_service_s=result["optical_application_window_s"], research_service_s=time.perf_counter() - application_started, later_body_s=sum(body_s[1:]), first_body_s=body_s[0], all_body_s=sum(body_s), first_POST_latency_s=post_values[0] - application_started, post_gap_median_s=statistics.median(gaps), clock_domain_pass=True, c_pool=finalized, pointwise_calls=2 * int(args.intervals) if role == "C" else 0, reference_integrity=reference_integrity, profile_enabled=False)
     sg.write(work / "CASE_RECEIPT.json", result)
     return result
 
@@ -478,7 +537,15 @@ def main() -> int:
     else:
         require(args.work is not None and args.role is not None and args.intervals is not None, "S46E_C_PROPAGATION_ARGS_REQUIRED")
         args.shape = MICRO_SHAPE if args.local_engineering else SHAPE
-        value = run(args)
+        try:
+            value = run(args)
+        except BaseException as error:
+            if args.work is not None and args.work.is_dir() and not (args.work / "ENTRY_FAILURE.json").exists():
+                try:
+                    _write_entry_failure(args.work, error)
+                except BaseException as failure_error:
+                    error.add_note("S46E_C_ENTRY_FAILURE_INDEX_WRITE:" + repr(failure_error))
+            raise
     print(json.dumps({key: value.get(key) for key in ("status", "role", "intervals", "formal_calls", "warmup_calls", "mechanism_gate") if key in value}))
     return 0
 
