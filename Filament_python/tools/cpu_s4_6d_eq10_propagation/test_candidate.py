@@ -346,6 +346,14 @@ def test_s46d_factory_rejects_stage_slot_and_backend_tamper(
         with pytest.raises(Exception, match="HELPER_SLOT"):
             stage(None, **required)
         stage.__globals__[helper_name] = original_helper
+        for attribute in ('_cpu_s46d_stage', '_cpu_s46d_pool'):
+            saved = getattr(state, attribute)
+            delattr(state, attribute)
+            try:
+                with pytest.raises(Exception, match='ACTIVE_.*CHANGED'):
+                    stage(None, **required)
+            finally:
+                setattr(state, attribute, saved)
         original_xp.fft.dispatch.scipy_fft = object()
         with pytest.raises(Exception, match="SCIPY_FFT"):
             stage(None, **required)

@@ -400,9 +400,9 @@ def install_stage(state: Any, pool: Eq10Pool) -> dict[str, Any]:
         active = active_stage_ref.get("stage")
         if active is None or getattr(stage_owner, stage_attribute, None) is not active:
             raise InstrumentationBindingError("EQ10_ACTIVE_STAGE_CHANGED")
-        if getattr(state, "_cpu_s46d_stage", active) is not active:
+        if getattr(state, "_cpu_s46d_stage", None) is not active:
             raise InstrumentationBindingError("EQ10_ACTIVE_STAGE_STATE_CHANGED")
-        if getattr(state, "_cpu_s46d_pool", pool) is not pool:
+        if getattr(state, "_cpu_s46d_pool", None) is not pool:
             raise InstrumentationBindingError("EQ10_ACTIVE_POOL_CHANGED")
         _require(not pool.closed, "EQ10_RETIRED_WORKER_POOL")
 

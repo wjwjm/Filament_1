@@ -44,6 +44,7 @@ def plan():
         acceptance=dict(body_scope="sum complete original body ordinals2..8", paired_median_gain_min=0.03,
                         both_blocks_positive=True, both_orders_positive=True, exceeds_observed_RR_log_variation=True,
                         POST_both_blocks_positive=True, application_ratio_median_max=1.02,
+                        POST_metric='Per-window median of adjacent POST gaps; balanced log ratio of the two formal pairs in each block',
                         application_ratio_each_max=1.05, first_POST="UNEXPLAINED_DELAY_BLOCKS_MANUAL_ACCEPTANCE"),
         authorization="NOT_GRANTED_SUBMISSION_REQUIRES_NEW_EXPLICIT_USER_AUTHORIZATION",
         fullsize=False, GPU=False, default="I0", production_qualified=False, review_gate="MANUAL_REVIEW_PENDING")
