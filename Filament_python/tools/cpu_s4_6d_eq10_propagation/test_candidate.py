@@ -129,6 +129,67 @@ def test_s46d_four_helpers_exact_real_view_input_and_output_lifetime() -> None:
     pool.close()
 
 
+def test_s46d_actual_scipy_ifft_real_view_exact():
+    from scipy import fft
+    source = np.arange(384*3*2, dtype=np.float64).reshape(384, 3, 2)
+    before = source.copy()
+    inverse = fft.ifft(fft.fft(source, axis=0, workers=1), axis=0, workers=1)
+    assert np.shares_memory(inverse.real, inverse) and not inverse.real.flags.c_contiguous
+    with_values = inverse.copy()
+    pool = Eq10Pool(1)
+    try:
+        helper = _helpers(pool)[HELPER_NAMES['derivative']]
+        first = helper(inverse, 7.0)
+        saved = first.copy()
+        second = helper(inverse, 3.0)
+        assert first.tobytes() == (inverse.real/7.0).tobytes()
+        assert first.tobytes() == saved.tobytes()
+        assert not np.shares_memory(first, inverse) and not np.shares_memory(first, second)
+        assert source.tobytes() == before.tobytes() and inverse.tobytes() == with_values.tobytes()
+    finally:
+        pool.close()
+
+
+@pytest.mark.parametrize('kind', ('zero', 'nan', 'inf', 'energy_off'))
+def test_s46d_original_energy_branch_execution(kind):
+    import copy
+    import scipy.fft
+    from KHz_filament.constants import c0
+    class XP:
+        fft = scipy.fft
+        def __getattr__(self, name):
+            return getattr(np, name)
+    def compile_energy(stage, helpers):
+        branch = next(node for node in stage.body if isinstance(node, ast.If) and isinstance(node.test, ast.Name) and node.test.id == 'return_energy')
+        template = ast.parse('def energy(intensity,response,Omega,dt,n_R,return_energy):\n rdtype=xp.float64\n result={}\n pass\n return result\n')
+        template.body[0].body[2:3] = [copy.deepcopy(branch)]
+        scope = dict(xp=XP(), c0=c0, **helpers)
+        exec(compile(ast.fix_missing_locations(template), '<source-bound-energy-test>', 'exec'), scope)
+        return scope['energy']
+    stage = _stage_node()
+    reference = compile_energy(stage, {})
+    instrument_eq10_stage(stage)
+    pool = Eq10Pool(1)
+    candidate = compile_energy(stage, _helpers(pool))
+    source = np.ones((8, 3, 2), dtype=np.float64)
+    if kind == 'zero': source.fill(0)
+    if kind == 'nan': source[0, 0, 0] = np.nan
+    if kind == 'inf': source[0, 0, 0] = np.inf
+    frozen = source.tobytes()
+    args = (source, np.ones_like(source), np.arange(8, dtype=float), 1e-15, 1e-23, kind != 'energy_off')
+    try:
+        with np.errstate(all='ignore'):
+            left, right = reference(*args), candidate(*args)
+        assert left.keys() == right.keys()
+        for key in left:
+            np.testing.assert_equal(left[key], right[key])
+        assert source.tobytes() == frozen
+        if kind in ('zero', 'nan', 'energy_off'):
+            assert sum(pool.snapshot()['operation_counts'].values()) == 0
+    finally:
+        pool.close()
+
+
 def test_s46d_zero_nan_inf_and_return_energy_off_are_native_transparent() -> None:
     pool = Eq10Pool(1)
     helpers = _helpers(pool)
@@ -275,11 +336,24 @@ def test_s46d_factory_rejects_stage_slot_and_backend_tamper(
     helper_name = next(iter(HELPER_NAMES.values()))
     original_helper = stage.__globals__[helper_name]
     original_xp = stage.__globals__["xp"]
+    original_scipy = original_xp.fft.dispatch.scipy_fft
+    original_defaults = dict(stage.__kwdefaults__)
+    required = dict(Omega=None, dt=None, omega0=None, n0=None, n2=None, n_R=None, omega_R=None, Gamma_R=None)
     try:
         stage.__globals__[helper_name] = lambda *args: None
         with pytest.raises(Exception, match="SLOT"):
             verify_bindings(dispatch)
+        with pytest.raises(Exception, match="HELPER_SLOT"):
+            stage(None, **required)
         stage.__globals__[helper_name] = original_helper
+        original_xp.fft.dispatch.scipy_fft = object()
+        with pytest.raises(Exception, match="SCIPY_FFT"):
+            stage(None, **required)
+        original_xp.fft.dispatch.scipy_fft = original_scipy
+        stage.__kwdefaults__['return_energy'] = False
+        with pytest.raises(Exception, match="KWDEFAULTS"):
+            stage(None, **required)
+        stage.__kwdefaults__.update(original_defaults)
         stage.__globals__["xp"] = object()
         with pytest.raises(Exception, match="CPU_XP_NAMESPACE_TYPE"):
             verify_bindings(dispatch)
@@ -291,4 +365,7 @@ def test_s46d_factory_rejects_stage_slot_and_backend_tamper(
         state._internal_stage_inner = stage
         stage.__globals__[helper_name] = original_helper
         stage.__globals__["xp"] = original_xp
+        original_xp.fft.dispatch.scipy_fft = original_scipy
+        stage.__kwdefaults__.clear()
+        stage.__kwdefaults__.update(original_defaults)
         dispatch.close_eq10_pool()

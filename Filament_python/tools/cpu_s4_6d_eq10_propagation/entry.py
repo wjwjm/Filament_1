@@ -43,7 +43,16 @@ def verify_source(report, *, local_engineering):
         verify_runtime_query_tool(execution_plan)
         require(pv.raw_sha256_file(report / 'EXECUTION.json') == os.environ.get('S46D_EXECUTION_SHA256'), 'S46D_BINDING_IDENTITY')
     require(pv.raw_sha256_file(report / 'EXECUTION_SOURCE_MANIFEST.json') == binding['source_manifest_raw_sha256'], 'S46D_SOURCE_MANIFEST_IDENTITY')
-    source = pv.validate_manifest(repo, report / 'EXECUTION_SOURCE_MANIFEST.json', require_clean=True, require_hash_scope=True)
+    # The strict provenance_v2 schema gate runs at preparation and node entry.
+    # Per window retain the original S4-5B common source checks and clocks.
+    source = read(report / 'EXECUTION_SOURCE_MANIFEST.json')
+    require(pv._git(repo, 'rev-parse', 'HEAD') == binding['execution_commit'], 'S46D_COMMITTED_EXECUTION_HEAD')
+    pv._ensure_clean(repo)
+    for row in source['records']:
+        require(row['classification'] == 'tracked_text' and row['hash_scope'] == pv.TRACKED_HASH_SCOPE, 'S46D_SOURCE_HASH_SCOPE')
+        path = repo / row['path']
+        require(not Path(row['path']).is_absolute() and path.resolve().is_relative_to(repo), 'S46D_SOURCE_CONFINEMENT')
+        require(pv._git(repo, 'rev-parse', 'HEAD:'+row['path']) == row['git_blob_oid'] and pv.canonical_lf_sha256(path.read_bytes()) == row['canonical_lf_sha256'], 'S46D_SOURCE_BLOB_CANONICAL', row['path'])
     require(source['head'] == binding['execution_commit'] and len(source['records']) >= 252, 'S46D_COMPLETE_COMMITTED_SOURCE_CLOSURE')
     require(pv._git(repo, 'rev-parse', 'HEAD:Filament_python/KHz_filament') == SCIENCE_TREE, 'S46D_UNCHANGED_SCIENCE_SUBTREE')
     require(pv.raw_sha256_file(report / 'INPUT_CONTRACT.json') == binding['input_contract_raw_sha256'] and pv.raw_sha256_file(report / 'REFERENCE_INPUT_RAW_RECORDS.json') == binding['reference_contract_raw_sha256'], 'S46D_FROZEN_INPUT_REFERENCE_CONTRACTS')
@@ -58,6 +67,11 @@ def verify_execution(report, *, local_engineering, shape, intervals, mode, requi
         gate = read(report / 'NODE_GATE.json')
         require(gate['status'] == 'PASS_S46D_SMALLGRID_SOURCE_RESOURCE_INPUT_GATES' and gate['job_id'] == os.environ['SLURM_JOB_ID'], 'S46D_ACTUAL_NODE_GATE')
     return binding
+
+
+def input_domain(manifest, *, local_engineering):
+    expected = MICRO_SHAPE if local_engineering else SHAPE
+    require(manifest.get('shape') == list(expected), 'S46D_ACTUAL_MANIFEST_SHAPE_DOMAIN')
 
 
 def run(args):
@@ -77,6 +91,7 @@ def run(args):
         with timer.scope('SOURCE_FACTORY', common=True):
             with timer.scope('SOURCE_VALIDATION', common=True):
                 binding = verify_execution(args.report, local_engineering=args.local_engineering, shape=args.shape, intervals=args.intervals, mode=args.mode)
+                input_domain(read(args.input_manifest or Path(args.report) / 'BENCHMARK_INPUT_MANIFEST.json'), local_engineering=args.local_engineering)
             report = Path(args.report).resolve(strict=True)
             require(not work.exists(), 'S46D_NON_OVERWRITING_CASE')
             work.mkdir(parents=True)
@@ -145,7 +160,20 @@ def run(args):
     sg.write(work / 'LINEAR_CACHE_SIDECAR.json', cache)
 
     import numpy as np
+    reference_integrity = None
+    if args.role == 'R' and args.intervals == 2:
+        for name in ('final_E', 'scientific_Qacc'):
+            values = np.load(result['normal_outputs'][name], mmap_mode='r', allow_pickle=False)
+            require(np.isfinite(values).all(), 'S46D_REFERENCE_CRITICAL_NONFINITE:'+name)
+            del values
+        with np.load(result['normal_outputs']['final_POST'], allow_pickle=False) as post:
+            require(all(np.isfinite(post[name]).all() for name in post.files), 'S46D_REFERENCE_POST_NONFINITE')
+        reference_integrity = dict(critical_field_Qacc_POST_finite=True, historical_two_interval_terminal_exact=False,
+                                   terminal_basis='CURRENT_SOURCE_BOUND_L1_REFERENCE_AWAIT_B2_PAIR', native_layout_and_alias_metadata_recorded=True)
     with np.load(result['normal_outputs']['diagnostics'], allow_pickle=False) as diagnostic:
+        if reference_integrity is not None:
+            require('U_z' in diagnostic.files and np.isfinite(diagnostic['U_z']).all(), 'S46D_REFERENCE_ENERGY_NONFINITE')
+            reference_integrity['energy_finite'] = True
         timings = {name: diagnostic[name].tolist() for name in ('total_walltime_step_s', 'linear_walltime_step_s', 'ionization_walltime_step_s', 'raman_operator_walltime_step_s')}
     require(all(len(values) == args.intervals for values in timings.values()), 'S46D_ORIGINAL_DIAGNOSTIC_CLOCK_COUNT')
     posts = [row for row in read(work / 'formal/PROPAGATION/state/streaming_manifest.json')['rate_events'] if row.get('event') == 'POST_COMMITTED']
@@ -175,6 +203,7 @@ def run(args):
                   eq10_pool=pool, cache=cache, cache_fallback=0, L1_executed=True, profile_enabled=False,
                   boundary_path=str(boundary) if args.mode == 'QUALIFY_BOUNDARY' else None,
                   pointwise_calls=4*count, original_math_calls=8*nH, default='I0', production_qualified=False, review_gate='MANUAL_REVIEW_PENDING')
+    result['reference_integrity'] = reference_integrity
     sg.write(work / 'CASE_RECEIPT.json', result)
     return result
 

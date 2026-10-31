@@ -9,11 +9,13 @@ from types import FunctionType
 from typing import Any, Callable, Mapping
 
 import numpy as np
+import scipy.fft as scipy_fft
 
 from .pool import Eq10Pool
 
 
 INSTRUMENT_SCHEMA = "filament.cpu_s4_6d.eq10_instrument.v1"
+GUARD_NAME = "__cpu_s46d_stage_guard"
 HELPER_NAMES = {
     "spectral": "__cpu_s46d_spectral_multiply",
     "derivative": "__cpu_s46d_derivative_divide",
@@ -53,6 +55,7 @@ def validate_cpu_backend(
     dispatch_module = str(type(dispatch).__module__).replace("\\", ".")
     _require(dispatch_module.endswith(CPU_XP_MODULE_SUFFIX), "EQ10_CPU_FFT_DISPATCH_MODULE")
     _require(getattr(dispatch, "numpy_fft", None) is np.fft, "EQ10_CPU_NUMPY_FFT_BINDING")
+    _require(getattr(dispatch, "scipy_fft", None) is scipy_fft, "EQ10_CPU_SCIPY_FFT_BINDING")
     descriptor = getattr(dispatch, "descriptor", None)
     _require(
         isinstance(descriptor, dict)
@@ -228,6 +231,12 @@ def strip_generated_nodes(stage: ast.FunctionDef) -> ast.FunctionDef:
     result = copy.deepcopy(stage)
 
     class Stripper(ast.NodeTransformer):
+        def visit_Expr(self, node):
+            if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == GUARD_NAME:
+                _require(not node.value.args and not node.value.keywords, "EQ10_STAGE_GUARD_SHAPE")
+                return None
+            return self.generic_visit(node)
+
         def visit_Call(self, node: ast.Call) -> ast.AST:
             for key, helper in HELPER_NAMES.items():
                 if isinstance(node.func, ast.Name) and node.func.id == helper:
@@ -275,6 +284,9 @@ def _seal(function: Callable[..., Any]) -> dict[str, Any]:
         "globals": function.__globals__,
         "closure": function.__closure__,
         "closure_cells": tuple(cell.cell_contents for cell in closure),
+        "defaults": function.__defaults__,
+        "kwdefaults_object": function.__kwdefaults__,
+        "kwdefaults": dict(function.__kwdefaults__ or {}),
     }
 
 
@@ -287,6 +299,10 @@ def verify_seal(seal: Mapping[str, Any]) -> None:
     expected = seal.get("closure_cells", ())
     _require(len(closure) == len(expected), "EQ10_SEAL_CLOSURE_SIZE")
     _require(all(cell.cell_contents is value for cell, value in zip(closure, expected)), "EQ10_SEAL_CLOSURE_CHANGED")
+    _require(function.__defaults__ is seal.get("defaults"), "EQ10_SEAL_DEFAULTS_CHANGED")
+    _require(function.__kwdefaults__ is seal.get("kwdefaults_object"), "EQ10_SEAL_KWDEFAULTS_OBJECT_CHANGED")
+    current, expected_kw = function.__kwdefaults__ or {}, seal.get("kwdefaults", {})
+    _require(current.keys() == expected_kw.keys() and all(current[key] is value for key, value in expected_kw.items()), "EQ10_SEAL_KWDEFAULTS_CHANGED")
 
 
 def _helpers(
@@ -388,11 +404,35 @@ def install_stage(state: Any, pool: Eq10Pool) -> dict[str, Any]:
             raise InstrumentationBindingError("EQ10_ACTIVE_STAGE_STATE_CHANGED")
         if getattr(state, "_cpu_s46d_pool", pool) is not pool:
             raise InstrumentationBindingError("EQ10_ACTIVE_POOL_CHANGED")
+        _require(not pool.closed, "EQ10_RETIRED_WORKER_POOL")
 
     helpers = _helpers(pool, guard=guard_before_helper)
     private_globals = dict(baseline_globals)
     private_globals.update(helpers)
+    scipy_slots = {name: getattr(scipy_fft, name) for name in ('fft', 'ifft')}
+
+    def guard_stage() -> None:
+        guard_before_helper()
+        active = active_stage_ref['stage']
+        _require(active.__globals__ is private_globals, "EQ10_STAGE_GLOBAL_NAMESPACE_CHANGED")
+        _require(private_globals.get(GUARD_NAME) is guard_stage, "EQ10_STAGE_GUARD_SLOT_CHANGED")
+        _require(private_globals.get('xp') is xp and private_globals.get('_np') is np, "EQ10_STAGE_BACKEND_SLOT_CHANGED")
+        validate_cpu_backend(xp, expected_workers=backend['fft_workers'])
+        _require(xp.fft.dispatch is backend['dispatch_object'], "EQ10_STAGE_FFT_DISPATCH_CHANGED")
+        _require(all(getattr(scipy_fft, name) is value for name, value in scipy_slots.items()), "EQ10_STAGE_SCIPY_TRANSFORM_CHANGED")
+        _require(np.multiply is state._cpu_s46d_backend_slots['multiply'] and np.divide is state._cpu_s46d_backend_slots['divide'], "EQ10_STAGE_UFUNC_CHANGED")
+        for name, helper in helpers.items():
+            _require(private_globals.get(name) is helper and helper.__globals__.get('np') is np, "EQ10_STAGE_HELPER_SLOT_CHANGED:"+name)
+            verify_seal(state._cpu_s46d_helper_seals[name])
+        verify_seal(state._cpu_s46d_stage_seal)
+        verify_seal(state._cpu_s46d_stage_entry_guard_seal)
+
+    private_globals[GUARD_NAME] = guard_stage
     receipt = instrument_eq10_stage(stage_node)
+    stage_node.body.insert(1 if ast.get_docstring(stage_node) is not None else 0, ast.Expr(value=ast.Call(func=ast.Name(id=GUARD_NAME, ctx=ast.Load()), args=[], keywords=[])))
+    ast.fix_missing_locations(stage_node)
+    _require(_ast_hash(strip_generated_nodes(stage_node)) == receipt['source_ast_sha256'], "EQ10_STAGE_GUARD_STRIP_PROOF")
+    receipt.update(instrumented_ast_sha256=_ast_hash(stage_node), stage_entry_guard=True)
     instrumented = _compile_function(stage_node, namespace=private_globals, source_path=source_path)
     instrumented.__name__ = getattr(original, "__name__", instrumented.__name__)
     instrumented.__qualname__ = getattr(original, "__qualname__", instrumented.__qualname__)
@@ -410,6 +450,9 @@ def install_stage(state: Any, pool: Eq10Pool) -> dict[str, Any]:
     state._cpu_s46d_active_stage_ref = active_stage_ref
     state._cpu_s46d_guard = guard_before_helper
     state._cpu_s46d_guard_seal = _seal(guard_before_helper)
+    state._cpu_s46d_stage_entry_guard = guard_stage
+    state._cpu_s46d_stage_entry_guard_seal = _seal(guard_stage)
+    state._cpu_s46d_scipy_slots = scipy_slots
     state._cpu_s46d_r8_stage_original = r8_stage_before
     state._cpu_s46d_backend_slots = {
         "numpy": np,
@@ -446,6 +489,7 @@ def install_stage(state: Any, pool: Eq10Pool) -> dict[str, Any]:
 
 __all__ = [
     "HELPER_NAMES",
+    "GUARD_NAME",
     "INSTRUMENT_SCHEMA",
     "InstrumentationBindingError",
     "validate_cpu_backend",

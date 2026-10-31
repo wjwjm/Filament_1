@@ -5,7 +5,7 @@ import subprocess
 import sys
 from types import SimpleNamespace
 import pytest
-from .entry import admission, read
+from .entry import admission, input_domain, read
 from .protocol import MICRO_SHAPE, SHAPE
 
 
@@ -22,6 +22,11 @@ def test_s46d_entry_domain_refusals(monkeypatch):
         admission(local_engineering=False, shape=SHAPE, intervals=2, mode='PURE_OFF_SMALLGRID')
     with pytest.raises(RuntimeError, match='LOCAL_NT384'):
         admission(local_engineering=True, shape=MICRO_SHAPE, intervals=8, mode='PURE_OFF_SMALLGRID')
+    input_domain(dict(shape=list(MICRO_SHAPE)), local_engineering=True)
+    with pytest.raises(RuntimeError, match='MANIFEST_SHAPE'):
+        input_domain(dict(shape=list(SHAPE)), local_engineering=True)
+    with pytest.raises(RuntimeError, match='MANIFEST_SHAPE'):
+        input_domain(dict(shape=list(MICRO_SHAPE)), local_engineering=False)
 
 
 def test_s46d_application_harness_strip_proof():

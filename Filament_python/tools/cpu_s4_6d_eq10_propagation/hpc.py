@@ -32,6 +32,7 @@ def preflight(report):
     require(versions == VERSIONS, 'S46D_FROZEN_DEPENDENCIES', versions)
     require(os.environ.get('UPPE_USE_GPU') == '0' and all(os.environ.get(k) == v for k, v in THREAD_ENV.items()), 'S46D_FROZEN_CPU_THREAD_ENV')
     binding = entry.verify_source(report, local_engineering=False)
+    pv.validate_manifest(Path(__file__).resolve().parents[3], report / 'EXECUTION_SOURCE_MANIFEST.json', require_clean=True, require_hash_scope=True)
     audit, code = audit_batch_entry(Path(__file__).with_name('cpu.sbatch'), REMOTE_PYTHON, 'bash')
     require(code == 0 and audit['status'] == 'passed', 'S46D_BATCH_ENTRY_AUDIT', audit)
     help_result = command([sys.executable, '-s', '-B', '-m', 'tools.cpu_s4_6d_eq10_propagation.entry', '--help'])
@@ -44,7 +45,7 @@ def preflight(report):
         finally:
             built[1].close_eq10_pool()
         require(built[1].eq10_pool_snapshot()['closed'], 'S46D_PREFLIGHT_FACTORY_CLOSED')
-    return dict(status='PASS_READONLY_BATCH_SOURCE_ENVIRONMENT_PREFLIGHT', execution_commit=binding['execution_commit'], executable=sys.executable, versions=versions, batch_audit=audit, entry_help_checked=bool(help_result), factories=factories, scientific_arrays_created=0, propagation_called=False)
+    return dict(status='PASS_READONLY_BATCH_SOURCE_ENVIRONMENT_PREFLIGHT', execution_commit=binding['execution_commit'], executable=sys.executable, versions=versions, batch_audit=audit, entry_help_checked=bool(help_result), factories=factories, propagation_called=False)
 
 
 def node_gate(report):
@@ -160,7 +161,8 @@ def exact(result, *, terminal=True, boundary=False, stages=False):
     require(stats['factor_requests'] == 384*nH and stats['plane_builds'] == 384 and stats['hits'] == 384*(nH-1) and result['cache_fallback'] == 0, 'S46D_CACHE_COUNTS')
     for row in route['actual_numba_kernel_executions']:
         require(row['requested_workers'] == row['active_thread_count'] == 48 and row['active_thread_ids'] == list(range(48)) and (row['thread_mask_before'], row['thread_mask_inside'], row['thread_mask_after']) == (24,48,24), 'S46D_REAL_W48_ORIGINAL_KERNEL_MASKS')
-    result['exact_gate_pass'] = True
+    result['exact_gate_pass'] = bool(terminal)
+    result['terminal_exact_basis'] = 'COMPARED_CURRENT_WINDOW_TO_REFERENCE' if terminal else 'REFERENCE_GENERATED_AWAIT_B2_TERMINAL_PAIR'
 
 
 def run(report):
@@ -189,7 +191,9 @@ def run(report):
             cases[case] = result
             sg.write(report / 'runs/A01' / case / 'ACCEPTED_CASE.json', result)
             if case == 'QUAL_B2':
-                sg.write(report / 'QUALIFIED_STEP_CONTRACT.json', dict(nH=16, intervals=8, qualification_nH=4, qualification_intervals=2, qualification_fresh_responses=8, qualification_original_math_calls=32, qualification_cases=['QUAL_R2', 'QUAL_B2'], two_interval_terminal_pair_exact=True))
+                cases['QUAL_R2']['exact_gate_pass'] = True
+                cases['QUAL_R2']['terminal_exact_basis'] = 'R2_IS_CURRENT_L1_REFERENCE_FOR_EXACT_B2_TERMINAL_PAIR_NOT_HISTORICAL_TERMINAL_EXACT'
+                sg.write(report / 'QUALIFIED_STEP_CONTRACT.json', dict(nH=16, intervals=8, qualification_nH=4, qualification_intervals=2, qualification_fresh_responses=8, qualification_original_math_calls=32, qualification_cases=['QUAL_R2', 'QUAL_B2'], r2_historical_terminal_exact=False, r2_source_bound_boundary_stage_exact=True, b2_terminal_exact_against_r2=True, qualification_gate=True))
         result = analyze(cases)
         sg.write(report / 'ACCEPTED_CASES.json', cases)
         sg.write(report / 'RESULT.json', result)

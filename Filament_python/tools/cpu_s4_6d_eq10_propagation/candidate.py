@@ -13,6 +13,7 @@ import numpy as np
 from tools.hpc_ops import provenance_v2 as pv
 
 from .instrument import (
+    GUARD_NAME,
     HELPER_NAMES,
     INSTRUMENT_SCHEMA,
     InstrumentationBindingError,
@@ -376,6 +377,13 @@ def verify_bindings(dispatch: Any) -> dict[str, Any]:
     if guard_seal is None or getattr(state, "_cpu_s46d_guard", None) is not guard_seal.get("function"):
         raise SourceBindingError("EQ10_PRE_CALL_GUARD_BINDING_CHANGED")
     verify_seal(guard_seal)
+    entry_guard_seal = getattr(state, '_cpu_s46d_stage_entry_guard_seal', None)
+    if entry_guard_seal is None or stage_globals.get(GUARD_NAME) is not entry_guard_seal.get('function'):
+        raise SourceBindingError('EQ10_STAGE_ENTRY_GUARD_CHANGED')
+    verify_seal(entry_guard_seal)
+    import scipy.fft as scipy_fft
+    if any(getattr(scipy_fft, name) is not value for name, value in state._cpu_s46d_scipy_slots.items()):
+        raise SourceBindingError('EQ10_STAGE_SCIPY_TRANSFORM_CHANGED')
     backend_slots = getattr(state, "_cpu_s46d_backend_slots", {})
     if (
         backend_slots.get("numpy") is not np
