@@ -46,28 +46,43 @@ def run_window(args, built, *, timer, application_token, **kwargs):
     transformed = ast.fix_missing_locations(adder.visit(copy.deepcopy(tree)))
     parent.require(adder.close_anchors == 1 and adder.counts == dict(INPUT_PREPARATION=1, PROPAGATION=1, DIAGNOSTICS=1, OUTPUT=1), "S46E_EXACT_APPLICATION_ANCHORS")
     parent.require(parent._dump(_Strip().visit(copy.deepcopy(transformed))) == before, "S46E_REMOVING_TIMER_AND_CLOSE_RESTORES_HARNESS_AST")
-    close = built[1].close_intensity_pool
+    c_pool = getattr(built[1], "cpu_s4_6e_c_pool", None)
+    is_c_candidate = c_pool is not None
+    close = built[1].close_c_pool if is_c_candidate else built[1].close_intensity_pool
     lifecycle = {}
     finalized = {}
 
     def close_before_output():
         lifecycle["close_started_s"] = time.perf_counter()
         close()
-        activity = built[1].take_intensity_pool_records()
-        snapshot = built[1].intensity_pool_snapshot()
-        from .pool import POINTWISE_LABELS
+        if is_c_candidate:
+            activity = built[1].take_c_pool_records()
+            snapshot = built[1].c_pool_snapshot()
+            from .c_pool import POINTWISE_LABELS
 
-        count = 4 * int(args.intervals) if args.reported_role == "A" else 0
+            count = int(args.intervals) if args.reported_role == "C" else 0
+            expected_activity = 2 * count
+            take_again = built[1].take_c_pool_records
+        else:
+            activity = built[1].take_intensity_pool_records()
+            snapshot = built[1].intensity_pool_snapshot()
+            from .pool import POINTWISE_LABELS
+
+            count = 4 * int(args.intervals) if args.reported_role == "A" else 0
+            expected_activity = 3 * count
+            take_again = built[1].take_intensity_pool_records
         workers = 1 if args.local_engineering else 24
         parent.require(snapshot["closed"] and snapshot["close_error"] is None, "S46E_POOL_JOIN_BEFORE_NORMAL_OUTPUT")
         parent.require(snapshot["pending_scalar_records"] == 0 and snapshot["active_thread_ids"] == [], "S46E_POOL_SNAPSHOT_AFTER_DRAIN_AND_JOIN")
         parent.require(snapshot["operation_counts"] == {label: count for label in POINTWISE_LABELS}, "S46E_POOL_COUNTS_BEFORE_NORMAL_OUTPUT")
-        parent.require(len(activity) == 3 * count, "S46E_POOL_ACTIVITY_COUNT_BEFORE_NORMAL_OUTPUT")
+        parent.require(len(activity) == expected_activity, "S46E_POOL_ACTIVITY_COUNT_BEFORE_NORMAL_OUTPUT")
         parent.require(all(row["requested_workers"] == row["actual_workers"] == workers and len(row["workers"]) == workers and sum(worker["items"] for worker in row["workers"]) == 384 for row in activity), "S46E_POOL_WORKERS_BEFORE_NORMAL_OUTPUT")
         parent.require(len(json.dumps(activity, allow_nan=False).encode()) <= 8 * 1024**2, "S46E_POOL_ACTIVITY_BOUNDED_BEFORE_NORMAL_OUTPUT")
-        parent.require(not built[1].take_intensity_pool_records(), "S46E_POOL_ACTIVITY_DRAINED_BEFORE_NORMAL_OUTPUT")
+        parent.require(not take_again(), "S46E_POOL_ACTIVITY_DRAINED_BEFORE_NORMAL_OUTPUT")
         finalized.update(pool=snapshot, activity=activity)
         built[1]._cpu_s46e_finalized_pool = dict(finalized)
+        if is_c_candidate:
+            built[1]._cpu_s46e_finalized_c_pool = dict(finalized)
         lifecycle["join_completed_s"] = time.perf_counter()
 
     namespace = dict(
