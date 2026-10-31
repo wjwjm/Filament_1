@@ -1,0 +1,91 @@
+{
+  "utc": "2026-10-31T09:56:01.093615+00:00",
+  "archive": "CPU_S4_6C_REVIEW_20261031_001.zip",
+  "hash_scope": "raw_bytes",
+  "raw_sha256": "c40bb3de19cf6b8ed4377ad939a4ae088bd11e1f5b3db46abd0a47e1d477222c",
+  "bytes": 1432573,
+  "zip_crc": "PASS",
+  "scientific_arrays_included": false,
+  "replay_from_extracted_archive": true,
+  "runs": [
+    {
+      "platform": "Windows",
+      "mode": "quick",
+      "argv": [
+        "D:/Filament_1/.local_envs/cpu_o1_py312/python.exe",
+        "-I",
+        "-S",
+        "-B",
+        "C:\\Users\\wangj\\.codex\\worktrees\\cpu-real-array-coverage-20261031\\cpu_optimization\\reports\\CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031\\replay_scratch\\delivery_archive_001\\replay.py",
+        "--root",
+        "C:\\Users\\wangj\\.codex\\worktrees\\cpu-real-array-coverage-20261031\\cpu_optimization\\reports\\CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031\\replay_scratch\\delivery_archive_001"
+      ],
+      "exit_code": 0,
+      "status": "PASS_READONLY_MECHANISM_REPLAY",
+      "timing_rows": 784,
+      "numeric_rows": 108
+    },
+    {
+      "platform": "Windows",
+      "mode": "full",
+      "argv": [
+        "D:/Filament_1/.local_envs/cpu_o1_py312/python.exe",
+        "-I",
+        "-S",
+        "-B",
+        "C:\\Users\\wangj\\.codex\\worktrees\\cpu-real-array-coverage-20261031\\cpu_optimization\\reports\\CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031\\replay_scratch\\delivery_archive_001\\replay.py",
+        "--root",
+        "C:\\Users\\wangj\\.codex\\worktrees\\cpu-real-array-coverage-20261031\\cpu_optimization\\reports\\CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031\\replay_scratch\\delivery_archive_001",
+        "--full"
+      ],
+      "exit_code": 0,
+      "status": "PASS_READONLY_MECHANISM_REPLAY",
+      "timing_rows": 784,
+      "numeric_rows": 108
+    },
+    {
+      "platform": "Linux",
+      "mode": "quick",
+      "argv": [
+        "wsl.exe",
+        "-d",
+        "Ubuntu",
+        "--",
+        "/usr/bin/python3",
+        "-I",
+        "-S",
+        "-B",
+        "/mnt/c/Users/wangj/.codex/worktrees/cpu-real-array-coverage-20261031/cpu_optimization/reports/CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031/replay_scratch/delivery_archive_001/replay.py",
+        "--root",
+        "/mnt/c/Users/wangj/.codex/worktrees/cpu-real-array-coverage-20261031/cpu_optimization/reports/CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031/replay_scratch/delivery_archive_001"
+      ],
+      "exit_code": 0,
+      "status": "PASS_READONLY_MECHANISM_REPLAY",
+      "timing_rows": 784,
+      "numeric_rows": 108
+    },
+    {
+      "platform": "Linux",
+      "mode": "full",
+      "argv": [
+        "wsl.exe",
+        "-d",
+        "Ubuntu",
+        "--",
+        "/usr/bin/python3",
+        "-I",
+        "-S",
+        "-B",
+        "/mnt/c/Users/wangj/.codex/worktrees/cpu-real-array-coverage-20261031/cpu_optimization/reports/CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031/replay_scratch/delivery_archive_001/replay.py",
+        "--root",
+        "/mnt/c/Users/wangj/.codex/worktrees/cpu-real-array-coverage-20261031/cpu_optimization/reports/CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031/replay_scratch/delivery_archive_001",
+        "--full"
+      ],
+      "exit_code": 0,
+      "status": "PASS_READONLY_MECHANISM_REPLAY",
+      "timing_rows": 784,
+      "numeric_rows": 108
+    }
+  ],
+  "review_gate": "MANUAL_REVIEW_PENDING"
+}

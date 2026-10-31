@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "/mnt/c/Users/wangj/.codex/worktrees/cpu-real-array-coverage-20261031/cpu_optimization/reports/CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031/control/replay.py", line 208, in <module>
+    result=replay(args.root)
+           ^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/wangj/.codex/worktrees/cpu-real-array-coverage-20261031/cpu_optimization/reports/CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031/control/replay.py", line 92, in replay
+    numeric+=check_exact(raw/'exact'/portable_leaf(a['stage_gate']['comparison_path']))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/wangj/.codex/worktrees/cpu-real-array-coverage-20261031/cpu_optimization/reports/CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031/control/replay.py", line 78, in check_exact
+    require(module.classify_comparison(row)['proceed'],'RAW_NUMERIC_GATE:'+path.name)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/wangj/.codex/worktrees/cpu-real-array-coverage-20261031/cpu_optimization/reports/CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031/attempt_A2/execution_sources/numeric_gate.py", line 61, in classify_comparison
+    import numpy as np
+ModuleNotFoundError: No module named 'numpy'

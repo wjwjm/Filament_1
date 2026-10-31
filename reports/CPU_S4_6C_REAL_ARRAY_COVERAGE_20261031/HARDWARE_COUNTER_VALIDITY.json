@@ -1,0 +1,79 @@
+{
+  "status": "PARTIAL_RAW_NOT_QUALIFIED_FOR_CAUSAL_COMPARISON",
+  "records": [
+    {
+      "chain": "A",
+      "mode": "REF",
+      "workers": 0,
+      "raw_present": true,
+      "raw_status": "CAPTURED_SUPPORT_ONLY",
+      "exit_code": -2,
+      "target_tids_listed": true,
+      "complete_call_capture_proven": false,
+      "admissible_for_quantitative_cause": false,
+      "reason": "NO_READY_ACK_OR_CALL_BOUNDARY"
+    },
+    {
+      "chain": "A",
+      "mode": "P",
+      "workers": 24,
+      "raw_present": false,
+      "raw_status": "CAPTURED_SUPPORT_ONLY",
+      "exit_code": -2,
+      "target_tids_listed": true,
+      "complete_call_capture_proven": false,
+      "admissible_for_quantitative_cause": false,
+      "reason": "COUNTER_FILE_MISSING"
+    },
+    {
+      "chain": "A",
+      "mode": "P_LOCAL",
+      "workers": 24,
+      "raw_present": true,
+      "raw_status": "CAPTURED_SUPPORT_ONLY",
+      "exit_code": -2,
+      "target_tids_listed": true,
+      "complete_call_capture_proven": false,
+      "admissible_for_quantitative_cause": false,
+      "reason": "NO_READY_ACK_OR_CALL_BOUNDARY"
+    },
+    {
+      "chain": "B",
+      "mode": "REF",
+      "workers": 0,
+      "raw_present": true,
+      "raw_status": "CAPTURED_SUPPORT_ONLY",
+      "exit_code": -2,
+      "target_tids_listed": true,
+      "complete_call_capture_proven": false,
+      "admissible_for_quantitative_cause": false,
+      "reason": "NO_READY_ACK_OR_CALL_BOUNDARY"
+    },
+    {
+      "chain": "B",
+      "mode": "P",
+      "workers": 24,
+      "raw_present": true,
+      "raw_status": "CAPTURED_SUPPORT_ONLY",
+      "exit_code": -2,
+      "target_tids_listed": true,
+      "complete_call_capture_proven": false,
+      "admissible_for_quantitative_cause": false,
+      "reason": "NO_READY_ACK_OR_CALL_BOUNDARY"
+    },
+    {
+      "chain": "B",
+      "mode": "P_LOCAL",
+      "workers": 24,
+      "raw_present": true,
+      "raw_status": "CAPTURED_SUPPORT_ONLY",
+      "exit_code": -2,
+      "target_tids_listed": true,
+      "complete_call_capture_proven": false,
+      "admissible_for_quantitative_cause": false,
+      "reason": "NO_READY_ACK_OR_CALL_BOUNDARY"
+    }
+  ],
+  "DRAM_bytes_measured": false,
+  "raw_preserved": true
+}

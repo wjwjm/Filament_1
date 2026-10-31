@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "full_replay_identical": true,
+  "raw_and_negative_comparison_cases": 648,
+  "dtypes": [
+    "float64",
+    "complex128",
+    "int64"
+  ],
+  "source_unchanged": true
+}

@@ -1,0 +1,44 @@
+{
+  "execution_commit": "420ed7e82f09180da9a1b546f4ac69daeb795f59",
+  "source": "Filament_python/tools/cpu_s4_6c_array_coverage/chains.py",
+  "kind": "SOURCE_DERIVED_NOT_HARDWARE_MEASUREMENT",
+  "records": [
+    {
+      "chain": "A",
+      "N": 40569984,
+      "target_full_field_bytes_P": 2271919104,
+      "target_full_field_bytes_P_LOCAL": 973679616,
+      "avoided_full_field_materialization_bytes": 1298239488,
+      "local_scratch_bytes_per_worker": 262144,
+      "arithmetic_operations": [
+        "complex128 abs -> float64",
+        "square float64",
+        "scalar multiply float64"
+      ],
+      "definition": "Logical full-field reads and writes for replaced pointwise portions only. Scalar and short frequency vector traffic excluded. FFT, max, sum and other unchanged work excluded.",
+      "DRAM_bytes_measured": false,
+      "bandwidth_saturation_inferred": false,
+      "original_REF_temporary_elision": "UNKNOWN_USE_P1_CONTROL",
+      "B_complex_inverse_retention_note": null
+    },
+    {
+      "chain": "B",
+      "N": 40569984,
+      "target_full_field_bytes_P": 3570158592,
+      "target_full_field_bytes_P_LOCAL": 2271919104,
+      "avoided_full_field_materialization_bytes": 1298239488,
+      "local_scratch_bytes_per_worker": 262144,
+      "arithmetic_operations": [
+        "complex spectral multiply (FFT unchanged)",
+        "inverse.real / global scale",
+        "response / same scale",
+        "pointwise normalized product (global sum unchanged)"
+      ],
+      "definition": "Logical full-field reads and writes for replaced pointwise portions only. Scalar and short frequency vector traffic excluded. FFT, max, sum and other unchanged work excluded.",
+      "DRAM_bytes_measured": false,
+      "bandwidth_saturation_inferred": false,
+      "original_REF_temporary_elision": "UNKNOWN_USE_P1_CONTROL",
+      "B_complex_inverse_retention_note": "P_LOCAL keeps inverse FFT complex output until product is formed; no automatic peak-memory reduction claim"
+    }
+  ]
+}

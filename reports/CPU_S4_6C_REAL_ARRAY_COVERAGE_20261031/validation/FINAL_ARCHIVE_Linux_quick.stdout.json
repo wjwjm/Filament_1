@@ -1,0 +1,16 @@
+{
+  "status": "PASS_READONLY_MECHANISM_REPLAY",
+  "timing_rows": 784,
+  "numeric_rows": 108,
+  "conditional_candidate": {
+    "chain": "B",
+    "mode": "P",
+    "workers": 48,
+    "worst_input_block_ratio": 0.5342150485298348,
+    "conservative_projected_old_CPU_s": 16.01741291115604,
+    "projection_not_window_evidence": true
+  },
+  "review_gate": "MANUAL_REVIEW_PENDING",
+  "full_window_qualification": false,
+  "production_qualified": false
+}

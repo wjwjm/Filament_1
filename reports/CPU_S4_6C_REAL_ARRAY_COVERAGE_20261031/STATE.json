@@ -1,7 +1,7 @@
 {
   "task": "CPU-S4-6C",
-  "stage": "A1_ENGINEERING_REPAIR",
-  "status": "IN_PROGRESS",
+  "stage": "MECHANISM_VALID_SMALLGRID_NOT_RUN",
+  "status": "MANUAL_REVIEW_PENDING",
   "review_gate": "MANUAL_REVIEW_PENDING",
   "default": "I0",
   "reference": "L1",
@@ -23,10 +23,19 @@
       "elapsed_s": 93,
       "allocated_core_hours": 2.48,
       "failure": "RamanConfig.method attribute absent; original getattr default not mirrored"
+    },
+    {
+      "job_id": "8858624",
+      "state": "COMPLETED",
+      "node": "cc0108",
+      "reserved_core_hours": 48,
+      "attempt": "A2_TECHNICAL_REPAIR",
+      "elapsed_s": 1377,
+      "allocated_core_hours": 36.72
     }
   ],
   "inflight": null,
-  "allocated_core_hours_used": 2.48,
+  "allocated_core_hours_used": 39.2,
   "allocated_core_hours_reserved": 0,
   "proposed_memory_GiB": 64,
   "memory_guard_fraction": 0.8,
@@ -40,8 +49,37 @@
     "production merge",
     "multiple candidate chains in propagation"
   ],
-  "next": "Follow fixed status script; never rerun submitter",
-  "execution_commit": "7c0ac61fa6de7892a2983e78835f1a3f326a28a1",
-  "last_checked_utc": "2026-10-31T09:03:13.781855+00:00",
-  "ETA": "UNKNOWN"
+  "next": "MANUAL_REVIEW_PENDING; selected B/P48 design only. No in-flight job or automatic further execution.",
+  "execution_commit": "420ed7e82f09180da9a1b546f4ac69daeb795f59",
+  "last_checked_utc": "2026-10-31T09:53:27.206323+00:00",
+  "ETA": "UNKNOWN",
+  "remaining_job_ids": 0,
+  "results": {
+    "real_input_stage_admissions": 4,
+    "exact_configurations": 48,
+    "formal_complete_calls": 560,
+    "warmup_calls": 224,
+    "A_REF_mean_s": 0.387667222725,
+    "A_P24_mean_s": 0.0672070419,
+    "B_REF_mean_s": 1.102344586775,
+    "B_P48_mean_s": 0.5607448244,
+    "P_LOCAL_vs_P_A_ratio": 2.5764455325591897,
+    "P_LOCAL_vs_P_B_ratio": 1.2105171286238987,
+    "selected_candidate": "B/P48",
+    "small_grid_2_8_intervals": "NOT_RUN_JOB_ID_BUDGET_EXHAUSTED",
+    "C": "UNAVAILABLE_NO_REAL_INPUT",
+    "hardware_cause_counters": "NOT_QUALIFIED",
+    "Windows_Linux_standard_library_replay": "PASS",
+    "whole_window_gain": "UNVERIFIED",
+    "GPU_new_measurement": false
+  },
+  "delivery": {
+    "archive": "CPU_S4_6C_REVIEW_20261031_001.zip",
+    "hash_scope": "raw_bytes",
+    "raw_sha256": "c40bb3de19cf6b8ed4377ad939a4ae088bd11e1f5b3db46abd0a47e1d477222c",
+    "bytes": 1432573,
+    "zip_crc": "PASS",
+    "replay_from_extracted_archive": true,
+    "final_archive_Windows_Linux_quick_full": "PASS_WITH_SITE_PACKAGES_DISABLED"
+  }
 }

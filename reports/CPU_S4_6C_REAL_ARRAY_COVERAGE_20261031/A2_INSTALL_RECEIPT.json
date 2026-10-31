@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "ssh.exe",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "ConnectTimeout=15",
+    "t0-hpc",
+    "/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_q1_20261014_110706/environment/venv/bin/python",
+    "-s",
+    "-B",
+    "-",
+    "993e4be3ed84a44d0dc847d780dc9f46210fb169ba5258d3a655796c87206118"
+  ],
+  "exit_code": 1,
+  "start_utc": "2026-10-31T09:14:12.079021+00:00",
+  "end_utc": "2026-10-31T09:14:15.250860+00:00"
+}

@@ -1,0 +1,41 @@
+{
+  "jobs": [
+    {
+      "job_id": "8858616",
+      "state": "FAILED",
+      "exit_code": "1:0",
+      "submit_local": "2026-10-31T17:00:36",
+      "start_local": "2026-10-31T17:00:37",
+      "end_local": "2026-10-31T17:02:10",
+      "queue_s": 1.0,
+      "elapsed_s": 93,
+      "allocated_cpus": 96,
+      "node": "cb1106",
+      "allocated_core_hours": 2.48
+    },
+    {
+      "job_id": "8858624",
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "submit_local": "2026-10-31T17:20:03",
+      "start_local": "2026-10-31T17:20:04",
+      "end_local": "2026-10-31T17:43:01",
+      "queue_s": 1.0,
+      "elapsed_s": 1377,
+      "allocated_cpus": 96,
+      "node": "cc0108",
+      "allocated_core_hours": 36.72
+    }
+  ],
+  "allocated_core_hours": 39.199999999999996,
+  "allocated_core_hours_limit": 96,
+  "job_ids_used": 2,
+  "job_ids_max": 2,
+  "remaining_job_ids": 0,
+  "GPU_jobs": 0,
+  "charge": "MAIN_ALLOCATIONS_ONLY_NO_BATCH_EXTERN_DOUBLE_COUNT",
+  "local_engineering_time_s": null,
+  "monitoring_time_s": null,
+  "missing_time_reason": "not separately metered",
+  "repair_elapsed_gap_s": 1073.0
+}

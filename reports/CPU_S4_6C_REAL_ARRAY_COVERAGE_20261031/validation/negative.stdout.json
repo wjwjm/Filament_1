@@ -1,0 +1,46 @@
+{
+  "status": "PASS_NEGATIVE_REPLAY_CHECKS",
+  "original_root": "C:\\Users\\wangj\\.codex\\worktrees\\cpu-real-array-coverage-20261031\\cpu_optimization\\reports\\CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031\\attempt_A2",
+  "derived_copy": "C:\\Users\\wangj\\.codex\\worktrees\\cpu-real-array-coverage-20261031\\cpu_optimization\\reports\\CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031\\replay_scratch\\negative_windows_01",
+  "checks": [
+    {
+      "case": "completion_missing",
+      "status": "EXPECTED_REJECTION",
+      "reason": "MISSING_MECHANISM_COMPLETION"
+    },
+    {
+      "case": "exact_missing",
+      "status": "EXPECTED_REJECTION",
+      "reason": "[Errno 2] No such file or directory: 'C:\\\\Users\\\\wangj\\\\.codex\\\\worktrees\\\\cpu-real-array-coverage-20261031\\\\cpu_optimization\\\\reports\\\\CPU_S4_6C_REAL_ARRAY_COVERAGE_20261031\\\\replay_scratch\\\\negative_windows_01\\\\raw\\\\exact\\\\post_field_FRESH_STAGE.jsonl'"
+    },
+    {
+      "case": "duplicate",
+      "status": "EXPECTED_REJECTION",
+      "reason": "DUPLICATE_TIMING"
+    },
+    {
+      "case": "declared_clock",
+      "status": "EXPECTED_REJECTION",
+      "reason": "VERSION_CLOCK"
+    },
+    {
+      "case": "out_of_order",
+      "status": "EXPECTED_REJECTION",
+      "reason": "PREREGISTERED_TIMING_ORDER"
+    },
+    {
+      "case": "nonfinite",
+      "status": "EXPECTED_REJECTION",
+      "reason": "NONFINITE_JSON:NaN"
+    },
+    {
+      "case": "worker_false_pass",
+      "status": "EXPECTED_REJECTION",
+      "reason": "MEASURED_TARGET_WORKERS"
+    },
+    {
+      "case": "Windows_POSIX_leaf",
+      "status": "PASS"
+    }
+  ]
+}

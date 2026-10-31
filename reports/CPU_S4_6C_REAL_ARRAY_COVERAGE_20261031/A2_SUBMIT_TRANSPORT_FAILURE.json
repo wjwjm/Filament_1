@@ -1,0 +1,6 @@
+{
+  "signature": "subprocess.TimeoutExpired: SSH submit receipt wait exceeded120s",
+  "job_id": "8858624",
+  "recovery": "READ_ONLY_REMOTE_LOCK_RECEIPT_AND_SQUEUE",
+  "duplicate_submissions": 0
+}

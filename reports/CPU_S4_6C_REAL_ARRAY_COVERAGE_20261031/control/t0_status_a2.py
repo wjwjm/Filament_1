@@ -9,7 +9,14 @@ def call(argv):
 def tail(name,n=5):
  p=report/name
  return p.read_text(errors='replace').splitlines()[-n:] if p.is_file() else []
+qualification=report/'exact/QUALIFICATION.jsonl'
+qualified=[]
+if qualification.is_file():
+ for line in qualification.read_text().splitlines():
+  try:
+   row=json.loads(line);qualified.append({k:row[k] for k in ('input','chain','mode','workers')})
+  except json.JSONDecodeError:pass
 print(json.dumps(dict(job_id=job,queue=call(['squeue','-j',job,'-h','-o','%i|%T|%M|%l|%R']),
  accounting=call(['sacct','-j',job,'-n','--parsable2','--format=JobIDRaw,State,ExitCode,ElapsedRaw,AllocCPUS,TimelimitRaw']),
- progress=tail('worker.stdout.log'),error=tail('worker.stderr.log',18),batch_error=tail('slurm-'+job+'.stderr.log',18),
+ progress=tail('worker.stdout.log'),qualification_count=len(qualified),qualification_last=qualified[-1:] if qualified else [],error=tail('worker.stderr.log',18),batch_error=tail('slurm-'+job+'.stderr.log',18),
  gates={n:json.loads((report/n).read_text()) for n in ['SUPERVISOR_RECEIPT.json','ALL_REAL_EXACT.json','MECHANISM_COMPLETED.json'] if (report/n).is_file()},ETA='UNKNOWN')))

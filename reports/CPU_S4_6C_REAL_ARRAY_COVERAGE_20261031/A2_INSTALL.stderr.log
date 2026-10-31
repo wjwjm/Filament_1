@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "<stdin>", line 43, in <module>
+  File "<stdin>", line 14, in call
+  File "<stdin>", line 10, in require
+RuntimeError: COMMAND_FAILED:{'argv': ['/usr/bin/git', '-c', 'gc.auto=0', 'fetch', '/publicfs01/fs1-t/home/t0s000727/user_wjm/filament_cpu_s46c_20261031_a02/SOURCE.bundle', 'refs/heads/codex/cpu-real-array-coverage-20261031:refs/heads/codex/cpu-real-array-coverage-20261031'], 'exit_code': 128, 'stdout': '', 'stderr': 'fatal: Refusing to fetch into current branch refs/heads/codex/cpu-real-array-coverage-20261031 of non-bare repository\n'}
