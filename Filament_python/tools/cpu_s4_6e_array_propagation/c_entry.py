@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import time
 import traceback
+from typing import Any
 from types import SimpleNamespace
 
 import numpy as np
@@ -277,6 +278,48 @@ def _mechanism(args) -> dict:
     return result
 
 
+def _qualify_boundary(args: Any, work: Path, result: dict, built: Any, support_module: Any) -> str | None:
+    """Validate and, for the two-interval gate, compare the disk boundary."""
+
+    boundary = work / "formal" / "BOUNDARY_RECEIPT.json"
+    if int(args.intervals) != 2:
+        result["boundary_path"] = None
+        return None
+    require(
+        boundary.is_file()
+        and result["boundary"]["retained_live_array_refs"] == 0
+        and built[5].transparency().get("retired") is True,
+        "S46E_C_RETIRED_CAPTURE_DISK_BOUNDARY",
+    )
+    exact = support_module("g2_hpc_exact")
+    metadata = exact.inspect_boundary_metadata(boundary, require_members=True, header_only=True)
+    require(metadata["status"] == "PASS_BOUNDARY_JSON_METADATA_COMPATIBILITY", "S46E_ORIGINAL_BOUNDARY_JSON")
+    comparison = None
+    reference_boundary = getattr(args, "reference_boundary", None)
+    if reference_boundary:
+        comparison = exact.compare_current_boundary_pair(
+            Path(reference_boundary), boundary, work / "formal" / "BOUNDARY_EXACT.jsonl"
+        )
+        require(
+            comparison["status"] == "PASS_CURRENT_BOUNDARY_SNAPSHOT_NATIVE_EXACT",
+            "S46E_ORIGINAL_108_EXACT_4_TIMING_CLASSIFICATION",
+        )
+        result.setdefault("comparisons", {})["boundary"] = comparison
+    sg.write(
+        work / "DISK_BOUNDARY_ROUNDTRIP.json",
+        dict(
+            path=str(boundary),
+            collector_retired=True,
+            live_array_references=0,
+            metadata=metadata,
+            comparison=comparison,
+            both_comparison_inputs="ACTUAL_PATHS_AFTER_COLLECTOR_AND_VIEW_CLOSE",
+        ),
+    )
+    result["boundary_path"] = str(boundary)
+    return str(boundary)
+
+
 def run(args) -> dict:
     from .c_candidate import build_role, verify_bindings
     from .measurement import run_window
@@ -310,7 +353,7 @@ def run(args) -> dict:
             initial_stats = initial_cache["stats"]
             require(initial_stats["factor_requests"] == initial_stats["plane_builds"] == initial_stats["cache_bytes"] == 0, "S46E_C_FRESH_EMPTY_LINEAR_CACHE")
         initialized = time.perf_counter()
-        request = SimpleNamespace(report=Path(args.report).resolve(), work=work, role="G3_SMALL", reported_role=role, mode=mode, intervals=args.intervals, local_engineering=args.local_engineering, input_manifest=args.input_manifest, reference_output=args.reference_output, reference_boundary=args.reference_boundary, reference_stages=args.reference_stages)
+        request = SimpleNamespace(report=Path(args.report).resolve(), work=work, role="G3_SMALL", reported_role=role, mode=mode, intervals=args.intervals, local_engineering=args.local_engineering, input_manifest=args.input_manifest, reference_output=args.reference_output, reference_boundary=None, reference_stages=args.reference_stages)
         result = run_window(request, built, timer=timer, application_token=application_token, label="formal", intervals=args.intervals, capture=args.intervals == 2, application_started=application_started)
         binding_after = verify_bindings(built[1])
         sg.write(work / "BINDING_AFTER.json", binding_after)
@@ -328,6 +371,13 @@ def run(args) -> dict:
                 recorder.retire_incomplete(type(cleanup).__name__)
         if work.is_dir():
             sg.write(work / "INCOMPLETE_TIMING.json", dict(a=pair.s45a.snapshot(), b=pair.b.snapshot()))
+            _write_entry_failure(work, error)
+        raise
+
+    try:
+        _qualify_boundary(args, work, result, built, support_module)
+    except BaseException as error:
+        if work.is_dir():
             _write_entry_failure(work, error)
         raise
 
@@ -374,7 +424,7 @@ def run(args) -> dict:
         result["capture_metadata"] = package["metadata"]
         capture_store.release_owned_arrays()
         del capture_store
-    result.update(schema=SCHEMA + ".case.v1", execution_commit=read(Path(args.report) / "EXECUTION.json")["execution_commit"], role=role, intervals=args.intervals, capture=bool(args.capture), execution_domain="S46E_LOCAL_MICRO" if args.local_engineering else "S46E_SMALLGRID", cache=cache, cache_fallback=0, initial_cache=initial_cache, fresh_responses=2 * nH, original_math_calls=8 * nH, default="I0", production_qualified=False, review_gate="MANUAL_REVIEW_PENDING", initialization_within_application_s=initialized - application_started, research_service_s=time.perf_counter() - application_started)
+    result.update(schema=SCHEMA + ".case.v1", execution_commit=read(Path(args.report) / "EXECUTION.json")["execution_commit"], role=role, intervals=args.intervals, capture=bool(args.capture), execution_domain="S46E_LOCAL_MICRO" if args.local_engineering else "S46E_SMALLGRID", cache=cache, cache_fallback=0, initial_cache=initial_cache, fresh_responses=2 * nH, original_math_calls=8 * nH, boundary_path=result.get("boundary_path"), default="I0", production_qualified=False, review_gate="MANUAL_REVIEW_PENDING", initialization_within_application_s=initialized - application_started, research_service_s=time.perf_counter() - application_started)
     sg.write(work / "CASE_RECEIPT.json", result)
     return result
 

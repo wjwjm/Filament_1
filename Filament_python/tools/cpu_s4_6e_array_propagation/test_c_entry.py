@@ -17,7 +17,7 @@ from KHz_filament.nonlinear import apply_nonlinear
 
 from .c_capture import CaptureStore
 from . import c_hpc
-from .c_entry import _load_capture, _mechanism, _save_capture, _write_entry_failure, admission, input_domain
+from .c_entry import _load_capture, _mechanism, _qualify_boundary, _save_capture, _write_entry_failure, admission, input_domain
 from .c_protocol import MICRO_SHAPE, SHAPE, plan
 
 
@@ -146,6 +146,44 @@ def test_s46e_c_hpc_generates_and_validates_input_manifest_before_launch(tmp_pat
     with pytest.raises(RuntimeError, match="FROZEN_DIRECT_SMALLGRID_INPUTS"):
         c_hpc.run(tmp_path)
     assert calls == [SHAPE]
+
+
+def test_s46e_c_two_interval_boundary_is_disk_checked_and_reported(tmp_path):
+    from types import SimpleNamespace
+
+    work = tmp_path / "case"
+    boundary = work / "formal" / "BOUNDARY_RECEIPT.json"
+    reference = tmp_path / "reference_boundary.json"
+    boundary.parent.mkdir(parents=True)
+    boundary.write_text("{}", encoding="utf-8")
+    reference.write_text("{}", encoding="utf-8")
+
+    class Exact:
+        def inspect_boundary_metadata(self, path, *, require_members, header_only):
+            assert path == boundary
+            assert require_members is True and header_only is True
+            return {"status": "PASS_BOUNDARY_JSON_METADATA_COMPATIBILITY"}
+
+        def compare_current_boundary_pair(self, old, current, output):
+            assert old == reference and current == boundary
+            assert output == work / "formal" / "BOUNDARY_EXACT.jsonl"
+            return {"status": "PASS_CURRENT_BOUNDARY_SNAPSHOT_NATIVE_EXACT"}
+
+    class Lease:
+        def transparency(self):
+            return {"retired": True}
+
+    args = SimpleNamespace(intervals=2, reference_boundary=reference)
+    result = {"boundary": {"retained_live_array_refs": 0}, "comparisons": {}}
+    path = _qualify_boundary(args, work, result, [None, None, None, None, None, Lease()], lambda name: Exact())
+    assert path == str(boundary)
+    assert result["boundary_path"] == str(boundary)
+    assert result["comparisons"]["boundary"]["status"] == "PASS_CURRENT_BOUNDARY_SNAPSHOT_NATIVE_EXACT"
+    assert (work / "DISK_BOUNDARY_ROUNDTRIP.json").is_file()
+
+    result8 = {}
+    assert _qualify_boundary(SimpleNamespace(intervals=8), work, result8, [None] * 6, lambda name: Exact()) is None
+    assert result8["boundary_path"] is None
 
 
 @pytest.mark.skipif(not os.environ.get("S46E_C_REAL_ENTRY_REPORT"), reason="Explicit clean-source C micro entry phase only")
