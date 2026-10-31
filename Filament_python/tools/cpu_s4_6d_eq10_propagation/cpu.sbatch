@@ -6,6 +6,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=96
+#SBATCH --hint=nomultithread
 #SBATCH --mem=32G
 #SBATCH --time=00:30:00
 #SBATCH --no-requeue

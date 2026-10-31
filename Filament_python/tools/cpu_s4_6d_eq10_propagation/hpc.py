@@ -189,10 +189,12 @@ def run(report):
             result = launch(report, spec, reference, deadline=deadline, node=node)
             exact(result, terminal=case != 'QUAL_R2', boundary=intervals == 2, stages=intervals == 2)
             cases[case] = result
-            sg.write(report / 'runs/A01' / case / 'ACCEPTED_CASE.json', result)
+            if case != 'QUAL_R2':
+                sg.write(report / 'runs/A01' / case / 'ACCEPTED_CASE.json', result)
             if case == 'QUAL_B2':
                 cases['QUAL_R2']['exact_gate_pass'] = True
                 cases['QUAL_R2']['terminal_exact_basis'] = 'R2_IS_CURRENT_L1_REFERENCE_FOR_EXACT_B2_TERMINAL_PAIR_NOT_HISTORICAL_TERMINAL_EXACT'
+                sg.write(report / 'runs/A01/QUAL_R2/ACCEPTED_CASE.json', cases['QUAL_R2'])
                 sg.write(report / 'QUALIFIED_STEP_CONTRACT.json', dict(nH=16, intervals=8, qualification_nH=4, qualification_intervals=2, qualification_fresh_responses=8, qualification_original_math_calls=32, qualification_cases=['QUAL_R2', 'QUAL_B2'], r2_historical_terminal_exact=False, r2_source_bound_boundary_stage_exact=True, b2_terminal_exact_against_r2=True, qualification_gate=True))
         result = analyze(cases)
         sg.write(report / 'ACCEPTED_CASES.json', cases)
