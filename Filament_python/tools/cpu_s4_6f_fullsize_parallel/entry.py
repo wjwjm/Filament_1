@@ -27,12 +27,12 @@ SCHEMA = "filament.cpu_s4_6f.entry.v1"
 FULL_GATE_STATUS = "PASS_S46F_FULLSIZE_SOURCE_RESOURCE_INPUT_GATES"
 
 
-def admission(*, candidate: str, local_engineering: bool, shape: tuple[int, int, int], intervals: int, mode: str) -> None:
+def admission(*, candidate: str, local_engineering: bool, shape: tuple[int, int, int], intervals: int, mode: str, allow_c_mechanism: bool = False) -> None:
     require((int(intervals), str(mode)) in ((2, "QUALIFY_BOUNDARY"), (8, "PURE_OFF_FULLSIZE")), "S46F_TWO_QUAL_OR_EIGHT_OFF_ONLY")
     if local_engineering:
         require(not os.environ.get("SLURM_JOB_ID") and tuple(shape) == MICRO_SHAPE, "S46F_LOCAL_MICRO_ONLY")
     else:
-        if candidate_spec(candidate)["deferred"]:
+        if candidate_spec(candidate)["deferred"] and not allow_c_mechanism:
             raise RuntimeError("S46F_C_FULL_MECHANISM_PHASE2_NOT_IMPLEMENTED")
         require(os.environ.get("SLURM_JOB_ID", "").isdigit() and tuple(shape) == SHAPE and int(intervals) in (2, 8), "S46F_HPC_FIXED_FULLSIZE_DOMAIN")
 
@@ -64,7 +64,7 @@ def _restore_original_cpu_diagnostic_profile(ctx: dict[str, Any]) -> dict[str, A
     )
 
 
-def verify_source(report: str | Path, *, candidate: str, local_engineering: bool, shape: tuple[int, int, int], intervals: int, mode: str, require_node: bool = True) -> dict[str, Any]:
+def verify_source(report: str | Path, *, candidate: str, local_engineering: bool, shape: tuple[int, int, int], intervals: int, mode: str, require_node: bool = True, allow_c_mechanism: bool = False) -> dict[str, Any]:
     unoptimized()
     report = Path(report).resolve(strict=True)
     spec = candidate_spec(candidate)
@@ -122,10 +122,10 @@ def verify_source(report: str | Path, *, candidate: str, local_engineering: bool
     for key in ("output", "boundary_path", "stages"):
         require(_is_external_absolute(reference.get(key)), "S46F_REFERENCE_PATH_BINDING:" + key)
     require(binding.get("reference_shape") == list(SHAPE) and binding.get("reference_intervals") == 8 and binding.get("reference_role") == "L1_LINEAR_FACTOR_CACHE", "S46F_REFERENCE_BINDING")
-    if not local_engineering and spec["deferred"]:
-        # Phase-2 C full mechanism validation is not implemented in this
-        # entry. A copied file is not an admission receipt.
-        raise RuntimeError("S46F_C_FULL_MECHANISM_PHASE2_NOT_IMPLEMENTED")
+    if not local_engineering and spec["deferred"] and not allow_c_mechanism:
+        from .c_fullsize_evidence import require_fullsize_mechanism_admission
+
+        require_fullsize_mechanism_admission(report, repo=repo)
     if not local_engineering and require_node:
         gate = read(report / "NODE_GATE.json")
         require(gate.get("status") == FULL_GATE_STATUS and gate.get("job_id") == os.environ["SLURM_JOB_ID"], "S46F_ACTUAL_NODE_GATE")
@@ -242,7 +242,7 @@ def run(args):
     require(role in ("R", "X"), "S46F_ROLE_R_OR_X")
     shape = tuple(args.shape)
     mode = "QUALIFY_BOUNDARY" if int(args.intervals) == 2 else "PURE_OFF_FULLSIZE"
-    admission(candidate=candidate, local_engineering=bool(args.local_engineering), shape=shape, intervals=args.intervals, mode=mode)
+    admission(candidate=candidate, local_engineering=bool(args.local_engineering), shape=shape, intervals=args.intervals, mode=mode, allow_c_mechanism=(not bool(args.local_engineering) and spec["deferred"]))
     from tools.cpu_s4_5b_steady_cost.adapter import make_recorder_pair
 
     pair = make_recorder_pair(False)

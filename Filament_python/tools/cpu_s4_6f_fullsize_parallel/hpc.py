@@ -87,8 +87,11 @@ def _validate_reference_paths(report: Path) -> dict[str, str]:
 def _preflight_factories(report: Path, candidate: str) -> dict[str, object]:
     """Build and close R/X full-size factories without entering propagation."""
 
+    mechanism_admission = None
     if candidate == "PHASE_ABSORB_P24":
-        return dict(status="SKIPPED_PHASE2_C_FULL_MECHANISM", propagation_called=False, factories={})
+        from .c_fullsize_evidence import require_fullsize_mechanism_admission
+
+        mechanism_admission = require_fullsize_mechanism_admission(report, repo=Path(__file__).resolve().parents[3])
     from .role_spec import build_role, close_role, snapshot_role, verify_role
 
     factories = {}
@@ -104,7 +107,7 @@ def _preflight_factories(report: Path, candidate: str) -> dict[str, object]:
         _require(snapshot.get("closed") is True and snapshot.get("active_thread_ids") == [], "S46F_PREFLIGHT_FACTORY_CLOSED")
         _require(not capture_root.exists(), "S46F_PREFLIGHT_CAPTURE_ROOT_CREATED", str(capture_root))
         factories[role] = dict(binding=checked, post_close_pool=snapshot)
-    return dict(status="PASS_READONLY_FULLSIZE_FACTORY_PREFLIGHT", propagation_called=False, factories=factories)
+    return dict(status="PASS_READONLY_FULLSIZE_FACTORY_PREFLIGHT", propagation_called=False, factories=factories, mechanism_admission=mechanism_admission)
 
 
 def _classify_failure(error: BaseException) -> str:

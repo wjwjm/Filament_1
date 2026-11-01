@@ -48,6 +48,7 @@ def build_role(
     recorder_pair: Any,
     shape: tuple[int, int, int] | None = None,
     pool_override: int | None = None,
+    capture_store: Any | None = None,
 ) -> tuple[Any, Any, Any, dict[str, Any], Any, Any]:
     """Build one frozen role, then replace only its empty 4A cache."""
 
@@ -70,9 +71,9 @@ def build_role(
         recorder_pair=recorder_pair,
     )
     if spec["old_role"] == "C":
-        # Full capture/mechanism is deliberately a later phase.  Passing no
-        # store preserves the original C math and still exercises its pool.
-        kwargs["capture_store"] = None
+        # Only the C role owns the bounded source-call capture hook.  A/B
+        # builders keep their original six-tuple and helper contracts.
+        kwargs["capture_store"] = capture_store
     built = module.build_role(_legacy_mode(mode), **kwargs)
     if not isinstance(built, tuple) or len(built) != 6:
         raise RoleUnsupported("LEGACY_ROLE_DID_NOT_RETURN_SIX_TUPLE")
