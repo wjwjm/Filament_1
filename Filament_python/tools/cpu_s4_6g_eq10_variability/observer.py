@@ -164,6 +164,121 @@ def summarize_numa_maps(text: str) -> dict[str, int] | dict[str, str]:
     return total or _unavailable("NUMA_NODE_TOKENS_MISSING")
 
 
+_NUMA_POLICY_BASES = {"default", "interleave", "preferred", "bind", "local", "membind", "weighted_interleave"}
+
+
+def parse_allowed_list(value: Any) -> set[int] | None:
+    """Parse Linux Cpus_allowed_list/Mems_allowed_list syntax."""
+
+    if not isinstance(value, str) or not value.strip():
+        return None
+    result: set[int] = set()
+    try:
+        for part in value.split(","):
+            part = part.strip()
+            if not part:
+                return None
+            if "-" in part:
+                left, right = part.split("-", 1)
+                lo, hi = int(left), int(right)
+                if lo > hi:
+                    return None
+                result.update(range(lo, hi + 1))
+            else:
+                result.add(int(part))
+    except (TypeError, ValueError):
+        return None
+    return result
+
+
+def _parse_policy_nodes(token: str) -> set[int] | None:
+    if ":" not in token:
+        return None
+    suffix = token.split(":", 1)[1]
+    return parse_allowed_list(suffix)
+
+
+def parse_numa_policy_maps(text: str) -> dict[str, Any]:
+    """Summarize policy labels, explicit policy nodes, and resident pages only."""
+
+    labels: dict[str, int] = {}
+    policy_nodes: dict[str, list[list[int]]] = {}
+    pages_by_node: dict[str, int] = {}
+    pages_by_policy: dict[str, dict[str, int]] = {}
+    mapping_count = 0
+    for line in text.splitlines():
+        tokens = line.split()
+        if not tokens:
+            continue
+        policy_token = next((token for token in tokens[1:] if token.split(":", 1)[0] in _NUMA_POLICY_BASES), None)
+        if policy_token is None:
+            continue
+        label = policy_token.split(":", 1)[0]
+        labels[label] = labels.get(label, 0) + 1
+        mapping_count += 1
+        nodes = _parse_policy_nodes(policy_token)
+        if nodes is not None:
+            policy_nodes.setdefault(label, []).append(sorted(nodes))
+        policy_pages = pages_by_policy.setdefault(label, {})
+        for token in tokens:
+            if not token.startswith("N") or "=" not in token:
+                continue
+            node, pages = token.split("=", 1)
+            if not node[1:].isdigit() or not pages.isdigit():
+                continue
+            pages_int = int(pages)
+            pages_by_node[node] = pages_by_node.get(node, 0) + pages_int
+            policy_pages[node] = policy_pages.get(node, 0) + pages_int
+    if not labels:
+        return _unavailable("NUMA_POLICY_LABELS_MISSING")
+    return {
+        "status": "MEASURED",
+        "mapping_count": mapping_count,
+        "policy_labels": labels,
+        "policy_node_sets": policy_nodes,
+        "pages_by_node": pages_by_node or _unavailable("NUMA_NODE_TOKENS_MISSING"),
+        "pages_by_policy": pages_by_policy,
+    }
+
+
+def validate_policy_snapshot(
+    text: str,
+    *,
+    expected_policy: str,
+    expected_mems: set[int],
+    expected_cpus: set[int],
+    cpus_allowed: Any,
+    mems_allowed: Any,
+) -> dict[str, Any]:
+    """Validate one body policy snapshot without retaining mappings or arrays."""
+
+    parsed = parse_numa_policy_maps(text)
+    if parsed.get("status") != "MEASURED":
+        raise ObservationError("POLICY_LABELS_UNAVAILABLE")
+    labels = parsed.get("policy_labels", {})
+    expected_label = {"D": "default", "I": "interleave"}.get(expected_policy)
+    if expected_label is None:
+        raise ObservationError("POLICY_LABEL_MISMATCH")
+    if expected_policy == "D" and set(labels) != {expected_label}:
+        raise ObservationError("POLICY_LABEL_MISMATCH")
+    if expected_policy == "I" and (expected_label not in labels or not set(labels).issubset({"default", expected_label})):
+        raise ObservationError("POLICY_LABEL_MISMATCH")
+    actual_cpus = parse_allowed_list(cpus_allowed)
+    actual_mems = parse_allowed_list(mems_allowed)
+    if actual_cpus != expected_cpus:
+        raise ObservationError("POLICY_CPUS_ALLOWED_MISMATCH")
+    if actual_mems != expected_mems:
+        raise ObservationError("POLICY_MEMS_ALLOWED_MISMATCH")
+    sets = parsed.get("policy_node_sets", {}).get(expected_label, [])
+    if expected_policy == "I" and (not sets or any(set(nodes) != expected_mems for nodes in sets)):
+        raise ObservationError("POLICY_NODE_SET_MISMATCH")
+    parsed["policy"] = expected_policy
+    parsed["phase"] = "BODY_POLICY"
+    parsed["cpus_allowed"] = sorted(actual_cpus)
+    parsed["mems_allowed"] = sorted(actual_mems)
+    return parsed
+
+
 def _safe_file(path: Path, parser, *args) -> Any:
     try:
         return parser(_read(path), *args)
@@ -343,7 +458,9 @@ class ProcessObserver:
     """Observe one PID, with idempotent stop/join and bounded output."""
 
     def __init__(self, pid: int, output_dir: str | Path, *, period_s: float = DEFAULT_PERIOD_S,
-                 numa_every_samples: int = 3, proc_root: str | Path = "/proc") -> None:
+                 numa_every_samples: int = 3, proc_root: str | Path = "/proc",
+                 expected_policy: str | None = None, expected_mems: Iterable[int] | None = None,
+                 expected_cpus: Iterable[int] | None = None) -> None:
         if not isinstance(pid, int) or pid <= 0:
             raise ObservationError("PID_INVALID")
         if period_s <= 0 or numa_every_samples <= 0:
@@ -353,6 +470,13 @@ class ProcessObserver:
         self.period_s = float(period_s)
         self.numa_every_samples = int(numa_every_samples)
         self.proc_root = Path(proc_root)
+        if expected_policy is not None and expected_policy not in {"D", "I"}:
+            raise ObservationError("POLICY_EXPECTATION_INVALID")
+        self.expected_policy = expected_policy
+        self.expected_mems = set(expected_mems or ())
+        self.expected_cpus = set(expected_cpus or ())
+        if expected_policy is not None and (not self.expected_mems or not self.expected_cpus):
+            raise ObservationError("POLICY_ALLOWED_SET_MISSING")
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
@@ -368,6 +492,8 @@ class ProcessObserver:
         self._end_perf_counter_ns = 0
         self._collection_wall_ns = 0
         self._thread_cap_hits = 0
+        self._policy_valid_snapshots = 0
+        self._policy_transition_snapshots = 0
         self._thread_cpu_ns = 0
         self._identity: tuple[float, int | None, int] | None = None
         self._jsonl: Path | None = None
@@ -479,9 +605,45 @@ class ProcessObserver:
             "threads": threads, "node": _node_sample(self.proc_root),
             "clock": _clock_metadata(), "units": _units_metadata()}
         if index % self.numa_every_samples == 0:
-            sample["numa_pages_by_node"] = _safe_file(root / "numa_maps", summarize_numa_maps)
+            policy_text = None
+            try:
+                policy_text = _read(root / "numa_maps")
+            except FileNotFoundError:
+                if self.expected_policy is None:
+                    sample["numa_pages_by_node"] = {"status": "UNAVAILABLE", "reason": "FILE_MISSING"}
+                    return sample
+                if self.expected_policy is not None and str(status.get("Name", "")).lower().startswith("numactl"):
+                    sample["numa_pages_by_node"] = {"status": "UNAVAILABLE", "reason": "EXEC_TRANSITION"}
+                    sample["policy_snapshot"] = {"status": "EXEC_TRANSITION", "phase": "EXEC_TRANSITION"}
+                    self._policy_transition_snapshots += 1
+                    return sample
+                if not root.exists():
+                    raise ObservationError("PID_NOT_OBSERVABLE")
+                raise ObservationError("POLICY_NUMA_MAPS_UNAVAILABLE")
+            if self.expected_policy is not None:
+                try:
+                    policy_snapshot = validate_policy_snapshot(
+                        policy_text,
+                        expected_policy=self.expected_policy,
+                        expected_mems=self.expected_mems,
+                        expected_cpus=self.expected_cpus,
+                        cpus_allowed=status.get("Cpus_allowed_list"),
+                        mems_allowed=status.get("Mems_allowed_list"),
+                    )
+                except ObservationError:
+                    if str(status.get("Name", "")).lower().startswith("numactl"):
+                        policy_snapshot = {"status": "EXEC_TRANSITION", "phase": "EXEC_TRANSITION"}
+                        self._policy_transition_snapshots += 1
+                    else:
+                        raise
+                else:
+                    self._policy_valid_snapshots += 1
+                sample["policy_snapshot"] = policy_snapshot
+            sample["numa_pages_by_node"] = summarize_numa_maps(policy_text)
         else:
             sample["numa_pages_by_node"] = {"status": "NOT_SAMPLED", "every_samples": self.numa_every_samples}
+            if self.expected_policy is not None:
+                sample["policy_snapshot"] = {"status": "NOT_SAMPLED", "every_samples": self.numa_every_samples}
         return sample
 
     def _receipt(self) -> dict[str, Any]:
@@ -494,6 +656,11 @@ class ProcessObserver:
             "observer_wall_ns": max(0, self._end_wall_ns - self._start_wall_ns),
             "collection_wall_ns": self._collection_wall_ns,
             "thread_cap_hits": self._thread_cap_hits,
+            "expected_policy": self.expected_policy,
+            "expected_mems": sorted(self.expected_mems) if self.expected_policy is not None else None,
+            "expected_cpus": sorted(self.expected_cpus) if self.expected_policy is not None else None,
+            "policy_valid_snapshots": self._policy_valid_snapshots,
+            "policy_transition_snapshots": self._policy_transition_snapshots,
             "observer_thread_cpu_ns": self._thread_cpu_ns, "errors": list(self._errors),
             "science_arrays_retained": False, "short_lived_children_observed": False,
             "last_periodic_sample_only": True, "end_state_snapshot": False,
@@ -501,4 +668,4 @@ class ProcessObserver:
             "proc_root": str(self.proc_root)}
 
 
-__all__ = ["DEFAULT_PERIOD_S", "MAX_OUTPUT_BYTES", "MAX_SAMPLES", "MAX_THREADS", "ObservationError", "ProcessObserver", "parse_cpu_stat", "parse_proc_stat", "parse_schedstat", "parse_status", "probe_current_pid", "summarize_numa_maps"]
+__all__ = ["DEFAULT_PERIOD_S", "MAX_OUTPUT_BYTES", "MAX_SAMPLES", "MAX_THREADS", "ObservationError", "ProcessObserver", "parse_allowed_list", "parse_cpu_stat", "parse_numa_policy_maps", "parse_proc_stat", "parse_schedstat", "parse_status", "probe_current_pid", "summarize_numa_maps", "validate_policy_snapshot"]

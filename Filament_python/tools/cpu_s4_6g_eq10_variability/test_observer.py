@@ -17,11 +17,14 @@ from .observer import (
     ObservationError,
     ProcessObserver,
     parse_cpu_stat,
+    parse_allowed_list,
+    parse_numa_policy_maps,
     parse_proc_stat,
     parse_schedstat,
     parse_status,
     probe_current_pid,
     summarize_numa_maps,
+    validate_policy_snapshot,
     _node_sample,
     _safe_file,
     _thread_ids_with_bound,
@@ -60,6 +63,25 @@ class ObserverParserTests(unittest.TestCase):
         self.assertEqual(summarize_numa_maps("00400000 default file=/x\n"), {
             "status": "UNAVAILABLE", "reason": "NUMA_NODE_TOKENS_MISSING"
         })
+
+    def test_policy_parser_and_allowed_sets(self):
+        text = "00400000 default file=/x N0=1\n00401000 interleave:0-3 anon=4 N0=1 N1=1 N2=1 N3=1\n"
+        parsed = parse_numa_policy_maps(text)
+        self.assertEqual(parsed["policy_labels"], {"default": 1, "interleave": 1})
+        self.assertEqual(parse_allowed_list("0-3"), {0, 1, 2, 3})
+        valid = validate_policy_snapshot(
+            text, expected_policy="I", expected_mems={0, 1, 2, 3}, expected_cpus={0, 1},
+            cpus_allowed="0-1", mems_allowed="0-3",
+        )
+        self.assertEqual(valid["phase"], "BODY_POLICY")
+
+    def test_default_policy_does_not_require_interleave_suffix(self):
+        valid = validate_policy_snapshot(
+            "00400000 default anon=4 N0=4\n", expected_policy="D",
+            expected_mems={0, 1, 2, 3}, expected_cpus={0},
+            cpus_allowed="0", mems_allowed="0-3",
+        )
+        self.assertEqual(valid["policy"], "D")
 
     @unittest.skipUnless(Path("/proc/self/stat").is_file(), "Linux procfs required")
     def test_current_pid_probe_is_read_only_capability_record(self):

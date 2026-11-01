@@ -16,4 +16,10 @@
 
 只将观测关联解释为关联。线程CPU/wall、NUMA驻留页和CPU MHz采样不能单独证明GIL、NUMA访问带宽或频率因果。需要完整helper/FFT profile时另设对称OFF/PROFILE验证，不能静默放宽6D的profile=False合同。
 
+首轮Job8860011已完成14窗exact及离线复算：body中位改善4.9442%，应用四对平均净省13.7506秒，未重现旧慢配对。缺少可用runqueue/PSI计数，worker节点位置变化只提供下一项检验线索。结果和限制见OBSERVATION_A01_FINDINGS.md。
+
+第二轮私有模式MEMORY_POLICY_CROSSOVER只改变整个子进程的default/interleave-all内存策略。实际14窗由独立POLICY_PLAN.json及其context raw hash绑定，不能冒充旧6F矩阵。资格I:R2/X2；早晚R/R为D；正式两块D:R/X、I:X/R，然后I:R/X、D:X/R，平衡policy、角色和执行顺序。原科学入口/比较器/数学不改，D/I都须有实际body内策略及CPU/Mems允许集合证据。策略变快、变慢及不超过R/R漂移的未决分别记录，不按旧3%门接受混合策略。
+
+第二轮原application/PROPAGATION/process_service时钟不移动、不用body总和替代传播跨度；额外launch锚从Popen前开始，覆盖numactl前缀与进程启动。源码、context与新输出根另行冻结，源增量从首轮3846d179d6fdcefd5ab631a8822883a7e5745243构建；合同见NUMA_POLICY_DIAGNOSTIC_CONTRACT.md。结果仍为DIAGNOSTIC_ONLY。
+
 当前进度读取STATE.json与MONITOR.md；旧记录回溯在validation/old_eq10_scalar_audit。DEFAULT=I0，PRODUCTION_QUALIFIED=false，MANUAL_REVIEW_PENDING。

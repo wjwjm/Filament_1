@@ -8,7 +8,7 @@ import json
 import os
 from pathlib import Path
 import traceback
-from typing import Any
+from typing import Any, Mapping
 
 from tools.hpc_ops import provenance_v2 as pv
 
@@ -61,6 +61,21 @@ def _validate_source_binding(report: Path, execution: dict[str, Any]) -> dict[st
     return {"manifest": manifest_path, "head": current_head, "module_paths": sorted(_module_manifest_paths(repo))}
 
 
+def _validate_policy_plan_binding(report: Path, context: Mapping[str, Any]) -> dict[str, Any]:
+    from .policy_analysis import policy_plan
+
+    plan_path = report / "POLICY_PLAN.json"
+    if not plan_path.is_file():
+        raise RuntimeError("S46G_POLICY_PLAN_MISSING")
+    if context.get("diagnostic_kind") != "MEMORY_POLICY_CROSSOVER":
+        raise RuntimeError("S46G_POLICY_DIAGNOSTIC_KIND")
+    if pv.raw_sha256_file(plan_path) != context.get("policy_plan_raw_sha256"):
+        raise RuntimeError("S46G_POLICY_PLAN_RAW_SHA256")
+    if _read(plan_path) != policy_plan():
+        raise RuntimeError("S46G_POLICY_PLAN_SOURCE_BINDING")
+    return _read(plan_path)
+
+
 def validate_context(report: str | Path, *, execution_commit: str | None = None) -> dict[str, Any]:
     report = Path(report).resolve(strict=True)
     path = report / "DIAGNOSTIC_CONTEXT.json"
@@ -100,6 +115,8 @@ def validate_context(report: str | Path, *, execution_commit: str | None = None)
     if not isinstance(execution.get("execution_commit"), str) or value.get("execution_commit") != execution.get("execution_commit"):
         raise RuntimeError("S46G_CONTEXT_EXECUTION_BINDING")
     _validate_source_binding(report, execution)
+    if value.get("diagnostic_kind") == "MEMORY_POLICY_CROSSOVER":
+        _validate_policy_plan_binding(report, value)
     value = dict(value)
     value["context_raw_sha256"] = context_sha
     value["execution"] = execution
@@ -212,6 +229,10 @@ def run(report: str | Path, candidate: str = "EQ10_P48") -> dict[str, Any]:
     frozen_hpc = importlib.import_module("tools.cpu_s4_6f_fullsize_parallel.hpc")
 
     context = validate_context(report)
+    if context.get("diagnostic_kind") == "MEMORY_POLICY_CROSSOVER":
+        from .policy_diagnostic import run_policy
+
+        return run_policy(report, candidate, context=context)
     original_supervisor = frozen_hpc._supervise_process
     observations: list[dict[str, Any]] = []
     observer_errors: list[dict[str, str]] = []
