@@ -237,6 +237,7 @@ def _helpers(pool: IntensityPool, *, guard: Callable[[], None] | None = None) ->
         pool.ufunc("A_ABS", np.absolute, (E,), magnitude)
         squared = np.empty(E.shape, dtype=np.float64)
         pool.ufunc("A_SQUARE", np.square, (magnitude,), squared)
+        del magnitude
         result = np.empty(E.shape, dtype=np.float64)
         pool.ufunc("A_SCALE", np.multiply, (coefficient, squared), result)
         return result.astype(rdtype, copy=False)
