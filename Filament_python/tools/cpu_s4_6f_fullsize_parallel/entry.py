@@ -383,7 +383,11 @@ def main(argv=None):
     args = parser.parse_args(argv)
     args.shape = MICRO_SHAPE if args.local_engineering else SHAPE
     try:
-        return run(args)
+        result = run(args)
+        print(json.dumps({name: result[name] for name in (
+            "status", "semantic_candidate", "role", "intervals", "application_service_s"
+        )}))
+        return 0
     except BaseException as error:
         if args.work.is_dir() and not (args.work / "ENTRY_FAILURE.json").exists():
             science = any(tag in repr(error) for tag in ("STOP_FIRST_SCIENCE_NONEXACT", "STOP_FIRST_STAGE_NONEXACT"))

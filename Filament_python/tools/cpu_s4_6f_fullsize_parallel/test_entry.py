@@ -14,6 +14,19 @@ from .hpc import _child_failure_classification, _classify_failure, _require_fres
 from .protocol import MICRO_SHAPE, SHAPE
 
 
+def test_cli_success_returns_zero_and_compact_summary(monkeypatch, tmp_path, capsys):
+    from . import entry
+
+    expected = dict(status="CURRENT_S46F_REFERENCE_GENERATED", semantic_candidate="EQ10_P48",
+                    role="R", intervals=2, application_service_s=1.0)
+    monkeypatch.setattr(entry, "run", lambda args: {**expected, "large_details": [0] * 1000})
+    code = entry.main(["--report", str(tmp_path), "--work", str(tmp_path / "case"),
+                       "--candidate", "EQ10_P48", "--role", "R", "--intervals", "2", "--local-engineering"])
+    assert code == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == expected and not captured.err
+
+
 def test_admission_has_only_two_qualification_or_eight_off_windows(monkeypatch):
     monkeypatch.delenv("SLURM_JOB_ID", raising=False)
     admission(candidate="EQ10_P48", local_engineering=True, shape=MICRO_SHAPE, intervals=2, mode="QUALIFY_BOUNDARY")
@@ -113,6 +126,7 @@ def test_real_micro_entry_opt_in():
             sg.input_manifest(report, shape=MICRO_SHAPE)
         input_manifest = str(manifest_path)
     results = {}
+    work.mkdir(parents=True, exist_ok=False)
     for label, role, intervals in (("R2", "R", 2), ("X2", "X", 2), ("R8", "R", 8), ("X8", "X", 8)):
         case_work = work / label
         env = os.environ.copy()
@@ -123,7 +137,10 @@ def test_real_micro_entry_opt_in():
             argv.extend(("--reference-output", reference["output"]))
             if intervals == 2:
                 argv.extend(("--reference-boundary", reference["boundary_path"], "--reference-stages", reference["stages"]))
-        subprocess.run(argv, check=True, env=env)
+        stdout_path, stderr_path = work / (label + ".stdout.log"), work / (label + ".stderr.log")
+        with stdout_path.open("xb") as stdout, stderr_path.open("xb") as stderr:
+            process = subprocess.run(argv, env=env, stdout=stdout, stderr=stderr)
+        assert process.returncode == 0, f"{label}: exit {process.returncode}; see {stdout_path} and {stderr_path}"
         receipt = json.loads((case_work / "CASE_RECEIPT.json").read_text(encoding="utf-8"))
         assert receipt["execution_domain"] == "S46F_LOCAL_MICRO"
         assert receipt["route"]["nH"] == 2 * intervals and receipt["route"]["fresh_responses"] == 4 * intervals and receipt["route"]["math_dispatches"] == 16 * intervals
