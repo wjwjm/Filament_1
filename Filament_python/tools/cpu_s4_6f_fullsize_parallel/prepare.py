@@ -85,7 +85,7 @@ def prepare(
     pv.validate_manifest(repo, report / "EXECUTION_SOURCE_MANIFEST.json", require_clean=True, require_hash_scope=True)
     input_source = read(input_plan)
     canonical_root = _external_path(full_input_root)
-    canonical_manifest_hash = canonical_manifest_sha256 or pv.raw_sha256_file(canonical_input_manifest)
+    canonical_manifest_hash = canonical_manifest_sha256 or pv.raw_sha256_file(Path(canonical_input_manifest))
     sg.write(report / "INPUT_CONTRACT.json", dict(schema="filament.cpu_s4_6f.input_contract.v1", input_contract=input_source.get("input_contract", {}), expected_input_fingerprints=input_source.get("expected_input_fingerprints", {}), canonical_root=canonical_root, canonical_manifest_raw_sha256=canonical_manifest_hash, canonical_input_manifest=str(Path(canonical_input_manifest).resolve()), canonical_input_manifest_raw_sha256=canonical_manifest_hash, full_input_root=canonical_root, source=str(Path(input_plan).resolve()), classification="external", hash_scope="raw_bytes", source_raw_sha256=pv.raw_sha256_file(input_plan), shape=list(SHAPE), dtype="complex128", native_layout="C"))
     sg.write(report / "FULL_INPUT_MANIFEST.json", dict(schema="filament.cpu_s4_6f.full_input_manifest.v1", classification="external", hash_scope="raw_bytes", shape=list(SHAPE), dtype="complex128", native_layout="C", fingerprints=input_source.get("expected_input_fingerprints", {}), canonical_root=canonical_root, canonical_manifest_raw_sha256=canonical_manifest_hash, input_plan_raw_sha256=pv.raw_sha256_file(input_plan), source=str(Path(input_plan).resolve()), source_raw_sha256=pv.raw_sha256_file(input_plan)))
     full_input_manifest_raw_sha256 = pv.raw_sha256_file(report / "FULL_INPUT_MANIFEST.json")
