@@ -8,7 +8,7 @@
 
 6F引擎的结果/计数/时钟仍按原定义输出，但整个新作业标记为DIAGNOSTIC_ONLY：其旧资源字段和性能门作为复用引擎的记录保留，本研究授权与资源预算以新AUTHORIZATION/DIAGNOSTIC_CONTEXT和资源账为准。新结果不替换S4-6F的四对样本，也不自动成为生产资格。
 
-资源逐次审批由父级执行：最大在途1个；首个作业96物理核、128GiB内存、2小时、0GPU，工作截止7080秒及实际allocation/cgroup较小值80%内存线。根据上轮5964秒，预计约95–100分钟。后续最多再做2个有明确检验因素的诊断作业，每次冻结合同并复核资源；无自动重试或requeue。正常诊断预留上限576 allocated核时，实际按scheduler终态记账。
+已获得多次CPU提交授权，由父级逐次核验资源并执行：最大在途1个；首个作业96物理核、128GiB内存、2小时、0GPU，工作截止7080秒及实际allocation/cgroup较小值80%内存线。根据上轮5964秒，预计约95–100分钟。后续最多再做2个有明确检验因素的诊断作业，每次冻结合同并复核资源；无自动重试或requeue。正常诊断预留上限576 allocated核时，实际按scheduler终态记账。
 
 磁盘按当前单个作业逐项估算加20%余量；初始账户剩余约68.6GiB。旧四作业的128GiB磁盘总预留已结项，不冒充本轮单作业预算。保留所有历史证据；下一作业空间不足时停止提交，不能自动删除旧数据。
 
@@ -21,5 +21,9 @@
 第二轮私有模式MEMORY_POLICY_CROSSOVER只改变整个子进程的default/interleave-all内存策略。实际14窗由独立POLICY_PLAN.json及其context raw hash绑定，不能冒充旧6F矩阵。资格I:R2/X2；早晚R/R为D；正式两块D:R/X、I:X/R，然后I:R/X、D:X/R，平衡policy、角色和执行顺序。原科学入口/比较器/数学不改，D/I都须有实际body内策略及CPU/Mems允许集合证据。策略变快、变慢及不超过R/R漂移的未决分别记录，不按旧3%门接受混合策略。
 
 第二轮原application/PROPAGATION/process_service时钟不移动、不用body总和替代传播跨度；额外launch锚从Popen前开始，覆盖numactl前缀与进程启动。源码、context与新输出根另行冻结，源增量从首轮3846d179d6fdcefd5ab631a8822883a7e5745243构建；合同见NUMA_POLICY_DIAGNOSTIC_CONTRACT.md。结果仍为DIAGNOSTIC_ONLY。
+
+第二轮a01的Job8860347发生观察器工程失败，0个窗口获本轮接受，原参考子进程exit0。原端与离线失败证据全部保留，详见POLICY_A01_FAILURE.md。依赖导入探针复现NumPy/SciPy创建两个匿名32MiB、无驻留页的local预留映射，足以触发原严格策略检查；这不解释旧生产耗时异常的根因。
+
+工程修订v2只识别上述有界零驻留预留区，仍拒绝实际驻留、大小/数量异常和其他策略；compute探针在真实依赖加载及1MiB合成数组填充后检查该数组自身策略。新的失败摘要剥离地址/路径，原数学及科学树保持。分析分类遵循原合同的同号与平衡log效应规则。修订依据NUMA_POLICY_DIAGNOSTIC_REPAIR_V2.md；必须独立测试、冻结新SHA与新root，空间不足不得提交，不与失败a01拼接数据。
 
 当前进度读取STATE.json与MONITOR.md；旧记录回溯在validation/old_eq10_scalar_audit。DEFAULT=I0，PRODUCTION_QUALIFIED=false，MANUAL_REVIEW_PENDING。

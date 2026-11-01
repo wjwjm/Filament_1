@@ -7,6 +7,7 @@ import json
 import math
 import os
 from pathlib import Path
+import selectors
 import subprocess
 import statistics
 import sys
@@ -17,7 +18,15 @@ from typing import Any, Mapping
 from tools.cpu_s4_3g3_smallgrid import benchmark as sg
 from tools.hpc_ops import provenance_v2 as pv
 
-from .observer import ProcessObserver, parse_allowed_list, parse_numa_policy_maps, parse_status
+from .observer import (
+    ObservationError,
+    ProcessObserver,
+    _parse_numa_policy_records,
+    _parse_proc_maps,
+    parse_allowed_list,
+    parse_status,
+    validate_policy_snapshot,
+)
 from .policy_analysis import analyze_policy, policy_plan
 
 
@@ -79,6 +88,105 @@ def _numactl_probe(expected_mems: set[int]) -> dict[str, Any]:
     return dict(status="PASS_NODE_NUMACTL_PROBE", expected_mems=sorted(expected_mems), commands=receipts)
 
 
+def _array_policy_evidence(
+    *,
+    maps_text: str,
+    numa_maps_text: str,
+    pointer: int,
+    nbytes: int,
+    filled: bool,
+    retained: bool,
+    expected_policy: str,
+    expected_mems: set[int],
+) -> dict[str, Any]:
+    """Bind the probe array pointer to its address-free NUMA policy row."""
+
+    _require(type(pointer) is int and pointer > 0, "POLICY_PROBE_POINTER_INVALID")
+    _require(nbytes == 1 << 20 and filled is True and retained is True, "POLICY_PROBE_ARRAY_CONTRACT")
+    mappings = _parse_proc_maps(maps_text)
+    containing = [
+        row for row in mappings
+        if row["start"] <= pointer < row["start"] + row["size_bytes"]
+        and pointer + nbytes <= row["start"] + row["size_bytes"]
+    ]
+    _require(len(containing) == 1, "POLICY_PROBE_ARRAY_MAP_RANGE")
+    mapping = containing[0]
+    mapping_kind = "heap" if mapping["kind"] == "special" and mapping["path"] == "[heap]" else mapping["kind"]
+    _require(mapping_kind in ("anonymous", "heap") and (mapping_kind == "anonymous" or mapping["path"] == "[heap]"), "POLICY_PROBE_ARRAY_MAP_KIND")
+    records = _parse_numa_policy_records(numa_maps_text)
+    matching = [row for row in records if row["start"] == mapping["start"]]
+    _require(len(matching) == 1, "POLICY_PROBE_ARRAY_NUMA_ASSOCIATION")
+    record = matching[0]
+    expected_label = {"D": "default", "I": "interleave"}.get(expected_policy)
+    _require(expected_label is not None and record["policy"] == expected_label, "POLICY_PROBE_ARRAY_POLICY")
+    nodes = record.get("nodes")
+    if expected_policy == "I":
+        _require(nodes is not None and set(nodes) == expected_mems, "POLICY_PROBE_ARRAY_NODE_SET")
+    return {
+        "nbytes": nbytes,
+        "filled": filled,
+        "retained": retained,
+        "physical_simulation_data": False,
+        "full_range_covered": True,
+        "mapping_kind": mapping_kind,
+        "policy": record["policy"],
+        "policy_token": record["policy_token"],
+        "policy_nodes": sorted(nodes) if nodes is not None else [],
+    }
+
+
+def _read_probe_ready(stream: Any, policy: str) -> dict[str, Any]:
+    """Read exactly one bounded, address-free child READY JSON record."""
+
+    _require(stream is not None, "POLICY_CHILD_PROBE_STDOUT_MISSING:" + policy)
+    selector = selectors.DefaultSelector()
+    try:
+        selector.register(stream, selectors.EVENT_READ)
+        if not selector.select(10.0):
+            raise PolicyEngineeringFailure("POLICY_CHILD_PROBE_READY_TIMEOUT:" + policy)
+        line = stream.readline()
+    finally:
+        selector.close()
+    if not line:
+        raise PolicyEngineeringFailure("POLICY_CHILD_PROBE_READY_EOF:" + policy)
+    try:
+        value = json.loads(line)
+    except (TypeError, ValueError) as exc:
+        raise PolicyEngineeringFailure("POLICY_CHILD_PROBE_READY_JSON_INVALID:" + policy) from exc
+    _require(isinstance(value, Mapping), "POLICY_CHILD_PROBE_READY_SCHEMA:" + policy)
+    return dict(value)
+
+
+def _validate_probe_ready(value: Mapping[str, Any], policy: str, expected_mems: set[int]) -> dict[str, Any]:
+    _require(value.get("schema") == "filament.cpu.s46g.policy_probe.v1" and value.get("status") == "READY", "POLICY_CHILD_PROBE_READY_STATUS:" + policy)
+    array = value.get("synthetic_array")
+    allowed = {
+        "nbytes", "filled", "retained", "physical_simulation_data", "full_range_covered",
+        "mapping_kind", "policy", "policy_token", "policy_nodes",
+    }
+    _require(isinstance(array, Mapping) and set(array) == allowed, "POLICY_CHILD_PROBE_ARRAY_SCHEMA:" + policy)
+    expected_label = {"D": "default", "I": "interleave"}.get(policy)
+    _require(expected_label is not None, "POLICY_CHILD_PROBE_POLICY_UNKNOWN:" + policy)
+    nodes = array.get("policy_nodes")
+    _require(
+        type(array.get("nbytes")) is int
+        and array.get("nbytes") == 1 << 20
+        and array.get("filled") is True
+        and array.get("retained") is True
+        and array.get("physical_simulation_data") is False
+        and array.get("full_range_covered") is True
+        and array.get("mapping_kind") in ("anonymous", "heap")
+        and array.get("policy") == expected_label
+        and isinstance(array.get("policy_token"), str)
+        and array.get("policy_token").split(":", 1)[0] == expected_label
+        and isinstance(nodes, list)
+        and all(type(node) is int for node in nodes)
+        and (set(nodes) == expected_mems if policy == "I" else nodes == []),
+        "POLICY_CHILD_PROBE_ARRAY_CONTRACT:" + policy,
+    )
+    return dict(array)
+
+
 def _compute_node_policy_probe(expected_mems: set[int]) -> dict[str, Any]:
     """Prove D/I on this allocation with a tiny non-scientific child process."""
 
@@ -90,48 +198,105 @@ def _compute_node_policy_probe(expected_mems: set[int]) -> dict[str, Any]:
         raise PolicyEngineeringFailure("POLICY_CPU_AFFINITY_UNAVAILABLE") from exc
     _require(expected_cpus, "POLICY_CPU_AFFINITY_EMPTY")
     numactl = "/usr/bin/numactl"
-    child_code = (
-        "import mmap,time; m=mmap.mmap(-1,16384); m.write(b'x'*16384); "
-        "print('S46G_POLICY_PROBE_READY', flush=True); time.sleep(1.0)"
-    )
+    source_root = str(Path(__file__).resolve().parents[2])
+    child_code = f"""
+import json, sys, time
+import numpy as np, scipy.fft, numba
+sys.path.insert(0, {source_root!r})
+from tools.cpu_s4_6g_eq10_variability.observer import _parse_numa_policy_records, _parse_proc_maps
+policy = sys.argv[1]
+expected_mems = {{int(value) for value in sys.argv[2].split(',') if value}}
+a = np.empty(131072, dtype=np.float64)
+a.fill(1.0)
+keep = (a, scipy.fft, numba)
+pointer = int(a.__array_interface__['data'][0])
+maps = _parse_proc_maps(open('/proc/self/maps', encoding='utf-8').read())
+containing = [row for row in maps if row['start'] <= pointer < row['start'] + row['size_bytes'] and pointer + a.nbytes <= row['start'] + row['size_bytes']]
+if len(containing) != 1:
+    raise RuntimeError('POLICY_PROBE_ARRAY_MAP_RANGE')
+mapping = containing[0]
+mapping_kind = 'heap' if mapping['kind'] == 'special' and mapping['path'] == '[heap]' else mapping['kind']
+if mapping_kind not in ('anonymous', 'heap'):
+    raise RuntimeError('POLICY_PROBE_ARRAY_MAP_KIND')
+records = _parse_numa_policy_records(open('/proc/self/numa_maps', encoding='utf-8').read())
+matching = [row for row in records if row['start'] == mapping['start']]
+if len(matching) != 1:
+    raise RuntimeError('POLICY_PROBE_ARRAY_NUMA_ASSOCIATION')
+record = matching[0]
+expected_label = {{'D': 'default', 'I': 'interleave'}}.get(policy)
+if record['policy'] != expected_label:
+    raise RuntimeError('POLICY_PROBE_ARRAY_POLICY')
+nodes = record.get('nodes')
+if policy == 'I' and (nodes is None or set(nodes) != expected_mems):
+    raise RuntimeError('POLICY_PROBE_ARRAY_NODE_SET')
+if policy == 'D' and nodes not in (None, set()):
+    raise RuntimeError('POLICY_PROBE_ARRAY_DEFAULT_NODES')
+ready = {{
+    'schema': 'filament.cpu.s46g.policy_probe.v1',
+    'status': 'READY',
+    'synthetic_array': {{
+        'nbytes': int(a.nbytes),
+        'filled': True,
+        'retained': True,
+        'physical_simulation_data': False,
+        'full_range_covered': True,
+        'mapping_kind': mapping_kind,
+        'policy': record['policy'],
+        'policy_token': record['policy_token'],
+        'policy_nodes': sorted(nodes) if nodes is not None else [],
+    }},
+}}
+print(json.dumps(ready, separators=(',', ':')), flush=True)
+time.sleep(2.0)
+"""
     records: dict[str, Any] = {}
     for policy, prefix in (("D", []), ("I", [numactl, "--interleave=all"])):
         argv = [*prefix, sys.executable, "-s", "-B", "-c", child_code]
         try:
+            argv.append(policy)
+            argv.append(",".join(str(value) for value in sorted(expected_mems)))
             child = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
         except (OSError, subprocess.SubprocessError) as exc:
             raise PolicyEngineeringFailure("POLICY_CHILD_PROBE_START_FAILED:" + policy) from exc
         evidence = None
+        last_probe_error = None
         try:
+            ready = _read_probe_ready(child.stdout, policy)
+            array_evidence = _validate_probe_ready(ready, policy, expected_mems)
             until = time.monotonic() + 10.0
             while time.monotonic() < until and child.poll() is None:
                 root = proc_root / str(child.pid)
                 try:
                     status_text = (root / "status").read_text(encoding="utf-8", errors="replace")
-                    maps_text = (root / "numa_maps").read_text(encoding="utf-8", errors="replace")
+                    proc_maps_text = (root / "maps").read_text(encoding="utf-8", errors="replace")
+                    numa_maps_text = (root / "numa_maps").read_text(encoding="utf-8", errors="replace")
                     status = parse_status(status_text, {"Name", "Cpus_allowed_list", "Mems_allowed_list"})
-                    parsed = parse_numa_policy_maps(maps_text)
                     cpus = parse_allowed_list(status.get("Cpus_allowed_list"))
                     mems = parse_allowed_list(status.get("Mems_allowed_list"))
-                    expected_label = "default" if policy == "D" else "interleave"
-                    labels = parsed.get("policy_labels", {}) if parsed.get("status") == "MEASURED" else {}
-                    node_sets = parsed.get("policy_node_sets", {}).get(expected_label, []) if labels else []
-                    label_ok = (
-                        set(labels) == {expected_label}
-                        if policy == "D"
-                        else expected_label in labels and set(labels).issubset({"default", expected_label})
+                    parsed = validate_policy_snapshot(
+                        numa_maps_text,
+                        expected_policy=policy,
+                        expected_mems=expected_mems,
+                        expected_cpus=expected_cpus,
+                        cpus_allowed=status.get("Cpus_allowed_list"),
+                        mems_allowed=status.get("Mems_allowed_list"),
+                        maps_text=proc_maps_text,
                     )
-                    node_ok = policy == "D" or bool(node_sets) and all(set(nodes) == expected_mems for nodes in node_sets)
-                    if cpus == expected_cpus and mems == expected_mems and label_ok and node_ok:
+                    if cpus == expected_cpus and mems == expected_mems:
                         evidence = {
                             "policy": policy, "pid": child.pid, "argv": argv,
                             "cpus_allowed": sorted(cpus), "mems_allowed": sorted(mems),
-                            "policy_labels": labels, "policy_node_sets": node_sets,
+                            "policy_labels": parsed["policy_labels"],
+                            "raw_policy_labels": parsed["raw_policy_labels"],
+                            "policy_node_sets": parsed["policy_node_sets"],
                             "pages_by_node": parsed.get("pages_by_node"),
+                            "local_reservations": parsed["local_reservations"],
+                            "local_reservation_summary": parsed["local_reservation_summary"],
+                            "synthetic_array": array_evidence,
                         }
                         break
-                except (FileNotFoundError, PermissionError, OSError):
-                    pass
+                except (FileNotFoundError, PermissionError, OSError, ObservationError, PolicyEngineeringFailure) as exc:
+                    last_probe_error = {"reason": str(exc), "details": dict(getattr(exc, "details", {}))}
                 time.sleep(0.05)
             stdout, stderr = child.communicate(timeout=5)
         except subprocess.TimeoutExpired as exc:
@@ -142,7 +307,7 @@ def _compute_node_policy_probe(expected_mems: set[int]) -> dict[str, Any]:
             if child.poll() is None:
                 child.kill()
                 child.wait(timeout=5)
-        _require(child.returncode == 0 and evidence is not None, "POLICY_CHILD_PROBE_FAILED", {"policy": policy, "returncode": child.returncode, "stdout": stdout[-512:], "stderr": stderr[-512:]})
+        _require(child.returncode == 0 and evidence is not None, "POLICY_CHILD_PROBE_FAILED", {"policy": policy, "returncode": child.returncode, "last_error": last_probe_error})
         records[policy] = evidence
     return {"status": "PASS_NODE_POLICY_PROBE", "expected_mems": sorted(expected_mems), "expected_cpus": sorted(expected_cpus), "records": records}
 

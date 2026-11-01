@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from pathlib import Path
 import tempfile
 import unittest
@@ -44,6 +45,9 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(plan["expected_mems"], [0, 1, 2, 3])
         self.assertEqual(plan["policies"]["D"]["argv_prefix"], [])
         self.assertEqual(plan["policies"]["I"]["argv_prefix"], ["/usr/bin/numactl", "--interleave=all"])
+        self.assertEqual(plan["policy_plan_revision"], "LOCAL_RESERVATION_EXCEPTION_V1")
+        self.assertEqual(plan["local_reservation_exception"]["max_vmas"], 2)
+        self.assertEqual(plan["local_reservation_exception"]["resident_pages_total"], 0)
 
     def test_faster_slower_and_undetermined_classifications(self):
         plan = policy_plan()
@@ -60,6 +64,41 @@ class PolicyTests(unittest.TestCase):
         result = analyze_policy(accepted, launches)
         self.assertEqual(result["classification"], "NO_DETERMINATE_POLICY_SIGNAL")
         self.assertGreater(result["rr_drift_max_abs_log"]["later_body"], 0.0)
+
+    def test_contract_requires_same_nonzero_sign_and_mean_above_drift(self):
+        plan = policy_plan()
+        accepted, launches = _evidence(plan, 80.0)
+        # K1 is faster while K2 is slower for role R: the role is unresolved.
+        for key in ("later_body_s", "application_service_s"):
+            accepted["K2_R1"][key] = 120.0
+        for key in ("propagation_s", "initialization_total_s"):
+            launches["K2_R1"]["clock_metrics"][key] = 120.0
+        launches["K2_R1"]["launch_scope_s"] = 132.0
+        launches["K2_R1"]["process_service_s"] = 144.0
+        result = analyze_policy(accepted, launches)
+        self.assertEqual(result["role_metric_classification"]["R"]["overall"]["later_body"], "NO_DETERMINATE_POLICY_SIGNAL")
+        # Equality with RR drift is not sufficient because the contract uses >.
+        accepted, launches = _evidence(plan, 80.0)
+        threshold = 100.0 * math.exp(-0.01)
+        for case in ("CTRL_LATE_R2", "K1_R2", "K1_X2", "K2_R1", "K2_X1"):
+            accepted[case]["later_body_s"] = threshold
+            accepted[case]["application_service_s"] = threshold
+            launches[case]["clock_metrics"]["propagation_s"] = threshold
+            launches[case]["clock_metrics"]["initialization_total_s"] = threshold
+            launches[case]["launch_scope_s"] = threshold * 1.1
+            launches[case]["process_service_s"] = threshold * 1.2
+        result = analyze_policy(accepted, launches)
+        self.assertEqual(result["role_metric_classification"]["R"]["overall"]["later_body"], "NO_DETERMINATE_POLICY_SIGNAL")
+        # A zero block effect is unresolved even when the other block is faster.
+        accepted, launches = _evidence(plan, 80.0)
+        for key in ("later_body_s", "application_service_s"):
+            accepted["K2_R1"][key] = 100.0
+        for key in ("propagation_s", "initialization_total_s"):
+            launches["K2_R1"]["clock_metrics"][key] = 100.0
+        launches["K2_R1"]["launch_scope_s"] = 110.0
+        launches["K2_R1"]["process_service_s"] = 120.0
+        result = analyze_policy(accepted, launches)
+        self.assertEqual(result["role_metric_classification"]["R"]["overall"]["later_body"], "NO_DETERMINATE_POLICY_SIGNAL")
 
     def test_role_reversal_is_not_hidden_by_balanced_average(self):
         plan = policy_plan()

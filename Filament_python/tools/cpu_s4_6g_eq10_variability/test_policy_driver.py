@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import io
 from pathlib import Path
 import tempfile
 import unittest
@@ -26,6 +27,156 @@ def _case_receipt() -> dict:
 
 
 class PolicyDriverTests(unittest.TestCase):
+    def test_compute_node_probe_loads_real_dependencies_and_retains_synthetic_array(self):
+        class FakeSelector:
+            def register(self, *args):
+                return None
+
+            def select(self, timeout):
+                return [object()]
+
+            def close(self):
+                return None
+
+        class FakeProcess:
+            pid = 7711
+
+            def __init__(self, policy):
+                self.stdin = io.StringIO()
+                label = "default" if policy == "D" else "interleave"
+                token = "default" if policy == "D" else "interleave:0-3"
+                nodes = [] if policy == "D" else [0, 1, 2, 3]
+                self.stdout = io.StringIO(json.dumps({
+                    "schema": "filament.cpu.s46g.policy_probe.v1",
+                    "status": "READY",
+                    "synthetic_array": {
+                        "nbytes": 1048576, "filled": True, "retained": True,
+                        "physical_simulation_data": False, "full_range_covered": True,
+                        "mapping_kind": "heap" if policy == "D" else "anonymous",
+                        "policy": label, "policy_token": token, "policy_nodes": nodes,
+                    },
+                }) + "\n")
+                self.returncode = 0
+                self.done = False
+
+            def poll(self):
+                return 0 if self.done else None
+
+            def communicate(self, timeout=None):
+                self.done = True
+                return "", ""
+
+            def kill(self):
+                self.done = True
+
+            def wait(self, timeout=None):
+                self.done = True
+                return 0
+
+        with tempfile.TemporaryDirectory() as root:
+            proc_root = Path(root)
+            child_root = proc_root / "7711"
+            child_root.mkdir()
+            (child_root / "status").write_text(
+                "Name:\tpython\nCpus_allowed_list:\t0-1\nMems_allowed_list:\t0-3\n", encoding="utf-8"
+            )
+            (child_root / "maps").write_text("00400000-00600000 rw-p 00000000 00:00 0\n", encoding="utf-8")
+            (child_root / "numa_maps").write_text("00400000 default anon N0=1\n", encoding="utf-8")
+            real_path = Path
+            popen_calls = []
+
+            def fake_path(value):
+                return proc_root if str(value) == "/proc" else real_path(value)
+
+            def fake_popen(argv, **kwargs):
+                popen_calls.append(argv)
+                if "--interleave=all" in argv:
+                    (child_root / "numa_maps").write_text("00400000 interleave:0-3 anon N0=1 N1=1 N2=1 N3=1\n", encoding="utf-8")
+                else:
+                    (child_root / "numa_maps").write_text("00400000 default anon N0=1\n", encoding="utf-8")
+                return FakeProcess("I" if "--interleave=all" in argv else "D")
+
+            with mock.patch.object(driver, "Path", side_effect=fake_path), mock.patch.object(
+                driver.os, "sched_getaffinity", create=True, return_value={0, 1}
+            ), mock.patch.object(driver.subprocess, "Popen", side_effect=fake_popen), mock.patch.object(
+                driver.selectors, "DefaultSelector", return_value=FakeSelector()
+            ):
+                value = driver._compute_node_policy_probe({0, 1, 2, 3})
+        self.assertEqual(value["status"], "PASS_NODE_POLICY_PROBE")
+        self.assertTrue(all(row["synthetic_array"]["retained"] for row in value["records"].values()))
+        self.assertTrue(all(row["synthetic_array"]["full_range_covered"] for row in value["records"].values()))
+        self.assertTrue(all(row["synthetic_array"]["mapping_kind"] in ("anonymous", "heap") for row in value["records"].values()))
+        self.assertTrue(all(row["synthetic_array"]["filled"] for row in value["records"].values()))
+        code = " ".join(str(item) for argv in popen_calls for item in argv)
+        self.assertIn("numpy", code)
+        self.assertIn("scipy.fft", code)
+        self.assertIn("numba", code)
+        self.assertIn("131072", code)
+
+    def test_array_probe_rejects_cross_vma_and_policy_mismatch(self):
+        heap = driver._array_policy_evidence(
+            maps_text="00400000-00600000 rw-p 00000000 00:00 0 [heap]\n",
+            numa_maps_text="00400000 default anon N0=1\n",
+            pointer=0x00401000,
+            nbytes=1 << 20,
+            filled=True,
+            retained=True,
+            expected_policy="D",
+            expected_mems={0, 1, 2, 3},
+        )
+        self.assertEqual(heap["mapping_kind"], "heap")
+        with self.assertRaisesRegex(driver.PolicyEngineeringFailure, "POLICY_PROBE_ARRAY_MAP_RANGE"):
+            driver._array_policy_evidence(
+                maps_text="00400000-00480000 rw-p 00000000 00:00 0\n",
+                numa_maps_text="00400000 default anon N0=1\n",
+                pointer=0x00400000,
+                nbytes=1 << 20,
+                filled=True,
+                retained=True,
+                expected_policy="D",
+                expected_mems={0, 1, 2, 3},
+            )
+        with self.assertRaisesRegex(driver.PolicyEngineeringFailure, "POLICY_PROBE_ARRAY_POLICY"):
+            driver._array_policy_evidence(
+                maps_text="00400000-00600000 rw-p 00000000 00:00 0\n",
+                numa_maps_text="00400000 default anon N0=1\n",
+                pointer=0x00401000,
+                nbytes=1 << 20,
+                filled=True,
+                retained=True,
+                expected_policy="I",
+                expected_mems={0, 1, 2, 3},
+            )
+
+    def test_single_ready_timeout_and_failed_metadata_do_not_retain_pointer(self):
+        class TimeoutSelector:
+            def register(self, *args):
+                return None
+
+            def select(self, timeout):
+                return []
+
+            def close(self):
+                return None
+
+        with mock.patch.object(driver.selectors, "DefaultSelector", return_value=TimeoutSelector()):
+            with self.assertRaisesRegex(driver.PolicyEngineeringFailure, "POLICY_CHILD_PROBE_READY_TIMEOUT") as raised:
+                driver._read_probe_ready(io.StringIO(), "D")
+        self.assertNotIn("4198400", str(raised.exception))
+        bad = {
+            "schema": "filament.cpu.s46g.policy_probe.v1",
+            "status": "READY",
+            "synthetic_array": {
+                "nbytes": 1048576, "filled": True, "retained": True,
+                "physical_simulation_data": False, "full_range_covered": True,
+                "mapping_kind": "anonymous", "policy": "interleave",
+                "policy_token": "interleave:0-3", "policy_nodes": [0, 1, 2, 3],
+            },
+        }
+        with self.assertRaisesRegex(driver.PolicyEngineeringFailure, "POLICY_CHILD_PROBE_ARRAY_CONTRACT") as raised:
+            driver._validate_probe_ready(bad, "D", {0, 1, 2, 3})
+        self.assertNotIn("4198400", str(raised.exception))
+
     def _run_launch(self, *, policy: str, fail: bool = False):
         plan = policy_plan()
         row = next(item for item in plan["matrix"] if item["case"] == ("K1_X2" if policy == "I" else "K1_X1"))

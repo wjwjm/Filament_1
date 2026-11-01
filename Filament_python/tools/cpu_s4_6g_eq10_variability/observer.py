@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 import threading
 import time
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 try:
     import psutil
@@ -26,10 +26,16 @@ MAX_THREADS = 512
 MAX_OUTPUT_BYTES = 64 * 1024 * 1024
 DEFAULT_PERIOD_S = 5.0
 SCHEMA = "filament.cpu_s46g.telemetry.v1"
+LOCAL_RESERVATION_SIZE_BYTES = 32 * 1024 * 1024
+MAX_LOCAL_RESERVATION_VMAS = 2
 
 
 class ObservationError(RuntimeError):
     """A sampler contract or process identity failure."""
+
+    def __init__(self, message: str, details: dict[str, Any] | None = None) -> None:
+        super().__init__(message)
+        self.details = dict(details or {})
 
 
 def _clock_metadata() -> dict[str, Any]:
@@ -165,6 +171,7 @@ def summarize_numa_maps(text: str) -> dict[str, int] | dict[str, str]:
 
 
 _NUMA_POLICY_BASES = {"default", "interleave", "preferred", "bind", "local", "membind", "weighted_interleave"}
+_NUMA_PAGE_COUNTER_FIELDS = {"anon", "mapped", "dirty", "active", "writeback", "swapcache", "unstable"}
 
 
 def parse_allowed_list(value: Any) -> set[int] | None:
@@ -198,6 +205,83 @@ def _parse_policy_nodes(token: str) -> set[int] | None:
     return parse_allowed_list(suffix)
 
 
+def _parse_numa_node_tokens(tokens: Iterable[str]) -> tuple[dict[str, int], bool]:
+    pages: dict[str, int] = {}
+    seen = False
+    for token in tokens:
+        if not token.startswith("N"):
+            continue
+        seen = True
+        if "=" not in token:
+            raise ObservationError("NUMA_NODE_FIELD_INVALID")
+        node, raw_pages = token.split("=", 1)
+        if not node[1:].isdigit() or not raw_pages.isdigit():
+            raise ObservationError("NUMA_NODE_FIELD_INVALID")
+        if node in pages:
+            raise ObservationError("NUMA_NODE_FIELD_DUPLICATE")
+        pages[node] = int(raw_pages)
+    return pages, seen
+
+
+def _parse_numa_page_counters(tokens: Iterable[str]) -> dict[str, int]:
+    counters: dict[str, int] = {}
+    for token in tokens:
+        if "=" not in token:
+            continue
+        name, raw_value = token.split("=", 1)
+        if name not in _NUMA_PAGE_COUNTER_FIELDS:
+            continue
+        if not raw_value.isdigit():
+            raise ObservationError("NUMA_PAGE_COUNTER_INVALID")
+        counters[name] = int(raw_value)
+    return counters
+
+
+def _parse_numa_policy_records(text: str) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    try:
+        for line in text.splitlines():
+            tokens = line.split()
+            if not tokens:
+                continue
+            try:
+                start = int(tokens[0], 16)
+            except (TypeError, ValueError) as exc:
+                raise ObservationError("NUMA_MAP_START_INVALID") from exc
+            policy_token = tokens[1] if len(tokens) > 1 else None
+            if policy_token is None:
+                continue
+            label = policy_token.split(":", 1)[0]
+            if label not in _NUMA_POLICY_BASES:
+                records.append({"start": start, "policy": label, "policy_token": policy_token, "nodes": None, "pages": {}, "has_node_tokens": False, "page_counters": {}})
+                local = [_local_reservation_summary(index, record) for index, record in enumerate(records) if record["policy"] == "local"]
+                raise ObservationError("NUMA_POLICY_UNKNOWN", _policy_failure_details(records, local))
+            nodes = _parse_policy_nodes(policy_token)
+            try:
+                pages, has_node_tokens = _parse_numa_node_tokens(tokens)
+                page_counters = _parse_numa_page_counters(tokens)
+            except ObservationError as exc:
+                records.append({"start": start, "policy": label, "policy_token": policy_token, "nodes": nodes, "pages": {}, "has_node_tokens": False, "page_counters": {}})
+                if not exc.details:
+                    local = [_local_reservation_summary(index, record) for index, record in enumerate(records) if record["policy"] == "local"]
+                    exc.details = _policy_failure_details(records, local)
+                raise
+            records.append({
+                "start": start,
+                "policy": label,
+                "policy_token": policy_token,
+                "nodes": nodes,
+                "pages": pages,
+                "has_node_tokens": has_node_tokens,
+                "page_counters": page_counters,
+            })
+    except ObservationError as exc:
+        if not exc.details:
+            exc.details = _policy_failure_details(records, [])
+        raise
+    return records
+
+
 def parse_numa_policy_maps(text: str) -> dict[str, Any]:
     """Summarize policy labels, explicit policy nodes, and resident pages only."""
 
@@ -205,40 +289,104 @@ def parse_numa_policy_maps(text: str) -> dict[str, Any]:
     policy_nodes: dict[str, list[list[int]]] = {}
     pages_by_node: dict[str, int] = {}
     pages_by_policy: dict[str, dict[str, int]] = {}
-    mapping_count = 0
-    for line in text.splitlines():
-        tokens = line.split()
-        if not tokens:
-            continue
-        policy_token = next((token for token in tokens[1:] if token.split(":", 1)[0] in _NUMA_POLICY_BASES), None)
-        if policy_token is None:
-            continue
-        label = policy_token.split(":", 1)[0]
+    records = _parse_numa_policy_records(text)
+    for record in records:
+        label = record["policy"]
         labels[label] = labels.get(label, 0) + 1
-        mapping_count += 1
-        nodes = _parse_policy_nodes(policy_token)
+        nodes = record["nodes"]
         if nodes is not None:
             policy_nodes.setdefault(label, []).append(sorted(nodes))
         policy_pages = pages_by_policy.setdefault(label, {})
-        for token in tokens:
-            if not token.startswith("N") or "=" not in token:
-                continue
-            node, pages = token.split("=", 1)
-            if not node[1:].isdigit() or not pages.isdigit():
-                continue
-            pages_int = int(pages)
+        for node, pages_int in record["pages"].items():
             pages_by_node[node] = pages_by_node.get(node, 0) + pages_int
             policy_pages[node] = policy_pages.get(node, 0) + pages_int
     if not labels:
         return _unavailable("NUMA_POLICY_LABELS_MISSING")
     return {
         "status": "MEASURED",
-        "mapping_count": mapping_count,
+        "mapping_count": len(records),
         "policy_labels": labels,
         "policy_node_sets": policy_nodes,
         "pages_by_node": pages_by_node or _unavailable("NUMA_NODE_TOKENS_MISSING"),
         "pages_by_policy": pages_by_policy,
     }
+
+
+def _parse_proc_maps(text: str) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        fields = line.split()
+        if len(fields) < 5 or "-" not in fields[0]:
+            raise ObservationError("PROC_MAPS_FIELD_INVALID")
+        raw_start, raw_end = fields[0].split("-", 1)
+        try:
+            start, end = int(raw_start, 16), int(raw_end, 16)
+        except ValueError as exc:
+            raise ObservationError("PROC_MAPS_ADDRESS_INVALID") from exc
+        if end <= start:
+            raise ObservationError("PROC_MAPS_RANGE_INVALID")
+        path = " ".join(fields[5:]) if len(fields) > 5 else ""
+        kind = "anonymous" if not path else ("special" if path.startswith("[") else "file")
+        entries.append({"start": start, "size_bytes": end - start, "path": path, "kind": kind})
+    if not entries:
+        raise ObservationError("PROC_MAPS_EMPTY")
+    return entries
+
+
+def _local_reservation_summary(index: int, record: Mapping[str, Any], entry: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    pages = dict(record.get("pages", {}))
+    return {
+        "index": index,
+        "kind": None if entry is None else entry.get("kind"),
+        "size_bytes": None if entry is None else entry.get("size_bytes"),
+        "resident_pages_by_node": pages,
+        "resident_pages_total": sum(pages.values()),
+        "maps_associated": entry is not None,
+    }
+
+
+def _policy_failure_details(records: list[dict[str, Any]], local: list[dict[str, Any]]) -> dict[str, Any]:
+    labels: dict[str, int] = {}
+    for record in records:
+        label = str(record["policy"])
+        labels[label] = labels.get(label, 0) + 1
+    local_count = sum(1 for record in records if record["policy"] == "local")
+    return {
+        "actual_policy_labels": labels,
+        "local_reservation_count": local_count,
+        "local_reservations": local[:MAX_LOCAL_RESERVATION_VMAS],
+    }
+
+
+def _validate_local_reservations(maps_text: str, records: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    maps = _parse_proc_maps(maps_text)
+    by_start: dict[int, dict[str, Any]] = {}
+    for entry in maps:
+        if entry["start"] in by_start:
+            raise ObservationError("PROC_MAPS_DUPLICATE_START")
+        by_start[entry["start"]] = entry
+    local_records = [record for record in records if record["policy"] == "local"]
+    summaries: list[dict[str, Any]] = []
+    if len(local_records) > MAX_LOCAL_RESERVATION_VMAS:
+        summaries = [_local_reservation_summary(index, record, by_start.get(record["start"])) for index, record in enumerate(local_records)]
+        raise ObservationError("LOCAL_RESERVATION_COUNT_INVALID", _policy_failure_details(records, summaries))
+    for index, record in enumerate(local_records):
+        entry = by_start.get(record["start"])
+        summary = _local_reservation_summary(index, record, entry)
+        summaries.append(summary)
+        if entry is None:
+            raise ObservationError("LOCAL_RESERVATION_MAP_ASSOCIATION_MISSING", _policy_failure_details(records, summaries))
+        if entry["kind"] != "anonymous" or entry["path"]:
+            raise ObservationError("LOCAL_RESERVATION_NOT_TRULY_ANONYMOUS", _policy_failure_details(records, summaries))
+        if entry["size_bytes"] != LOCAL_RESERVATION_SIZE_BYTES:
+            raise ObservationError("LOCAL_RESERVATION_SIZE_INVALID", _policy_failure_details(records, summaries))
+        if not record["has_node_tokens"] and any(value > 0 for value in record.get("page_counters", {}).values()):
+            raise ObservationError("LOCAL_RESERVATION_COUNTERS_WITHOUT_NODES", _policy_failure_details(records, summaries))
+        if summary["resident_pages_total"] != 0:
+            raise ObservationError("LOCAL_RESERVATION_RESIDENT_INVALID", _policy_failure_details(records, summaries))
+    return summaries, {"count": len(summaries), "size_bytes": LOCAL_RESERVATION_SIZE_BYTES, "kind": "anonymous", "resident_pages_total": 0}
 
 
 def validate_policy_snapshot(
@@ -249,29 +397,88 @@ def validate_policy_snapshot(
     expected_cpus: set[int],
     cpus_allowed: Any,
     mems_allowed: Any,
+    maps_text: str | None = None,
 ) -> dict[str, Any]:
-    """Validate one body policy snapshot without retaining mappings or arrays."""
+    """Validate one body policy snapshot without retaining mappings or arrays.
 
-    parsed = parse_numa_policy_maps(text)
+    ``maps_text`` is required by the live observer.  It permits only the two
+    verified 32 MiB anonymous zero-resident ``local`` reservations; their
+    addresses and paths are never returned.
+    """
+
+    try:
+        records = _parse_numa_policy_records(text)
+    except ObservationError as exc:
+        if not exc.details:
+            exc.details = {"actual_policy_labels": {}, "local_reservation_count": 0, "local_reservations": []}
+        raise
+    raw_labels: dict[str, int] = {}
+    for record in records:
+        raw_labels[record["policy"]] = raw_labels.get(record["policy"], 0) + 1
+    local_reservations: list[dict[str, Any]] = []
+    local_summary = {"count": 0, "size_bytes": LOCAL_RESERVATION_SIZE_BYTES, "kind": "anonymous", "resident_pages_total": 0}
+    if "local" in raw_labels:
+        if maps_text is None:
+            raise ObservationError("LOCAL_RESERVATION_MAPS_REQUIRED", _policy_failure_details(records, local_reservations))
+        try:
+            local_reservations, local_summary = _validate_local_reservations(maps_text, records)
+        except ObservationError as exc:
+            if not exc.details:
+                exc.details = _policy_failure_details(records, local_reservations)
+            raise
+    elif maps_text is not None:
+        # Parse all map rows even when no exception is present so malformed or
+        # unassociated procfs data cannot be silently accepted.
+        try:
+            _parse_proc_maps(maps_text)
+        except ObservationError as exc:
+            if not exc.details:
+                exc.details = _policy_failure_details(records, local_reservations)
+            raise
+    effective_records = [record for record in records if record["policy"] != "local"]
+    labels: dict[str, int] = {}
+    policy_nodes: dict[str, list[list[int]]] = {}
+    pages_by_node: dict[str, int] = {}
+    pages_by_policy: dict[str, dict[str, int]] = {}
+    for record in effective_records:
+        label = record["policy"]
+        labels[label] = labels.get(label, 0) + 1
+        if record["nodes"] is not None:
+            policy_nodes.setdefault(label, []).append(sorted(record["nodes"]))
+        policy_pages = pages_by_policy.setdefault(label, {})
+        for node, pages in record["pages"].items():
+            pages_by_node[node] = pages_by_node.get(node, 0) + pages
+            policy_pages[node] = policy_pages.get(node, 0) + pages
+    parsed: dict[str, Any] = {
+        "status": "MEASURED" if labels else "UNAVAILABLE",
+        "mapping_count": len(effective_records),
+        "raw_mapping_count": len(records),
+        "policy_labels": labels,
+        "raw_policy_labels": raw_labels,
+        "policy_node_sets": policy_nodes,
+        "pages_by_node": pages_by_node or _unavailable("NUMA_NODE_TOKENS_MISSING"),
+        "pages_by_policy": pages_by_policy,
+        "local_reservations": local_reservations,
+        "local_reservation_summary": local_summary,
+    }
     if parsed.get("status") != "MEASURED":
-        raise ObservationError("POLICY_LABELS_UNAVAILABLE")
-    labels = parsed.get("policy_labels", {})
+        raise ObservationError("POLICY_LABELS_UNAVAILABLE", _policy_failure_details(records, local_reservations))
     expected_label = {"D": "default", "I": "interleave"}.get(expected_policy)
     if expected_label is None:
-        raise ObservationError("POLICY_LABEL_MISMATCH")
+        raise ObservationError("POLICY_LABEL_MISMATCH", _policy_failure_details(records, local_reservations))
     if expected_policy == "D" and set(labels) != {expected_label}:
-        raise ObservationError("POLICY_LABEL_MISMATCH")
+        raise ObservationError("POLICY_LABEL_MISMATCH", _policy_failure_details(records, local_reservations))
     if expected_policy == "I" and (expected_label not in labels or not set(labels).issubset({"default", expected_label})):
-        raise ObservationError("POLICY_LABEL_MISMATCH")
+        raise ObservationError("POLICY_LABEL_MISMATCH", _policy_failure_details(records, local_reservations))
     actual_cpus = parse_allowed_list(cpus_allowed)
     actual_mems = parse_allowed_list(mems_allowed)
     if actual_cpus != expected_cpus:
-        raise ObservationError("POLICY_CPUS_ALLOWED_MISMATCH")
+        raise ObservationError("POLICY_CPUS_ALLOWED_MISMATCH", _policy_failure_details(records, local_reservations))
     if actual_mems != expected_mems:
-        raise ObservationError("POLICY_MEMS_ALLOWED_MISMATCH")
+        raise ObservationError("POLICY_MEMS_ALLOWED_MISMATCH", _policy_failure_details(records, local_reservations))
     sets = parsed.get("policy_node_sets", {}).get(expected_label, [])
     if expected_policy == "I" and (not sets or any(set(nodes) != expected_mems for nodes in sets)):
-        raise ObservationError("POLICY_NODE_SET_MISMATCH")
+        raise ObservationError("POLICY_NODE_SET_MISMATCH", _policy_failure_details(records, local_reservations))
     parsed["policy"] = expected_policy
     parsed["phase"] = "BODY_POLICY"
     parsed["cpus_allowed"] = sorted(actual_cpus)
@@ -568,6 +775,34 @@ class ProcessObserver:
                         # counter and not a sampler failure.
                         self._status = "PID_EXITED"
                     else:
+                        failure = {
+                            "schema": SCHEMA + ".sample.v1",
+                            "index": self._samples,
+                            "monotonic_ns": time.monotonic_ns(),
+                            "pid": self.pid,
+                            "sample_failure": {"reason": str(exc), **dict(getattr(exc, "details", {}))},
+                        }
+                        if getattr(exc, "details", None):
+                            failure["policy_snapshot"] = {
+                                "status": "FAILED",
+                                "phase": "BODY_POLICY",
+                                "reason": str(exc),
+                                **dict(exc.details),
+                            }
+                        try:
+                            collection_end = time.perf_counter_ns()
+                            failure["collection_start_perf_counter_ns"] = collection_start
+                            failure["collection_end_perf_counter_ns"] = collection_end
+                            failure["collection_wall_ns"] = max(0, collection_end - collection_start)
+                            self._collection_wall_ns += failure["collection_wall_ns"]
+                            encoded = (json.dumps(failure, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+                            if self._bytes + len(encoded) <= MAX_OUTPUT_BYTES and self._jsonl is not None:
+                                with self._jsonl.open("ab") as stream:
+                                    stream.write(encoded)
+                                self._bytes += len(encoded)
+                                self._samples += 1
+                        except BaseException as write_exc:
+                            self._errors.append({"kind": "FAILURE_SAMPLE_WRITE", "message": repr(write_exc)})
                         self._errors.append({"kind": "SAMPLE_ERROR", "message": str(exc)})
                         self._status = "FAILED"
                     break
@@ -606,6 +841,7 @@ class ProcessObserver:
             "clock": _clock_metadata(), "units": _units_metadata()}
         if index % self.numa_every_samples == 0:
             policy_text = None
+            maps_text = None
             try:
                 policy_text = _read(root / "numa_maps")
             except FileNotFoundError:
@@ -622,6 +858,20 @@ class ProcessObserver:
                 raise ObservationError("POLICY_NUMA_MAPS_UNAVAILABLE")
             if self.expected_policy is not None:
                 try:
+                    maps_text = _read(root / "maps")
+                except FileNotFoundError:
+                    if not root.exists():
+                        raise ObservationError("PID_NOT_OBSERVABLE")
+                    try:
+                        records = _parse_numa_policy_records(policy_text)
+                        local = [_local_reservation_summary(index, record) for index, record in enumerate(records) if record["policy"] == "local"]
+                        details = _policy_failure_details(records, local)
+                    except ObservationError as exc:
+                        details = dict(getattr(exc, "details", {}))
+                    raise ObservationError("POLICY_PROC_MAPS_UNAVAILABLE", details)
+                except OSError as exc:
+                    raise ObservationError("POLICY_PROC_MAPS_UNAVAILABLE:" + type(exc).__name__)
+                try:
                     policy_snapshot = validate_policy_snapshot(
                         policy_text,
                         expected_policy=self.expected_policy,
@@ -629,13 +879,14 @@ class ProcessObserver:
                         expected_cpus=self.expected_cpus,
                         cpus_allowed=status.get("Cpus_allowed_list"),
                         mems_allowed=status.get("Mems_allowed_list"),
+                        maps_text=maps_text,
                     )
-                except ObservationError:
-                    if str(status.get("Name", "")).lower().startswith("numactl"):
+                except ObservationError as exc:
+                    if str(status.get("Name", "")).lower().startswith("numactl") and str(exc) == "POLICY_LABELS_UNAVAILABLE":
                         policy_snapshot = {"status": "EXEC_TRANSITION", "phase": "EXEC_TRANSITION"}
                         self._policy_transition_snapshots += 1
                     else:
-                        raise
+                        raise exc
                 else:
                     self._policy_valid_snapshots += 1
                 sample["policy_snapshot"] = policy_snapshot
@@ -668,4 +919,4 @@ class ProcessObserver:
             "proc_root": str(self.proc_root)}
 
 
-__all__ = ["DEFAULT_PERIOD_S", "MAX_OUTPUT_BYTES", "MAX_SAMPLES", "MAX_THREADS", "ObservationError", "ProcessObserver", "parse_allowed_list", "parse_cpu_stat", "parse_numa_policy_maps", "parse_proc_stat", "parse_schedstat", "parse_status", "probe_current_pid", "summarize_numa_maps", "validate_policy_snapshot"]
+__all__ = ["DEFAULT_PERIOD_S", "LOCAL_RESERVATION_SIZE_BYTES", "MAX_LOCAL_RESERVATION_VMAS", "MAX_OUTPUT_BYTES", "MAX_SAMPLES", "MAX_THREADS", "ObservationError", "ProcessObserver", "parse_allowed_list", "parse_cpu_stat", "parse_numa_policy_maps", "parse_proc_stat", "parse_schedstat", "parse_status", "probe_current_pid", "summarize_numa_maps", "validate_policy_snapshot"]

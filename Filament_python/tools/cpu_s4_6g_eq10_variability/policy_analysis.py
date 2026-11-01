@@ -62,6 +62,16 @@ def policy_plan() -> dict[str, Any]:
         "observer_period_s": 5.0,
         "policy_snapshot_period_s": 15.0,
         "policy_plan_source": "PRIVATE_POLICY_MATRIX_NOT_S46F_MATRIX",
+        "policy_plan_revision": "LOCAL_RESERVATION_EXCEPTION_V1",
+        "local_reservation_exception": {
+            "max_vmas": 2,
+            "size_bytes": 32 * 1024 * 1024,
+            "kind": "anonymous",
+            "resident_pages_total": 0,
+            "association": "proc_maps_start_to_numa_maps_start",
+            "addresses_retained": False,
+            "paths_retained": False,
+        },
         "diagnostic_only": True,
         "default": "I0",
         "production_qualified": False,
@@ -113,6 +123,17 @@ def _classify_log_effect(value: float, drift: float) -> str:
     if value > 0 and abs(value) > drift:
         return "OBSERVED_POLICY_SLOWER"
     return "NO_DETERMINATE_POLICY_SIGNAL"
+
+
+def _classify_balanced_log_effect(first: float, second: float, drift: float) -> str:
+    """Apply the contract to one role across the two formal blocks."""
+
+    if first == 0 or second == 0 or (first < 0) != (second < 0):
+        return "NO_DETERMINATE_POLICY_SIGNAL"
+    balanced = (first + second) / 2.0
+    if abs(balanced) <= drift:
+        return "NO_DETERMINATE_POLICY_SIGNAL"
+    return "OBSERVED_POLICY_FASTER" if balanced < 0 else "OBSERVED_POLICY_SLOWER"
 
 
 def analyze_policy(
@@ -211,10 +232,11 @@ def analyze_policy(
                     role_effects[block][role][metric]["log_ratio_I_over_D"], rr_drift[metric]
                 )
         for metric in _METRICS:
-            block_labels = [role_metric_classification[role][block][metric] for block in ("K1", "K2")]
-            role_metric_classification[role]["overall"][metric] = (
-                block_labels[0] if block_labels[0] == block_labels[1] and block_labels[0] != "NO_DETERMINATE_POLICY_SIGNAL"
-                else "NO_DETERMINATE_POLICY_SIGNAL"
+            block_effects_for_role = [
+                role_effects[block][role][metric]["log_ratio_I_over_D"] for block in ("K1", "K2")
+            ]
+            role_metric_classification[role]["overall"][metric] = _classify_balanced_log_effect(
+                block_effects_for_role[0], block_effects_for_role[1], rr_drift[metric]
             )
 
     metric_classification = {}
