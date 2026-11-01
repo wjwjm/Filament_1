@@ -54,6 +54,7 @@ $targetedTests = @(
     (Join-Path $filamentPythonRoot 'tools\cpu_s4_6d_eq10_propagation'),
     (Join-Path $filamentPythonRoot 'tools\cpu_s4_6e_array_propagation'),
     (Join-Path $filamentPythonRoot 'tools\cpu_s4_6f_fullsize_parallel'),
+    (Join-Path $filamentPythonRoot 'tools\cpu_s4_6g_eq10_variability'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5s_s4r.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5p_launcher.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5_e5_1a.py'),
