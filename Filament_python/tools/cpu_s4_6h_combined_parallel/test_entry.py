@@ -1,5 +1,6 @@
 """New joint admission and original-clock contracts; propagation is opt-in."""
 import json
+import importlib
 import os
 from pathlib import Path
 import subprocess
@@ -42,6 +43,28 @@ def test_s46h_joint_manifest_includes_actual_pool_and_worker_sources():
                  "cpu_s4_6h_combined_parallel/combined_candidate.py",
                  "cpu_s4_6h_combined_parallel/hpc.py"):
         assert "Filament_python/tools/" + name in paths
+
+
+def test_s46h_prepare_rebinds_own_new_plan_after_parent_exclusive_write(monkeypatch, tmp_path):
+    module = importlib.import_module(__package__ + ".prepare")
+
+    def fake_parent_prepare(report, *, candidate):
+        root = Path(report)
+        root.mkdir()
+        with (root / "HPC_EXECUTION_PLAN.json").open("x", encoding="utf-8") as stream:
+            json.dump(dict(work_deadline_s=7080, candidate=candidate), stream)
+        binding = dict(hpc_plan_raw_sha256="parent-draft", candidate=candidate)
+        with (root / "EXECUTION.json").open("x", encoding="utf-8") as stream:
+            json.dump(binding, stream)
+        return binding
+
+    monkeypatch.setattr(module.parent, "prepare", fake_parent_prepare)
+    destination = tmp_path / "new-execution"
+    binding = module.prepare(destination)
+    execution = json.loads((destination / "HPC_EXECUTION_PLAN.json").read_text(encoding="utf-8"))
+    assert execution["work_deadline_s"] == 3480
+    assert binding["hpc_plan_raw_sha256"] == module.pv.raw_sha256_file(destination / "HPC_EXECUTION_PLAN.json")
+    assert json.loads((destination / "EXECUTION.json").read_text(encoding="utf-8")) == binding
 
 
 def test_s46h_complete_propagation_is_not_body_sum(tmp_path):

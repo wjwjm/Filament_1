@@ -1,4 +1,5 @@
 """Reuse the PV2 full-size packager with a distinct combined task and source set."""
+import json
 from pathlib import Path
 from types import FunctionType
 
@@ -34,7 +35,11 @@ def prepare(report, **kwargs):
     root = Path(report).resolve(strict=True)
     execution = parent.read(root / "HPC_EXECUTION_PLAN.json")
     execution["work_deadline_s"] = plan()["resources"]["work_deadline_s"]
-    sg.write(root / "HPC_EXECUTION_PLAN.json", execution)
+    # These are this invocation's newly created, unpublished H artifacts.
+    # sg.write is exclusive-create and cannot replace the parent draft.
+    (root / "HPC_EXECUTION_PLAN.json").write_text(
+        json.dumps(execution, indent=2, allow_nan=False) + "\n", encoding="utf-8", newline="\n")
     binding["hpc_plan_raw_sha256"] = pv.raw_sha256_file(root / "HPC_EXECUTION_PLAN.json")
-    sg.write(root / "EXECUTION.json", binding)
+    (root / "EXECUTION.json").write_text(
+        json.dumps(binding, indent=2, allow_nan=False) + "\n", encoding="utf-8", newline="\n")
     return binding
