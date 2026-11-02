@@ -845,7 +845,11 @@ def metadata(dispatch: Any) -> dict[str, Any]:
     binding = getattr(dispatch, "cpu_s4_6h_binding", None)
     if not isinstance(binding, Mapping):
         raise SourceBindingError("S46H_BINDING_METADATA_MISSING")
-    return copy.deepcopy(dict(binding))
+    result = copy.deepcopy(dict(binding))
+    if hasattr(dispatch, "cpu_s4_6i_cost_enabled"):
+        result["cost_enabled"] = bool(getattr(dispatch, "cpu_s4_6i_cost_enabled"))
+        result["cost"] = copy.deepcopy(getattr(dispatch, "cpu_s4_6i_cost_binding", None))
+    return result
 
 
 def verify_bindings(dispatch: Any) -> dict[str, Any]:
@@ -884,6 +888,21 @@ def verify_bindings(dispatch: Any) -> dict[str, Any]:
         c_check = verify_c_bindings(dispatch)
     except BaseException as exc:
         raise SourceBindingError("S46H_C_BINDING_FAILED") from exc
+    cost_enabled = bool(getattr(dispatch, "cpu_s4_6i_cost_enabled", False))
+    cost_hook = getattr(dispatch, "cpu_s4_6i_cost_hook", None)
+    if cost_enabled:
+        if cost_hook is None or not callable(getattr(cost_hook, "verify_binding", None)):
+            raise SourceBindingError("S46H_COST_BINDING_MISSING")
+        try:
+            cost_check = cost_hook.verify_binding(
+                getattr(dispatch, "cpu_s4_6e_c_active_globals", None)
+            )
+        except BaseException as exc:
+            raise SourceBindingError("S46H_COST_BINDING_FAILED") from exc
+    else:
+        if cost_hook is not None:
+            raise SourceBindingError("S46H_OFF_COST_HOOK_PRESENT")
+        cost_check = None
     s45a = importlib.import_module("tools.cpu_s4_5a_l1_residual.instrument")
     try:
         s45a_check = s45a.verify_bindings(state)
@@ -908,6 +927,7 @@ def verify_bindings(dispatch: Any) -> dict[str, Any]:
             "component_pools": poolset.snapshots(),
             "source_closure_bound": True,
             "c_binding": c_check,
+            "cost_binding": cost_check,
             "s45a_binding": s45a_check,
         }
 
@@ -1033,6 +1053,7 @@ def verify_bindings(dispatch: Any) -> dict[str, Any]:
         "source_closure_bound": True,
         "stage_concurrency": False,
         "c_binding": c_check,
+        "cost_binding": cost_check,
         "s45a_binding": s45a_check,
         "lineage": copy.deepcopy(getattr(state, "_cpu_s46h_lineage", {})),
     }
@@ -1046,11 +1067,19 @@ def build_role(
     local_engineering: bool = False,
     pool_override: int | None = None,
     recorder_pair: Any | None = None,
+    cost_enabled: bool = False,
+    residual_cost_hook: Any | None = None,
 ) -> tuple[Any, Any, Any, dict[str, Any], Any, Any]:
     """Build the common L1 reference or joint candidate six-tuple."""
 
     mode_name = _normalise_mode(mode)
     role_name = _normalise_role(role)
+    if not isinstance(cost_enabled, bool):
+        raise CandidateUnsupported("S46H_COST_ENABLED_MUST_BE_BOOL")
+    if cost_enabled and role_name != ROLE_CANDIDATE:
+        raise CandidateUnsupported("S46H_COST_REFERENCE_FORBIDDEN")
+    if not cost_enabled and residual_cost_hook is not None:
+        raise CandidateUnsupported("S46H_OFF_RESIDUAL_COST_HOOK_PRESENT")
     resources = _resolve_resources(local_engineering=bool(local_engineering), pool_override=pool_override)
     adapter = importlib.import_module("tools.cpu_s4_5b_steady_cost.adapter")
     if recorder_pair is None:
@@ -1059,6 +1088,9 @@ def build_role(
         raise CandidateUnsupported("S46H_RECORDER_PAIR_EXACT_TYPE_REQUIRED")
     if bool(getattr(recorder_pair, "profile", True)):
         raise CandidateUnsupported("S46H_RECORDER_PAIR_PROFILE_MUST_BE_OFF")
+    if cost_enabled and residual_cost_hook is None:
+        cost_module = importlib.import_module("tools.cpu_s4_6i_residual_parallel.cost_factory")
+        residual_cost_hook = cost_module.make_cost_hook(recorder_pair.b)
 
     poolset = _make_pools(role_name, resources)
     try:
@@ -1091,6 +1123,7 @@ def build_role(
             capture_root=Path(capture_root).resolve(),
             recorder=recorder_pair.b,
             pool=poolset.c,
+            residual_cost_hook=residual_cost_hook,
         )
         if actual_dispatch is not dispatch:
             raise SourceBindingError("S46H_ACTUAL_DISPATCH_BINDING_CHANGED")
@@ -1098,6 +1131,8 @@ def build_role(
         # addition to the combined-owned aliases installed below.
         install_c_pool_api(actual_dispatch, poolset.c)
         actual_dispatch.cpu_s4_6e_c_role = c_role
+        actual_dispatch.cpu_s4_6i_cost_enabled = bool(cost_enabled)
+        actual_dispatch.cpu_s4_6i_cost_hook = residual_cost_hook
         s45a.bind_active_propagation(wrapped, state)
         post_check = s45a.verify_bindings(state)
 
@@ -1112,6 +1147,7 @@ def build_role(
             "math_receipt": c_private.get("math_receipt"),
             "c_source_binding": runtime_binding.get("c_source_binding"),
             "c_role": runtime_binding.get("c_role"),
+            "cost_binding": copy.deepcopy(runtime_binding.get("c_residual_cost_binding")),
         })
         state._cpu_s46h_source_identity = copy.deepcopy(source)
         state._cpu_s46h_c_private = copy.deepcopy(actual_dispatch.cpu_s4_6h_c_private)
@@ -1141,6 +1177,10 @@ def build_role(
             "stage_concurrency": False,
             "recorder_pair_bound": True,
             "all3_source_closures_bound": True,
+            "cost_enabled": bool(cost_enabled),
+            "cost_binding": None
+            if residual_cost_hook is None
+            else copy.deepcopy(residual_cost_hook.binding()),
         }
         state._cpu_s46h_binding = copy.deepcopy(binding)
         actual_dispatch.cpu_s4_6h_binding = copy.deepcopy(binding)
@@ -1189,6 +1229,7 @@ def build_candidate(
     local_engineering: bool = False,
     pool_override: int | None = None,
     recorder_pair: Any | None = None,
+    cost_enabled: bool = False,
 ) -> tuple[Any, Any, Any, dict[str, Any], Any, Any]:
     return build_role(
         mode,
@@ -1197,6 +1238,7 @@ def build_candidate(
         local_engineering=local_engineering,
         pool_override=pool_override,
         recorder_pair=recorder_pair,
+        cost_enabled=cost_enabled,
     )
 
 

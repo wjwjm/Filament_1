@@ -392,7 +392,14 @@ def _verify_active_compiled_call(wrapped: Any, helper: Callable[..., Any]) -> tu
     return active, globals_dict
 
 
-def make_c_compile_interceptor(*, g2_namespace: Mapping[str, Any], role: str, mode: str, bindings: tuple[tuple[str, str], ...]) -> Callable[..., Any]:
+def make_c_compile_interceptor(
+    *,
+    g2_namespace: Mapping[str, Any],
+    role: str,
+    mode: str,
+    bindings: tuple[tuple[str, str], ...],
+    residual_cost_hook: Any | None = None,
+) -> Callable[..., Any]:
     """Apply old timing/boundary, then C, then B before final compilation.
 
     The frozen timing adapter intentionally validates the original nonlinear
@@ -414,6 +421,10 @@ def make_c_compile_interceptor(*, g2_namespace: Mapping[str, Any], role: str, mo
         raise SourceBindingError("C_G2_BOUNDARY_INSERT_SEAM_UNAVAILABLE")
     if mode_name == "QUALIFY_BOUNDARY" and not callable(strip_boundary):
         raise SourceBindingError("C_G2_BOUNDARY_STRIP_SEAM_UNAVAILABLE")
+    if residual_cost_hook is not None:
+        for name in ("instrument", "strip_generated_nodes", "runtime_helpers", "verify_binding"):
+            if not callable(getattr(residual_cost_hook, name, None)):
+                raise SourceBindingError(f"C_RESIDUAL_COST_SEAM_UNAVAILABLE:{name}")
     injected = False
 
     def interceptor(source: Any, filename: Any, compile_mode: str, *args: Any, **kwargs: Any) -> Any:
@@ -427,7 +438,18 @@ def make_c_compile_interceptor(*, g2_namespace: Mapping[str, Any], role: str, mo
             c_receipt = _instrument_c_callsite(source)
             function_node = b_adapter._find_function(source, "propagate_one_pulse")
             b_receipt = b_adapter.instrument_propagation_ast(function_node)
-            without_b = b_adapter.strip_generated_nodes(source)
+            residual_receipt = None
+            post_b_before_residual = None
+            if residual_cost_hook is not None:
+                post_b_before_residual = copy.deepcopy(function_node)
+                residual_receipt = residual_cost_hook.instrument(function_node)
+                stripped_residual = residual_cost_hook.strip_generated_nodes(function_node)
+                if ast.dump(stripped_residual, include_attributes=False) != ast.dump(
+                    post_b_before_residual, include_attributes=False
+                ):
+                    raise SourceBindingError("C_RESIDUAL_COST_STRIP_MISMATCH")
+            restored_joint = source if residual_cost_hook is None else residual_cost_hook.strip_generated_nodes(source)
+            without_b = b_adapter.strip_generated_nodes(restored_joint)
             # Restore the C callsite before invoking the old G2 timing and
             # boundary strippers; their expected baseline is the frozen
             # ``_g_apply_nonlinear`` call, not the private C helper name.
@@ -450,6 +472,7 @@ def make_c_compile_interceptor(*, g2_namespace: Mapping[str, Any], role: str, mo
                 "timing": copy.deepcopy(timing_receipt),
                 "boundary": copy.deepcopy(boundary_receipt),
                 "b_propagation": copy.deepcopy(b_receipt),
+                "residual_cost": copy.deepcopy(residual_receipt),
                 "c_callsite": copy.deepcopy(c_receipt),
                 "baseline_ast_sha256": _ast_hash(baseline),
                 "post_strip_ast_sha256": _ast_hash(post_strip),
@@ -475,6 +498,7 @@ def attach_with_c(
     pool: CPool | NullCPool,
     math_function: Callable[..., Any] | None = None,
     capture_store: Any | None = None,
+    residual_cost_hook: Any | None = None,
 ) -> tuple[Any, Any, Any, dict[str, Any], Any, Any, dict[str, Any]]:
     """Attach a C-aware G2 clone while preserving the existing six-tuple."""
 
@@ -483,6 +507,8 @@ def attach_with_c(
     role_name = str(role).upper()
     if role_name not in (ROLE_REFERENCE, ROLE_CANDIDATE):
         raise CandidateUnsupported(f"C_ROLE_INVALID:{role_name}")
+    if residual_cost_hook is not None and role_name != ROLE_CANDIDATE:
+        raise CandidateUnsupported("C_RESIDUAL_COST_REFERENCE_FORBIDDEN")
     mode_name = _normalise_mode(mode)
     adapter = importlib.import_module("tools.cpu_s4_5b_steady_cost.adapter")
     if type(recorder) is not getattr(adapter, "TimingRecorder", object):
@@ -538,6 +564,14 @@ def attach_with_c(
     dispatch.cpu_s4_6e_c_backend = backend
 
     b_helpers = adapter.bind_runtime_helpers(recorder)
+    residual_helpers = {}
+    if residual_cost_hook is not None:
+        if getattr(residual_cost_hook, "recorder", recorder) is not recorder:
+            raise SourceBindingError("C_RESIDUAL_COST_RECORDER_BINDING_CHANGED")
+        try:
+            residual_helpers = dict(residual_cost_hook.runtime_helpers())
+        except BaseException as exc:
+            raise SourceBindingError("C_RESIDUAL_COST_HELPER_BINDING_FAILED") from exc
 
     def compile_interceptor(*, role: str, mode: str, bindings: tuple[tuple[str, str], ...]):
         return make_c_compile_interceptor(
@@ -545,6 +579,7 @@ def attach_with_c(
             mode=mode,
             bindings=bindings,
             g2_namespace=namespace,
+            residual_cost_hook=residual_cost_hook,
         )
 
     namespace["_make_compile_interceptor"] = compile_interceptor
@@ -556,12 +591,14 @@ def attach_with_c(
     def clone_g(*args: Any, helpers: Mapping[str, Any], **kwargs: Any):
         extended = dict(helpers)
         extended.update(b_helpers)
+        extended.update(residual_helpers)
         extended[C_APPLY_HELPER] = c_apply
         return original_clone_g(*args, helpers=extended, **kwargs)
 
     def clone_i0(*args: Any, helpers: Mapping[str, Any], **kwargs: Any):
         extended = dict(helpers)
         extended.update(b_helpers)
+        extended.update(residual_helpers)
         extended[C_APPLY_HELPER] = c_apply
         return original_clone_i0(*args, helpers=extended, **kwargs)
 
@@ -603,12 +640,20 @@ def attach_with_c(
             "c_old_g2_wrapper_untouched": True,
             "c_source_binding": source_binding(original_apply),
             "c_capture_enabled": capture_store is not None,
+            "c_residual_cost_enabled": residual_cost_hook is not None,
+            "c_residual_cost_binding": None
+            if residual_cost_hook is None
+            else copy.deepcopy(residual_cost_hook.binding()),
         }
     )
     return wrapped, actual_dispatch, clock, binding, audit, lease, {
         "math_function": math_function,
         "math_receipt": copy.deepcopy(math_receipt),
         "c_apply": c_apply,
+        "residual_cost_hook": residual_cost_hook,
+        "residual_cost_binding": None
+        if residual_cost_hook is None
+        else copy.deepcopy(residual_cost_hook.binding()),
     }
 
 
@@ -728,6 +773,17 @@ def verify_bindings(dispatch: Any) -> dict[str, Any]:
         raise SourceBindingError("C_ACTIVE_COMPILED_PROPAGATOR_GLOBALS_CHANGED")
     if active_globals.get(C_APPLY_HELPER) is not helper:
         raise SourceBindingError("C_ACTIVE_COMPILED_HELPER_BINDING_CHANGED")
+    residual_cost_hook = getattr(dispatch, "cpu_s4_6i_cost_hook", None)
+    if residual_cost_hook is not None:
+        verify_cost = getattr(residual_cost_hook, "verify_binding", None)
+        if not callable(verify_cost):
+            raise SourceBindingError("C_RESIDUAL_COST_HOOK_MISSING")
+        try:
+            cost_check = verify_cost(active_globals)
+        except BaseException as exc:
+            raise SourceBindingError("C_RESIDUAL_COST_BINDING_FAILED") from exc
+    else:
+        cost_check = None
     validate_cpu_backend(backend["xp_object"])
     if role == ROLE_CANDIDATE:
         if not isinstance(pool, CPool):
@@ -744,6 +800,7 @@ def verify_bindings(dispatch: Any) -> dict[str, Any]:
         "math_source_bound": role == ROLE_REFERENCE or bool(getattr(math_function, "__cpu_s46e_c_source_binding__", None)),
         "pool": pool.snapshot(),
         "production_qualified": False,
+        "residual_cost": cost_check,
     }
 
 
