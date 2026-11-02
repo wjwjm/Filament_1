@@ -1,0 +1,6 @@
+# Mutable execution evidence is delivered in an identity-checked review bundle.
+*
+!.gitignore
+!IMPLEMENTATION_BOUNDARY.md
+!FOLLOWUP_EXECUTION_SCOPE.md
+!NEXT_PARALLEL_CALLS.md

@@ -1,0 +1,41 @@
+"""Private S4-6H combined A/P24 + B/P48 + C/P24 candidate."""
+
+from .combined_candidate import (
+    CANDIDATE_SCHEMA,
+    COMBINED_SEMANTIC_ID,
+    CandidateUnsupported,
+    DEFAULT_VARIANT,
+    ROLE_CANDIDATE,
+    ROLE_REFERENCE,
+    SourceBindingError,
+    build_role,
+    build_candidate,
+    build_reference,
+    finalize_factory,
+    metadata,
+    source_identity,
+    verify_bindings,
+    _combined_metadata,
+    _finalize_combined,
+    _verify_joint_bindings,
+)
+
+__all__ = [
+    "CANDIDATE_SCHEMA",
+    "COMBINED_SEMANTIC_ID",
+    "CandidateUnsupported",
+    "DEFAULT_VARIANT",
+    "ROLE_CANDIDATE",
+    "ROLE_REFERENCE",
+    "SourceBindingError",
+    "build_role",
+    "build_candidate",
+    "build_reference",
+    "finalize_factory",
+    "metadata",
+    "source_identity",
+    "verify_bindings",
+    "_combined_metadata",
+    "_finalize_combined",
+    "_verify_joint_bindings",
+]
