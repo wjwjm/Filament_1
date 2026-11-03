@@ -12,7 +12,7 @@ def test_cost_factory_has_four_pools_and_source_bound_alpha_clock(tmp_path):
     built = None
     try:
         with pair.b.scope('L1_FACTORY', common=True):
-            built = build_role(CANDIDATE, 'PURE_OFF_FULLSIZE', capture_root=tmp_path/'unused',
+            built = build_role(CANDIDATE, os.environ.get('S46J_FACTORY_PROBE_MODE','PURE_OFF_FULLSIZE'), capture_root=tmp_path/'unused',
                 role='R', local_engineering=True, recorder_pair=pair, cost_mode='COST', shape=MICRO_SHAPE)
         assert built[1].cpu_s4_6i_selected_role=='X'
         assert len(built)==6

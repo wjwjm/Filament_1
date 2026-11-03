@@ -43,6 +43,7 @@ def instrument_alpha_cost(node):
         body=block, type_comment=None)
     ast.copy_location(wrapper, block[0])
     body[start:start+4] = [wrapper]
+    ast.fix_missing_locations(node)
     if ast.dump(strip_alpha_cost(node), include_attributes=False) != ast.dump(before, include_attributes=False):
         raise RuntimeError('S46J_ALPHA_COST_INVERSE_MISMATCH')
     return dict(source_site=ALPHA_SITE, original_four_statements_preserved=True,

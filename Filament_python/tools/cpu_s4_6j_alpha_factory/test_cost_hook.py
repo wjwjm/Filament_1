@@ -17,6 +17,7 @@ def test_alpha_scope_restores_original_four_statements():
     assert receipt['mathematical_changes']==0
     assert ast.dump(strip_alpha_cost(changed),include_attributes=False)==ast.dump(original,include_attributes=False)
     assert sum(isinstance(node,ast.Name) and node.id==ALPHA_HELPER for node in ast.walk(changed))==1
+    compile(ast.Module(body=[changed], type_ignores=[]), '<alpha-cost-compile-test>', 'exec')
     with pytest.raises(RuntimeError,match='FOUR_STATEMENTS_REQUIRED'):
         broken = _source()
         for node in ast.walk(broken):

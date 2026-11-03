@@ -75,7 +75,7 @@ def validate_cost_records(raw, *, cost_mode, intervals):
     observed_counts = dict(build={site:item['calls'] for site,item in detail.items()},
                            close={site:item['calls'] for site,item in close_detail.items()})
     if cost_mode == 'COST':
-        require(isinstance(RUNTIME_COUNTS, dict) and observed_counts == RUNTIME_COUNTS,
+        require(isinstance(RUNTIME_COUNTS, dict) and observed_counts == RUNTIME_COUNTS[str(intervals)],
                 'S46J_FIXED_FACTORY_CALL_COUNTS')
     factory_s = root['wall_inclusive_ns']/1e9
     attributed_s = sum(row['exclusive_s'] for row in detail.values())
