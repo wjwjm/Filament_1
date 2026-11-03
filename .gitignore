@@ -16,3 +16,6 @@ Filament_python/tmp/
 
 # S46A raw measurement evidence; lightweight deliverables are added explicitly.
 reports/CPU_S4_6A_MATCHED_CPU_GPU_20261028/
+
+# S4-6J generated controls, execution receipts and optimization evidence.
+reports/CPU_S4_6J_ALPHA_FACTORY_20261103/

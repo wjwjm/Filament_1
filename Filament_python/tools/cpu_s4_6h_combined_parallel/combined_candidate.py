@@ -21,6 +21,7 @@ from typing import Any, Callable, Mapping
 import numpy as np
 
 from tools.hpc_ops import provenance_v2 as pv
+from tools.cpu_s4_6j_alpha_factory.factory_timing import scope as factory_scope
 
 from tools.cpu_s4_6d_eq10_propagation.instrument import (
     HELPER_NAMES as EQ10_HELPER_NAMES,
@@ -199,7 +200,11 @@ def _owned_source_identity() -> dict[str, Any]:
     files: dict[str, dict[str, Any]] = {}
     for name in ("__init__.py", "instrument.py", "combined_candidate.py"):
         path = (root / name).resolve(strict=True)
-        raw = path.read_bytes()
+        with factory_scope(
+            "source_read_hash",
+            site="source_read_hash.combined_candidate.owned_source_identity",
+        ):
+            raw = path.read_bytes()
         record: dict[str, Any] = {
             "path": str(path),
             "size_bytes": int(len(raw)),
@@ -209,12 +214,20 @@ def _owned_source_identity() -> dict[str, Any]:
         }
         relative = path.relative_to(repo).as_posix()
         try:
-            oid = pv._git_blob_oid(repo, relative)
+            with factory_scope(
+                "git_blob_read",
+                site="git_blob_read.combined_candidate.owned_source_identity",
+            ):
+                oid = pv._git_blob_oid(repo, relative)
         except pv.ProvenanceError:
             if os.environ.get("SLURM_JOB_ID"):
                 raise SourceBindingError("S46H_COMMITTED_OWNED_SOURCE_REQUIRED")
         else:
-            blob = pv._read_git_blob(repo, oid)
+            with factory_scope(
+                "git_blob_read",
+                site="git_blob_read.combined_candidate.owned_source_identity",
+            ):
+                blob = pv._read_git_blob(repo, oid)
             if pv.canonical_lf_bytes(raw) != pv.canonical_lf_bytes(blob):
                 raise SourceBindingError("S46H_OWNED_SOURCE_CANONICAL_BLOB_MISMATCH")
             record.update({
@@ -244,11 +257,15 @@ def source_identity() -> dict[str, Any]:
     intensity = importlib.import_module("tools.cpu_s4_6e_array_propagation.candidate")
     eq10 = importlib.import_module("tools.cpu_s4_6d_eq10_propagation.candidate")
     parent = importlib.import_module("tools.cpu_s4_5a_l1_residual.candidate")
-    components = {
-        "intensity_p24": copy.deepcopy(intensity.source_identity()),
-        "eq10_p48": copy.deepcopy(eq10.source_identity()),
-        "phase_absorb_c_p24": copy.deepcopy(c_source_identity()),
-    }
+    with factory_scope(
+        "source_read_hash",
+        site="source_read_hash.combined_candidate.source_identity",
+    ):
+        components = {
+            "intensity_p24": copy.deepcopy(intensity.source_identity()),
+            "eq10_p48": copy.deepcopy(eq10.source_identity()),
+            "phase_absorb_c_p24": copy.deepcopy(c_source_identity()),
+        }
     return {
         "schema": CANDIDATE_SCHEMA,
         "candidate_name": DEFAULT_VARIANT,
@@ -381,19 +398,27 @@ def _install_combined_pool_adapter(pool: Any) -> Any:
 def _make_pools(role: str, resources: Mapping[str, Any]) -> _PoolSet:
     role_name = _normalise_role(role)
     if role_name == ROLE_REFERENCE:
-        return _PoolSet(NullIntensityPool(), NullEq10Pool(), NullCPool())
+        with factory_scope(
+            "pool_lifecycle",
+            site="pool_lifecycle.combined_candidate.make_pools",
+        ):
+            return _PoolSet(NullIntensityPool(), NullEq10Pool(), NullCPool())
     created: list[Any] = []
     try:
-        intensity = IntensityPool(int(resources["intensity_workers"]))
-        created.append(intensity)
-        eq10 = Eq10Pool(int(resources["eq10_workers"]))
-        created.append(eq10)
-        c_pool = CPool(int(resources["c_workers"]))
-        created.append(c_pool)
-        poolset = _PoolSet(intensity, eq10, c_pool)
-        for _name, pool in poolset.values():
-            _install_combined_pool_adapter(pool)
-        return poolset
+        with factory_scope(
+            "pool_lifecycle",
+            site="pool_lifecycle.combined_candidate.make_pools",
+        ):
+            intensity = IntensityPool(int(resources["intensity_workers"]))
+            created.append(intensity)
+            eq10 = Eq10Pool(int(resources["eq10_workers"]))
+            created.append(eq10)
+            c_pool = CPool(int(resources["c_workers"]))
+            created.append(c_pool)
+            poolset = _PoolSet(intensity, eq10, c_pool)
+            for _name, pool in poolset.values():
+                _install_combined_pool_adapter(pool)
+            return poolset
     except BaseException:
         for pool in reversed(created):
             try:
@@ -845,7 +870,11 @@ def metadata(dispatch: Any) -> dict[str, Any]:
     binding = getattr(dispatch, "cpu_s4_6h_binding", None)
     if not isinstance(binding, Mapping):
         raise SourceBindingError("S46H_BINDING_METADATA_MISSING")
-    result = copy.deepcopy(dict(binding))
+    with factory_scope(
+        "metadata",
+        site="metadata.combined_candidate.metadata",
+    ):
+        result = copy.deepcopy(dict(binding))
     if hasattr(dispatch, "cpu_s4_6i_cost_enabled"):
         result["cost_enabled"] = bool(getattr(dispatch, "cpu_s4_6i_cost_enabled"))
         result["cost"] = copy.deepcopy(getattr(dispatch, "cpu_s4_6i_cost_binding", None))
@@ -869,7 +898,11 @@ def verify_bindings(dispatch: Any) -> dict[str, Any]:
     stored_identity = getattr(state, "_cpu_s46h_source_identity", None)
     if not isinstance(stored_identity, Mapping):
         raise SourceBindingError("S46H_SOURCE_IDENTITY_MISSING")
-    current_identity = source_identity()
+    with factory_scope(
+        "binding_verify",
+        site="binding_verify.combined_candidate.source_identity",
+    ):
+        current_identity = source_identity()
     if current_identity != stored_identity:
         raise SourceBindingError("S46H_SOURCE_IDENTITY_CHANGED")
     dispatch_identity = getattr(dispatch, "cpu_s4_6h_source_identity", None)
@@ -885,7 +918,11 @@ def verify_bindings(dispatch: Any) -> dict[str, Any]:
         raise SourceBindingError("S46H_BINDING_METADATA_CHANGED")
 
     try:
-        c_check = verify_c_bindings(dispatch)
+        with factory_scope(
+            "binding_verify",
+            site="binding_verify.combined_candidate.verify_bindings",
+        ):
+            c_check = verify_c_bindings(dispatch)
     except BaseException as exc:
         raise SourceBindingError("S46H_C_BINDING_FAILED") from exc
     cost_enabled = bool(getattr(dispatch, "cpu_s4_6i_cost_enabled", False))
@@ -1115,16 +1152,20 @@ def build_role(
         c_role = C_ROLE_REFERENCE if role_name == ROLE_REFERENCE else C_ROLE_CANDIDATE
         # Exactly one C/G2 attach for this role.  The Raman stage is compiled
         # jointly only after the C clone is bound.
-        wrapped, actual_dispatch, clock, runtime_binding, audit, lease, c_private = attach_with_c(
-            propagator,
-            dispatch,
-            role=c_role,
-            mode=mode_name,
-            capture_root=Path(capture_root).resolve(),
-            recorder=recorder_pair.b,
-            pool=poolset.c,
-            residual_cost_hook=residual_cost_hook,
-        )
+        with factory_scope(
+            "ast_transform_compile",
+            site="ast_transform_compile.combined_candidate.attach_with_c",
+        ):
+            wrapped, actual_dispatch, clock, runtime_binding, audit, lease, c_private = attach_with_c(
+                propagator,
+                dispatch,
+                role=c_role,
+                mode=mode_name,
+                capture_root=Path(capture_root).resolve(),
+                recorder=recorder_pair.b,
+                pool=poolset.c,
+                residual_cost_hook=residual_cost_hook,
+            )
         if actual_dispatch is not dispatch:
             raise SourceBindingError("S46H_ACTUAL_DISPATCH_BINDING_CHANGED")
         # Preserve the existing C verifier's public/private pool contract in

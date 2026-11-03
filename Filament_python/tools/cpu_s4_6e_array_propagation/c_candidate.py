@@ -20,6 +20,7 @@ from typing import Any, Callable, Mapping
 import numpy as np
 
 from tools.hpc_ops import provenance_v2 as pv
+from tools.cpu_s4_6j_alpha_factory.factory_timing import scope as factory_scope
 
 from .c_instrument import (
     CInstrumentationError,
@@ -89,7 +90,11 @@ def _owned_source_identity() -> dict[str, Any]:
     files: dict[str, dict[str, Any]] = {}
     for name in ("__init__.py", "c_pool.py", "c_instrument.py", "c_candidate.py"):
         path = (root / name).resolve(strict=True)
-        raw = path.read_bytes()
+        with factory_scope(
+            "source_read_hash",
+            site="source_read_hash.c_candidate.owned_source_identity",
+        ):
+            raw = path.read_bytes()
         record: dict[str, Any] = {
             "path": str(path),
             "size_bytes": int(len(raw)),
@@ -99,12 +104,20 @@ def _owned_source_identity() -> dict[str, Any]:
         }
         relative = path.relative_to(repo).as_posix()
         try:
-            oid = pv._git_blob_oid(repo, relative)
+            with factory_scope(
+                "git_blob_read",
+                site="git_blob_read.c_candidate.owned_source_identity",
+            ):
+                oid = pv._git_blob_oid(repo, relative)
         except pv.ProvenanceError:
             if os.environ.get("SLURM_JOB_ID"):
                 raise SourceBindingError("C_COMMITTED_OWNED_SOURCE_REQUIRED")
         else:
-            blob = pv._read_git_blob(repo, oid)
+            with factory_scope(
+                "git_blob_read",
+                site="git_blob_read.c_candidate.owned_source_identity",
+            ):
+                blob = pv._read_git_blob(repo, oid)
             if pv.canonical_lf_bytes(raw) != pv.canonical_lf_bytes(blob):
                 raise SourceBindingError("C_OWNED_SOURCE_CANONICAL_BLOB_MISMATCH")
             record.update(
@@ -533,7 +546,11 @@ def attach_with_c(
     if not callable(original_apply):
         raise SourceBindingError("C_ORIGINAL_APPLY_MISSING")
     if role_name == ROLE_CANDIDATE and math_function is None:
-        math_function, math_receipt = compile_private_apply(original_apply, pool)  # type: ignore[arg-type]
+        with factory_scope(
+            "ast_transform_compile",
+            site="ast_transform_compile.c_candidate.attach_with_c",
+        ):
+            math_function, math_receipt = compile_private_apply(original_apply, pool)  # type: ignore[arg-type]
     elif role_name == ROLE_REFERENCE:
         math_function = original_apply
         math_receipt = {"reference_original": True, "source_binding": source_binding(original_apply)}
@@ -605,11 +622,15 @@ def attach_with_c(
     namespace["_clone_g"] = clone_g
     namespace["_clone_i0"] = clone_i0
     frozen_mode = "QUALIFY_BOUNDARY" if mode_name == "QUALIFY_BOUNDARY" else "PURE_OFF_REAL8"
-    wrapped, actual_dispatch, clock, binding, audit, lease = namespace["build_role"](
-        "G_CONTROLLED_INPUT",
-        frozen_mode,
-        capture_root=Path(capture_root).resolve(),
-    )
+    with factory_scope(
+        "ast_transform_compile",
+        site="ast_transform_compile.c_candidate.attach_with_c",
+    ):
+        wrapped, actual_dispatch, clock, binding, audit, lease = namespace["build_role"](
+            "G_CONTROLLED_INPUT",
+            frozen_mode,
+            capture_root=Path(capture_root).resolve(),
+        )
     if actual_dispatch is not dispatch:
         raise SourceBindingError("C_ACTUAL_DISPATCH_BINDING_CHANGED")
     active_propagator, active_globals = _verify_active_compiled_call(wrapped, c_apply)
@@ -755,16 +776,20 @@ def verify_bindings(dispatch: Any) -> dict[str, Any]:
         raise SourceBindingError("C_HELPER_OR_MATH_BINDING_MISSING")
     if getattr(helper, "__cpu_s46e_c_state__", None) is not state or getattr(helper, "__cpu_s46e_c_pool__", None) is not pool:
         raise SourceBindingError("C_HELPER_BINDING_CHANGED")
-    _verify_c_call_seal(
-        helper,
-        state=state,
-        dispatch=dispatch,
-        math_function=math_function,
-        pool=pool,
-        backend=backend,
-        role=role,
-        capture_store=getattr(helper, "__cpu_s46e_c_capture_store__", None),
-    )
+    with factory_scope(
+        "binding_verify",
+        site="binding_verify.c_candidate.verify_bindings",
+    ):
+        _verify_c_call_seal(
+            helper,
+            state=state,
+            dispatch=dispatch,
+            math_function=math_function,
+            pool=pool,
+            backend=backend,
+            role=role,
+            capture_store=getattr(helper, "__cpu_s46e_c_capture_store__", None),
+        )
     active_propagator = getattr(dispatch, "cpu_s4_6e_c_active_propagator", None)
     active_globals = getattr(dispatch, "cpu_s4_6e_c_active_globals", None)
     if not callable(active_propagator) or not isinstance(active_globals, dict):

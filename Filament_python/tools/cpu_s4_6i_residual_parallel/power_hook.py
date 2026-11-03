@@ -15,6 +15,7 @@ import numpy as np
 
 from tools.cpu_s4_6h_combined_parallel.instrument import _code_identity, _seal, verify_seal
 from tools.hpc_ops import provenance_v2 as pv
+from tools.cpu_s4_6j_alpha_factory.factory_timing import scope as factory_scope
 from . import power_volume as implementation
 
 from .power_volume import (
@@ -51,12 +52,20 @@ def owned_source_identity() -> dict[str, Any]:
     for name in ('power_volume.py', 'power_hook.py', 'selected_factory.py'):
         path = Path(__file__).with_name(name)
         relative = path.relative_to(repo).as_posix()
-        payload = path.read_bytes()
+        with factory_scope(
+            "source_read_hash",
+            site="source_read_hash.power_hook.owned_source_identity.read_bytes",
+        ):
+            payload = path.read_bytes()
         record = dict(path=relative, size_bytes=len(payload), classification='local_worktree_text',
                       hash_scope='raw_bytes', raw_sha256=pv.raw_sha256(payload))
         try:
-            oid = pv._git_blob_oid(repo, relative)
-            blob = pv._read_git_blob(repo, oid)
+            with factory_scope(
+                "git_blob_read",
+                site="git_blob_read.power_hook.owned_source_identity.git_objects",
+            ):
+                oid = pv._git_blob_oid(repo, relative)
+                blob = pv._read_git_blob(repo, oid)
         except pv.ProvenanceError:
             if os.environ.get('SLURM_JOB_ID'):
                 raise PowerHookError('S46I_POWER_COMMITTED_SOURCE_REQUIRED')
@@ -80,10 +89,23 @@ def _find_function(tree: ast.AST, name: str) -> ast.FunctionDef:
 
 def _source_function(path: Path, name: str) -> tuple[ast.FunctionDef, str]:
     try:
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        with factory_scope(
+            "source_read_hash",
+            site="source_read_hash.power_hook.source_function.read_text",
+        ):
+            source = path.read_text(encoding="utf-8")
+        with factory_scope(
+            "ast_parse_lookup",
+            site="ast_parse_lookup.power_hook.source_function.parse_lookup",
+        ):
+            tree = ast.parse(source, filename=str(path))
     except (OSError, SyntaxError) as exc:
         raise PowerHookError(f"S46I_POWER_SOURCE_READ_FAILED:{name}") from exc
-    node = _find_function(tree, name)
+    with factory_scope(
+        "ast_parse_lookup",
+        site="ast_parse_lookup.power_hook.source_function.parse_lookup",
+    ):
+        node = _find_function(tree, name)
     return copy.deepcopy(node), _ast_hash(node)
 
 
@@ -91,13 +113,17 @@ def _clone_function(function: Callable[..., Any], namespace: dict[str, Any], *, 
     code = getattr(function, "__code__", None)
     if code is None:
         raise PowerHookError(f"S46I_POWER_SOURCE_CODE_MISSING:{name}")
-    clone = FunctionType(
-        code,
-        namespace,
-        name=name,
-        argdefs=getattr(function, "__defaults__", None),
-        closure=getattr(function, "__closure__", None),
-    )
+    with factory_scope(
+        "ast_transform_compile",
+        site="ast_transform_compile.power_hook.clone_function",
+    ):
+        clone = FunctionType(
+            code,
+            namespace,
+            name=name,
+            argdefs=getattr(function, "__defaults__", None),
+            closure=getattr(function, "__closure__", None),
+        )
     clone.__kwdefaults__ = getattr(function, "__kwdefaults__", None)
     clone.__annotations__ = getattr(function, "__annotations__", {})
     clone.__module__ = getattr(function, "__module__", None)
@@ -328,7 +354,11 @@ class PowerVolumeHook:
             }
             for name, function in self._source_clones.items()
         }
-        self._receipt = self._make_receipt()
+        with factory_scope(
+            "metadata",
+            site="metadata.power_hook.constructor.receipt",
+        ):
+            self._receipt = self._make_receipt()
         self._receipt_fingerprint = copy.deepcopy(self._receipt)
         self._active_globals: dict[str, Any] | None = None
 
@@ -436,10 +466,18 @@ class PowerVolumeHook:
         return dict(self._context_wrappers)
 
     def instrument(self, function_node: ast.FunctionDef) -> dict[str, Any]:
-        return instrument_power_ast(function_node)
+        with factory_scope(
+            "ast_transform_compile",
+            site="ast_transform_compile.power_hook.instrument",
+        ):
+            return instrument_power_ast(function_node)
 
     def strip_generated_nodes(self, node: ast.AST) -> ast.AST:
-        return strip_power_ast(node)
+        with factory_scope(
+            "ast_transform_compile",
+            site="ast_transform_compile.power_hook.strip",
+        ):
+            return strip_power_ast(node)
 
     def binding(self) -> dict[str, Any]:
         return copy.deepcopy(self._receipt)

@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 from typing import Any, Mapping
 
+from tools.cpu_s4_6j_alpha_factory.factory_timing import scope as factory_scope
 from .power_hook import POWER_HOOK_SCHEMA, PowerHookError, PowerVolumeHook, owned_source_identity
 from .power_volume import (
     POWER_VOLUME_SCHEMA,
@@ -188,11 +189,19 @@ def finalize_factory(dispatch: Any, *, reason: str = "NORMAL") -> dict[str, Any]
         getattr(dispatch, "cpu_s4_6i_power_pool", None),
         getattr(dispatch, '_cpu_s4_6i_constructed_power_pool', None),
         getattr(getattr(dispatch, 'cpu_s4_6i_power_hook', None), '_bound_pool', None)))
-    power_snapshot, power_records, power_errors = _power_result(dispatch)
+    with factory_scope(
+        "pool_lifecycle",
+        site="pool_lifecycle.selected_factory.finalize_factory",
+    ):
+        power_snapshot, power_records, power_errors = _power_result(dispatch)
     h_result: dict[str, Any] | None = None
     h_error: BaseException | None = None
     try:
-        h_result = combined.finalize_factory(dispatch, reason=reason)
+        with factory_scope(
+            "pool_lifecycle",
+            site="pool_lifecycle.selected_factory.finalize_factory",
+        ):
+            h_result = combined.finalize_factory(dispatch, reason=reason)
     except BaseException as exc:
         h_error = exc
         failure = getattr(dispatch, "_cpu_s4_6h_finalization_failure", None)
@@ -330,9 +339,17 @@ def selected_pool_snapshot(dispatch: Any) -> dict[str, Any]:
 
 def verify_bindings(dispatch: Any) -> dict[str, Any]:
     combined = _combined_module()
-    if getattr(dispatch, 'cpu_s4_6i_owned_sources', None) != owned_source_identity():
-        raise SelectedFactoryError('S46I_SELECTED_OWNED_SOURCE_CHANGED')
-    h_check = combined.verify_bindings(dispatch)
+    with factory_scope(
+        "source_read_hash",
+        site="source_read_hash.selected_factory.owned_source_identity",
+    ):
+        if getattr(dispatch, 'cpu_s4_6i_owned_sources', None) != owned_source_identity():
+            raise SelectedFactoryError('S46I_SELECTED_OWNED_SOURCE_CHANGED')
+    with factory_scope(
+        "binding_verify",
+        site="binding_verify.selected_factory.verify_bindings",
+    ):
+        h_check = combined.verify_bindings(dispatch)
     selected_role = _normalise_role(getattr(dispatch, "cpu_s4_6i_selected_role", None))
     if getattr(dispatch, "cpu_s4_6i_pool_role", None) != POOL_ROLE:
         raise SelectedFactoryError("S46I_POOL_ROLE_BINDING_CHANGED")
@@ -345,7 +362,11 @@ def verify_bindings(dispatch: Any) -> dict[str, Any]:
             raise SelectedFactoryError("S46I_POWER_BINDING_MISSING")
         if hook.pool is not pool or pool is not getattr(dispatch,'_cpu_s4_6i_constructed_power_pool',None):
             raise SelectedFactoryError('S46I_POWER_POOL_IDENTITY_CHANGED')
-        power_check = hook.verify_binding(getattr(dispatch, "cpu_s4_6e_c_active_globals", None))
+        with factory_scope(
+            "binding_verify",
+            site="binding_verify.selected_factory.verify_bindings",
+        ):
+            power_check = hook.verify_binding(getattr(dispatch, "cpu_s4_6e_c_active_globals", None))
     else:
         capturing = bool(getattr(dispatch,'cpu_s4_6i_power_capture_enabled',False))
         if pool is not None or (hook is not None) != capturing:
@@ -353,7 +374,11 @@ def verify_bindings(dispatch: Any) -> dict[str, Any]:
         if capturing:
             if not isinstance(hook,PowerVolumeHook) or hook.pool is not None:
                 raise SelectedFactoryError('S46I_REFERENCE_CAPTURE_HOOK')
-            power_check = hook.verify_binding(getattr(dispatch, 'cpu_s4_6e_c_active_globals', None))
+            with factory_scope(
+                "binding_verify",
+                site="binding_verify.selected_factory.verify_bindings",
+            ):
+                power_check = hook.verify_binding(getattr(dispatch, 'cpu_s4_6e_c_active_globals', None))
         else:
             power_check = None
     return {
@@ -397,20 +422,28 @@ def build_role(
     hook: PowerVolumeHook | None = None
     try:
         if use_power:
-            pool = make_power_volume_pool(1 if local_engineering else 24)
+            with factory_scope(
+                "pool_lifecycle",
+                site="pool_lifecycle.selected_factory.build_role.pool_construct",
+            ):
+                pool = make_power_volume_pool(1 if local_engineering else 24)
         if use_power or capture_store is not None:
             hook = PowerVolumeHook(pool, capture_store=capture_store)
         combined = _combined_module()
-        result = combined.build_role(
-            mode,
-            capture_root=Path(capture_root).resolve(),
-            role=combined.ROLE_CANDIDATE,
-            local_engineering=bool(local_engineering),
-            pool_override=pool_override,
-            recorder_pair=recorder_pair,
-            cost_enabled=hook is not None,
-            residual_cost_hook=hook,
-        )
+        with factory_scope(
+            "unattributed_factory",
+            site="unattributed_factory.combined_candidate.build_role",
+        ):
+            result = combined.build_role(
+                mode,
+                capture_root=Path(capture_root).resolve(),
+                role=combined.ROLE_CANDIDATE,
+                local_engineering=bool(local_engineering),
+                pool_override=pool_override,
+                recorder_pair=recorder_pair,
+                cost_enabled=hook is not None,
+                residual_cost_hook=hook,
+            )
     except BaseException:
         if hook is not None:
             try:
@@ -435,7 +468,11 @@ def build_role(
     dispatch._cpu_s4_6i_constructed_power_pool = pool
     dispatch.cpu_s4_6i_power_hook = hook
     dispatch.cpu_s4_6i_power_capture_enabled = capture_store is not None
-    dispatch.cpu_s4_6i_owned_sources = owned_source_identity()
+    with factory_scope(
+        "source_read_hash",
+        site="source_read_hash.selected_factory.owned_source_identity",
+    ):
+        dispatch.cpu_s4_6i_owned_sources = owned_source_identity()
     dispatch.cpu_s4_6i_formal_timing_enabled = False
     dispatch._cpu_s4_6i_activity_accumulator = _empty_activity()
     dispatch._cpu_s4_6i_activity_stats = {
@@ -462,14 +499,22 @@ def build_role(
     dispatch.close_combined_pools = lambda: finalize_factory(dispatch)
     try:
         selected_propagator = _selected_propagator(result[0], dispatch)
-        selected_binding = metadata(dispatch)
+        with factory_scope(
+            "metadata",
+            site="metadata.selected_factory.build_role.binding",
+        ):
+            selected_binding = metadata(dispatch)
         selected_binding["h_role"] = combined.ROLE_CANDIDATE
         selected_binding["power_hook_schema"] = None if hook is None else POWER_HOOK_SCHEMA
         selected_binding["power_volume_schema"] = None if pool is None else POWER_VOLUME_SCHEMA
         dispatch.cpu_s4_6i_selected_binding = copy.deepcopy(selected_binding)
         # Verify after the wrapper and private aliases are fully installed; H's
         # verifier remains authoritative for the three original pools/stage.
-        dispatch.cpu_s4_6i_selected_binding_check = verify_bindings(dispatch)
+        with factory_scope(
+            "binding_verify",
+            site="binding_verify.selected_factory.verify_bindings",
+        ):
+            dispatch.cpu_s4_6i_selected_binding_check = verify_bindings(dispatch)
         return (
             selected_propagator,
             dispatch,
