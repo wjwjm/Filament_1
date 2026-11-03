@@ -4,6 +4,13 @@ import pytest
 from tools.cpu_s4_6j_alpha_factory.cost_analysis import validate_cost_records, analyze_cost_six
 from tools.cpu_s4_6j_alpha_factory.scope_inventory import RUNTIME_COUNTS
 from tools.cpu_s4_6j_alpha_factory.cost_hook import ALPHA_SITE, ALPHA_LABEL
+from tools.cpu_s4_6j_alpha_factory.protocol import plan
+
+def test_cost_plan_does_not_inherit_old_three_percent_adoption_gate():
+    acceptance=plan()['acceptance']
+    assert acceptance['phase']=='COST_SIX' and 'paired_median_gain_min' not in acceptance
+    assert acceptance['paired_median_cost_over_off_max']==1.05
+    assert acceptance['each_cost_over_off_max']==1.10
 
 
 def _raw(n=8, mode='COST'):

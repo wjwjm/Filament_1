@@ -38,6 +38,13 @@ def plan(candidate=CANDIDATE):
             worker_cpu_time_used=False, automatic_factory_repair_selection=False),
         alpha_target='ION_ALPHA_CLEANUP_P24', alpha_body_gain_min=0.0,
         historical_gates_rewritten=False)
+    value['acceptance'] = dict(phase='COST_SIX', scientific_exact_required=True,
+        two_interval_stage_exact=True, every_window_terminal_exact=True,
+        metrics=['application','propagation','body_2_to_8'],
+        paired_median_cost_over_off_max=1.05, each_cost_over_off_max=1.10,
+        complete_scalar_counts_and_clock_closure=True,
+        ranking_requires_all_interference_gates=True,
+        optimization_adoption='NOT_DECIDED_BY_COST_SIX')
     for n in (2, 8):
         value['pointwise_groups'][str(n)]['POWER_VOLUME_CLEANUP_P24'] = 8*n
     return value
