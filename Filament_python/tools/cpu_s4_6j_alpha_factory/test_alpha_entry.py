@@ -8,6 +8,65 @@ import pytest
 from . import alpha_entry as entry
 from .alpha_protocol import CANDIDATE, MICRO_SHAPE, SHAPE, plan, matrix, pairings
 
+def _four_pool_case():
+    from . import alpha_capture_hpc as hpc
+    from tools.cpu_s4_6i_residual_parallel.selected_measurement import POWER_LABELS
+    from tools.cpu_s4_6i_residual_parallel.selected_protocol import CONTEXTS
+    n=8
+    components={}
+    activity=[]
+    for name,key in hpc.KEYS.items():
+        labels=hpc.parent.POINTWISE_LABELS[name]
+        count=n if name=="PHASE_ABSORB_P24" else 4*n
+        workers=48 if name=="EQ10_P48" else 24
+        components[key]=dict(closed=True,active_thread_ids=[],pending_scalar_records=0,
+            close_error=None,operation_counts={label:count for label in labels})
+        activity.extend(dict(label=label,requested_workers=workers,actual_workers=workers,
+            workers=[dict(items=384//workers)]*workers) for _ in range(count) for label in labels)
+    components["power_volume"]=dict(closed=True,active_thread_ids=[],pending_scalar_records=0,
+        close_error=None,operation_counts={label:4*n for label in POWER_LABELS})
+    activity.extend(dict(label=label,context=context,interval_index=i,
+        requested_workers=24,actual_workers=24,workers=[dict(items=16)]*24)
+        for i in range(n) for context in CONTEXTS for label in POWER_LABELS)
+    return dict(intervals=n,role="R",pool_role="X",cache_fallback=0,
+        comparisons=dict(terminal=dict(status="PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS")),
+        route=dict(nH=16,fresh_responses=32,math_dispatches=128,fallback=0),
+        cache=dict(stats=dict(factor_requests=6144,plane_builds=384,hits=5760)),
+        pointwise_pool=dict(pool=dict(components=components,alpha=None,
+            all_pools_retired_before_output=True),activity=activity))
+
+def test_alpha_controller_checks_whole_terminal_and_fourth_pool():
+    from . import alpha_capture_hpc as hpc
+    row=_four_pool_case()
+    hpc._exact(row,terminal=True,boundary=False,stages=False)
+    assert row["exact_gate_pass"]
+    row["comparisons"]["terminal"]["status"]="NONEXACT"
+    with pytest.raises(RuntimeError,match="TERMINAL_NONEXACT"):
+        hpc._exact(row,terminal=True,boundary=False,stages=False)
+    row=_four_pool_case()
+    label=next(iter(row["pointwise_pool"]["pool"]["components"]["power_volume"]["operation_counts"]))
+    row["pointwise_pool"]["pool"]["components"]["power_volume"]["operation_counts"][label]=0
+    with pytest.raises(RuntimeError,match="POOL_COUNTS"):
+        hpc._exact(row,terminal=True,boundary=False,stages=False)
+
+def test_alpha_controller_retains_scientific_child_failure(tmp_path, monkeypatch):
+    from . import alpha_capture_hpc as hpc
+    values={"FULL_INPUT_MANIFEST.json":dict(shape=list(SHAPE),fingerprints={}),
+        "INPUT_CONTRACT.json":dict(expected_input_fingerprints={}),
+        "REFERENCE_INPUT_RAW_RECORDS.json":dict(reference={})}
+    for name,value in values.items():
+        (tmp_path/name).write_text(json.dumps(value),encoding="utf-8")
+    monkeypatch.setattr(hpc,"_require_fresh_controller",lambda path:None)
+    monkeypatch.setattr(hpc,"node_gate",lambda *args:dict(job_id="synthetic"))
+    failed=dict(status="SCIENTIFIC_NONEXACT",entry_failure=dict(error="probe"))
+    monkeypatch.setattr(hpc,"launch",lambda *args,**kwargs:failed)
+    with pytest.raises(RuntimeError,match="SCIENTIFIC_NONEXACT"):
+        hpc.run(tmp_path)
+    receipt=json.loads((tmp_path/"JOB_FAILURE.json").read_text())
+    assert receipt["active_case"]=="R8_UNCAPTURED"
+    assert receipt["failed_case"]==failed
+    assert receipt["classification"]=="SCIENTIFIC_NONEXACT"
+
 def test_alpha_protocol_keeps_original_size_and_fixed_orders():
     rows = matrix()
     assert len(rows) == 14

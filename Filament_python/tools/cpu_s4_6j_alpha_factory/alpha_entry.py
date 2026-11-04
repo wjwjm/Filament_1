@@ -79,7 +79,9 @@ def run(args):
         binding = read(Path(args.report) / "EXECUTION.json")
         package = capture_holder["store"].finish(binding=capture_binding(binding))
         result.update(capture_package=str(capture_holder["root"]),
-            capture_states=package["captured_states"], capture_arrays=package["array_file_count"])
+            capture_states=package["captured_states"], capture_arrays=package["array_file_count"],
+            capture_manifest_raw_sha256=pv.raw_sha256_file(capture_holder["root"] / "CAPTURE.json"),
+            capture_source_binding=package["source_binding"])
     # Distinct receipt preserves the inherited window receipt and its clock.
     sg.write(args.work / "ALPHA_CASE_RECEIPT.json", result)
     return result

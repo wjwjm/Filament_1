@@ -139,7 +139,7 @@ def launch(report: Path, candidate: str, spec: dict, reference: dict | None, *, 
     if classification == "SCIENTIFIC_NONEXACT":
         return dict(schema="filament.cpu_s4_6j.alpha.case_failure.v1", case_id=case, candidate=str(candidate).upper(), role=role, intervals=intervals, status="SCIENTIFIC_NONEXACT", execution_domain="S46J_FULLSIZE", shape=list(SHAPE), entry_failure=failure_value, supervisor=receipt)
     if classification == "ENGINEERING_OR_RESOURCE_FAILURE":
-        _require(False, "S46J_ALPHA_STOP_CHILD_FAILURE", dict(supervisor=receipt, entry_failure=failure_value))
+        return dict(case_id=case, status=classification, supervisor=receipt, entry_failure=failure_value)
     if spec.get("mechanism"):
         value = entry.read(work / "MECHANISM_RESULT.json")
         value.update(supervisor=receipt,case_id=case)
@@ -175,6 +175,8 @@ def run(report,candidate=CANDIDATE):
     _require_fresh_controller(report)
     started=time.monotonic()
     cases={}
+    active_case=None
+    failed_case=None
     try:
         node=node_gate(report,candidate)
         deadline=started+RESOURCE['work_deadline_s']
@@ -183,22 +185,37 @@ def run(report,candidate=CANDIDATE):
         _require(manifest['shape']==list(SHAPE) and manifest['fingerprints']==expected,'S46J_ALPHA_FROZEN_FULL_INPUTS')
         historical=entry.read(report/'REFERENCE_INPUT_RAW_RECORDS.json')['reference']
         for name,capture in (('R8_UNCAPTURED',False),('R8_CAPTURED',True)):
+            active_case=name
             reference=cases['R8_UNCAPTURED'] if capture else historical
             spec=dict(case=name,role='R',intervals=8,kind='CAPTURE_QUALIFICATION',capture=capture)
             value=launch(report,candidate,spec,reference,deadline=deadline,node=node)
+            failed_case=value
             _require(value.get('status')!='SCIENTIFIC_NONEXACT','SCIENTIFIC_NONEXACT:'+name)
+            _require(value.get('status')!='ENGINEERING_OR_RESOURCE_FAILURE','S46J_ALPHA_STOP_CHILD_FAILURE:'+name)
             _exact(value,terminal=True,boundary=False,stages=False)
             _require(value['capture_enabled'] is capture and value['residual_cost_records']==0,'S46J_ALPHA_CAPTURE_ROLE_BINDING')
             cases[name]=value
             sg.write(report/'runs/S46J_ALPHA'/candidate/name/'ACCEPTED_CASE.json',value)
+            failed_case=None
+        captured=cases['R8_CAPTURED']
+        capture_manifest=Path(captured['capture_package'])/'CAPTURE.json'
+        _require(pv.raw_sha256_file(capture_manifest)==captured['capture_manifest_raw_sha256'],
+                 'S46J_ALPHA_CAPTURE_MANIFEST_CHANGED_BEFORE_MECHANISM')
+        active_case='MECHANISM'
         spec=dict(case='MECHANISM',role='R',intervals=8,kind='MECHANISM',mechanism=True,
                   capture_root=cases['R8_CAPTURED']['capture_package'])
         mechanism=launch(report,candidate,spec,None,deadline=deadline,node=node)
+        failed_case=mechanism
         _require(mechanism.get('status')!='SCIENTIFIC_NONEXACT','SCIENTIFIC_NONEXACT:MECHANISM')
+        _require(mechanism.get('status')!='ENGINEERING_OR_RESOURCE_FAILURE','S46J_ALPHA_STOP_CHILD_FAILURE:MECHANISM')
+        _require(mechanism['capture_manifest_raw_sha256']==captured['capture_manifest_raw_sha256']
+            and mechanism['source_binding']==captured['capture_source_binding'],
+            'S46J_ALPHA_CAPTURE_TO_MECHANISM_IDENTITY')
         _require(mechanism['inputs']==3 and mechanism['warmup_calls']==36 and mechanism['formal_calls']==90 and
                  mechanism['all_exact'] is True and len(mechanism['blocks'])==6,'S46J_ALPHA_MECHANISM_COMPLETENESS')
         allowed=all(row['p24_gain']>=0.05 for row in mechanism['blocks'])
         _require(mechanism['formal14_allowed'] is allowed,'S46J_ALPHA_MECHANISM_GATE_BINDING')
+        failed_case=None
         result=dict(schema='filament.cpu_s4_6j.alpha.capture_stage.v1',status=mechanism['status'],
             candidate=candidate,execution_commit=node['preflight']['execution_commit'],
             shape=list(SHAPE),science_exact=True,formal14_allowed=allowed,
@@ -214,7 +231,8 @@ def run(report,candidate=CANDIDATE):
     except BaseException as exc:
         if not (report/'JOB_FAILURE.json').exists():
             sg.write(report/'JOB_FAILURE.json',dict(classification=_classify_failure(exc),
-                error=repr(exc),traceback=traceback.format_exc(),completed_cases=list(cases),automatic_retry=False))
+                error=repr(exc),traceback=traceback.format_exc(),completed_cases=list(cases),
+                active_case=active_case, failed_case=failed_case, automatic_retry=False))
         raise
 
 def main():
