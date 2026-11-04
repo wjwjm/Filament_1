@@ -407,14 +407,16 @@ class AlphaCaptureStore:
                 state["clip_inplace"] = True
         self.pending = None
         if state is not None and label == "clip_alpha":
-            required = {
+            # Ordered immutable names keep the persisted code identity stable
+            # across processes with different Python hash seeds.
+            required = (
                 "source_input_file",
                 "intensity_input_file",
                 "cleaned_source_output_file",
                 "alpha_output_file",
                 "I_floor",
-            }
-            if not required.issubset(state):
+            )
+            if not all(name in state for name in required):
                 raise AlphaCaptureError("S46J_CAPTURE_STATE_INCOMPLETE")
             self.records.append(copy.deepcopy(state))
 

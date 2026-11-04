@@ -12,6 +12,10 @@ from typing import Any
 
 import numpy as np
 import pytest
+import json
+import os
+import subprocess
+import sys
 
 from tools.cpu_s4_6j_alpha_factory.alpha_capture import (
     AlphaCaptureError,
@@ -32,6 +36,19 @@ from tools.cpu_s4_6j_alpha_factory.alpha_hook import (
 
 
 SHAPE = (5, 2, 3)
+
+def test_capture_binding_is_stable_across_hash_seed_processes():
+    script = (
+        "import json; from tools.cpu_s4_6j_alpha_factory.alpha_capture import capture_source_binding; "
+        "print(json.dumps(capture_source_binding(),sort_keys=True))"
+    )
+    values=[]
+    for seed in ("0","1"):
+        env=dict(os.environ,PYTHONHASHSEED=seed)
+        proc=subprocess.run([sys.executable,"-s","-B","-c",script],env=env,
+            cwd=Path(__file__).resolve().parents[2],capture_output=True,text=True,check=True)
+        values.append(json.loads(proc.stdout))
+    assert values[0]==values[1]
 
 
 def _source(seed: int) -> np.ndarray:
