@@ -58,6 +58,7 @@ $targetedTests = @(
     (Join-Path $filamentPythonRoot 'tools\cpu_s4_6h_combined_parallel'),
     (Join-Path $filamentPythonRoot 'tools\cpu_s4_6i_residual_parallel'),
     (Join-Path $filamentPythonRoot 'tools\cpu_s4_6j_alpha_factory'),
+    (Join-Path $filamentPythonRoot 'tools\cpu_s4_6k_five_chain_cost'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5s_s4r.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5p_launcher.py'),
     (Join-Path $filamentPythonRoot 'tests\test_hr4e5_e5_1a.py'),

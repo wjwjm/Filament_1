@@ -610,6 +610,7 @@ def build_role(
     pool_override: int | None = None,
     recorder_pair: Any | None = None,
     capture_store: Any | None = None,
+    residual_cost_hook: Any | None = None,
     shape: tuple[int, int, int] | None = None,
     semantic: str = CANDIDATE,
 ) -> tuple[Any, Any, Any, dict[str, Any], Any, Any]:
@@ -652,6 +653,7 @@ def build_role(
             pool,
             alpha_pool=alpha_holder["pool"],
             capture_store=capture_store_external,
+            residual_cost_hook=residual_cost_hook,
         )
         tracked_hooks.append(hook)
         return hook

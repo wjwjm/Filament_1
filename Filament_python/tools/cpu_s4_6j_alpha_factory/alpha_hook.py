@@ -352,6 +352,7 @@ class AlphaParallelHook(PowerVolumeHook):
         *,
         alpha_pool: AlphaPool | None = None,
         capture_store: Any | None = None,
+        residual_cost_hook: Any | None = None,
     ) -> None:
         if type(pool) is not PowerVolumePool:
             raise AlphaHookError("S46J_ALPHA_POWER_POOL_EXACT_TYPE_REQUIRED")
@@ -361,11 +362,22 @@ class AlphaParallelHook(PowerVolumeHook):
             callable(getattr(capture_store, name, None)) for name in ("before_call", "after_call")
         ):
             raise AlphaHookError("S46J_ALPHA_CAPTURE_STORE_REQUIRED")
+        if residual_cost_hook is not None:
+            for name in ("bind_owner", "instrument", "strip_generated_nodes", "runtime_helpers", "verify_binding", "binding"):
+                if not callable(getattr(residual_cost_hook, name, None)):
+                    raise AlphaHookError("S46J_ALPHA_RESIDUAL_COST_SEAM_MISSING:" + name)
 
         # The existing power hook remains the owner of the power component.
         # Alpha capture is intentionally private because the parent hook forbids
         # a capture store alongside a live power pool.
         super().__init__(pool, capture_store=None)
+        self._alpha_residual_cost_hook = residual_cost_hook
+        self._bound_alpha_residual_cost_hook = residual_cost_hook
+        if residual_cost_hook is not None:
+            try:
+                residual_cost_hook.bind_owner(self)
+            except BaseException as exc:
+                raise AlphaHookError("S46J_ALPHA_RESIDUAL_COST_OWNER_BINDING_FAILED") from exc
         self._alpha_pool = alpha_pool
         self._bound_alpha_pool = alpha_pool
         self._alpha_capture_store = capture_store
@@ -484,6 +496,10 @@ class AlphaParallelHook(PowerVolumeHook):
             "mathematical_changes": 0,
             "array_values_retained": False,
             "inverse_ast_layer": "ALPHA_THEN_POWER_ALIASES",
+            "residual_cost_enabled": bool(
+                self._alpha_residual_cost_hook is not None
+                and getattr(self._alpha_residual_cost_hook, "enabled", False)
+            ),
         }
 
     @staticmethod
@@ -766,25 +782,46 @@ class AlphaParallelHook(PowerVolumeHook):
     def instrument(self, function_node: ast.FunctionDef) -> dict[str, Any]:
         result = super().instrument(function_node)
         result = dict(result, alpha=instrument_alpha_ast(function_node))
+        if self._alpha_residual_cost_hook is not None:
+            result = dict(
+                result,
+                residual_cost=self._alpha_residual_cost_hook.instrument(function_node),
+            )
         return result
 
     def strip_generated_nodes(self, node: ast.AST) -> ast.AST:
         # The alpha layer is removed first, leaving the joint power AST for
         # PowerVolumeHook's existing inverse proof.
+        if self._alpha_residual_cost_hook is not None:
+            node = self._alpha_residual_cost_hook.strip_generated_nodes(node)
         return super().strip_generated_nodes(strip_alpha_ast(node))
 
     def runtime_helpers(self) -> dict[str, Callable[..., Any]]:
-        return dict(super().runtime_helpers(), **self._alpha_runtime_helpers)
+        result = dict(super().runtime_helpers(), **self._alpha_runtime_helpers)
+        if self._alpha_residual_cost_hook is not None:
+            residual = dict(self._alpha_residual_cost_hook.runtime_helpers())
+            overlap = set(result).intersection(residual)
+            if overlap:
+                raise AlphaHookError("S46J_ALPHA_RESIDUAL_COST_HELPER_COLLISION:" + ",".join(sorted(overlap)))
+            result.update(residual)
+        return result
 
     def binding(self) -> dict[str, Any]:
         result = super().binding()
         result["alpha"] = copy.deepcopy(self._alpha_receipt)
+        result["residual_cost"] = (
+            None
+            if self._alpha_residual_cost_hook is None
+            else copy.deepcopy(self._alpha_residual_cost_hook.binding())
+        )
         return result
 
     def bind_active(self, active_globals: Mapping[str, Any]) -> None:
         if not isinstance(active_globals, dict):
             raise AlphaHookError("S46J_ALPHA_ACTIVE_GLOBALS_REQUIRED")
         super().bind_active(active_globals)
+        if self._alpha_residual_cost_hook is not None:
+            self._alpha_residual_cost_hook.bind_active(active_globals)
         self._alpha_active_globals = active_globals
 
     def verify_binding(self, active_globals: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -829,6 +866,14 @@ class AlphaParallelHook(PowerVolumeHook):
             verify_seal(self._alpha_helper_seals[name])
             if helper.__closure__ and any(_contains_array(cell.cell_contents) for cell in helper.__closure__):
                 raise AlphaHookError("S46J_ALPHA_HELPER_CLOSURE_ARRAY:" + name)
+        if self._alpha_residual_cost_hook is not self._bound_alpha_residual_cost_hook:
+            raise AlphaHookError("S46J_ALPHA_RESIDUAL_COST_HOOK_CHANGED")
+        residual_check = None
+        if self._alpha_residual_cost_hook is not None:
+            try:
+                residual_check = self._alpha_residual_cost_hook.verify_binding(active_globals)
+            except BaseException as exc:
+                raise AlphaHookError("S46J_ALPHA_RESIDUAL_COST_BINDING_CHANGED") from exc
         if self._alpha_pool is not self._bound_alpha_pool:
             raise AlphaHookError("S46J_ALPHA_POOL_BINDING_CHANGED")
         if self._alpha_pool is not None:
@@ -867,6 +912,7 @@ class AlphaParallelHook(PowerVolumeHook):
             "mathematical_changes": 0,
             "array_values_retained": False,
         }
+        result["residual_cost"] = copy.deepcopy(residual_check)
         return result
 
     def take_alpha_records(self) -> list[dict[str, Any]]:
