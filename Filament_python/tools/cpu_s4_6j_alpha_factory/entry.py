@@ -19,7 +19,8 @@ from tools.cpu_s4_6f_fullsize_parallel.entry import (
     input_domain, _timer_receipts,
 )
 from .measurement import run_window
-from .role_spec import build_role, verify_role
+from .role_spec import build_role, close_role, verify_role
+from .cost_analysis import validate_cost_records
 from .protocol import BASE, CANDIDATE, MICRO_SHAPE, SCIENCE_TREE, SHAPE, TASK, candidate_spec, exception_classification, plan
 
 SCHEMA = "filament.cpu_s4_6j.entry.v1"
@@ -115,7 +116,6 @@ def run(args):
     except BaseException as error:
         if built is not None:
             try:
-                from .role_spec import close_role
                 close_role(built[1], candidate)
             except BaseException as cleanup:
                 error.add_note("S46J_CLOSE_FAILURE:" + type(cleanup).__name__)
@@ -181,7 +181,6 @@ def run(args):
     gaps = [b - a for a, b in zip(post_values, post_values[1:])]
     pointwise_per_label = int(args.intervals) if spec["pointwise_operation"] == "PHASE_ABSORB" else 4 * int(args.intervals)
     result.update(schema=SCHEMA + ".case.v1", status="PASS_S46J_WINDOW_EXACT" if args.reference_output else "CURRENT_S46J_REFERENCE_GENERATED", execution_commit=binding["execution_commit"], execution_domain="S46J_LOCAL_MICRO" if args.local_engineering else "S46J_FULLSIZE", semantic_candidate=candidate, fullsize_new_candidate=candidate, role=role, old_role=spec["old_role"], application_service_s=result["optical_application_window_s"], initialization_within_application_s=source_factory_preparation_s, initialization_within_application_scope="SOURCE_FACTORY_ONLY_LEGACY_LABEL", source_factory_preparation_s=source_factory_preparation_s, canonical_setup_s=canonical_setup_s, initialization_total_before_propagation_s=initialization_total_before_propagation_s, research_service_s=time.perf_counter() - application_started, later_body_s=sum(body_s[1:]), first_body_s=body_s[0], all_body_s=sum(body_s), first_POST_latency_s=posts[0]["time_s"] - application_started, first_POST_diagnosis=dict(clock_domain="application_started_to_POST_COMMITTED", first_POST_includes_initialization=True, initialization_total_before_propagation_s=initialization_total_before_propagation_s, partial_initialization_not_used_as_first_POST=False), post_gap_median_s=statistics.median(gaps), body_s=body_s, clock_domain_pass=True, pointwise_calls=38 * int(args.intervals), original_math_calls=8 * n_half, pointwise_pool=finalized, cache=cache, cache_fallback=0, L1_executed=True, profile_enabled=False, bk_nee_profile_enabled=True, boundary_path=str(work / "formal/BOUNDARY_RECEIPT.json") if args.intervals == 2 else None, default="I0", production_qualified=False, review_gate="MANUAL_REVIEW_PENDING")
-    from .cost_analysis import validate_cost_records
     cost_receipt = validate_cost_records(raw_b_after, cost_mode=cost_mode, intervals=int(args.intervals))
     sg.write(work / "RESIDUAL_COST_RECORDS.json", cost_receipt)
     result.update(pool_role="X", cost_mode=cost_mode, residual_cost_records=cost_receipt["cost_record_count"], factory_cost_records=cost_receipt["factory_record_count"],
