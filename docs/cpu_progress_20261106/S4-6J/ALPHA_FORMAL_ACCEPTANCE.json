@@ -1,0 +1,246 @@
+{
+  "schema": "filament.cpu_s4_6j.alpha_formal_acceptance.v1",
+  "status": "FULLSIZE_ALPHA_PERFORMANCE_GATES_PASS_MANUAL_REVIEW_PENDING",
+  "classification": "PASS_MANUAL_REVIEW_PENDING",
+  "accepted_UTC": "2026-11-04T06:14:59.783972+00:00",
+  "job_id": "8864359",
+  "execution_commit": "b907561223167b9996559bc0ee4996c53a626441",
+  "candidate": "ION_ALPHA_CLEANUP_P24",
+  "shape": [
+    384,
+    351,
+    301
+  ],
+  "science_exact": true,
+  "metrics": {
+    "body_median_gain": 0.04048273854296397,
+    "body_median_saved_s": 8.527216354499998,
+    "propagation_median_saved_s": 8.806066374000011,
+    "application_median_saved_s": 10.336952961515635,
+    "application_ratio_median": 0.9734524449553973,
+    "balanced_application_gain": 0.028718068816658504,
+    "application_sum_saved_s": 44.75370000861585,
+    "application_net_positive_both_blocks": true,
+    "all_performance_gates_pass": true
+  },
+  "gates": {
+    "science_exact": true,
+    "body_paired_median_strictly_positive": true,
+    "both_blocks_positive": true,
+    "both_orders_positive": true,
+    "body_exceeds_observed_RR": true,
+    "POST_both_blocks_positive": true,
+    "application_guard": true,
+    "application_saved_median_strictly_positive": true,
+    "application_block_net_saved_positive": true,
+    "first_POST_domains": true
+  },
+  "resource": {
+    "job_id": "8864359",
+    "queue_s": 1.0,
+    "elapsed_s": 6900,
+    "allocated_CPUs": 96,
+    "allocated_core_hours": 184.0,
+    "node": "ca0705",
+    "requested_memory": "128G",
+    "partition": "v6_384",
+    "qos": "normal",
+    "physical_cores": 96,
+    "all_recorded_steps_completed": true,
+    "actual_memory_guard_bytes": 109951162777,
+    "work_deadline_s": 7080,
+    "work_deadline_evidence": "Every native supervisor finished without its frozen deadline stop; allocation elapsed is reported separately.",
+    "MaxRSS_by_step": {
+      "8864359": "",
+      "8864359.batch": "3640K",
+      "8864359.extern": "0",
+      "8864359.0": "26218360K"
+    },
+    "phase": "ALPHA_FORMAL14",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "reserved_core_hours": 192,
+    "execution_sha": "b907561223167b9996559bc0ee4996c53a626441",
+    "scheduler_evidence": "D:\\Filament_1\\.worktrees\\cpu_alpha_factory_20261103\\reports\\CPU_S4_6J_ALPHA_FACTORY_20261103\\remote_ALPHA_FORMAL_8864359\\SCHEDULER_TERMINAL.json",
+    "peak_kernel_cgroup_bytes": 31156117504
+  },
+  "all_fourteen_windows_retained": true,
+  "exact_index": [
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/QUAL_R2/work/formal/BOUNDARY_EXACT.jsonl",
+      "numeric_rows": 112,
+      "array_layouts": 105,
+      "alias_relations": 5565,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 108,
+        "TIMING_EXCLUDED": 4
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/QUAL_R2/work/formal/STAGES_EXACT.jsonl",
+      "numeric_rows": 32,
+      "array_layouts": 20,
+      "alias_relations": 210,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 32
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/QUAL_X2/work/formal/TERMINAL_EXACT.jsonl",
+      "numeric_rows": 436,
+      "array_layouts": 214,
+      "alias_relations": 23005,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 432,
+        "TIMING_EXCLUDED": 4
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/QUAL_X2/work/formal/BOUNDARY_EXACT.jsonl",
+      "numeric_rows": 112,
+      "array_layouts": 105,
+      "alias_relations": 5565,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 108,
+        "TIMING_EXCLUDED": 4
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/QUAL_X2/work/formal/STAGES_EXACT.jsonl",
+      "numeric_rows": 32,
+      "array_layouts": 20,
+      "alias_relations": 210,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 32
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/CTRL_EARLY_R1/work/formal/TERMINAL_EXACT.jsonl",
+      "numeric_rows": 1030,
+      "array_layouts": 232,
+      "alias_relations": 27028,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "TIMING_EXCLUDED": 4
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/CTRL_EARLY_R2/work/formal/TERMINAL_EXACT.jsonl",
+      "numeric_rows": 1030,
+      "array_layouts": 232,
+      "alias_relations": 27028,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "TIMING_EXCLUDED": 4
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/K1_R1/work/formal/TERMINAL_EXACT.jsonl",
+      "numeric_rows": 1030,
+      "array_layouts": 232,
+      "alias_relations": 27028,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "TIMING_EXCLUDED": 4
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/K1_X1/work/formal/TERMINAL_EXACT.jsonl",
+      "numeric_rows": 1030,
+      "array_layouts": 232,
+      "alias_relations": 27028,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "TIMING_EXCLUDED": 4
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/K1_X2/work/formal/TERMINAL_EXACT.jsonl",
+      "numeric_rows": 1030,
+      "array_layouts": 232,
+      "alias_relations": 27028,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "TIMING_EXCLUDED": 4
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/K1_R2/work/formal/TERMINAL_EXACT.jsonl",
+      "numeric_rows": 1030,
+      "array_layouts": 232,
+      "alias_relations": 27028,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "TIMING_EXCLUDED": 4
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/K2_X1/work/formal/TERMINAL_EXACT.jsonl",
+      "numeric_rows": 1030,
+      "array_layouts": 232,
+      "alias_relations": 27028,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "TIMING_EXCLUDED": 4
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/K2_R1/work/formal/TERMINAL_EXACT.jsonl",
+      "numeric_rows": 1030,
+      "array_layouts": 232,
+      "alias_relations": 27028,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "TIMING_EXCLUDED": 4
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/K2_R2/work/formal/TERMINAL_EXACT.jsonl",
+      "numeric_rows": 1030,
+      "array_layouts": 232,
+      "alias_relations": 27028,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "TIMING_EXCLUDED": 4
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/K2_X2/work/formal/TERMINAL_EXACT.jsonl",
+      "numeric_rows": 1030,
+      "array_layouts": 232,
+      "alias_relations": 27028,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "TIMING_EXCLUDED": 4
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/CTRL_LATE_R1/work/formal/TERMINAL_EXACT.jsonl",
+      "numeric_rows": 1030,
+      "array_layouts": 232,
+      "alias_relations": 27028,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "TIMING_EXCLUDED": 4
+      }
+    },
+    {
+      "path": "raw/runs/S46J_ALPHA_FORMAL/ION_ALPHA_CLEANUP_P24/CTRL_LATE_R2/work/formal/TERMINAL_EXACT.jsonl",
+      "numeric_rows": 1030,
+      "array_layouts": 232,
+      "alias_relations": 27028,
+      "classifications": {
+        "CURRENT_LINUX_LOCAL_EXACT": 1026,
+        "TIMING_EXCLUDED": 4
+      }
+    }
+  ],
+  "arrays_recompared_offline": false,
+  "replay_raw_sha256": "97512e32a1c084feedb36f0c79e39b66c24744bd8869c48db5b05a39e1330e2c",
+  "original_arrays_retained_remote": true,
+  "first_POST_review": "PENDING_BLOCKS_MANUAL_ACCEPTANCE",
+  "default": "I0",
+  "production_qualified": false,
+  "review_gate": "MANUAL_REVIEW_PENDING",
+  "automatic_adoption": false
+}

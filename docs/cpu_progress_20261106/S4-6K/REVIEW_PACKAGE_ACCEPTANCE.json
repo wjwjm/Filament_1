@@ -1,0 +1,25 @@
+{
+  "status": "PASS_BUILT_EXTRACTED_OFFLINE_REPLAY",
+  "archive": "D:\\Filament_1\\.worktrees\\cpu_five_chain_cost_20261104\\reports\\CPU_S4_6K_FIVE_CHAIN_COST_20261104\\CPU_S4_6K_REVIEW_20261104_001.zip",
+  "archive_bytes": 19580261,
+  "archive_raw_sha256": "c1c9a3b50c49b5b5fc09ae773ac3e1c32aa8d63412aad368861489ab5692ebb8",
+  "members": 3130,
+  "offline_review": {
+    "status": "PASS_EXTRACTED_OFFLINE_REVIEW",
+    "measurement_status": "PASS_MEASUREMENT_RANKING_STOP",
+    "ranking_confirmed": true,
+    "science_arrays_loaded": false,
+    "network_used": false,
+    "new_jobs": 0,
+    "review_manifest_raw_sha256": "11b436d74d5d9e6863436a52842e8ed71d2aa4450be62ae5359b482a6ea5522e"
+  },
+  "science_arrays_copied": false,
+  "job_id": "8865609",
+  "execution_commit": "414d8caa2fdf3f79e54b92a84fcb2a8ede998717",
+  "new_jobs": 1,
+  "inflight_jobs": 0,
+  "next_action": "WAIT_USER_INSTRUCTION",
+  "default": "I0",
+  "production_qualified": false,
+  "closed_UTC": "2026-11-04T16:39:07.6511663+00:00"
+}

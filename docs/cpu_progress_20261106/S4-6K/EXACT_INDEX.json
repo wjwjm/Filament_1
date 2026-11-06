@@ -1,0 +1,112 @@
+{
+  "status": "PASS_ALL_SIX_FROZEN_CHECKS",
+  "windows": [
+    {
+      "case": "OFF2",
+      "receipt": "raw\\runs\\S46K\\FIVE_CHAIN_RESIDUAL_COST\\OFF2\\ACCEPTED_CASE.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "a9a5dfd08e7e9656eb3c18c477f9ee961ea2c88eed6ef8601596368e2c76a061",
+      "comparisons": {
+        "boundary": "PASS_CURRENT_BOUNDARY_SNAPSHOT_NATIVE_EXACT",
+        "stages": "PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS"
+      },
+      "terminal_basis": "CURRENT_R2_BOUNDARY_STAGE_NO_HISTORICAL_R2_TERMINAL",
+      "counts": [
+        4,
+        8,
+        32
+      ],
+      "five_chain_groups": 86,
+      "alpha_rounds": 10
+    },
+    {
+      "case": "COST2",
+      "receipt": "raw\\runs\\S46K\\FIVE_CHAIN_RESIDUAL_COST\\COST2\\ACCEPTED_CASE.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "eca7618fd5480b8f124f1fa0dacebcacb0ee86ab2afa2203a6121a178497f767",
+      "comparisons": {
+        "terminal": "PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS",
+        "boundary": "PASS_CURRENT_BOUNDARY_SNAPSHOT_NATIVE_EXACT",
+        "stages": "PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS"
+      },
+      "terminal_basis": "CURRENT_REFERENCE",
+      "counts": [
+        4,
+        8,
+        32
+      ],
+      "five_chain_groups": 86,
+      "alpha_rounds": 10
+    },
+    {
+      "case": "OFF8_A",
+      "receipt": "raw\\runs\\S46K\\FIVE_CHAIN_RESIDUAL_COST\\OFF8_A\\ACCEPTED_CASE.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "77c523257bf125689b7e118e1d0252c19996eba6c4b99dfa9b9e91ce6d438517",
+      "comparisons": {
+        "terminal": "PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS"
+      },
+      "terminal_basis": "CURRENT_REFERENCE",
+      "counts": [
+        16,
+        32,
+        128
+      ],
+      "five_chain_groups": 344,
+      "alpha_rounds": 40
+    },
+    {
+      "case": "COST8_A",
+      "receipt": "raw\\runs\\S46K\\FIVE_CHAIN_RESIDUAL_COST\\COST8_A\\ACCEPTED_CASE.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "3690214ccdb5350aad235487d1003d6f08963c1d9dd92f537a771202a0ae5aa8",
+      "comparisons": {
+        "terminal": "PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS"
+      },
+      "terminal_basis": "CURRENT_REFERENCE",
+      "counts": [
+        16,
+        32,
+        128
+      ],
+      "five_chain_groups": 344,
+      "alpha_rounds": 40
+    },
+    {
+      "case": "COST8_B",
+      "receipt": "raw\\runs\\S46K\\FIVE_CHAIN_RESIDUAL_COST\\COST8_B\\ACCEPTED_CASE.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "90e8b20ff6812b05ea8346c942c4c341bdc05afb2e1bb5053f6d20e5780e4f41",
+      "comparisons": {
+        "terminal": "PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS"
+      },
+      "terminal_basis": "CURRENT_REFERENCE",
+      "counts": [
+        16,
+        32,
+        128
+      ],
+      "five_chain_groups": 344,
+      "alpha_rounds": 40
+    },
+    {
+      "case": "OFF8_B",
+      "receipt": "raw\\runs\\S46K\\FIVE_CHAIN_RESIDUAL_COST\\OFF8_B\\ACCEPTED_CASE.json",
+      "hash_scope": "raw_bytes",
+      "raw_sha256": "1b1a9b14947e4c81d6e5b8263ea9d4e4d72951af496538682271f7ff33536e24",
+      "comparisons": {
+        "terminal": "PASS_FULL_ELEMENT_NATIVE_LAYOUT_ALIAS"
+      },
+      "terminal_basis": "CURRENT_REFERENCE",
+      "counts": [
+        16,
+        32,
+        128
+      ],
+      "five_chain_groups": 344,
+      "alpha_rounds": 40
+    }
+  ],
+  "historical_two_interval_terminal_claimed": false,
+  "science_arrays_remain_remote": true
+}

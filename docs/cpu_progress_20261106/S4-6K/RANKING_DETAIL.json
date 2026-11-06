@@ -1,0 +1,56 @@
+{
+  "status": "CONFIRMED_FIVE_CHAIN_BASELINE_RANKING",
+  "same_order_in_both_cost_windows": true,
+  "order": [
+    "alpha_phase_assembly",
+    "heat_q_pointwise",
+    "prep_intensity",
+    "photo_source_cleanup",
+    "ib_alpha",
+    "alpha_ion_raw",
+    "direct_ib_power",
+    "q_ib_multiplication"
+  ],
+  "phase_children": [
+    {
+      "name": "rawplasma",
+      "label": "等离子体相位计算",
+      "median_later_s": 2.349085956,
+      "observations_s": [
+        2.382455391,
+        2.315716521
+      ]
+    },
+    {
+      "name": "alpha_total",
+      "label": "吸收系数相加",
+      "median_later_s": 1.7162624714999999,
+      "observations_s": [
+        1.708155141,
+        1.724369802
+      ]
+    },
+    {
+      "name": "kerr",
+      "label": "Kerr相位计算",
+      "median_later_s": 1.526791183,
+      "observations_s": [
+        1.578442499,
+        1.475139867
+      ]
+    },
+    {
+      "name": "phase",
+      "label": "最终相位相加",
+      "median_later_s": 0.895403213,
+      "observations_s": [
+        0.898212899,
+        0.892593527
+      ]
+    }
+  ],
+  "phase_child_sum_s": 6.4875428235,
+  "phase_inclusive_parent_later_s": 6.511323046499999,
+  "inactive_branch": "photo_source_fallback",
+  "candidate_implemented": false
+}

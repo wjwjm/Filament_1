@@ -1,0 +1,27 @@
+{
+  "schema": "filament.cpu.s4_6j.review_package_acceptance.v1",
+  "status": "PASS_EXTRACTED_OFFLINE_REVIEW_COMPLETE_STOPPED",
+  "accepted_UTC": "2026-11-04T06:21:32.875478+00:00",
+  "archive": "D:\\Filament_1\\.worktrees\\cpu_alpha_factory_20261103\\reports\\CPU_S4_6J_ALPHA_FACTORY_20261103\\CPU_S4_6J_REVIEW_20261104_001.zip",
+  "archive_bytes": 87109442,
+  "archive_raw_sha256": "dab99ef25591476ae03dc9d4a05ae5ba4eaa9c6ef937d02f88cccaec0008c890",
+  "hash_scope": "raw_bytes",
+  "archive_members": 10700,
+  "final_code_commit": "b907561223167b9996559bc0ee4996c53a626441",
+  "clean_checkout": true,
+  "science_tree_unchanged": true,
+  "science_arrays_copied": false,
+  "extracted_replay": "D:\\Filament_1\\.worktrees\\cpu_alpha_factory_20261103\\reports\\CPU_S4_6J_ALPHA_FACTORY_20261103\\review_replay_001\\REVIEW_ACCEPTANCE.json",
+  "replay_raw_sha256": "cc14309d214f1114ab613c0453c7a7ae33733138de6a7c37d9df9eb6cdf42c80",
+  "stage_replays": {
+    "cost": "PASS_OFFLINE_SCALAR_RECOMPUTATION",
+    "capture": "PASS_OFFLINE_ALPHA_CAPTURE_REPLAY",
+    "formal": "PASS_OFFLINE_ALPHA_FORMAL_REPLAY"
+  },
+  "heartbeat": "DELETED",
+  "new_jobs_after_formal": 0,
+  "frozen_package_state_cutoff": "Before archive extraction/replay; this outer receipt records final delivery acceptance.",
+  "first_POST_manual_acceptance": "BLOCK_RETAINED",
+  "production_qualified": false,
+  "default": "I0"
+}

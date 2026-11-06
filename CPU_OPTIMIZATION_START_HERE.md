@@ -1,5 +1,31 @@
 # CPU 优化统一开发入口
 
+## 当前进度（2026-11-06）
+
+当前研究接续分支为 `codex/cpu-five-chain-cost-20261104`，本地工作树为
+`D:/Filament_1/.worktrees/cpu_five_chain_cost_20261104`。
+该分支包含下述旧 `codex/cpu-optimization` 的全部已提交历史。
+本次 GitHub 同步保存已完成研究与轻量结果，不启动新计算。
+
+- 研究参考已包含 L1、INTENSITY_P24、EQ10_P48、PHASE_ABSORB_P24、
+  POWER_VOLUME_CLEANUP_P24、ION_ALPHA_CLEANUP_P24。
+- S4-6J：alpha 原尺寸14窗全部exact，body配对中位改善4.0483%，
+  应用配对净省中位10.336953秒。工厂COST6干扰门失败，因此未实施工厂修复；
+  首POST两对延迟保留原人工审阅记录。用户随后选择alpha加入研究参考。
+- S4-6K：Job8865609完成原尺寸六窗，exact、计时干扰和离线复算通过。
+  只完成成本测量与排序，没有实现第六条并行链。
+- 原尺寸为 `[384,351,301]`、complex128。最新两个OFF窗口的后七区间
+  body平均为29.1237秒/屏；这是该八区间测量的持续阶段，不能外推为完整长距离运行。
+- 当前已停止，等待用户下一步实施指令；CPU架构改造仅完成讨论和只读源码核查。
+
+先读 [当前进度与证据入口](docs/cpu_progress_20261106/PROGRESS.md)。
+S4-6K冻结执行SHA为 `414d8caa2fdf3f79e54b92a84fcb2a8ede998717`；
+文档同步提交不能替代冻结执行身份。
+科学子树仍为 `821fec5bdacd832b0347e1f2e84285cb54172e57`。
+`DEFAULT=I0`、`PRODUCTION_QUALIFIED=false`，通用生产默认没有切换。
+
+## 以下为2026-10-19历史入口（保留接续线索）
+
 新对话请选择分支 `codex/cpu-optimization`。
 推荐直接打开本地工作树 `D:/Filament_1/.worktrees/cpu_optimization`。
 

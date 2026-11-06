@@ -1,0 +1,56 @@
+{
+  "status": "PASS_MEASUREMENT_RANKING_STOP",
+  "native_result_raw_sha256": "5b19feb6dff9b4fb1d310830d592ea1bfe3dcfe785a73039cbfbbfc9b776eddc",
+  "frozen_execution_sha": "414d8caa2fdf3f79e54b92a84fcb2a8ede998717",
+  "offline_replay_identical": true,
+  "science_exact": true,
+  "ranking_confirmed": true,
+  "resources": {
+    "job_id": "8865609",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed_s": 3410,
+    "allocated_cpus": 96,
+    "allocated_core_hours": 90.93333333333334,
+    "queue_s": 22.0,
+    "scheduler_submit": "2026-11-04T23:33:04",
+    "scheduler_start": "2026-11-04T23:33:26",
+    "scheduler_end": "2026-11-05T00:30:16",
+    "scheduler_timezone": "AS_RECORDED_BY_SLURM",
+    "node": "cc1103",
+    "requested_memory": "128G",
+    "all_steps": [
+      {
+        "job_id": "8865609",
+        "state": "COMPLETED",
+        "exit_code": "0:0",
+        "max_rss": ""
+      },
+      {
+        "job_id": "8865609.batch",
+        "state": "COMPLETED",
+        "exit_code": "0:0",
+        "max_rss": "3640K"
+      },
+      {
+        "job_id": "8865609.extern",
+        "state": "COMPLETED",
+        "exit_code": "0:0",
+        "max_rss": "0"
+      },
+      {
+        "job_id": "8865609.0",
+        "state": "COMPLETED",
+        "exit_code": "0:0",
+        "max_rss": "24217820K"
+      }
+    ],
+    "reserved_allocated_core_hours": 96,
+    "new_jobs": 1,
+    "more_jobs_authorized_this_task": false
+  },
+  "new_candidate_implemented": false,
+  "next_action": "WAIT_USER_INSTRUCTION",
+  "default": "I0",
+  "production_qualified": false
+}
